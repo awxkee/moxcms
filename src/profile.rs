@@ -32,7 +32,6 @@ use crate::cicp::{ChromacityTriple, ColorPrimaries, MatrixCoefficients, Transfer
 use crate::err::CmsError;
 use crate::matrix::{BT2020_MATRIX, DISPLAY_P3_MATRIX, Matrix3f, SRGB_MATRIX, XyY, Xyz};
 use crate::trc::{Trc, curve_from_gamma};
-use num_traits::AsPrimitive;
 use std::io::Read;
 
 const ACSP_SIGNATURE: u32 = u32::from_ne_bytes(*b"acsp").to_be(); // 'acsp' signature for ICC
@@ -132,9 +131,9 @@ impl TryFrom<u32> for ProfileClass {
     }
 }
 
-impl Into<u32> for ProfileClass {
-    fn into(self) -> u32 {
-        match self {
+impl From<ProfileClass> for u32 {
+    fn from(val: ProfileClass) -> Self {
+        match val {
             ProfileClass::InputDevice => u32::from_ne_bytes(*b"scnr").to_be(),
             ProfileClass::DisplayDevice => u32::from_ne_bytes(*b"mntr").to_be(),
             ProfileClass::OutputDevice => u32::from_ne_bytes(*b"prtr").to_be(),
@@ -228,9 +227,9 @@ impl TryFrom<u32> for DataColorSpace {
     }
 }
 
-impl Into<u32> for DataColorSpace {
-    fn into(self) -> u32 {
-        match self {
+impl From<DataColorSpace> for u32 {
+    fn from(val: DataColorSpace) -> Self {
+        match val {
             DataColorSpace::Xyz => u32::from_ne_bytes(*b"XYZ ").to_be(),
             DataColorSpace::Lab => u32::from_ne_bytes(*b"Lab ").to_be(),
             DataColorSpace::Luv => u32::from_ne_bytes(*b"Luv ").to_be(),
@@ -314,6 +313,7 @@ impl TryFrom<u32> for RenderingIntent {
     }
 }
 
+/// ICC Header
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
 pub struct IccHeader {
@@ -409,6 +409,7 @@ impl IccHeader {
     }
 }
 
+/// Representation of Coding Independent Code Point
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
 pub struct CicpProfile {
@@ -417,6 +418,7 @@ pub struct CicpProfile {
     pub matrix_coefficients: MatrixCoefficients,
 }
 
+/// ICC Profile representation
 #[repr(C)]
 #[derive(Debug, Clone, Default)]
 pub struct ColorProfile {
@@ -479,7 +481,7 @@ impl ColorProfile {
             if tag.len() < 12 + entry_count * size_of::<u16>() {
                 return Err(CmsError::InvalidIcc);
             }
-            let curve_sliced = &tag[12..entry_count * size_of::<u16>()];
+            let curve_sliced = &tag[12..12 + entry_count * size_of::<u16>()];
             let mut curve_values = vec![0u16; entry_count];
             for (value, curve_value) in curve_sliced.chunks_exact(2).zip(curve_values.iter_mut()) {
                 let gamma_s15 = u16::from_be_bytes([value[0], value[1]]);
@@ -628,8 +630,10 @@ impl ColorProfile {
         slice: &[u8],
         entry: usize,
         tag_size: usize,
-    ) -> Result<LutDataType, CmsError> {
-        let tag_size = if tag_size == 0 { TAG_SIZE } else { tag_size };
+    ) -> Result<Option<LutDataType>, CmsError> {
+        if tag_size < 48 {
+            return Ok(None);
+        }
         let last_tag_offset = tag_size + entry;
         if last_tag_offset > slice.len() {
             return Err(CmsError::InvalidIcc);
@@ -676,7 +680,9 @@ impl ColorProfile {
 
         let in_chan = tag[8];
         let out_chan = tag[9];
-        if !(in_chan == 3 || in_chan == 4) || out_chan != 3 {
+        let is_3_to_4 = in_chan == 3 || out_chan == 4;
+        let is_4_to_3 = in_chan == 4 || out_chan == 3;
+        if !is_3_to_4 && !is_4_to_3 {
             return Err(CmsError::InvalidIcc);
         }
         let grid_points = tag[10];
@@ -761,7 +767,7 @@ impl ColorProfile {
         let shaped_output_table = &tag[output_offset..output_offset + output_size * entry_size];
         Self::read_lut_table_f32(shaped_output_table, &mut output_table, lut_type);
 
-        Ok(LutDataType {
+        Ok(Some(LutDataType {
             num_input_table_entries,
             num_output_table_entries,
             num_input_channels: in_chan,
@@ -772,7 +778,7 @@ impl ColorProfile {
             clut_table,
             output_table,
             lut_type,
-        })
+        }))
     }
 
     #[allow(clippy::field_reassign_with_default)]
@@ -857,15 +863,15 @@ impl ColorProfile {
                     let lut_type = Self::read_lut_type(slice, tag_entry as usize, tag_size)?;
                     if lut_type == LutType::Lut8 || lut_type == LutType::Lut16 {
                         match Self::read_lut_a_to_b_type(slice, tag_entry as usize, tag_size) {
-                            Ok(v) => profile.lut_a_to_b = Some(v),
+                            Ok(v) => profile.lut_a_to_b = v,
                             Err(err) => return Err(err),
                         }
                     }
-                } else if tag_value == B2A0_TAG && profile.color_space == DataColorSpace::Rgb {
+                } else if tag_value == B2A0_TAG {
                     let lut_type = Self::read_lut_type(slice, tag_entry as usize, tag_size)?;
                     if lut_type == LutType::Lut8 || lut_type == LutType::Lut16 {
                         match Self::read_lut_a_to_b_type(slice, tag_entry as usize, tag_size) {
-                            Ok(v) => profile.lut_b_to_a = Some(v),
+                            Ok(v) => profile.lut_b_to_a = v,
                             Err(err) => return Err(err),
                         }
                     }
@@ -874,84 +880,6 @@ impl ColorProfile {
         }
 
         Ok(profile)
-    }
-
-    pub fn build_8bit_lin_table(&self, trc: &Option<Trc>) -> Result<Box<[f32; 256]>, CmsError> {
-        if let Some(trc) = &trc {
-            if let Some(trc) = trc.build_linearize_table::<256>() {
-                return Ok(trc);
-            }
-        }
-        Err(CmsError::BuildTransferFunction)
-    }
-
-    /// Produces LUT for Gray transfer curve with N depth
-    pub fn build_gray_linearize_table<const N: usize>(&self) -> Result<Box<[f32; N]>, CmsError> {
-        if let Some(trc) = &self.gray_trc {
-            if let Some(trc) = trc.build_linearize_table::<N>() {
-                return Ok(trc);
-            }
-        }
-        Err(CmsError::BuildTransferFunction)
-    }
-
-    /// Produces LUT for Red transfer curve with N depth
-    pub fn build_r_linearize_table<const N: usize>(&self) -> Result<Box<[f32; N]>, CmsError> {
-        if let Some(trc) = &self.red_trc {
-            if let Some(trc) = trc.build_linearize_table::<N>() {
-                return Ok(trc);
-            }
-        }
-        Err(CmsError::BuildTransferFunction)
-    }
-
-    /// Produces LUT for Green transfer curve with N depth
-    pub fn build_g_linearize_table<const N: usize>(&self) -> Result<Box<[f32; N]>, CmsError> {
-        if let Some(trc) = &self.green_trc {
-            if let Some(trc) = trc.build_linearize_table::<N>() {
-                return Ok(trc);
-            }
-        }
-        Err(CmsError::BuildTransferFunction)
-    }
-
-    /// Produces LUT for Blue transfer curve with N depth
-    pub fn build_b_linearize_table<const N: usize>(&self) -> Result<Box<[f32; N]>, CmsError> {
-        if let Some(trc) = &self.green_trc {
-            if let Some(trc) = trc.build_linearize_table::<N>() {
-                return Ok(trc);
-            }
-        }
-        Err(CmsError::BuildTransferFunction)
-    }
-
-    pub(crate) fn build_8bit_gamma_table(
-        &self,
-        trc: &Option<Trc>,
-    ) -> Result<Box<[u8; 65536]>, CmsError> {
-        self.build_gamma_table::<u8, 65536, 8192, 8>(trc)
-    }
-
-    #[inline]
-    pub(crate) fn build_gamma_table<
-        T: Default + Copy + 'static,
-        const BUCKET: usize,
-        const N: usize,
-        const BIT_DEPTH: usize,
-    >(
-        &self,
-        trc: &Option<Trc>,
-    ) -> Result<Box<[T; BUCKET]>, CmsError>
-    where
-        f32: AsPrimitive<T>,
-        u32: AsPrimitive<T>,
-    {
-        if let Some(trc) = trc {
-            if let Some(t) = trc.build_gamma_table::<T, BUCKET, N, BIT_DEPTH>() {
-                return Ok(t);
-            }
-        }
-        Err(CmsError::BuildTransferFunction)
     }
 }
 
@@ -1084,14 +1012,18 @@ impl ColorProfile {
  * Invalid values of tempK will return
  * (x,y,Y) = (-1.0, -1.0, -1.0)
  * similar to argyll: icx_DTEMP2XYZ() */
-fn white_point_from_temperature(temp_k: i32) -> XyY {
-    let mut white_point = XyY::default();
+const fn white_point_from_temperature(temp_k: i32) -> XyY {
+    let mut white_point = XyY {
+        x: 0f32,
+        y: 0f32,
+        yb: 0f32,
+    };
     // No optimization provided.
     let temp_k = temp_k as f64; // Square
     let temp_k2 = temp_k * temp_k; // Cube
     let temp_k3 = temp_k2 * temp_k;
     // For correlated color temperature (T) between 4000K and 7000K:
-    let x = if (4000.0..=7000.0).contains(&temp_k) {
+    let x = if temp_k > 4000.0 && temp_k <= 7000.0 {
         -4.6070 * (1E9 / temp_k3) + 2.9678 * (1E6 / temp_k2) + 0.09911 * (1E3 / temp_k) + 0.244063
     } else if temp_k > 7000.0 && temp_k <= 25000.0 {
         -2.0064 * (1E9 / temp_k3) + 1.9018 * (1E6 / temp_k2) + 0.24748 * (1E3 / temp_k) + 0.237040
@@ -1116,7 +1048,7 @@ fn white_point_from_temperature(temp_k: i32) -> XyY {
     white_point
 }
 
-pub fn white_point_srgb() -> XyY {
+pub const fn white_point_srgb() -> XyY {
     white_point_from_temperature(6504)
 }
 
@@ -1179,15 +1111,14 @@ impl ColorProfile {
     }
 
     pub fn new_gray_with_gamma(gamma: f32) -> ColorProfile {
-        let mut profile = ColorProfile::default();
-
-        profile.gray_trc = Some(curve_from_gamma(gamma));
-        profile.profile_class = ProfileClass::DisplayDevice;
-        profile.rendering_intent = RenderingIntent::Perceptual;
-        profile.color_space = DataColorSpace::Gray;
-        profile.pcs = DataColorSpace::Xyz;
-        profile.image_white_point = Chromacity::D65.to_xyz();
-        profile.white_point = Some(Chromacity::D50.to_xyz());
-        profile
+        ColorProfile {
+            gray_trc: Some(curve_from_gamma(gamma)),
+            profile_class: ProfileClass::DisplayDevice,
+            rendering_intent: RenderingIntent::Perceptual,
+            color_space: DataColorSpace::Gray,
+            image_white_point: Chromacity::D65.to_xyz(),
+            white_point: Some(Chromacity::D50.to_xyz()),
+            ..Default::default()
+        }
     }
 }

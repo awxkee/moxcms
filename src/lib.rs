@@ -34,12 +34,17 @@ mod err;
 mod lab;
 mod matrix;
 mod mlaf;
+mod nd_array;
 mod profile;
 mod transform;
 mod trc;
 
 pub use err::CmsError;
-pub use matrix::{Chromacity, Matrix3f, Vector3f, XyY, Xyz};
+pub use matrix::{
+    BT2020_MATRIX, Chromacity, DISPLAY_P3_MATRIX, Matrix3f, SRGB_MATRIX, Vector3, Vector3f,
+    Vector3i, Vector3u, XyY, Xyz,
+};
+pub use nd_array::{Array3D, Array4D};
 pub use profile::{CicpProfile, ColorProfile, DataColorSpace, LutType, ProfileClass};
 pub use transform::{
     Layout, Stage, Transform8BitExecutor, Transform16BitExecutor, TransformExecutor,

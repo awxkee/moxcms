@@ -28,6 +28,7 @@
  */
 use crate::{Chromacity, Xyz};
 
+/// Holds CIE LAB values
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Default, PartialOrd, PartialEq)]
 pub struct Lab {
@@ -42,11 +43,11 @@ pub struct Lab {
 impl Lab {
     /// Create a new CIELAB color.
     ///
-    /// `l`: lightness component (0 to 100)
+    /// # Arguments
     ///
-    /// `a`: green (negative) and red (positive) component.
-    ///
-    /// `b`: blue (negative) and yellow (positive) component.
+    /// * `l`: lightness component (0 to 100).
+    /// * `a`: green (negative) and red (positive) component.
+    /// * `b`: blue (negative) and yellow (positive) component.
     #[inline]
     pub fn new(l: f32, a: f32, b: f32) -> Self {
         Self { l, a, b }
@@ -74,8 +75,8 @@ fn f(t: f32) -> f32 {
 impl Lab {
     /// Converts to CIE Lab from CIE XYZ
     #[inline]
-    pub fn from_pcs_xyz(xyz: Xyz, wp: Option<Xyz>) -> Self {
-        let wp = wp.unwrap_or(Chromacity::D50.to_xyz());
+    pub fn from_pcs_xyz(xyz: Xyz, white_point: Option<Xyz>) -> Self {
+        let wp = white_point.unwrap_or(Chromacity::D50.to_xyz());
         let device_x = (xyz.x as f64 * (1.0f64 + 32767.0f64 / 32768.0f64) / wp.x as f64) as f32;
         let device_y = (xyz.y as f64 * (1.0f64 + 32767.0f64 / 32768.0f64) / wp.y as f64) as f32;
         let device_z = (xyz.z as f64 * (1.0f64 + 32767.0f64 / 32768.0f64) / wp.z as f64) as f32;

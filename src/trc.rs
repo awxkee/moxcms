@@ -26,6 +26,7 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+use crate::{CmsError, ColorProfile};
 use num_traits::AsPrimitive;
 
 #[derive(Clone, Debug)]
@@ -440,7 +441,7 @@ where
 {
     let mut table = Box::new([T::default(); BUCKET]);
     let scale = 1f32 / (N - 1) as f32;
-    let cap = (N - 1) as f32;
+    let cap = ((1 << BIT_DEPTH) - 1) as f32;
     for (v, output) in table.iter_mut().take(N).enumerate() {
         *output = (cap * (v as f32 * scale).powf(gamma)).round().as_();
     }
@@ -602,5 +603,102 @@ impl Trc {
                 }
             },
         }
+    }
+}
+
+impl ColorProfile {
+    pub fn build_8bit_lin_table(&self, trc: &Option<Trc>) -> Result<Box<[f32; 256]>, CmsError> {
+        if let Some(trc) = &trc {
+            if let Some(trc) = trc.build_linearize_table::<256>() {
+                return Ok(trc);
+            }
+        }
+        Err(CmsError::BuildTransferFunction)
+    }
+
+    /// Produces LUT for Gray transfer curve with N depth
+    pub fn build_gray_linearize_table<const N: usize>(&self) -> Result<Box<[f32; N]>, CmsError> {
+        if let Some(trc) = &self.gray_trc {
+            if let Some(trc) = trc.build_linearize_table::<N>() {
+                return Ok(trc);
+            }
+        }
+        Err(CmsError::BuildTransferFunction)
+    }
+
+    /// Produces LUT for Red transfer curve with N depth
+    pub fn build_r_linearize_table<const N: usize>(&self) -> Result<Box<[f32; N]>, CmsError> {
+        if let Some(trc) = &self.red_trc {
+            if let Some(trc) = trc.build_linearize_table::<N>() {
+                return Ok(trc);
+            }
+        }
+        Err(CmsError::BuildTransferFunction)
+    }
+
+    /// Produces LUT for Green transfer curve with N depth
+    pub fn build_g_linearize_table<const N: usize>(&self) -> Result<Box<[f32; N]>, CmsError> {
+        if let Some(trc) = &self.green_trc {
+            if let Some(trc) = trc.build_linearize_table::<N>() {
+                return Ok(trc);
+            }
+        }
+        Err(CmsError::BuildTransferFunction)
+    }
+
+    /// Produces LUT for Blue transfer curve with N depth
+    pub fn build_b_linearize_table<const N: usize>(&self) -> Result<Box<[f32; N]>, CmsError> {
+        if let Some(trc) = &self.green_trc {
+            if let Some(trc) = trc.build_linearize_table::<N>() {
+                return Ok(trc);
+            }
+        }
+        Err(CmsError::BuildTransferFunction)
+    }
+
+    /// Build gamma table for 8 bit depth
+    /// Only 8192 first bins are used and values scaled in 0..255
+    pub fn build_8bit_gamma_table(&self, trc: &Option<Trc>) -> Result<Box<[u8; 65536]>, CmsError> {
+        self.build_gamma_table::<u8, 65536, 8192, 8>(trc)
+    }
+
+    /// Build gamma table for 10 bit depth
+    /// Only 8192 first bins are used and values scaled in 0..1023
+    pub fn build_10bit_gamma_table(&self, trc: &Option<Trc>) -> Result<Box<[u8; 65536]>, CmsError> {
+        self.build_gamma_table::<u8, 65536, 8192, 10>(trc)
+    }
+
+    /// Build gamma table for 12 bit depth
+    /// Only 16384 first bins are used and values scaled in 0..4095
+    pub fn build_12bit_gamma_table(&self, trc: &Option<Trc>) -> Result<Box<[u8; 65536]>, CmsError> {
+        self.build_gamma_table::<u8, 65536, 8192, 12>(trc)
+    }
+
+    /// Build gamma table for 16 bit depth
+    /// Only 16384 first bins are used and values scaled in 0..65535
+    pub fn build_16bit_gamma_table(&self, trc: &Option<Trc>) -> Result<Box<[u8; 65536]>, CmsError> {
+        self.build_gamma_table::<u8, 65536, 65536, 16>(trc)
+    }
+
+    #[inline]
+    pub(crate) fn build_gamma_table<
+        T: Default + Copy + 'static,
+        const BUCKET: usize,
+        const N: usize,
+        const BIT_DEPTH: usize,
+    >(
+        &self,
+        trc: &Option<Trc>,
+    ) -> Result<Box<[T; BUCKET]>, CmsError>
+    where
+        f32: AsPrimitive<T>,
+        u32: AsPrimitive<T>,
+    {
+        if let Some(trc) = trc {
+            if let Some(t) = trc.build_gamma_table::<T, BUCKET, N, BIT_DEPTH>() {
+                return Ok(t);
+            }
+        }
+        Err(CmsError::BuildTransferFunction)
     }
 }

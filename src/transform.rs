@@ -33,12 +33,14 @@ use crate::{ColorProfile, DataColorSpace, Matrix3f};
 use num_traits::AsPrimitive;
 use std::ops::Mul;
 
+/// Transformation executor itself
 pub trait TransformExecutor<V: Copy + Default> {
     /// Count of samples always must match
     /// If there is N samples of *Cmyk* source then N samples of *Rgb* is expected as an output
     fn transform(&self, src: &[V], dst: &mut [V]) -> Result<(), CmsError>;
 }
 
+/// Helper for intermediate transformation stages
 pub trait Stage {
     fn transform(&self, src: &[f32], dst: &mut [f32]) -> Result<(), CmsError>;
 }
@@ -46,6 +48,11 @@ pub trait Stage {
 pub type Transform8BitExecutor = dyn TransformExecutor<u8> + Send + Sync;
 pub type Transform16BitExecutor = dyn TransformExecutor<u16> + Send + Sync;
 
+/// Layout declares a data layout.
+/// For RGB it shows also the channel order.
+/// 8, and 16 bits it is storage size, not a data size.
+/// To handle different data bit-depth appropriate executor must be used.
+/// Cmyk8 uses the same layout as Rgba8.
 #[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq)]
 pub enum Layout {
     Rgb8 = 0,
@@ -222,7 +229,8 @@ struct TransformProfilePcsXYZRgb16Bit<
 }
 
 impl ColorProfile {
-    /// Use for 16 bit-depth only
+    /// Creates transform between source and destination profile
+    /// Use for 16 bit-depth data bit-depth only.
     pub fn create_transform_16bit(
         &self,
         destination_profile: &ColorProfile,
@@ -231,7 +239,8 @@ impl ColorProfile {
         self.create_transform_nbit::<16, 65536, 65536>(destination_profile, layout)
     }
 
-    /// Use for 12 bit-depth only
+    /// Creates transform between source and destination profile
+    /// Use for 12 bit-depth data bit-depth only.
     pub fn create_transform_12bit(
         &self,
         destination_profile: &ColorProfile,
@@ -241,7 +250,8 @@ impl ColorProfile {
         self.create_transform_nbit::<12, CAP, 16384>(destination_profile, layout)
     }
 
-    /// Use for 10 bit-depth only
+    /// Creates transform between source and destination profile
+    /// Use for 10 bit-depth data bit-depth only.
     pub fn create_transform_10bit(
         &self,
         destination_profile: &ColorProfile,
@@ -257,7 +267,7 @@ impl ColorProfile {
         const GAMMA_CAP: usize,
     >(
         &self,
-        destination_profile: &ColorProfile,
+        dst_pr: &ColorProfile,
         layout: Layout,
     ) -> Result<Box<Transform16BitExecutor>, CmsError> {
         if layout == Layout::Rgba8
@@ -268,33 +278,33 @@ impl ColorProfile {
             return Err(CmsError::InvalidLayout);
         }
         if self.color_space == DataColorSpace::Rgb
-            && destination_profile.pcs == DataColorSpace::Xyz
-            && destination_profile.color_space == DataColorSpace::Rgb
+            && dst_pr.pcs == DataColorSpace::Xyz
+            && dst_pr.color_space == DataColorSpace::Rgb
             && self.pcs == DataColorSpace::Xyz
         {
             if layout == Layout::Gray16 || layout == Layout::GrayAlpha16 {
                 return Err(CmsError::InvalidLayout);
             }
-            let transform = self.transform_matrix(destination_profile);
+            let transform = self.transform_matrix(dst_pr);
 
-            let image_linearize_map_r = self.build_r_linearize_table::<LINEAR_CAP>()?;
-            let image_linearize_map_g = self.build_g_linearize_table::<LINEAR_CAP>()?;
-            let image_linearize_map_b = self.build_b_linearize_table::<LINEAR_CAP>()?;
+            let lin_r = self.build_r_linearize_table::<LINEAR_CAP>()?;
+            let lin_g = self.build_g_linearize_table::<LINEAR_CAP>()?;
+            let lin_b = self.build_b_linearize_table::<LINEAR_CAP>()?;
 
-            let output_gamma_map_r: Box<[u16; 65536]> =
-                self.build_gamma_table::<u16, 65536, GAMMA_CAP, BIT_DEPTH>(&self.red_trc)?;
-            let output_gamma_map_g: Box<[u16; 65536]> =
-                self.build_gamma_table::<u16, 65536, GAMMA_CAP, BIT_DEPTH>(&self.green_trc)?;
-            let output_gamma_map_b: Box<[u16; 65536]> =
-                self.build_gamma_table::<u16, 65536, GAMMA_CAP, BIT_DEPTH>(&self.blue_trc)?;
+            let gamma_r =
+                dst_pr.build_gamma_table::<u16, 65536, GAMMA_CAP, BIT_DEPTH>(&self.red_trc)?;
+            let gamma_g =
+                dst_pr.build_gamma_table::<u16, 65536, GAMMA_CAP, BIT_DEPTH>(&self.green_trc)?;
+            let gamma_b =
+                dst_pr.build_gamma_table::<u16, 65536, GAMMA_CAP, BIT_DEPTH>(&self.blue_trc)?;
 
             let profile_transform = TransformProfileRgb16Bit {
-                r_linear: image_linearize_map_r,
-                g_linear: image_linearize_map_g,
-                b_linear: image_linearize_map_b,
-                r_gamma: output_gamma_map_r,
-                g_gamma: output_gamma_map_g,
-                b_gamma: output_gamma_map_b,
+                r_linear: lin_r,
+                g_linear: lin_g,
+                b_linear: lin_b,
+                r_gamma: gamma_r,
+                g_gamma: gamma_g,
+                b_gamma: gamma_b,
                 adaptation_matrix: transform,
             };
 
@@ -317,13 +327,13 @@ impl ColorProfile {
             };
             return Ok(transformer);
         } else if self.color_space == DataColorSpace::Gray
-            && destination_profile.color_space == DataColorSpace::Rgb
+            && dst_pr.color_space == DataColorSpace::Rgb
             && self.pcs == DataColorSpace::Xyz
-            && destination_profile.pcs == DataColorSpace::Xyz
+            && dst_pr.pcs == DataColorSpace::Xyz
         {
             let linear_tab = self.build_gray_linearize_table::<LINEAR_CAP>()?;
             let output_gamma: Box<[u16; 65536]> =
-                self.build_gamma_table::<u16, 65536, GAMMA_CAP, BIT_DEPTH>(&self.gray_trc)?;
+                dst_pr.build_gamma_table::<u16, 65536, GAMMA_CAP, BIT_DEPTH>(&self.gray_trc)?;
 
             let transformer: Box<Transform16BitExecutor> = match layout {
                 Layout::Rgb8 => {
@@ -386,9 +396,11 @@ impl ColorProfile {
         Err(CmsError::UnsupportedProfileConnection)
     }
 
+    /// Creates transform between source and destination profile
+    /// Only 8 bit is supported
     pub fn create_transform_8bit(
         &self,
-        destination_profile: &ColorProfile,
+        dst_pr: &ColorProfile,
         layout: Layout,
     ) -> Result<Box<Transform8BitExecutor>, CmsError> {
         if layout.is_16_bit() {
@@ -396,33 +408,30 @@ impl ColorProfile {
         }
 
         if self.color_space == DataColorSpace::Rgb
-            && destination_profile.pcs == DataColorSpace::Xyz
-            && destination_profile.color_space == DataColorSpace::Rgb
+            && dst_pr.pcs == DataColorSpace::Xyz
+            && dst_pr.color_space == DataColorSpace::Rgb
             && self.pcs == DataColorSpace::Xyz
         {
             if layout == Layout::Gray8 || layout == Layout::GrayAlpha8 {
                 return Err(CmsError::InvalidLayout);
             }
-            let transform = self.transform_matrix(destination_profile);
+            let transform = self.transform_matrix(dst_pr);
 
-            let image_linearize_map_r = self.build_8bit_lin_table(&self.red_trc)?;
-            let image_linearize_map_g = self.build_8bit_lin_table(&self.green_trc)?;
-            let image_linearize_map_b = self.build_8bit_lin_table(&self.blue_trc)?;
+            let lin_r = self.build_8bit_lin_table(&self.red_trc)?;
+            let lin_g = self.build_8bit_lin_table(&self.green_trc)?;
+            let lin_b = self.build_8bit_lin_table(&self.blue_trc)?;
 
-            let output_gamma_map_r: Box<[u8; 65536]> =
-                self.build_8bit_gamma_table(&self.red_trc)?;
-            let output_gamma_map_g: Box<[u8; 65536]> =
-                self.build_8bit_gamma_table(&self.green_trc)?;
-            let output_gamma_map_b: Box<[u8; 65536]> =
-                self.build_8bit_gamma_table(&self.blue_trc)?;
+            let gamma_r = dst_pr.build_8bit_gamma_table(&self.red_trc)?;
+            let gamma_g = dst_pr.build_8bit_gamma_table(&self.green_trc)?;
+            let gamma_b = dst_pr.build_8bit_gamma_table(&self.blue_trc)?;
 
             let profile_transform = TransformProfileRgb8Bit {
-                r_linear: image_linearize_map_r,
-                g_linear: image_linearize_map_g,
-                b_linear: image_linearize_map_b,
-                r_gamma: output_gamma_map_r,
-                g_gamma: output_gamma_map_g,
-                b_gamma: output_gamma_map_b,
+                r_linear: lin_r,
+                g_linear: lin_g,
+                b_linear: lin_b,
+                r_gamma: gamma_r,
+                g_gamma: gamma_g,
+                b_gamma: gamma_b,
                 adaptation_matrix: transform,
             };
 
@@ -439,12 +448,12 @@ impl ColorProfile {
             };
             return Ok(transformer);
         } else if self.color_space == DataColorSpace::Gray
-            && destination_profile.color_space == DataColorSpace::Rgb
+            && dst_pr.color_space == DataColorSpace::Rgb
             && self.pcs == DataColorSpace::Xyz
-            && destination_profile.pcs == DataColorSpace::Xyz
+            && dst_pr.pcs == DataColorSpace::Xyz
         {
             let linear_tab = self.build_8bit_lin_table(&self.gray_trc)?;
-            let output_gamma: Box<[u8; 65536]> = self.build_8bit_gamma_table(&self.gray_trc)?;
+            let output_gamma = dst_pr.build_8bit_gamma_table(&self.gray_trc)?;
 
             let transformer: Box<Transform8BitExecutor> = match layout {
                 Layout::Rgb8 => {
@@ -488,12 +497,12 @@ impl ColorProfile {
             };
             return Ok(transformer);
         } else if self.color_space == DataColorSpace::Cmyk
-            && destination_profile.color_space == DataColorSpace::Rgb
+            && dst_pr.color_space == DataColorSpace::Rgb
         {
             if layout == Layout::Gray8 || layout == Layout::GrayAlpha8 {
                 return Err(CmsError::InvalidLayout);
             }
-            return create_cmyk_to_rgb(self, destination_profile, layout);
+            return create_cmyk_to_rgb(self, dst_pr, layout);
         }
 
         Err(CmsError::UnsupportedProfileConnection)
@@ -507,8 +516,8 @@ impl<const LAYOUT: u8> TransformProfilePcsXYZRgb8Bit<LAYOUT> {
         let channels = cn.channels();
 
         for (chunk, dst) in src
-            .chunks_exact(cn.channels())
-            .zip(working_set.chunks_exact_mut(cn.channels()))
+            .chunks_exact(channels)
+            .zip(working_set.chunks_exact_mut(channels))
         {
             dst[0] = self.profile.r_linear[chunk[cn.r_i()] as usize];
             dst[1] = self.profile.g_linear[chunk[cn.g_i()] as usize];

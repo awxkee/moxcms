@@ -28,13 +28,13 @@
  */
 use crate::lab::Lab;
 use crate::mlaf::mlaf;
+use crate::nd_array::{Array4D, lerp};
 use crate::profile::LutDataType;
 use crate::trc::{clamp_float, lut_interp_linear_float};
 use crate::{
     CmsError, ColorProfile, DataColorSpace, Layout, Matrix3f, Stage, Transform8BitExecutor,
     TransformExecutor, Vector3f, Xyz,
 };
-use std::ops::{Add, Mul, Sub};
 
 #[derive(Default)]
 struct Lut4 {
@@ -42,51 +42,6 @@ struct Lut4 {
     clut: Vec<f32>,
     grid_size: u8,
     output: [Vec<f32>; 3],
-}
-
-#[inline]
-fn lerp<T: Mul<Output = T> + Sub<Output = T> + Add<Output = T> + From<f32> + Copy>(
-    a: T,
-    b: T,
-    t: T,
-) -> T {
-    a * (T::from(1.0) - t) + b * t
-}
-
-struct Array4D<'a> {
-    array: &'a [f32],
-    x_stride: u32,
-    y_stride: u32,
-    z_stride: u32,
-    grid_size: usize,
-}
-
-impl Array4D<'_> {
-    pub fn new(array: &[f32], grid_size: usize) -> Array4D {
-        let z_stride = grid_size as u32;
-        let y_stride = z_stride * z_stride;
-        let x_stride = z_stride * z_stride * z_stride;
-        Array4D {
-            array,
-            x_stride,
-            y_stride,
-            z_stride,
-            grid_size,
-        }
-    }
-
-    #[inline]
-    pub(crate) fn vec3(&self, x: i32, y: i32, z: i32, w: i32) -> Vector3f {
-        let start = (x as u32 * self.x_stride
-            + y as u32 * self.y_stride
-            + z as u32 * self.z_stride
-            + w as u32) as usize
-            * 3;
-        let k = &self.array[start..start + 3];
-        Vector3f {
-            v: [k[0], k[1], k[2]],
-        }
-    }
 }
 
 #[derive(Default)]
@@ -127,49 +82,6 @@ impl Stage for StageXyzToLab {
     }
 }
 
-impl Array4D<'_> {
-    #[inline]
-    fn quadlinear_vec3(&self, lin_x: f32, lin_y: f32, lin_z: f32, lin_w: f32) -> Vector3f {
-        let scale = (self.grid_size as i32 - 1) as f32;
-
-        let x = (lin_x * scale).floor() as i32;
-        let y = (lin_y * scale).floor() as i32;
-        let z = (lin_z * scale).floor() as i32;
-        let w = (lin_w * scale).floor() as i32;
-
-        let x_n = (lin_x * scale).ceil() as i32;
-        let y_n = (lin_y * scale).ceil() as i32;
-        let z_n = (lin_z * scale).ceil() as i32;
-        let w_n = (lin_w * scale).ceil() as i32;
-
-        let x_d = Vector3f::from(lin_x * scale - x as f32);
-        let y_d = Vector3f::from(lin_y * scale - y as f32);
-        let z_d = Vector3f::from(lin_z * scale - z as f32);
-        let w_d = Vector3f::from(lin_w * scale - w as f32);
-        let tbl = self;
-        let r_x1 = lerp(tbl.vec3(x, y, z, w), tbl.vec3(x_n, y, z, w), x_d);
-        let r_x2 = lerp(tbl.vec3(x, y_n, z, w), tbl.vec3(x_n, y_n, z, w), x_d);
-        let r_y1 = lerp(r_x1, r_x2, y_d);
-        let r_x3 = lerp(tbl.vec3(x, y, z_n, w), tbl.vec3(x_n, y, z_n, w), x_d);
-        let r_x4 = lerp(tbl.vec3(x, y_n, z_n, w), tbl.vec3(x_n, y_n, z_n, w), x_d);
-        let r_y2 = lerp(r_x3, r_x4, y_d);
-        let r_z1 = lerp(r_y1, r_y2, z_d);
-
-        let r_x1 = lerp(tbl.vec3(x, y, z, w_n), tbl.vec3(x_n, y, z, w_n), x_d);
-        let r_x2 = lerp(tbl.vec3(x, y_n, z, w_n), tbl.vec3(x_n, y_n, z, w_n), x_d);
-        let r_y1 = lerp(r_x1, r_x2, y_d);
-        let r_x3 = lerp(tbl.vec3(x, y, z_n, w_n), tbl.vec3(x_n, y, z_n, w_n), x_d);
-        let r_x4 = lerp(
-            tbl.vec3(x, y_n, z_n, w_n),
-            tbl.vec3(x_n, y_n, z_n, w_n),
-            x_d,
-        );
-        let r_y2 = lerp(r_x3, r_x4, y_d);
-        let r_z2 = lerp(r_y1, r_y2, z_d);
-        lerp(r_z1, r_z2, w_d)
-    }
-}
-
 impl Stage for Lut4 {
     fn transform(&self, src: &[f32], dst: &mut [f32]) -> Result<(), CmsError> {
         let l_tbl = Array4D::new(&self.clut[0..], self.grid_size as usize);
@@ -185,7 +97,7 @@ impl Stage for Lut4 {
             let linear_z = lut_interp_linear_float(src[2], linearization_2);
             let linear_w = lut_interp_linear_float(src[3], linearization_3);
 
-            let clut = l_tbl.quadlinear_vec3(linear_x, linear_y, linear_w, linear_z);
+            let clut = l_tbl.quadlinear_vec3(linear_x, linear_y, linear_z, linear_w);
 
             let pcs_x = lut_interp_linear_float(clut.v[0], &self.output[0]);
             let pcs_y = lut_interp_linear_float(clut.v[1], &self.output[1]);
@@ -280,9 +192,9 @@ impl Stage for XyzToRgbStage {
                 let x = src[0];
                 let y = src[1];
                 let z = src[2];
-                dst[0] = x * m.v[0][0] + y * m.v[0][1] + z * m.v[0][2];
-                dst[1] = x * m.v[1][0] + y * m.v[1][1] + z * m.v[1][2];
-                dst[2] = x * m.v[2][0] + y * m.v[2][1] + z * m.v[2][2];
+                dst[0] = mlaf(mlaf(x * m.v[0][0], y, m.v[0][1]), z, m.v[0][2]);
+                dst[1] = mlaf(mlaf(x * m.v[1][0], y, m.v[1][1]), z, m.v[1][2]);
+                dst[2] = mlaf(mlaf(x * m.v[2][0], y, m.v[2][1]), z, m.v[2][2]);
             }
         }
 
@@ -291,9 +203,9 @@ impl Stage for XyzToRgbStage {
                 let x = dst[0];
                 let y = dst[1];
                 let z = dst[2];
-                dst[0] = x * m.v[0][0] + y * m.v[0][1] + z * m.v[0][2];
-                dst[1] = x * m.v[1][0] + y * m.v[1][1] + z * m.v[1][2];
-                dst[2] = x * m.v[2][0] + y * m.v[2][1] + z * m.v[2][2];
+                dst[0] = mlaf(mlaf(x * m.v[0][0], y, m.v[0][1]), z, m.v[0][2]);
+                dst[1] = mlaf(mlaf(x * m.v[1][0], y, m.v[1][1]), z, m.v[1][2]);
+                dst[2] = mlaf(mlaf(x * m.v[2][0], y, m.v[2][1]), z, m.v[2][2]);
             }
         }
 
@@ -400,8 +312,8 @@ impl<const LAYOUT: u8, const GRID_SIZE: usize> TransformLut4XyzToRgb<LAYOUT, GRI
         for (src, dst) in src.chunks_exact(4).zip(dst.chunks_exact_mut(channels)) {
             let c = src[0];
             let m = src[1];
-            let k = src[2];
-            let y = src[3];
+            let y = src[2];
+            let k = src[3];
             let linear_k: f32 = k as i32 as f32 / 255.0;
             let w: i32 = k as i32 * (GRID_SIZE as i32 - 1) / 255;
             let w_n: i32 = rounding_div_ceil(k as i32 * (GRID_SIZE as i32 - 1), 255);

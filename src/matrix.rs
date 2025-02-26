@@ -29,29 +29,53 @@
 use crate::err::CmsError;
 use crate::mlaf::mlaf;
 use crate::profile::s15_fixed16_number_to_float;
+use num_traits::AsPrimitive;
 use std::ops::{Add, Mul, Sub};
 
+/// Vector math helper
 #[derive(Copy, Clone, Debug, Default)]
-pub struct Vector3f {
-    pub v: [f32; 3],
+pub struct Vector3<T> {
+    pub v: [T; 3],
 }
 
-impl PartialEq<Self> for Vector3f {
+pub type Vector3f = Vector3<f32>;
+pub type Vector3i = Vector3<i32>;
+pub type Vector3u = Vector3<u32>;
+
+impl<T> PartialEq<Self> for Vector3<T>
+where
+    T: AsPrimitive<f32>,
+{
     #[inline]
     fn eq(&self, other: &Self) -> bool {
         const TOLERANCE: f32 = 0.0001f32;
-        let dx = (self.v[0] - other.v[0]).abs();
-        let dy = (self.v[1] - other.v[1]).abs();
-        let dz = (self.v[2] - other.v[2]).abs();
+        let dx = (self.v[0].as_() - other.v[0].as_()).abs();
+        let dy = (self.v[1].as_() - other.v[1].as_()).abs();
+        let dz = (self.v[2].as_() - other.v[2].as_()).abs();
         dx < TOLERANCE && dy < TOLERANCE && dz < TOLERANCE
     }
 }
 
-impl Mul<Vector3f> for Vector3f {
-    type Output = Vector3f;
+impl<T> Vector3<T> {
+    #[inline]
+    pub fn to_<Z: Copy + 'static>(self) -> Vector3<Z>
+    where
+        T: AsPrimitive<Z>,
+    {
+        Vector3 {
+            v: [self.v[0].as_(), self.v[1].as_(), self.v[2].as_()],
+        }
+    }
+}
+
+impl<T> Mul<Vector3<T>> for Vector3<T>
+where
+    T: Mul<Output = T> + Copy,
+{
+    type Output = Vector3<T>;
 
     #[inline]
-    fn mul(self, rhs: Vector3f) -> Self::Output {
+    fn mul(self, rhs: Vector3<T>) -> Self::Output {
         Self {
             v: [
                 self.v[0] * rhs.v[0],
@@ -62,30 +86,39 @@ impl Mul<Vector3f> for Vector3f {
     }
 }
 
-impl Mul<f32> for Vector3f {
-    type Output = Vector3f;
+impl<T> Mul<T> for Vector3<T>
+where
+    T: Mul<Output = T> + Copy,
+{
+    type Output = Vector3<T>;
 
     #[inline]
-    fn mul(self, rhs: f32) -> Self::Output {
+    fn mul(self, rhs: T) -> Self::Output {
         Self {
             v: [self.v[0] * rhs, self.v[1] * rhs, self.v[2] * rhs],
         }
     }
 }
 
-impl From<f32> for Vector3f {
-    fn from(value: f32) -> Self {
+impl<T> From<T> for Vector3<T>
+where
+    T: Copy,
+{
+    fn from(value: T) -> Self {
         Self {
             v: [value, value, value],
         }
     }
 }
 
-impl Add<Vector3f> for Vector3f {
-    type Output = Vector3f;
+impl<T> Add<Vector3<T>> for Vector3<T>
+where
+    T: Add<Output = T> + Copy,
+{
+    type Output = Vector3<T>;
 
     #[inline]
-    fn add(self, rhs: Vector3f) -> Self::Output {
+    fn add(self, rhs: Vector3<T>) -> Self::Output {
         Self {
             v: [
                 self.v[0] + rhs.v[0],
@@ -96,22 +129,28 @@ impl Add<Vector3f> for Vector3f {
     }
 }
 
-impl Add<f32> for Vector3f {
-    type Output = Vector3f;
+impl<T> Add<T> for Vector3<T>
+where
+    T: Add<Output = T> + Copy,
+{
+    type Output = Vector3<T>;
 
     #[inline]
-    fn add(self, rhs: f32) -> Self::Output {
+    fn add(self, rhs: T) -> Self::Output {
         Self {
             v: [self.v[0] + rhs, self.v[1] + rhs, self.v[2] + rhs],
         }
     }
 }
 
-impl Sub<Vector3f> for Vector3f {
-    type Output = Vector3f;
+impl<T> Sub<Vector3<T>> for Vector3<T>
+where
+    T: Sub<Output = T> + Copy,
+{
+    type Output = Vector3<T>;
 
     #[inline]
-    fn sub(self, rhs: Vector3f) -> Self::Output {
+    fn sub(self, rhs: Vector3<T>) -> Self::Output {
         Self {
             v: [
                 self.v[0] - rhs.v[0],
@@ -122,6 +161,7 @@ impl Sub<Vector3f> for Vector3f {
     }
 }
 
+/// Matrix math helper
 #[derive(Copy, Clone, Debug, Default)]
 pub struct Matrix3f {
     pub v: [[f32; 3]; 3],
@@ -169,7 +209,7 @@ impl Matrix3f {
     };
 
     #[inline]
-    pub fn test_equality(&self, other: Matrix3f) -> bool {
+    pub const fn test_equality(&self, other: Matrix3f) -> bool {
         const TOLERANCE: f32 = 0.001f32;
         let diff_r_x = (self.v[0][0] - other.v[0][0]).abs();
         let diff_r_y = (self.v[0][1] - other.v[0][1]).abs();
@@ -327,6 +367,7 @@ impl Matrix3f {
     }
 }
 
+/// Holds CIE XYZ representation
 #[derive(Clone, Debug, Copy, Default)]
 pub struct Xyz {
     pub x: f32,
@@ -384,6 +425,7 @@ impl Mul<Xyz> for Xyz {
     }
 }
 
+/// Holds CIE XyY representation
 #[derive(Clone, Debug, Copy, Default)]
 pub struct XyY {
     pub x: f32,
@@ -393,7 +435,7 @@ pub struct XyY {
 
 impl XyY {
     #[inline]
-    pub fn to_xyz(self) -> Xyz {
+    pub const fn to_xyz(self) -> Xyz {
         Xyz {
             x: self.x / self.y * self.yb,
             y: self.yb,
@@ -449,9 +491,10 @@ impl TryFrom<Xyz> for Chromacity {
         if sum == 0.0 {
             return Err(CmsError::DivisionByZero);
         }
+        let rec = 1f32 / (xyz.x + xyz.y + xyz.z);
 
-        let chromacity_x = xyz.x / sum;
-        let chromacity_y = xyz.y / sum;
+        let chromacity_x = xyz.x * rec;
+        let chromacity_y = xyz.y * rec;
 
         Ok(Chromacity {
             x: chromacity_x,

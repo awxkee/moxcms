@@ -4,9 +4,26 @@ workspace = { members = ["app"] }
 name = "moxcms"
 version = "0.1.0"
 edition = "2024"
+description = "Simple CMS in Rust"
+readme = "./README.md"
+keywords = ["icc", "cms", "color"]
+license = "BSD-3-Clause OR Apache-2.0"
+authors = ["Radzivon Bartoshyk"]
+documentation = "https://github.com/awxkee/moxcms"
+categories = ["multimedia::images"]
+homepage = "https://github.com/awxkee/moxcms"
+repository = "https://github.com/awxkee/moxcms.git"
+exclude = ["*.jpg", "../../assets/*", "*.png"]
+rust-version = "1.85.0"
 
 [dependencies]
 num-traits = "0.2.19"
 
 [dev-dependencies]
 rand = "0.9.0"
+
+[package.metadata.docs.rs]
+# To build locally:
+# RUSTDOCFLAGS="--cfg docsrs" cargo +nightly doc --all-features --no-deps --open --manifest-path ./Cargo.toml
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
