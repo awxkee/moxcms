@@ -368,6 +368,7 @@ impl IccHeader {
         }
     }
 
+    /// Creates profile from the buffer
     pub(crate) fn new_from_slice(slice: &[u8]) -> Result<Self, CmsError> {
         if slice.len() < size_of::<IccHeader>() {
             return Err(CmsError::InvalidIcc);

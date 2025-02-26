@@ -4,7 +4,7 @@ workspace = { members = ["app", "fuzz"] }
 name = "moxcms"
 version = "0.1.0"
 edition = "2024"
-description = "Simple CMS in Rust"
+description = "Simple Color Management in Rust"
 readme = "./README.md"
 keywords = ["icc", "cms", "color"]
 license = "BSD-3-Clause OR Apache-2.0"
