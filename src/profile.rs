@@ -67,7 +67,7 @@ fn uint8_number_to_float(a: u8) -> f32 {
     a as f32 / 255.0
 }
 
-#[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Default)]
+#[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Default, Hash)]
 pub enum DataColorSpace {
     #[default]
     Xyz,
@@ -291,7 +291,7 @@ const fn float_round_to_fixed(x: f32) -> i32 {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub enum RenderingIntent {
     AbsoluteColorimetric = 3,
     Saturation = 2,
@@ -316,7 +316,7 @@ impl TryFrom<u32> for RenderingIntent {
 /// ICC Header
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
-pub struct IccHeader {
+pub(crate) struct IccHeader {
     pub size: u32,                    // Size of the profile (computed)
     pub cmm_type: u32,                // Preferred CMM type (ignored)
     pub version: u32,                 // Version (4.3 or 4.4 if CICP is included)
@@ -342,7 +342,7 @@ pub struct IccHeader {
 
 impl IccHeader {
     #[allow(dead_code)]
-    pub fn new(size: u32) -> Self {
+    pub(crate) fn new(size: u32) -> Self {
         Self {
             size,
             cmm_type: 0,
@@ -368,7 +368,7 @@ impl IccHeader {
         }
     }
 
-    pub fn new_from_slice(slice: &[u8]) -> Result<Self, CmsError> {
+    pub(crate) fn new_from_slice(slice: &[u8]) -> Result<Self, CmsError> {
         if slice.len() < size_of::<IccHeader>() {
             return Err(CmsError::InvalidIcc);
         }
@@ -1048,7 +1048,7 @@ const fn white_point_from_temperature(temp_k: i32) -> XyY {
     white_point
 }
 
-pub const fn white_point_srgb() -> XyY {
+pub(crate) const fn white_point_srgb() -> XyY {
     white_point_from_temperature(6504)
 }
 

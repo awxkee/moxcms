@@ -73,13 +73,13 @@ fn f(t: f32) -> f32 {
 }
 
 impl Lab {
-    /// Converts to CIE Lab from CIE XYZ
+    /// Converts to CIE Lab from CIE XYZ for PCS encoding
     #[inline]
-    pub fn from_pcs_xyz(xyz: Xyz, white_point: Option<Xyz>) -> Self {
-        let wp = white_point.unwrap_or(Chromacity::D50.to_xyz());
-        let device_x = (xyz.x as f64 * (1.0f64 + 32767.0f64 / 32768.0f64) / wp.x as f64) as f32;
-        let device_y = (xyz.y as f64 * (1.0f64 + 32767.0f64 / 32768.0f64) / wp.y as f64) as f32;
-        let device_z = (xyz.z as f64 * (1.0f64 + 32767.0f64 / 32768.0f64) / wp.z as f64) as f32;
+    pub fn from_pcs_xyz(xyz: Xyz) -> Self {
+        const WP: Xyz = Chromacity::D50.to_xyz();
+        let device_x = (xyz.x as f64 * (1.0f64 + 32767.0f64 / 32768.0f64) / WP.x as f64) as f32;
+        let device_y = (xyz.y as f64 * (1.0f64 + 32767.0f64 / 32768.0f64) / WP.y as f64) as f32;
+        let device_z = (xyz.z as f64 * (1.0f64 + 32767.0f64 / 32768.0f64) / WP.z as f64) as f32;
 
         let fx = f(device_x);
         let fy = f(device_y);
@@ -95,20 +95,63 @@ impl Lab {
         Self::new(l, a, b)
     }
 
-    /// Converts CIE [Lab] into CIE [Xyz]
+    /// Converts to CIE Lab from CIE XYZ
     #[inline]
-    pub fn to_pcs_xyz(self, white_point: Option<Xyz>) -> Xyz {
+    pub fn from_xyz(xyz: Xyz) -> Self {
+        const WP: Xyz = Chromacity::D50.to_xyz();
+        let device_x = (xyz.x as f64 * (1.0f64 + 32767.0f64 / 32768.0f64) / WP.x as f64) as f32;
+        let device_y = (xyz.y as f64 * (1.0f64 + 32767.0f64 / 32768.0f64) / WP.y as f64) as f32;
+        let device_z = (xyz.z as f64 * (1.0f64 + 32767.0f64 / 32768.0f64) / WP.z as f64) as f32;
+
+        let fx = f(device_x);
+        let fy = f(device_y);
+        let fz = f(device_z);
+
+        let lb = 116.0 * fy - 16.0;
+        let a = 500.0 * (fx - fy);
+        let b = 200.0 * (fy - fz);
+
+        let l = lb;
+        let a = a + 128.0;
+        let b = b + 128.0;
+        Self::new(l, a, b)
+    }
+
+    /// Converts CIE [Lab] into CIE [Xyz] for PCS encoding
+    #[inline]
+    pub fn to_pcs_xyz(self) -> Xyz {
         let device_l = self.l * 100.0;
         let device_a = self.a * 255.0 - 128.0;
         let device_b = self.b * 255.0 - 128.0;
 
         let y = (device_l + 16.0) / 116.0;
 
-        let wp = white_point.unwrap_or(Chromacity::D50.to_xyz());
+        const WP: Xyz = Chromacity::D50.to_xyz();
 
-        let x = f_1(y + 0.002 * device_a) * wp.x;
-        let y1 = f_1(y) * wp.y;
-        let z = f_1(y - 0.005 * device_b) * wp.z;
+        let x = f_1(y + 0.002 * device_a) * WP.x;
+        let y1 = f_1(y) * WP.y;
+        let z = f_1(y - 0.005 * device_b) * WP.z;
+
+        let x = (x as f64 / (1.0f64 + 32767.0f64 / 32768.0f64)) as f32;
+        let y = (y1 as f64 / (1.0f64 + 32767.0f64 / 32768.0f64)) as f32;
+        let z = (z as f64 / (1.0f64 + 32767.0f64 / 32768.0f64)) as f32;
+        Xyz::new(x, y, z)
+    }
+
+    /// Converts CIE [Lab] into CIE [Xyz]
+    #[inline]
+    pub fn to_xyz(self) -> Xyz {
+        let device_l = self.l;
+        let device_a = self.a;
+        let device_b = self.b;
+
+        let y = (device_l + 16.0) / 116.0;
+
+        const WP: Xyz = Chromacity::D50.to_xyz();
+
+        let x = f_1(y + 0.002 * device_a) * WP.x;
+        let y1 = f_1(y) * WP.y;
+        let z = f_1(y - 0.005 * device_b) * WP.z;
 
         let x = (x as f64 / (1.0f64 + 32767.0f64 / 32768.0f64)) as f32;
         let y = (y1 as f64 / (1.0f64 + 32767.0f64 / 32768.0f64)) as f32;

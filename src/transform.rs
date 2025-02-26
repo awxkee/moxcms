@@ -28,10 +28,10 @@
  */
 use crate::clut::create_cmyk_to_rgb;
 use crate::err::CmsError;
-use crate::mlaf::mlaf;
+use crate::profile::RenderingIntent;
+use crate::stages::{GamutClipScaleStage, MatrixClipScaleStage, MatrixStage};
 use crate::{ColorProfile, DataColorSpace, Matrix3f};
 use num_traits::AsPrimitive;
-use std::ops::Mul;
 
 /// Transformation executor itself
 pub trait TransformExecutor<V: Copy + Default> {
@@ -43,6 +43,20 @@ pub trait TransformExecutor<V: Copy + Default> {
 /// Helper for intermediate transformation stages
 pub trait Stage {
     fn transform(&self, src: &[f32], dst: &mut [f32]) -> Result<(), CmsError>;
+}
+
+/// Helper for intermediate transformation stages
+pub trait InPlaceStage {
+    fn transform(&self, dst: &mut [f32]) -> Result<(), CmsError>;
+}
+
+/// Declares additional transformation options
+#[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Default)]
+pub struct TransformOptions {
+    /// If enabled in the transformation attempt to
+    /// clip gamut chroma if it is out range will be performed.
+    /// This is slow option. Transformation will be at least 2 times slower.
+    pub allow_chroma_clipping: bool,
 }
 
 pub type Transform8BitExecutor = dyn TransformExecutor<u8> + Send + Sync;
@@ -183,24 +197,13 @@ impl From<u8> for Layout {
 }
 
 #[derive(Clone)]
-struct TransformProfileRgb8Bit {
-    r_linear: Box<[f32; 256]>,
-    g_linear: Box<[f32; 256]>,
-    b_linear: Box<[f32; 256]>,
-    r_gamma: Box<[u8; 65536]>,
-    g_gamma: Box<[u8; 65536]>,
-    b_gamma: Box<[u8; 65536]>,
-    adaptation_matrix: Option<Matrix3f>,
-}
-
-#[derive(Clone)]
-struct TransformProfileRgb16Bit<const BUCKET: usize> {
+struct TransformProfileRgbBit<T: Clone, const BUCKET: usize> {
     r_linear: Box<[f32; BUCKET]>,
     g_linear: Box<[f32; BUCKET]>,
     b_linear: Box<[f32; BUCKET]>,
-    r_gamma: Box<[u16; 65536]>,
-    g_gamma: Box<[u16; 65536]>,
-    b_gamma: Box<[u16; 65536]>,
+    r_gamma: Box<[T; 65536]>,
+    g_gamma: Box<[T; 65536]>,
+    b_gamma: Box<[T; 65536]>,
     adaptation_matrix: Option<Matrix3f>,
 }
 
@@ -216,16 +219,15 @@ struct TransformProfileGrayToRgb<
     gray_gamma: Box<[T; 65536]>,
 }
 
-struct TransformProfilePcsXYZRgb8Bit<const LAYOUT: u8> {
-    profile: TransformProfileRgb8Bit,
-}
-
-struct TransformProfilePcsXYZRgb16Bit<
+struct TransformProfilePcsXYZRgbBit<
+    T: Clone,
     const LAYOUT: u8,
     const LINEAR_CAP: usize,
     const GAMMA_LUT: usize,
 > {
-    profile: TransformProfileRgb16Bit<LINEAR_CAP>,
+    profile: TransformProfileRgbBit<T, LINEAR_CAP>,
+    rendering_intent: RenderingIntent,
+    options: TransformOptions,
 }
 
 impl ColorProfile {
@@ -235,8 +237,9 @@ impl ColorProfile {
         &self,
         destination_profile: &ColorProfile,
         layout: Layout,
+        options: TransformOptions,
     ) -> Result<Box<Transform16BitExecutor>, CmsError> {
-        self.create_transform_nbit::<16, 65536, 65536>(destination_profile, layout)
+        self.create_transform_nbit::<16, 65536, 65536>(destination_profile, layout, options)
     }
 
     /// Creates transform between source and destination profile
@@ -245,9 +248,10 @@ impl ColorProfile {
         &self,
         destination_profile: &ColorProfile,
         layout: Layout,
+        options: TransformOptions,
     ) -> Result<Box<Transform16BitExecutor>, CmsError> {
         const CAP: usize = 1 << 12;
-        self.create_transform_nbit::<12, CAP, 16384>(destination_profile, layout)
+        self.create_transform_nbit::<12, CAP, 16384>(destination_profile, layout, options)
     }
 
     /// Creates transform between source and destination profile
@@ -256,9 +260,10 @@ impl ColorProfile {
         &self,
         destination_profile: &ColorProfile,
         layout: Layout,
+        options: TransformOptions,
     ) -> Result<Box<Transform16BitExecutor>, CmsError> {
         const CAP: usize = 1 << 10;
-        self.create_transform_nbit::<10, CAP, 8192>(destination_profile, layout)
+        self.create_transform_nbit::<10, CAP, 8192>(destination_profile, layout, options)
     }
 
     fn create_transform_nbit<
@@ -269,6 +274,7 @@ impl ColorProfile {
         &self,
         dst_pr: &ColorProfile,
         layout: Layout,
+        options: TransformOptions,
     ) -> Result<Box<Transform16BitExecutor>, CmsError> {
         if layout == Layout::Rgba8
             || layout == Layout::GrayAlpha8
@@ -298,7 +304,7 @@ impl ColorProfile {
             let gamma_b =
                 dst_pr.build_gamma_table::<u16, 65536, GAMMA_CAP, BIT_DEPTH>(&self.blue_trc)?;
 
-            let profile_transform = TransformProfileRgb16Bit {
+            let profile_transform = TransformProfileRgbBit {
                 r_linear: lin_r,
                 g_linear: lin_g,
                 b_linear: lin_b,
@@ -309,19 +315,25 @@ impl ColorProfile {
             };
 
             let transformer: Box<Transform16BitExecutor> = match layout {
-                Layout::Rgb16 => Box::new(TransformProfilePcsXYZRgb16Bit::<
-                    { Layout::Rgb8 as u8 },
+                Layout::Rgb16 => Box::new(TransformProfilePcsXYZRgbBit::<
+                    u16,
+                    { Layout::Rgb16 as u8 },
                     LINEAR_CAP,
                     GAMMA_CAP,
                 > {
                     profile: profile_transform,
+                    rendering_intent: dst_pr.rendering_intent,
+                    options,
                 }),
-                Layout::Rgba16 => Box::new(TransformProfilePcsXYZRgb16Bit::<
-                    { Layout::Rgba8 as u8 },
+                Layout::Rgba16 => Box::new(TransformProfilePcsXYZRgbBit::<
+                    u16,
+                    { Layout::Rgba16 as u8 },
                     LINEAR_CAP,
                     GAMMA_CAP,
                 > {
                     profile: profile_transform,
+                    rendering_intent: dst_pr.rendering_intent,
+                    options,
                 }),
                 _ => unimplemented!(),
             };
@@ -331,60 +343,60 @@ impl ColorProfile {
             && self.pcs == DataColorSpace::Xyz
             && dst_pr.pcs == DataColorSpace::Xyz
         {
-            let linear_tab = self.build_gray_linearize_table::<LINEAR_CAP>()?;
-            let output_gamma: Box<[u16; 65536]> =
+            let gray_linear = self.build_gray_linearize_table::<LINEAR_CAP>()?;
+            let gray_gamma =
                 dst_pr.build_gamma_table::<u16, 65536, GAMMA_CAP, BIT_DEPTH>(&self.gray_trc)?;
 
             let transformer: Box<Transform16BitExecutor> = match layout {
-                Layout::Rgb8 => {
+                Layout::Rgb16 => {
                     let profile = TransformProfileGrayToRgb::<
                         u16,
-                        { Layout::Rgb8 as u8 },
+                        { Layout::Rgb16 as u8 },
                         LINEAR_CAP,
                         BIT_DEPTH,
                         GAMMA_CAP,
                     > {
-                        gray_linear: linear_tab,
-                        gray_gamma: output_gamma,
+                        gray_linear,
+                        gray_gamma,
                     };
                     Box::new(profile)
                 }
-                Layout::Rgba8 => {
+                Layout::Rgba16 => {
                     let profile = TransformProfileGrayToRgb::<
                         u16,
-                        { Layout::Rgba8 as u8 },
+                        { Layout::Rgba16 as u8 },
                         LINEAR_CAP,
                         BIT_DEPTH,
                         GAMMA_CAP,
                     > {
-                        gray_linear: linear_tab,
-                        gray_gamma: output_gamma,
+                        gray_linear,
+                        gray_gamma,
                     };
                     Box::new(profile)
                 }
-                Layout::Gray8 => {
+                Layout::Gray16 => {
                     let profile = TransformProfileGrayToRgb::<
                         u16,
-                        { Layout::Gray8 as u8 },
+                        { Layout::Gray16 as u8 },
                         LINEAR_CAP,
                         BIT_DEPTH,
                         GAMMA_CAP,
                     > {
-                        gray_linear: linear_tab,
-                        gray_gamma: output_gamma,
+                        gray_linear,
+                        gray_gamma,
                     };
                     Box::new(profile)
                 }
-                Layout::GrayAlpha8 => {
+                Layout::GrayAlpha16 => {
                     let profile = TransformProfileGrayToRgb::<
                         u16,
-                        { Layout::GrayAlpha8 as u8 },
+                        { Layout::GrayAlpha16 as u8 },
                         LINEAR_CAP,
                         BIT_DEPTH,
                         GAMMA_CAP,
                     > {
-                        gray_linear: linear_tab,
-                        gray_gamma: output_gamma,
+                        gray_linear,
+                        gray_gamma,
                     };
                     Box::new(profile)
                 }
@@ -402,6 +414,7 @@ impl ColorProfile {
         &self,
         dst_pr: &ColorProfile,
         layout: Layout,
+        options: TransformOptions,
     ) -> Result<Box<Transform8BitExecutor>, CmsError> {
         if layout.is_16_bit() {
             return Err(CmsError::InvalidLayout);
@@ -425,7 +438,7 @@ impl ColorProfile {
             let gamma_g = dst_pr.build_8bit_gamma_table(&self.green_trc)?;
             let gamma_b = dst_pr.build_8bit_gamma_table(&self.blue_trc)?;
 
-            let profile_transform = TransformProfileRgb8Bit {
+            let profile_transform = TransformProfileRgbBit {
                 r_linear: lin_r,
                 g_linear: lin_g,
                 b_linear: lin_b,
@@ -436,13 +449,23 @@ impl ColorProfile {
             };
 
             let transformer: Box<Transform8BitExecutor> = match layout {
-                Layout::Rgb8 => Box::new(TransformProfilePcsXYZRgb8Bit::<{ Layout::Rgb8 as u8 }> {
-                    profile: profile_transform,
-                }),
+                Layout::Rgb8 => {
+                    Box::new(
+                        TransformProfilePcsXYZRgbBit::<u8, { Layout::Rgb8 as u8 }, 256, 8192> {
+                            profile: profile_transform,
+                            rendering_intent: dst_pr.rendering_intent,
+                            options,
+                        },
+                    )
+                }
                 Layout::Rgba8 => {
-                    Box::new(TransformProfilePcsXYZRgb8Bit::<{ Layout::Rgba8 as u8 }> {
-                        profile: profile_transform,
-                    })
+                    Box::new(
+                        TransformProfilePcsXYZRgbBit::<u8, { Layout::Rgba8 as u8 }, 256, 8192> {
+                            profile: profile_transform,
+                            rendering_intent: dst_pr.rendering_intent,
+                            options,
+                        },
+                    )
                 }
                 _ => unimplemented!(),
             };
@@ -506,109 +529,6 @@ impl ColorProfile {
         }
 
         Err(CmsError::UnsupportedProfileConnection)
-    }
-}
-
-impl<const LAYOUT: u8> TransformProfilePcsXYZRgb8Bit<LAYOUT> {
-    #[inline(always)]
-    fn transform_chunk(&self, src: &[u8], dst: &mut [u8], working_set: &mut [f32; 672]) {
-        let cn = Layout::from(LAYOUT);
-        let channels = cn.channels();
-
-        for (chunk, dst) in src
-            .chunks_exact(channels)
-            .zip(working_set.chunks_exact_mut(channels))
-        {
-            dst[0] = self.profile.r_linear[chunk[cn.r_i()] as usize];
-            dst[1] = self.profile.g_linear[chunk[cn.g_i()] as usize];
-            dst[2] = self.profile.b_linear[chunk[cn.b_i()] as usize];
-            if channels == 4 {
-                dst[3] = f32::from_bits(chunk[cn.a_i()] as u32);
-            }
-        }
-
-        if let Some(transform) = self.profile.adaptation_matrix {
-            assert!(src.len() <= 672, "Received {}", src.len());
-            let sliced = &mut working_set[..src.len()];
-            for chunk in sliced.chunks_exact_mut(channels) {
-                let r = chunk[0];
-                let g = chunk[1];
-                let b = chunk[2];
-                chunk[0] = mlaf(
-                    mlaf(r * transform.v[0][0], g, transform.v[0][1]),
-                    b,
-                    transform.v[0][2],
-                )
-                .max(0f32)
-                .min(1f32)
-                .mul(8191f32)
-                .round();
-
-                chunk[1] = mlaf(
-                    mlaf(r * transform.v[1][0], g, transform.v[1][1]),
-                    b,
-                    transform.v[1][2],
-                )
-                .max(0f32)
-                .min(1f32)
-                .mul(8191f32)
-                .round();
-
-                chunk[2] = mlaf(
-                    mlaf(r * transform.v[2][0], g, transform.v[2][1]),
-                    b,
-                    transform.v[2][2],
-                )
-                .max(0f32)
-                .min(1f32)
-                .mul(8191f32)
-                .round();
-            }
-        }
-
-        for (chunk, dst) in working_set
-            .chunks_exact(cn.channels())
-            .zip(dst.chunks_exact_mut(cn.channels()))
-        {
-            dst[cn.r_i()] = self.profile.r_gamma[chunk[0] as usize];
-            dst[cn.g_i()] = self.profile.g_gamma[chunk[1] as usize];
-            dst[cn.b_i()] = self.profile.b_gamma[chunk[2] as usize];
-            if channels == 4 {
-                dst[cn.a_i()] = chunk[3].to_bits() as u8;
-            }
-        }
-    }
-}
-
-impl<const LAYOUT: u8> TransformExecutor<u8> for TransformProfilePcsXYZRgb8Bit<LAYOUT> {
-    fn transform(&self, src: &[u8], dst: &mut [u8]) -> Result<(), CmsError> {
-        let cn = Layout::from(LAYOUT);
-        let channels = cn.channels();
-        if src.len() != dst.len() {
-            return Err(CmsError::LaneSizeMismatch);
-        }
-        if src.len() % channels != 0 {
-            return Err(CmsError::LaneMultipleOfChannels);
-        }
-        if dst.len() % channels != 0 {
-            return Err(CmsError::LaneMultipleOfChannels);
-        }
-        let mut working_set = [0f32; 672];
-
-        let chunks = 672;
-
-        for (src, dst) in src.chunks_exact(chunks).zip(dst.chunks_exact_mut(chunks)) {
-            self.transform_chunk(src, dst, &mut working_set);
-        }
-
-        let rem = src.chunks_exact(chunks).remainder();
-        let dst_rem = dst.chunks_exact_mut(chunks).into_remainder();
-
-        if !rem.is_empty() {
-            self.transform_chunk(rem, dst_rem, &mut working_set);
-        }
-
-        Ok(())
     }
 }
 
@@ -702,14 +622,20 @@ where
     }
 }
 
-impl<const LAYOUT: u8, const LINEAR_CAP: usize, const GAMMA_LUT: usize>
-    TransformProfilePcsXYZRgb16Bit<LAYOUT, LINEAR_CAP, GAMMA_LUT>
+impl<
+    T: Clone + AsPrimitive<usize>,
+    const LAYOUT: u8,
+    const LINEAR_CAP: usize,
+    const GAMMA_LUT: usize,
+> TransformProfilePcsXYZRgbBit<T, LAYOUT, LINEAR_CAP, GAMMA_LUT>
+where
+    u32: AsPrimitive<T>,
 {
     #[inline(always)]
     fn transform_chunk(
         &self,
-        src: &[u16],
-        dst: &mut [u16],
+        src: &[T],
+        dst: &mut [T],
         working_set: &mut [f32; 672],
     ) -> Result<(), CmsError> {
         let cn = Layout::from(LAYOUT);
@@ -719,11 +645,11 @@ impl<const LAYOUT: u8, const LINEAR_CAP: usize, const GAMMA_LUT: usize>
             .chunks_exact(channels)
             .zip(working_set.chunks_exact_mut(channels))
         {
-            dst[0] = self.profile.r_linear[chunk[cn.r_i()] as usize];
-            dst[1] = self.profile.g_linear[chunk[cn.g_i()] as usize];
-            dst[2] = self.profile.b_linear[chunk[cn.b_i()] as usize];
+            dst[0] = self.profile.r_linear[chunk[cn.r_i()].as_()];
+            dst[1] = self.profile.g_linear[chunk[cn.g_i()].as_()];
+            dst[2] = self.profile.b_linear[chunk[cn.b_i()].as_()];
             if channels == 4 {
-                dst[3] = f32::from_bits(chunk[cn.a_i()] as u32);
+                dst[3] = f32::from_bits(chunk[cn.a_i()].as_() as u32);
             }
         }
 
@@ -732,39 +658,23 @@ impl<const LAYOUT: u8, const LINEAR_CAP: usize, const GAMMA_LUT: usize>
         if let Some(transform) = self.profile.adaptation_matrix {
             assert!(src.len() <= 672, "Received {}", src.len());
             let sliced = &mut working_set[..src.len()];
-            for chunk in sliced.chunks_exact_mut(channels) {
-                let r = chunk[0];
-                let g = chunk[1];
-                let b = chunk[2];
-                chunk[0] = mlaf(
-                    mlaf(r * transform.v[0][0], g, transform.v[0][1]),
-                    b,
-                    transform.v[0][2],
-                )
-                .max(0f32)
-                .min(1f32)
-                .mul(cap_values)
-                .round();
+            let gamut_clipping_intent = self.rendering_intent == RenderingIntent::Perceptual
+                || self.rendering_intent == RenderingIntent::RelativeColorimetric
+                || self.rendering_intent == RenderingIntent::Saturation;
 
-                chunk[1] = mlaf(
-                    mlaf(r * transform.v[1][0], g, transform.v[1][1]),
-                    b,
-                    transform.v[1][2],
-                )
-                .max(0f32)
-                .min(1f32)
-                .mul(cap_values)
-                .round();
+            // Check if rendering intent is adequate for gamut chroma clipping
+            if gamut_clipping_intent && self.options.allow_chroma_clipping {
+                let stage = MatrixStage::<LAYOUT> { matrix: transform };
+                stage.transform(sliced)?;
 
-                chunk[2] = mlaf(
-                    mlaf(r * transform.v[2][0], g, transform.v[2][1]),
-                    b,
-                    transform.v[2][2],
-                )
-                .max(0f32)
-                .min(1f32)
-                .mul(cap_values)
-                .round();
+                let stage = GamutClipScaleStage::<LAYOUT> { scale: cap_values };
+                stage.transform(sliced)?;
+            } else {
+                let stage = MatrixClipScaleStage::<LAYOUT> {
+                    matrix: transform,
+                    scale: cap_values,
+                };
+                stage.transform(sliced)?;
             }
         }
 
@@ -776,7 +686,7 @@ impl<const LAYOUT: u8, const LINEAR_CAP: usize, const GAMMA_LUT: usize>
             dst[cn.g_i()] = self.profile.g_gamma[chunk[1] as usize];
             dst[cn.b_i()] = self.profile.b_gamma[chunk[2] as usize];
             if channels == 4 {
-                dst[cn.a_i()] = chunk[3].to_bits() as u16;
+                dst[cn.a_i()] = chunk[3].to_bits().as_();
             }
         }
 
@@ -784,10 +694,16 @@ impl<const LAYOUT: u8, const LINEAR_CAP: usize, const GAMMA_LUT: usize>
     }
 }
 
-impl<const LAYOUT: u8, const LINEAR_CAP: usize, const GAMMA_LUT: usize> TransformExecutor<u16>
-    for TransformProfilePcsXYZRgb16Bit<LAYOUT, LINEAR_CAP, GAMMA_LUT>
+impl<
+    T: Clone + AsPrimitive<usize> + Default,
+    const LAYOUT: u8,
+    const LINEAR_CAP: usize,
+    const GAMMA_LUT: usize,
+> TransformExecutor<T> for TransformProfilePcsXYZRgbBit<T, LAYOUT, LINEAR_CAP, GAMMA_LUT>
+where
+    u32: AsPrimitive<T>,
 {
-    fn transform(&self, src: &[u16], dst: &mut [u16]) -> Result<(), CmsError> {
+    fn transform(&self, src: &[T], dst: &mut [T]) -> Result<(), CmsError> {
         let cn = Layout::from(LAYOUT);
         let channels = cn.channels();
         if src.len() != dst.len() {
@@ -820,7 +736,7 @@ impl<const LAYOUT: u8, const LINEAR_CAP: usize, const GAMMA_LUT: usize> Transfor
 
 #[cfg(test)]
 mod tests {
-    use crate::{ColorProfile, Layout};
+    use crate::{ColorProfile, Layout, TransformOptions};
     use rand::Rng;
 
     #[test]
@@ -829,7 +745,7 @@ mod tests {
         let bt2020_profile = ColorProfile::new_bt2020();
         let random_point_x = rand::rng().random_range(0..255);
         let transform = bt2020_profile
-            .create_transform_8bit(&srgb_profile, Layout::Rgb8)
+            .create_transform_8bit(&srgb_profile, Layout::Rgb8, TransformOptions::default())
             .unwrap();
         let src = vec![random_point_x; 256 * 256 * 3];
         let mut dst = vec![random_point_x; 256 * 256 * 3];
@@ -842,7 +758,7 @@ mod tests {
         let bt2020_profile = ColorProfile::new_bt2020();
         let random_point_x = rand::rng().random_range(0..255);
         let transform = bt2020_profile
-            .create_transform_8bit(&srgb_profile, Layout::Rgba8)
+            .create_transform_8bit(&srgb_profile, Layout::Rgba8, TransformOptions::default())
             .unwrap();
         let src = vec![random_point_x; 256 * 256 * 4];
         let mut dst = vec![random_point_x; 256 * 256 * 4];
@@ -855,7 +771,7 @@ mod tests {
         let bt2020_profile = ColorProfile::new_bt2020();
         let random_point_x = rand::rng().random_range(0..255);
         let transform = srgb_profile
-            .create_transform_8bit(&bt2020_profile, Layout::Rgb8)
+            .create_transform_8bit(&bt2020_profile, Layout::Rgb8, TransformOptions::default())
             .unwrap();
         let src = vec![random_point_x; 256 * 256];
         let mut dst = vec![random_point_x; 256 * 256 * 3];
@@ -868,7 +784,7 @@ mod tests {
         let bt2020_profile = ColorProfile::new_bt2020();
         let random_point_x = rand::rng().random_range(0..255);
         let transform = srgb_profile
-            .create_transform_8bit(&bt2020_profile, Layout::Rgba8)
+            .create_transform_8bit(&bt2020_profile, Layout::Rgba8, TransformOptions::default())
             .unwrap();
         let src = vec![random_point_x; 256 * 256];
         let mut dst = vec![random_point_x; 256 * 256 * 4];
@@ -881,7 +797,11 @@ mod tests {
         let bt2020_profile = ColorProfile::new_bt2020();
         let random_point_x = rand::rng().random_range(0..255);
         let transform = srgb_profile
-            .create_transform_8bit(&bt2020_profile, Layout::GrayAlpha8)
+            .create_transform_8bit(
+                &bt2020_profile,
+                Layout::GrayAlpha8,
+                TransformOptions::default(),
+            )
             .unwrap();
         let src = vec![random_point_x; 256 * 256];
         let mut dst = vec![random_point_x; 256 * 256 * 2];
@@ -894,7 +814,7 @@ mod tests {
         let bt2020_profile = ColorProfile::new_bt2020();
         let random_point_x = rand::rng().random_range(0..((1 << 10) - 1));
         let transform = bt2020_profile
-            .create_transform_10bit(&srgb_profile, Layout::Rgb16)
+            .create_transform_10bit(&srgb_profile, Layout::Rgb16, TransformOptions::default())
             .unwrap();
         let src = vec![random_point_x; 256 * 256 * 3];
         let mut dst = vec![random_point_x; 256 * 256 * 3];
@@ -907,7 +827,7 @@ mod tests {
         let bt2020_profile = ColorProfile::new_bt2020();
         let random_point_x = rand::rng().random_range(0..((1 << 12) - 1));
         let transform = bt2020_profile
-            .create_transform_12bit(&srgb_profile, Layout::Rgb16)
+            .create_transform_12bit(&srgb_profile, Layout::Rgb16, TransformOptions::default())
             .unwrap();
         let src = vec![random_point_x; 256 * 256 * 3];
         let mut dst = vec![random_point_x; 256 * 256 * 3];
@@ -920,7 +840,7 @@ mod tests {
         let bt2020_profile = ColorProfile::new_bt2020();
         let random_point_x = rand::rng().random_range(0..((1u32 << 16u32) - 1u32)) as u16;
         let transform = bt2020_profile
-            .create_transform_16bit(&srgb_profile, Layout::Rgb16)
+            .create_transform_16bit(&srgb_profile, Layout::Rgb16, TransformOptions::default())
             .unwrap();
         let src = vec![random_point_x; 256 * 256 * 3];
         let mut dst = vec![random_point_x; 256 * 256 * 3];

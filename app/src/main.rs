@@ -28,26 +28,13 @@
  */
 use image::codecs::jpeg::JpegDecoder;
 use image::{GenericImageView, ImageDecoder};
-use moxcms::{ColorProfile, Layout};
+use moxcms::{ColorProfile, Layout, TransformOptions};
 use std::fs::File;
 use std::io::BufReader;
 use std::time::Instant;
 
-pub fn cmyk_to_rgb(c: f32, m: f32, y: f32, k: f32) -> (u8, u8, u8) {
-    let r = (1.0 - c) * (1.0 - k);
-    let g = (1.0 - m) * (1.0 - k);
-    let b = (1.0 - y) * (1.0 - k);
-
-    // Convert to 8-bit (0-255) range
-    (
-        (r * 255.0).round() as u8,
-        (g * 255.0).round() as u8,
-        (b * 255.0).round() as u8,
-    )
-}
-
 fn main() {
-    let f_str = "./assets/pro_photo.jpg";
+    let f_str = "./assets/04.jpg";
     let file = File::open(f_str).expect("Failed to open file");
 
     let img = image::ImageReader::open(f_str).unwrap().decode().unwrap();
@@ -58,18 +45,21 @@ fn main() {
     let color_profile = ColorProfile::new_from_slice(&icc).unwrap();
     let dest_profile = ColorProfile::new_srgb();
     let transform = color_profile
-        .create_transform_8bit(&dest_profile, Layout::Rgb8)
+        .create_transform_8bit(
+            &dest_profile,
+            Layout::Rgb8,
+            TransformOptions {
+                allow_chroma_clipping: true,
+            },
+        )
         .unwrap();
     let mut dst = vec![0u8; rgb.len()];
 
     let instant = Instant::now();
-
     for (src, dst) in rgb
         .chunks_exact(img.width() as usize * 3)
         .zip(dst.chunks_exact_mut(img.dimensions().0 as usize * 3))
     {
-        // ot.transform_pixels(src, dst);
-
         transform
             .transform(
                 &src[..img.dimensions().0 as usize * 3],
@@ -77,7 +67,7 @@ fn main() {
             )
             .unwrap();
     }
-    println!("Exec time {:?}", instant.elapsed());
+    println!("Estimated time: {:?}", instant.elapsed());
 
     // let image = JxlImage::builder()
     //     .pool(JxlThreadPool::none())
@@ -129,7 +119,7 @@ fn main() {
     // .unwrap();
 
     image::save_buffer(
-        "v1.jpg",
+        "v6.jpg",
         &dst,
         img.dimensions().0,
         img.dimensions().1,

@@ -346,7 +346,7 @@ fn linear_curve_parametric<const N: usize>(params: &[f32]) -> Option<Box<[f32; N
     Some(gamma_table)
 }
 
-pub fn make_gamma_linear_table<
+pub(crate) fn make_gamma_linear_table<
     T: Default + Copy + 'static,
     const BUCKET: usize,
     const N: usize,
@@ -395,7 +395,7 @@ where
     value.as_()
 }
 
-pub fn make_gamma_lut<
+pub(crate) fn make_gamma_lut<
     T: Default + Copy + 'static,
     const BUCKET: usize,
     const N: usize,
@@ -413,7 +413,7 @@ where
     new_table
 }
 
-pub fn lut_interp_linear16(input_value: u16, table: &[u16]) -> u16 {
+pub(crate) fn lut_interp_linear16(input_value: u16, table: &[u16]) -> u16 {
     /* Start scaling input_value to the length of the array: 65535*(length-1).
      * We'll divide out the 65535 next */
     let mut value: u32 = (input_value as i32 * (table.len() as i32 - 1)) as u32; /* equivalent to ceil(value/65535) */

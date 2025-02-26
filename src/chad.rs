@@ -29,6 +29,7 @@
 use crate::Chromacity;
 use crate::matrix::{Matrix3f, Vector3f, XyY, Xyz};
 
+#[inline]
 fn compute_chromatic_adaption(
     source_white_point: Xyz,
     dest_white_point: Xyz,

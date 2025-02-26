@@ -27,25 +27,34 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 #![allow(clippy::manual_clamp, clippy::excessive_precision)]
+#![deny(unreachable_pub)]
 mod chad;
 mod cicp;
 mod clut;
 mod err;
+mod gamut;
 mod lab;
 mod matrix;
 mod mlaf;
 mod nd_array;
+mod oklab;
 mod profile;
+mod rgb;
+mod stages;
 mod transform;
 mod trc;
 
 pub use err::CmsError;
+pub use lab::Lab;
 pub use matrix::{
     BT2020_MATRIX, Chromacity, DISPLAY_P3_MATRIX, Matrix3f, SRGB_MATRIX, Vector3, Vector3f,
     Vector3i, Vector3u, XyY, Xyz,
 };
 pub use nd_array::{Array3D, Array4D};
+pub use oklab::Oklab;
 pub use profile::{CicpProfile, ColorProfile, DataColorSpace, LutType, ProfileClass};
+pub use rgb::Rgb;
 pub use transform::{
-    Layout, Stage, Transform8BitExecutor, Transform16BitExecutor, TransformExecutor,
+    InPlaceStage, Layout, Stage, Transform8BitExecutor, Transform16BitExecutor, TransformExecutor,
+    TransformOptions,
 };

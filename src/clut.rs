@@ -32,9 +32,10 @@ use crate::nd_array::{Array4D, lerp};
 use crate::profile::LutDataType;
 use crate::trc::{clamp_float, lut_interp_linear_float};
 use crate::{
-    CmsError, ColorProfile, DataColorSpace, Layout, Matrix3f, Stage, Transform8BitExecutor,
-    TransformExecutor, Vector3f, Xyz,
+    CmsError, ColorProfile, DataColorSpace, InPlaceStage, Layout, Matrix3f, Stage,
+    Transform8BitExecutor, TransformExecutor, Vector3f, Xyz,
 };
+use num_traits::AsPrimitive;
 
 #[derive(Default)]
 struct Lut4 {
@@ -47,14 +48,11 @@ struct Lut4 {
 #[derive(Default)]
 pub(crate) struct StageLabToXyz {}
 
-impl Stage for StageLabToXyz {
-    fn transform(&self, src: &[f32], dst: &mut [f32]) -> Result<(), CmsError> {
-        if src.len() != dst.len() {
-            return Err(CmsError::LaneSizeMismatch);
-        }
-        for (src, dst) in src.chunks_exact(3).zip(dst.chunks_exact_mut(3)) {
-            let lab = Lab::new(src[0], src[1], src[2]);
-            let xyz = lab.to_pcs_xyz(None);
+impl InPlaceStage for StageLabToXyz {
+    fn transform(&self, dst: &mut [f32]) -> Result<(), CmsError> {
+        for dst in dst.chunks_exact_mut(3) {
+            let lab = Lab::new(dst[0], dst[1], dst[2]);
+            let xyz = lab.to_pcs_xyz();
             dst[0] = xyz.x;
             dst[1] = xyz.y;
             dst[2] = xyz.z;
@@ -66,14 +64,11 @@ impl Stage for StageLabToXyz {
 #[derive(Default)]
 pub(crate) struct StageXyzToLab {}
 
-impl Stage for StageXyzToLab {
-    fn transform(&self, src: &[f32], dst: &mut [f32]) -> Result<(), CmsError> {
-        if src.len() != dst.len() {
-            return Err(CmsError::LaneSizeMismatch);
-        }
-        for (src, dst) in src.chunks_exact(3).zip(dst.chunks_exact_mut(3)) {
-            let xyz = Xyz::new(src[0], src[1], src[2]);
-            let lab = Lab::from_pcs_xyz(xyz, None);
+impl InPlaceStage for StageXyzToLab {
+    fn transform(&self, dst: &mut [f32]) -> Result<(), CmsError> {
+        for dst in dst.chunks_exact_mut(3) {
+            let xyz = Xyz::new(dst[0], dst[1], dst[2]);
+            let lab = Lab::from_pcs_xyz(xyz);
             dst[0] = lab.l;
             dst[1] = lab.a;
             dst[2] = lab.b;
@@ -152,14 +147,15 @@ fn create_lut<const SAMPLES: usize>(lut: &LutDataType) -> Result<Vec<f32>, CmsEr
     let mut src = Vec::with_capacity(lut_size as usize);
     let mut dest = vec![0.; lut_size as usize];
     /* Prepare a list of points we want to sample */
+    let recpeq = 1f32 / (SAMPLES - 1) as f32;
     for k in 0..SAMPLES {
         for c in 0..SAMPLES {
             for m in 0..SAMPLES {
                 for y in 0..SAMPLES {
-                    src.push(c as f32 / (SAMPLES - 1) as f32);
-                    src.push(m as f32 / (SAMPLES - 1) as f32);
-                    src.push(y as f32 / (SAMPLES - 1) as f32);
-                    src.push(k as f32 / (SAMPLES - 1) as f32);
+                    src.push(c as f32 * recpeq);
+                    src.push(m as f32 * recpeq);
+                    src.push(y as f32 * recpeq);
+                    src.push(k as f32 * recpeq);
                 }
             }
         }
@@ -173,25 +169,24 @@ struct TransformLut4XyzToRgb<const LAYOUT: u8, const GRID_SIZE: usize> {
     lut: Vec<f32>,
 }
 
-struct XyzToRgbStage {
-    r_gamma: Box<[u8; 65536]>,
-    g_gamma: Box<[u8; 65536]>,
-    b_gamma: Box<[u8; 65536]>,
+struct XyzToRgbStage<T: Clone, const BIT_DEPTH: usize, const GAMMA_LUT: usize> {
+    r_gamma: Box<[T; 65536]>,
+    g_gamma: Box<[T; 65536]>,
+    b_gamma: Box<[T; 65536]>,
     matrices: Vec<Matrix3f>,
 }
 
-impl Stage for XyzToRgbStage {
-    fn transform(&self, src: &[f32], dst: &mut [f32]) -> Result<(), CmsError> {
-        if src.len() != dst.len() {
-            return Err(CmsError::LaneSizeMismatch);
-        }
-
+impl<T: Clone + AsPrimitive<f32>, const BIT_DEPTH: usize, const GAMMA_LUT: usize> InPlaceStage
+    for XyzToRgbStage<T, BIT_DEPTH, GAMMA_LUT>
+{
+    fn transform(&self, dst: &mut [f32]) -> Result<(), CmsError> {
+        assert!(BIT_DEPTH >= 8);
         if !self.matrices.is_empty() {
             let m = self.matrices[0];
-            for (src, dst) in src.chunks_exact(3).zip(dst.chunks_exact_mut(3)) {
-                let x = src[0];
-                let y = src[1];
-                let z = src[2];
+            for dst in dst.chunks_exact_mut(3) {
+                let x = dst[0];
+                let y = dst[1];
+                let z = dst[2];
                 dst[0] = mlaf(mlaf(x * m.v[0][0], y, m.v[0][1]), z, m.v[0][2]);
                 dst[1] = mlaf(mlaf(x * m.v[1][0], y, m.v[1][1]), z, m.v[1][2]);
                 dst[2] = mlaf(mlaf(x * m.v[2][0], y, m.v[2][1]), z, m.v[2][2]);
@@ -209,13 +204,17 @@ impl Stage for XyzToRgbStage {
             }
         }
 
+        let max_colors = (1 << BIT_DEPTH) - 1;
+        let color_scale = 1f32 / max_colors as f32;
+        let lut_cap = (GAMMA_LUT - 1) as f32;
+
         for dst in dst.chunks_exact_mut(3) {
-            let r = mlaf(0.5f32, dst[0], 8191f32).min(8191f32).max(0f32) as u16;
-            let g = mlaf(0.5f32, dst[1], 8191f32).min(8191f32).max(0f32) as u16;
-            let b = mlaf(0.5f32, dst[2], 8191f32).min(8191f32).max(0f32) as u16;
-            dst[0] = self.r_gamma[r as usize] as f32 * (1. / 255f32);
-            dst[1] = self.g_gamma[g as usize] as f32 * (1. / 255f32);
-            dst[2] = self.b_gamma[b as usize] as f32 * (1. / 255f32);
+            let r = mlaf(0.5f32, dst[0], lut_cap).min(lut_cap).max(0f32) as u16;
+            let g = mlaf(0.5f32, dst[1], lut_cap).min(lut_cap).max(0f32) as u16;
+            let b = mlaf(0.5f32, dst[2], lut_cap).min(lut_cap).max(0f32) as u16;
+            dst[0] = self.r_gamma[r as usize].as_() * color_scale;
+            dst[1] = self.g_gamma[g as usize].as_() * color_scale;
+            dst[2] = self.b_gamma[b as usize].as_() * color_scale;
         }
 
         Ok(())
@@ -232,7 +231,7 @@ struct Tetrahedral<'a, const GRID_SIZE: usize> {
 }
 
 impl<'a, const GRID_SIZE: usize> Tetrahedral<'a, GRID_SIZE> {
-    pub fn new(table: &'a [f32]) -> Self {
+    pub(crate) fn new(table: &'a [f32]) -> Self {
         Self { cube: table }
     }
 
@@ -390,17 +389,13 @@ pub(crate) fn create_cmyk_to_rgb(
         let mut lut = create_lut::<GRID_SIZE>(lut_a_to_b)?;
 
         if source.pcs == DataColorSpace::Lab {
-            let mut working_buffer = vec![0f32; lut.len()];
             let lab_to_xyz_stage = StageLabToXyz::default();
-            lab_to_xyz_stage.transform(&lut, &mut working_buffer)?;
-            std::mem::swap(&mut working_buffer, &mut lut);
+            lab_to_xyz_stage.transform(&mut lut)?;
         }
 
         if dest.pcs == DataColorSpace::Lab {
-            let mut working_buffer = vec![0f32; lut.len()];
             let lab_to_xyz_stage = StageXyzToLab::default();
-            lab_to_xyz_stage.transform(&lut, &mut working_buffer)?;
-            std::mem::swap(&mut working_buffer, &mut lut);
+            lab_to_xyz_stage.transform(&mut lut)?;
         }
 
         if dest.color_space == DataColorSpace::Rgb {
@@ -424,15 +419,13 @@ pub(crate) fn create_cmyk_to_rgb(
             }];
 
             matrices.push(xyz_to_rgb);
-            let xyz_to_rgb_stage = XyzToRgbStage {
+            let xyz_to_rgb_stage = XyzToRgbStage::<u8, 8, 8192> {
                 r_gamma: gamma_map_r,
                 g_gamma: gamma_map_g,
                 b_gamma: gamma_map_b,
                 matrices,
             };
-            let mut working_buffer = vec![0f32; lut.len()];
-            xyz_to_rgb_stage.transform(&lut, &mut working_buffer)?;
-            std::mem::swap(&mut working_buffer, &mut lut);
+            xyz_to_rgb_stage.transform(&mut lut)?;
         }
 
         return Ok(match layout {
