@@ -1,0 +1,11 @@
+[package]
+name = "app"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+image = "0.25.5"
+moxcms = {path = "../"}
+turbojpeg = "1.2.2"
+lcms2 = "6.1.0"
+jxl-oxide = "0.11.2"
