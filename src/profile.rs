@@ -825,25 +825,13 @@ impl ColorProfile {
                 } else if tag_value == CICP_TAG {
                     profile.cicp = Self::read_cicp_tag(slice, tag_entry as usize, tag_size)?;
                 } else if tag_value == R_TAG_TRC && color_space == DataColorSpace::Rgb {
-                    match Self::read_trc_tag(slice, tag_entry as usize, tag_size) {
-                        Ok(trc) => profile.red_trc = trc,
-                        Err(err) => return Err(err),
-                    }
+                    profile.red_trc = Self::read_trc_tag(slice, tag_entry as usize, tag_size)?;
                 } else if tag_value == G_TAG_TRC && color_space == DataColorSpace::Rgb {
-                    match Self::read_trc_tag(slice, tag_entry as usize, tag_size) {
-                        Ok(trc) => profile.green_trc = trc,
-                        Err(err) => return Err(err),
-                    }
+                    profile.green_trc = Self::read_trc_tag(slice, tag_entry as usize, tag_size)?;
                 } else if tag_value == B_TAG_TRC && color_space == DataColorSpace::Rgb {
-                    match Self::read_trc_tag(slice, tag_entry as usize, tag_size) {
-                        Ok(trc) => profile.blue_trc = trc,
-                        Err(err) => return Err(err),
-                    }
+                    profile.blue_trc = Self::read_trc_tag(slice, tag_entry as usize, tag_size)?;
                 } else if tag_value == K_TAG_TRC && color_space == DataColorSpace::Rgb {
-                    match Self::read_trc_tag(slice, tag_entry as usize, tag_size) {
-                        Ok(trc) => profile.gray_trc = trc,
-                        Err(err) => return Err(err),
-                    }
+                    profile.gray_trc = Self::read_trc_tag(slice, tag_entry as usize, tag_size)?;
                 } else if tag_value == WT_PT_TAG {
                     match Self::read_xyz_tag(slice, tag_entry as usize, tag_size) {
                         Ok(wt) => profile.white_point = Some(wt),
@@ -863,18 +851,14 @@ impl ColorProfile {
                 {
                     let lut_type = Self::read_lut_type(slice, tag_entry as usize, tag_size)?;
                     if lut_type == LutType::Lut8 || lut_type == LutType::Lut16 {
-                        match Self::read_lut_a_to_b_type(slice, tag_entry as usize, tag_size) {
-                            Ok(v) => profile.lut_a_to_b = v,
-                            Err(err) => return Err(err),
-                        }
+                        profile.lut_a_to_b =
+                            Self::read_lut_a_to_b_type(slice, tag_entry as usize, tag_size)?;
                     }
                 } else if tag_value == B2A0_TAG {
                     let lut_type = Self::read_lut_type(slice, tag_entry as usize, tag_size)?;
                     if lut_type == LutType::Lut8 || lut_type == LutType::Lut16 {
-                        match Self::read_lut_a_to_b_type(slice, tag_entry as usize, tag_size) {
-                            Ok(v) => profile.lut_b_to_a = v,
-                            Err(err) => return Err(err),
-                        }
+                        profile.lut_b_to_a =
+                            Self::read_lut_a_to_b_type(slice, tag_entry as usize, tag_size)?;
                     }
                 }
             }
@@ -994,7 +978,7 @@ impl ColorProfile {
 
     pub fn rgb_to_xyz_matrix(&self) -> Option<Matrix3f> {
         let xyz_matrix = self.colorant_matrix();
-        let white_point = self.white_point.unwrap_or(Chromacity::D50.to_xyz());
+        let white_point = Chromacity::D50.to_xyz();
         self.rgb_to_xyz(xyz_matrix, white_point)
     }
 

@@ -26,9 +26,9 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-use crate::Chromacity;
 use crate::err::CmsError;
 use crate::trc::{Trc, build_srgb_gamma_table, build_trc_table, curve_from_gamma};
+use crate::{Chromacity, pow};
 use std::convert::TryFrom;
 
 /// See [Rec. ITU-T H.273 (12/2016)](https://www.itu.int/rec/T-REC-H.273-201612-I/en) Table 2
@@ -376,7 +376,7 @@ impl TryFrom<TransferCharacteristics> for Trc {
                 // Inverting this to give the EOTF required for the profile gives
                 //
                 // Lc = 10^(2*V - 2)  for 1 >= V >= 0
-                let table = build_trc_table(NUM_TRC_TABLE_ENTRIES, |v| 10f64.powf(2. * v - 2.));
+                let table = build_trc_table(NUM_TRC_TABLE_ENTRIES, |v| pow(10f64, 2. * v - 2.));
                 Trc::Lut(table)
             }
             TransferCharacteristics::Log100sqrt10 => {
@@ -389,7 +389,7 @@ impl TryFrom<TransferCharacteristics> for Trc {
                 // Inverting this to give the EOTF required for the profile gives
                 //
                 // Lc = 10^(2.5*V - 2.5)  for 1 >= V >= 0
-                let table = build_trc_table(NUM_TRC_TABLE_ENTRIES, |v| 10f64.powf(2.5 * v - 2.5));
+                let table = build_trc_table(NUM_TRC_TABLE_ENTRIES, |v| pow(10f64, 2.5 * v - 2.5));
                 Trc::Lut(table)
             }
             TransferCharacteristics::Iec61966 => {
@@ -416,7 +416,10 @@ impl TryFrom<TransferCharacteristics> for Trc {
                 //
                 // Y = ( max[( X^(1/m) - c1 ), 0] ÷ ( c2 - c3 * X^(1/m) ) )^(1/n)
                 let table = build_trc_table(NUM_TRC_TABLE_ENTRIES, |x| {
-                    ((x.powf(1. / M) - C1).max(0.) / (C2 - C3 * x.powf(1. / M))).powf(1. / N)
+                    pow(
+                        (pow(x, 1. / M) - C1).max(0.) / (C2 - C3 * pow(x, 1. / M)),
+                        1. / N,
+                    )
                 });
                 Trc::Lut(table)
             }
@@ -440,11 +443,11 @@ impl TryFrom<TransferCharacteristics> for Trc {
                 // Y = ((e^((X-c)/a))+b)/12  for 0.5 <  X <= 1
                 let table = build_trc_table(NUM_TRC_TABLE_ENTRIES, |x| {
                     if x <= 0.5 {
-                        let y1 = x.powf(2.) / 3.;
+                        let y1 = (x * x) / 3.;
                         debug_assert!((0. ..=1. / 12.).contains(&y1));
                         y1
                     } else {
-                        (std::f64::consts::E.powf((x - C) / A) + B) / 12.
+                        (pow(std::f64::consts::E, (x - C) / A) + B) / 12.
                     }
                 });
                 Trc::Lut(table)

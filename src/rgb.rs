@@ -9,8 +9,8 @@ use std::cmp::{Ordering, max, min};
 use std::ops::{Add, AddAssign, Div, DivAssign, Index, IndexMut, Mul, MulAssign, Neg, Sub};
 
 #[repr(C)]
-#[derive(Debug, PartialOrd, PartialEq, Clone, Copy)]
-/// Represents any RGB values, Rgb<u8>, Rgb<u16> etc.
+#[derive(Debug, PartialOrd, PartialEq, Clone, Copy, Default)]
+/// Represents any RGB values
 pub struct Rgb<T> {
     /// Red component
     pub r: T,
@@ -81,14 +81,6 @@ macro_rules! generated_float_definition_rgb {
             pub fn black() -> Rgb<$T> {
                 Rgb::<$T>::zeroed()
             }
-
-            #[inline]
-            pub fn contrast(&self, contrast: $T) -> Rgb<$T> {
-                let new_r = self.r * contrast + -0.5 * contrast + 0.5;
-                let new_g = self.g * contrast + -0.5 * contrast + 0.5;
-                let new_b = self.b * contrast + -0.5 * contrast + 0.5;
-                Rgb::<$T>::new(new_r, new_g, new_b)
-            }
         }
     };
 }
@@ -128,58 +120,6 @@ generated_integral_definition_rgb!(i8);
 generated_integral_definition_rgb!(i16);
 generated_integral_definition_rgb!(i32);
 generated_integral_definition_rgb!(u32);
-
-macro_rules! generated_default_definition_rgb {
-    ($T: ty) => {
-        impl Default for Rgb<$T> {
-            fn default() -> Self {
-                Rgb::<$T>::zeroed()
-            }
-        }
-    };
-}
-
-generated_default_definition_rgb!(u8);
-generated_default_definition_rgb!(u16);
-generated_default_definition_rgb!(i8);
-generated_default_definition_rgb!(i16);
-generated_default_definition_rgb!(i32);
-generated_default_definition_rgb!(u32);
-generated_default_definition_rgb!(f32);
-generated_default_definition_rgb!(f64);
-
-impl Rgb<u8> {
-    #[inline]
-    #[allow(clippy::manual_clamp)]
-    pub fn contrast(&self, contrast: f32) -> Rgb<u8> {
-        let new_r = (self.r as f32 * contrast + -127.5f32 * contrast + 127.5f32)
-            .round()
-            .min(255f32)
-            .max(0f32);
-        let new_g = (self.g as f32 * contrast + -127.5f32 * contrast + 127.5f32)
-            .round()
-            .min(255f32)
-            .max(0f32);
-        let new_b = (self.b as f32 * contrast + -127.5f32 * contrast + 127.5f32)
-            .round()
-            .min(255f32)
-            .max(0f32);
-        Rgb::<u8>::new(new_r as u8, new_g as u8, new_b as u8)
-    }
-
-    #[inline]
-    pub fn grayscale(&self, grayscale_amount: f32) -> Rgb<u8> {
-        let gray = self.r as f32 * 0.299f32 + self.g as f32 * 0.587 + self.b as f32 * 0.114;
-        let new_r = self.r as f32 * (255f32 - grayscale_amount) + gray * grayscale_amount;
-        let new_g = self.g as f32 * (255f32 - grayscale_amount) + gray * grayscale_amount;
-        let new_b = self.b as f32 * (255f32 - grayscale_amount) + gray * grayscale_amount;
-        Rgb::<u8>::new(
-            new_r.round() as u8,
-            new_g.round() as u8,
-            new_b.round() as u8,
-        )
-    }
-}
 
 impl<T> Rgb<T>
 where

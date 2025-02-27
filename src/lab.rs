@@ -26,6 +26,7 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+use crate::math::cbrtf;
 use crate::{Chromacity, Xyz};
 
 /// Holds CIE LAB values
@@ -49,13 +50,13 @@ impl Lab {
     /// * `a`: green (negative) and red (positive) component.
     /// * `b`: blue (negative) and yellow (positive) component.
     #[inline]
-    pub fn new(l: f32, a: f32, b: f32) -> Self {
+    pub const fn new(l: f32, a: f32, b: f32) -> Self {
         Self { l, a, b }
     }
 }
 
 #[inline(always)]
-fn f_1(t: f32) -> f32 {
+const fn f_1(t: f32) -> f32 {
     if t <= 24.0 / 116.0 {
         (108.0 / 841.0) * (t - 16.0 / 116.0)
     } else {
@@ -64,18 +65,18 @@ fn f_1(t: f32) -> f32 {
 }
 
 #[inline(always)]
-fn f(t: f32) -> f32 {
+const fn f(t: f32) -> f32 {
     if t <= 24. / 116. * (24. / 116.) * (24. / 116.) {
         (841. / 108. * t) + 16. / 116.
     } else {
-        t.cbrt()
+        cbrtf(t)
     }
 }
 
 impl Lab {
     /// Converts to CIE Lab from CIE XYZ for PCS encoding
     #[inline]
-    pub fn from_pcs_xyz(xyz: Xyz) -> Self {
+    pub const fn from_pcs_xyz(xyz: Xyz) -> Self {
         const WP: Xyz = Chromacity::D50.to_xyz();
         let device_x = (xyz.x as f64 * (1.0f64 + 32767.0f64 / 32768.0f64) / WP.x as f64) as f32;
         let device_y = (xyz.y as f64 * (1.0f64 + 32767.0f64 / 32768.0f64) / WP.y as f64) as f32;
@@ -97,7 +98,7 @@ impl Lab {
 
     /// Converts to CIE Lab from CIE XYZ
     #[inline]
-    pub fn from_xyz(xyz: Xyz) -> Self {
+    pub const fn from_xyz(xyz: Xyz) -> Self {
         const WP: Xyz = Chromacity::D50.to_xyz();
         let device_x = (xyz.x as f64 * (1.0f64 + 32767.0f64 / 32768.0f64) / WP.x as f64) as f32;
         let device_y = (xyz.y as f64 * (1.0f64 + 32767.0f64 / 32768.0f64) / WP.y as f64) as f32;
@@ -111,15 +112,12 @@ impl Lab {
         let a = 500.0 * (fx - fy);
         let b = 200.0 * (fy - fz);
 
-        let l = lb;
-        let a = a + 128.0;
-        let b = b + 128.0;
-        Self::new(l, a, b)
+        Self::new(lb, a, b)
     }
 
     /// Converts CIE [Lab] into CIE [Xyz] for PCS encoding
     #[inline]
-    pub fn to_pcs_xyz(self) -> Xyz {
+    pub const fn to_pcs_xyz(self) -> Xyz {
         let device_l = self.l * 100.0;
         let device_a = self.a * 255.0 - 128.0;
         let device_b = self.b * 255.0 - 128.0;
@@ -140,7 +138,7 @@ impl Lab {
 
     /// Converts CIE [Lab] into CIE [Xyz]
     #[inline]
-    pub fn to_xyz(self) -> Xyz {
+    pub const fn to_xyz(self) -> Xyz {
         let device_l = self.l;
         let device_a = self.a;
         let device_b = self.b;
@@ -157,5 +155,36 @@ impl Lab {
         let y = (y1 as f64 / (1.0f64 + 32767.0f64 / 32768.0f64)) as f32;
         let z = (z as f64 / (1.0f64 + 32767.0f64 / 32768.0f64)) as f32;
         Xyz::new(x, y, z)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn round_trip() {
+        let xyz = Xyz::new(0.1, 0.2, 0.3);
+        let lab = Lab::from_xyz(xyz);
+        let rolled_back = lab.to_xyz();
+        let dx = (xyz.x - rolled_back.x).abs();
+        let dy = (xyz.y - rolled_back.y).abs();
+        let dz = (xyz.z - rolled_back.z).abs();
+        assert!(dx < 1e-5);
+        assert!(dy < 1e-5);
+        assert!(dz < 1e-5);
+    }
+
+    #[test]
+    fn round_pcs_trip() {
+        let xyz = Xyz::new(0.1, 0.2, 0.3);
+        let lab = Lab::from_pcs_xyz(xyz);
+        let rolled_back = lab.to_pcs_xyz();
+        let dx = (xyz.x - rolled_back.x).abs();
+        let dy = (xyz.y - rolled_back.y).abs();
+        let dz = (xyz.z - rolled_back.z).abs();
+        assert!(dx < 1e-5);
+        assert!(dy < 1e-5);
+        assert!(dz < 1e-5);
     }
 }

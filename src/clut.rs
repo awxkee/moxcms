@@ -372,10 +372,10 @@ pub(crate) fn create_cmyk_to_rgb(
         return Err(CmsError::UnsupportedProfileConnection);
     }
 
-    let lut_a_to_b = match &source.lut_a_to_b {
-        None => return Err(CmsError::UnsupportedProfileConnection),
-        Some(v) => v,
-    };
+    let lut_a_to_b = source
+        .lut_a_to_b
+        .as_ref()
+        .ok_or(CmsError::UnsupportedProfileConnection)?;
 
     let lut: Option<Box<Transform8BitExecutor>> = None;
 
@@ -402,14 +402,13 @@ pub(crate) fn create_cmyk_to_rgb(
             let gamma_map_r: Box<[u8; 65536]> = dest.build_8bit_gamma_table(&dest.red_trc)?;
             let gamma_map_g: Box<[u8; 65536]> = dest.build_8bit_gamma_table(&dest.green_trc)?;
             let gamma_map_b: Box<[u8; 65536]> = dest.build_8bit_gamma_table(&dest.blue_trc)?;
-            let xyz_to_rgb_opt = match dest.rgb_to_xyz_matrix() {
-                None => return Err(CmsError::UnsupportedProfileConnection),
-                Some(v) => v.inverse(),
-            };
-            let xyz_to_rgb = match xyz_to_rgb_opt {
-                None => return Err(CmsError::UnsupportedProfileConnection),
-                Some(v) => v,
-            };
+
+            let xyz_to_rgb = dest
+                .rgb_to_xyz_matrix()
+                .ok_or(CmsError::UnsupportedProfileConnection)?
+                .inverse()
+                .ok_or(CmsError::UnsupportedProfileConnection)?;
+
             let mut matrices = vec![Matrix3f {
                 v: [
                     [65535.0 / 32768.0, 0.0, 0.0],

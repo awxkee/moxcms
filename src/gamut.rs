@@ -26,7 +26,7 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-use crate::Rgb;
+use crate::{cbrtf, Rgb};
 use crate::oklab::Oklab;
 
 #[inline]
@@ -89,9 +89,9 @@ pub(crate) fn compute_max_saturation(a: f32, b: f32) -> f32 {
         let m_ = 1.0 + ss * k_m;
         let s_ = 1.0 + ss * k_s;
 
-        let l = l_.powi(3);
-        let m = m_.powi(3);
-        let s = s_.powi(3);
+        let l = l_ * l_ * l_;
+        let m = m_ * m_ * m_;
+        let s = s_ * s_ * s_;
 
         let l_d_s = 3.0 * k_l * l_ * l_;
         let m_d_s = 3.0 * k_m * m_ * m_;
@@ -119,7 +119,7 @@ pub(crate) fn find_cusp(a: f32, b: f32) -> (f32, f32) {
 
     let rgb_at_max = oklaba.to_linear_rgb();
 
-    let l_cusp = (1. / rgb_at_max.r.max(rgb_at_max.g).max(rgb_at_max.b)).cbrt();
+    let l_cusp = cbrtf(1. / rgb_at_max.r.max(rgb_at_max.g).max(rgb_at_max.b));
     let c_cusp = l_cusp * s_cusp;
 
     (l_cusp, c_cusp)
@@ -164,9 +164,9 @@ fn find_gamut_intersection(a: f32, b: f32, ll1: f32, cc1: f32, ll0: f32) -> f32 
                 let m_ = ll + cc * k_m;
                 let s_ = ll + cc * k_s;
 
-                let l = l_.powi(3);
-                let m = m_.powi(3);
-                let s = s_.powi(3);
+                let l = l_ * l_ * l_;
+                let m = m_ * m_ * m_;
+                let s = s_ * s_ * s_;
 
                 let l_dt = 3.0 * l_dt * l_ * l_;
                 let m_dt = 3.0 * m_dt * m_ * m_;

@@ -239,7 +239,7 @@ impl Matrix3f {
     }
 
     #[inline]
-    pub fn determinant(&self) -> Option<f32> {
+    pub const fn determinant(&self) -> Option<f32> {
         let v = self.v;
         let a0 = v[0][0] * v[1][1] * v[2][2];
         let a1 = v[0][1] * v[1][2] * v[2][0];
@@ -387,12 +387,12 @@ impl PartialEq<Self> for Xyz {
 }
 
 impl Xyz {
-    pub fn new(x: f32, y: f32, z: f32) -> Self {
+    pub const fn new(x: f32, y: f32, z: f32) -> Self {
         Self { x, y, z }
     }
 
     #[inline]
-    pub fn to_vector(self) -> Vector3f {
+    pub const fn to_vector(self) -> Vector3f {
         Vector3f {
             v: [self.x, self.y, self.z],
         }

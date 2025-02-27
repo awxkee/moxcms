@@ -4,8 +4,8 @@
  * // Use of this source code is governed by a BSD-style
  * // license that can be found in the LICENSE file.
  */
-use crate::Rgb;
 use crate::mlaf::mlaf;
+use crate::{Rgb, cbrtf, powf};
 use num_traits::Pow;
 use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 
@@ -13,17 +13,17 @@ use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssi
 #[derive(Debug, Copy, Clone, PartialOrd, PartialEq)]
 /// Struct that represent *Oklab* colorspace
 pub struct Oklab {
-    /// All values in Oklab intended to be normalized [0;1]
+    /// All values in Oklab intended to be normalized \[0; 1\]
     pub l: f32,
-    /// A value range [-0.5; 0.5]
+    /// A value range \[-0.5; 0.5\]
     pub a: f32,
-    /// B value range [-0.5; 0.5]
+    /// B value range \[-0.5; 0.5\]
     pub b: f32,
 }
 
 impl Oklab {
     #[inline]
-    pub fn new(l: f32, a: f32, b: f32) -> Oklab {
+    pub const fn new(l: f32, a: f32, b: f32) -> Oklab {
         Oklab { l, a, b }
     }
 
@@ -51,9 +51,9 @@ impl Oklab {
             rgb.b,
         );
 
-        let l_cone = l.cbrt();
-        let m_cone = m.cbrt();
-        let s_cone = s.cbrt();
+        let l_cone = cbrtf(l);
+        let m_cone = cbrtf(m);
+        let s_cone = cbrtf(s);
 
         Oklab {
             l: mlaf(
@@ -301,7 +301,7 @@ impl Pow<f32> for Oklab {
 
     #[inline]
     fn pow(self, rhs: f32) -> Self::Output {
-        Oklab::new(self.l.powf(rhs), self.a.powf(rhs), self.b.powf(rhs))
+        Oklab::new(powf(self.l, rhs), powf(self.a, rhs), powf(self.b, rhs))
     }
 }
 
@@ -310,7 +310,11 @@ impl Pow<Oklab> for Oklab {
 
     #[inline]
     fn pow(self, rhs: Oklab) -> Self::Output {
-        Oklab::new(self.l.powf(rhs.l), self.a.powf(rhs.a), self.b.powf(rhs.b))
+        Oklab::new(
+            powf(self.l, rhs.l),
+            powf(self.a, rhs.a),
+            powf(self.b, rhs.b),
+        )
     }
 }
 
@@ -325,7 +329,25 @@ impl Oklab {
     }
 
     #[inline]
-    pub fn cbrt(&self) -> Oklab {
-        Oklab::new(self.l.cbrt(), self.a.cbrt(), self.b.cbrt())
+    pub const fn cbrt(&self) -> Oklab {
+        Oklab::new(cbrtf(self.l), cbrtf(self.a), cbrtf(self.b))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn round_trip() {
+        let xyz = Rgb::new(0.1, 0.2, 0.3);
+        let lab = Oklab::from_linear_rgb(xyz);
+        let rolled_back = lab.to_linear_rgb();
+        let dx = (xyz.r - rolled_back.r).abs();
+        let dy = (xyz.g - rolled_back.g).abs();
+        let dz = (xyz.b - rolled_back.b).abs();
+        assert!(dx < 1e-5);
+        assert!(dy < 1e-5);
+        assert!(dz < 1e-5);
     }
 }

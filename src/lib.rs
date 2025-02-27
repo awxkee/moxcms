@@ -34,10 +34,15 @@ mod clut;
 mod err;
 mod gamut;
 mod lab;
+mod luv;
+/// One of main intent is to provide fast math available in const context
+/// ULP most of the methods ~3.5
+mod math;
 mod matrix;
 mod mlaf;
 mod nd_array;
 mod oklab;
+mod oklch;
 mod profile;
 mod rgb;
 mod stages;
@@ -46,12 +51,18 @@ mod trc;
 
 pub use err::CmsError;
 pub use lab::Lab;
+pub use luv::{LCh, Luv};
+pub use math::{
+    atan2f, atanf, cbrtf, const_hypotf, cosf, exp, expf, floor, floorf, hypotf, log, logf, pow,
+    powf, sinf, sqrtf,
+};
 pub use matrix::{
     BT2020_MATRIX, Chromacity, DISPLAY_P3_MATRIX, Matrix3f, SRGB_MATRIX, Vector3, Vector3f,
     Vector3i, Vector3u, XyY, Xyz,
 };
 pub use nd_array::{Array3D, Array4D};
 pub use oklab::Oklab;
+pub use oklch::Oklch;
 pub use profile::{CicpProfile, ColorProfile, DataColorSpace, LutType, ProfileClass};
 pub use rgb::Rgb;
 pub use transform::{

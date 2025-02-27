@@ -26,7 +26,7 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-use crate::{CmsError, ColorProfile};
+use crate::{CmsError, ColorProfile, pow, powf};
 use num_traits::AsPrimitive;
 
 #[derive(Clone, Debug)]
@@ -63,7 +63,7 @@ pub(crate) fn build_parametric_table(
         |x| {
             if x >= d {
                 let e: f64 = a * x + b;
-                if e > 0. { e.powf(g) } else { 0. }
+                if e > 0. { pow(e, g) } else { 0. }
             } else {
                 c * x
             }
@@ -178,7 +178,7 @@ impl ParametricCurve {
         if x < self.d {
             self.c * x + self.f
         } else {
-            (self.a * x + self.b).powf(self.g) + self.e
+            powf(self.a * x + self.b, self.g) + self.e
         }
     }
 
@@ -186,7 +186,7 @@ impl ParametricCurve {
     #[allow(clippy::many_single_char_names)]
     fn invert(&self) -> Option<ParametricCurve> {
         // First check if the function is continuous at the cross-over point d.
-        let d1 = (self.a * self.d + self.b).powf(self.g) + self.e;
+        let d1 = powf(self.a * self.d + self.b, self.g) + self.e;
         let d2 = self.c * self.d + self.f;
 
         if (d1 - d2).abs() > 0.1 {
@@ -201,8 +201,8 @@ impl ParametricCurve {
         // (y - e)^(1/g)/a - b/a = x
         // ((y - e)/a^g)^(1/g) - b/a = x
         // ((1/(a^g)) * y - e/(a^g))^(1/g) - b/a = x
-        let a = 1. / self.a.powf(self.g);
-        let b = -self.e / self.a.powf(self.g);
+        let a = 1. / powf(self.a, self.g);
+        let b = -self.e / powf(self.a, self.g);
         let g = 1. / self.g;
         let e = -self.b / self.a;
 
@@ -266,7 +266,7 @@ fn linear_forward_table<const N: usize>(gamma: u16) -> Box<[f32; N]> {
     let scale_value = 1f64 / (N - 1) as f64;
     for (i, g) in gamma_table.iter_mut().enumerate() {
         // 0..1^(0..255 + 255/256) will always be between 0 and 1
-        *g = (i as f64 * scale_value).powf(gamma_float as f64) as f32;
+        *g = pow(i as f64 * scale_value, gamma_float as f64) as f32;
     }
     gamma_table
 }
@@ -443,7 +443,7 @@ where
     let scale = 1f32 / (N - 1) as f32;
     let cap = ((1 << BIT_DEPTH) - 1) as f32;
     for (v, output) in table.iter_mut().take(N).enumerate() {
-        *output = (cap * (v as f32 * scale).powf(gamma)).round().as_();
+        *output = (cap * powf(v as f32 * scale, gamma)).round().as_();
     }
     table
 }
@@ -608,52 +608,41 @@ impl Trc {
 
 impl ColorProfile {
     pub fn build_8bit_lin_table(&self, trc: &Option<Trc>) -> Result<Box<[f32; 256]>, CmsError> {
-        if let Some(trc) = &trc {
-            if let Some(trc) = trc.build_linearize_table::<256>() {
-                return Ok(trc);
-            }
-        }
-        Err(CmsError::BuildTransferFunction)
+        trc.as_ref()
+            .and_then(|trc| trc.build_linearize_table::<256>())
+            .ok_or(CmsError::BuildTransferFunction)
     }
 
     /// Produces LUT for Gray transfer curve with N depth
     pub fn build_gray_linearize_table<const N: usize>(&self) -> Result<Box<[f32; N]>, CmsError> {
-        if let Some(trc) = &self.gray_trc {
-            if let Some(trc) = trc.build_linearize_table::<N>() {
-                return Ok(trc);
-            }
-        }
-        Err(CmsError::BuildTransferFunction)
+        self.gray_trc
+            .as_ref()
+            .and_then(|trc| trc.build_linearize_table::<N>())
+            .ok_or(CmsError::BuildTransferFunction)
     }
 
     /// Produces LUT for Red transfer curve with N depth
     pub fn build_r_linearize_table<const N: usize>(&self) -> Result<Box<[f32; N]>, CmsError> {
-        if let Some(trc) = &self.red_trc {
-            if let Some(trc) = trc.build_linearize_table::<N>() {
-                return Ok(trc);
-            }
-        }
-        Err(CmsError::BuildTransferFunction)
+        self.red_trc
+            .as_ref()
+            .and_then(|trc| trc.build_linearize_table::<N>())
+            .ok_or(CmsError::BuildTransferFunction)
     }
 
     /// Produces LUT for Green transfer curve with N depth
     pub fn build_g_linearize_table<const N: usize>(&self) -> Result<Box<[f32; N]>, CmsError> {
-        if let Some(trc) = &self.green_trc {
-            if let Some(trc) = trc.build_linearize_table::<N>() {
-                return Ok(trc);
-            }
-        }
-        Err(CmsError::BuildTransferFunction)
+        self.green_trc
+            .as_ref()
+            .and_then(|trc| trc.build_linearize_table::<N>())
+            .ok_or(CmsError::BuildTransferFunction)
     }
 
     /// Produces LUT for Blue transfer curve with N depth
     pub fn build_b_linearize_table<const N: usize>(&self) -> Result<Box<[f32; N]>, CmsError> {
-        if let Some(trc) = &self.green_trc {
-            if let Some(trc) = trc.build_linearize_table::<N>() {
-                return Ok(trc);
-            }
-        }
-        Err(CmsError::BuildTransferFunction)
+        self.blue_trc
+            .as_ref()
+            .and_then(|trc| trc.build_linearize_table::<N>())
+            .ok_or(CmsError::BuildTransferFunction)
     }
 
     /// Build gamma table for 8 bit depth
@@ -694,11 +683,8 @@ impl ColorProfile {
         f32: AsPrimitive<T>,
         u32: AsPrimitive<T>,
     {
-        if let Some(trc) = trc {
-            if let Some(t) = trc.build_gamma_table::<T, BUCKET, N, BIT_DEPTH>() {
-                return Ok(t);
-            }
-        }
-        Err(CmsError::BuildTransferFunction)
+        trc.as_ref()
+            .and_then(|trc| trc.build_gamma_table::<T, BUCKET, N, BIT_DEPTH>())
+            .ok_or(CmsError::BuildTransferFunction)
     }
 }
