@@ -26,27 +26,23 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+use image::codecs::jpeg::JpegDecoder;
 use image::{GenericImageView, ImageDecoder};
 use moxcms::{ColorProfile, Layout, TransformOptions};
 use std::fs::File;
 use std::io::BufReader;
 use std::time::Instant;
-use zune_jpeg::JpegDecoder;
 
 fn main() {
-    let f_str = "./assets/04.jpg";
+    let f_str = "./assets/dci_p3_profile.jpeg";
     let file = File::open(f_str).expect("Failed to open file");
 
     let img = image::ImageReader::open(f_str).unwrap().decode().unwrap();
     let rgb = img.to_rgb8();
 
-    let mut decoder = JpegDecoder::new(BufReader::new(file));
-    decoder.options().set_use_unsafe(true);
-    decoder.decode_headers().unwrap();
-    let mut real_dst = vec![0u8; decoder.output_buffer_size().unwrap()];
+    let mut decoder = JpegDecoder::new(BufReader::new(file)).unwrap();
 
-    decoder.decode_into(&mut real_dst).unwrap();
-    let icc = decoder.icc_profile().unwrap();
+    let icc = decoder.icc_profile().unwrap().unwrap();
     let color_profile = ColorProfile::new_from_slice(&icc).unwrap();
     let dest_profile = ColorProfile::new_srgb();
     let transform = color_profile
@@ -61,7 +57,7 @@ fn main() {
     let mut dst = vec![0u8; rgb.len()];
 
     let instant = Instant::now();
-    for (src, dst) in real_dst
+    for (src, dst) in rgb
         .chunks_exact(img.width() as usize * 3)
         .zip(dst.chunks_exact_mut(img.dimensions().0 as usize * 3))
     {
