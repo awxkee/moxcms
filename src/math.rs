@@ -228,7 +228,7 @@ const fn copysignfk(x: f32, y: f32) -> f32 {
 /// Round to integer towards minus infinity
 #[inline]
 pub const fn floorf(x: f32) -> f32 {
-    pub(crate) const F1_23: f32 = (1u32 << 23) as f32;
+    const F1_23: f32 = (1u32 << 23) as f32;
     let mut fr = x - (x as i32 as f32);
     fr = if fr < 0. { fr + 1. } else { fr };
     if x.is_infinite() || (x.abs() >= F1_23) {
@@ -273,21 +273,20 @@ const fn pow2i(q: i32) -> f64 {
 /// Computes exponent for given value
 #[inline]
 pub const fn exp(d: f64) -> f64 {
-    pub(crate) const EXP_POLY_1_D: f64 = 2f64;
-    pub(crate) const EXP_POLY_2_D: f64 = 0.16666666666666674f64;
-    pub(crate) const EXP_POLY_3_D: f64 = -0.0027777777777777614f64;
-    pub(crate) const EXP_POLY_4_D: f64 = 6.613756613755705e-5f64;
-    pub(crate) const EXP_POLY_5_D: f64 = -1.6534391534392554e-6f64;
-    pub(crate) const EXP_POLY_6_D: f64 = 4.17535139757361979584e-8f64;
-    pub(crate) const EXP_POLY_7_D: f64 = -1.05683802773749863697e-9f64;
-    pub(crate) const EXP_POLY_8_D: f64 = 2.67650730613693576657e-11f64;
-    pub(crate) const EXP_POLY_9_D: f64 = 1.71721241125556891283e-14;
-    pub(crate) const EXP_POLY_10_D: f64 = -6.77936059264516573366e-13f64;
+    const EXP_POLY_1_D: f64 = 2f64;
+    const EXP_POLY_2_D: f64 = 0.16666666666666674f64;
+    const EXP_POLY_3_D: f64 = -0.0027777777777777614f64;
+    const EXP_POLY_4_D: f64 = 6.613756613755705e-5f64;
+    const EXP_POLY_5_D: f64 = -1.6534391534392554e-6f64;
+    const EXP_POLY_6_D: f64 = 4.17535139757361979584e-8f64;
+    const EXP_POLY_7_D: f64 = -1.05683802773749863697e-9f64;
+    const EXP_POLY_8_D: f64 = 2.67650730613693576657e-11f64;
+    const EXP_POLY_9_D: f64 = 1.71721241125556891283e-14;
+    const EXP_POLY_10_D: f64 = -6.77936059264516573366e-13f64;
 
-    pub(crate) const L2_U: f64 = 0.693_147_180_559_662_956_511_601_805_686_950_683_593_75;
-    pub(crate) const L2_L: f64 =
-        0.282_352_905_630_315_771_225_884_481_750_134_360_255_254_120_68_e-12;
-    pub(crate) const R_LN2: f64 =
+    const L2_U: f64 = 0.693_147_180_559_662_956_511_601_805_686_950_683_593_75;
+    const L2_L: f64 = 0.282_352_905_630_315_771_225_884_481_750_134_360_255_254_120_68_e-12;
+    const R_LN2: f64 =
         1.442_695_040_888_963_407_359_924_681_001_892_137_426_645_954_152_985_934_135_449_406_931;
 
     let qf = rintk(d * R_LN2);
@@ -377,8 +376,8 @@ const fn copysignk(x: f64, y: f64) -> f64 {
 /// Floors value
 #[inline]
 pub const fn floor(x: f64) -> f64 {
-    pub(crate) const D1_31: f64 = (1u64 << 31) as f64;
-    pub(crate) const D1_52: f64 = (1u64 << 52) as f64;
+    const D1_31: f64 = (1u64 << 31) as f64;
+    const D1_52: f64 = (1u64 << 52) as f64;
     let mut fr = x - D1_31 * ((x * (1. / D1_31)) as i32 as f64);
     fr -= fr as i32 as f64;
     fr = if fr < 0. { fr + 1. } else { fr };
@@ -545,6 +544,11 @@ pub const fn atan2f(y: f32, x: f32) -> f32 {
         // if x < 0. && y < 0.
         -std::f32::consts::PI + rad
     }
+}
+
+#[inline]
+pub const fn rounding_div_ceil(value: i32, div: i32) -> i32 {
+    (value + div - 1) / div
 }
 
 #[cfg(test)]

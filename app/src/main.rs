@@ -26,45 +26,68 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-use image::codecs::jpeg::JpegDecoder;
-use image::{GenericImageView, ImageDecoder};
+use image::GenericImageView;
 use moxcms::{ColorProfile, Layout, TransformOptions};
 use std::fs::File;
 use std::io::BufReader;
 use std::time::Instant;
+use zune_jpeg::JpegDecoder;
+use zune_jpeg::zune_core::colorspace::ColorSpace;
+use zune_jpeg::zune_core::options::DecoderOptions;
 
 fn main() {
-    let f_str = "./assets/dci_p3_profile.jpeg";
+    let f_str = "./assets/mnts.jpg";
     let file = File::open(f_str).expect("Failed to open file");
 
     let img = image::ImageReader::open(f_str).unwrap().decode().unwrap();
     let rgb = img.to_rgb8();
 
-    let mut decoder = JpegDecoder::new(BufReader::new(file)).unwrap();
+    let reader = BufReader::new(file);
+    let ref_reader = &reader;
 
-    let icc = decoder.icc_profile().unwrap().unwrap();
+    let options = DecoderOptions::new_fast().jpeg_set_out_colorspace(ColorSpace::RGB);
+
+    let mut decoder = JpegDecoder::new_with_options(reader, options);
+
+    // let mut decoder = JpegDecoder::new(reader);
+    decoder.options().set_use_unsafe(true);
+    decoder.decode_headers().unwrap();
+    let mut real_dst = vec![0u8; decoder.output_buffer_size().unwrap()];
+
+    decoder.decode_into(&mut real_dst).unwrap();
+    let icc = decoder.icc_profile().unwrap();
     let color_profile = ColorProfile::new_from_slice(&icc).unwrap();
+    // let color_profile = ColorProfile::new_gray_with_gamma(2.2);
     let dest_profile = ColorProfile::new_srgb();
     let transform = color_profile
         .create_transform_8bit(
+            Layout::Rgb,
             &dest_profile,
-            Layout::Rgb8,
+            Layout::Rgba,
             TransformOptions {
-                allow_chroma_clipping: true,
+                allow_chroma_clipping: false,
             },
         )
         .unwrap();
-    let mut dst = vec![0u8; rgb.len()];
+    let mut dst = vec![0u8; rgb.len() / 3 * 4];
+    //
+    // let gray_image = rgb
+    //     .chunks_exact(3)
+    //     .map(|chunk| {
+    //         (0.2126 * chunk[0] as f32 + 0.7152 * chunk[1] as f32 + 0.0722 * chunk[2] as f32).round()
+    //             as u8
+    //     })
+    //     .collect::<Vec<u8>>();
 
     let instant = Instant::now();
-    for (src, dst) in rgb
+    for (src, dst) in real_dst
         .chunks_exact(img.width() as usize * 3)
-        .zip(dst.chunks_exact_mut(img.dimensions().0 as usize * 3))
+        .zip(dst.chunks_exact_mut(img.width() as usize * 4))
     {
         transform
             .transform(
-                &src[..img.dimensions().0 as usize * 3],
-                &mut dst[..img.dimensions().0 as usize * 3],
+                &src[..img.width() as usize * 3],
+                &mut dst[..img.width() as usize * 4],
             )
             .unwrap();
     }
@@ -120,11 +143,11 @@ fn main() {
     // .unwrap();
 
     image::save_buffer(
-        "v6.jpg",
+        "v6.png",
         &dst,
         img.dimensions().0,
         img.dimensions().1,
-        image::ExtendedColorType::Rgb8,
+        image::ExtendedColorType::Rgba8,
     )
     .unwrap();
 }

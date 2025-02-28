@@ -26,6 +26,7 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+use crate::conversions::tetrahedral::Tetrahedral;
 use crate::lab::Lab;
 use crate::mlaf::mlaf;
 use crate::nd_array::{Array4D, lerp};
@@ -33,9 +34,10 @@ use crate::profile::LutDataType;
 use crate::trc::{clamp_float, lut_interp_linear_float};
 use crate::{
     CmsError, ColorProfile, DataColorSpace, InPlaceStage, Layout, Matrix3f, Stage,
-    Transform8BitExecutor, TransformExecutor, Vector3f, Xyz,
+    TransformExecutor, Vector3f, Xyz, rounding_div_ceil,
 };
 use num_traits::AsPrimitive;
+use std::marker::PhantomData;
 
 #[derive(Default)]
 struct Lut4 {
@@ -165,8 +167,9 @@ fn create_lut<const SAMPLES: usize>(lut: &LutDataType) -> Result<Vec<f32>, CmsEr
     Ok(dest)
 }
 
-struct TransformLut4XyzToRgb<const LAYOUT: u8, const GRID_SIZE: usize> {
+struct TransformLut4XyzToRgb<T, const LAYOUT: u8, const GRID_SIZE: usize, const BIT_DEPTH: usize> {
     lut: Vec<f32>,
+    _phantom: PhantomData<T>,
 }
 
 struct XyzToRgbStage<T: Clone, const BIT_DEPTH: usize, const GAMMA_LUT: usize> {
@@ -221,98 +224,50 @@ impl<T: Clone + AsPrimitive<f32>, const BIT_DEPTH: usize, const GAMMA_LUT: usize
     }
 }
 
-#[inline]
-fn rounding_div_ceil(value: i32, div: i32) -> i32 {
-    (value + div - 1) / div
+pub(crate) trait CompressCmykLut {
+    fn compress_cmyk_lut<const BIT_DEPTH: usize>(self) -> u8;
 }
 
-struct Tetrahedral<'a, const GRID_SIZE: usize> {
-    cube: &'a [f32],
-}
-
-impl<'a, const GRID_SIZE: usize> Tetrahedral<'a, GRID_SIZE> {
-    pub(crate) fn new(table: &'a [f32]) -> Self {
-        Self { cube: table }
-    }
-
+impl CompressCmykLut for u8 {
     #[inline]
-    fn lp(&self, tab: &[f32], x: i32, y: i32, z: i32) -> Vector3f {
-        let offset = (x as u32 * (GRID_SIZE as u32 * GRID_SIZE as u32)
-            + y as u32 * GRID_SIZE as u32
-            + z as u32) as usize
-            * 3;
-        let jx = &tab[offset..offset + 3];
-        Vector3f {
-            v: [jx[0], jx[1], jx[2]],
-        }
-    }
-
-    fn interpolate(&self, in_r: u8, in_g: u8, in_b: u8) -> Vector3f {
-        let linear_r: f32 = in_r as i32 as f32 / 255.0;
-        let linear_g: f32 = in_g as i32 as f32 / 255.0;
-        let linear_b: f32 = in_b as i32 as f32 / 255.0;
-        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / 255;
-        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / 255;
-        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / 255;
-        let x_n: i32 = rounding_div_ceil(in_r as i32 * (GRID_SIZE as i32 - 1), 255);
-        let y_n: i32 = rounding_div_ceil(in_g as i32 * (GRID_SIZE as i32 - 1), 255);
-        let z_n: i32 = rounding_div_ceil(in_b as i32 * (GRID_SIZE as i32 - 1), 255);
-        let rx: f32 = linear_r * (GRID_SIZE as i32 - 1) as f32 - x as f32;
-        let ry: f32 = linear_g * (GRID_SIZE as i32 - 1) as f32 - y as f32;
-        let rz: f32 = linear_b * (GRID_SIZE as i32 - 1) as f32 - z as f32;
-        let c0 = self.lp(self.cube, x, y, z);
-        let c2;
-        let c1;
-        let c3;
-        if rx >= ry {
-            if ry >= rz {
-                //rx >= ry && ry >= rz
-                c1 = self.lp(self.cube, x_n, y, z) - c0;
-                c2 = self.lp(self.cube, x_n, y_n, z) - self.lp(self.cube, x_n, y, z);
-                c3 = self.lp(self.cube, x_n, y_n, z_n) - self.lp(self.cube, x_n, y_n, z);
-            } else if rx >= rz {
-                //rx >= rz && rz >= ry
-                c1 = self.lp(self.cube, x_n, y, z) - c0;
-                c2 = self.lp(self.cube, x_n, y_n, z_n) - self.lp(self.cube, x_n, y, z_n);
-                c3 = self.lp(self.cube, x_n, y, z_n) - self.lp(self.cube, x_n, y, z);
-            } else {
-                //rz > rx && rx >= ry
-                c1 = self.lp(self.cube, x_n, y, z_n) - self.lp(self.cube, x, y, z_n);
-                c2 = self.lp(self.cube, x_n, y_n, z_n) - self.lp(self.cube, x_n, y, z_n);
-                c3 = self.lp(self.cube, x, y, z_n) - c0;
-            }
-        } else if rx >= rz {
-            //ry > rx && rx >= rz
-            c1 = self.lp(self.cube, x_n, y_n, z) - self.lp(self.cube, x, y_n, z);
-            c2 = self.lp(self.cube, x, y_n, z) - c0;
-            c3 = self.lp(self.cube, x_n, y_n, z_n) - self.lp(self.cube, x_n, y_n, z);
-        } else if ry >= rz {
-            //ry >= rz && rz > rx
-            c1 = self.lp(self.cube, x_n, y_n, z_n) - self.lp(self.cube, x, y_n, z_n);
-            c2 = self.lp(self.cube, x, y_n, z) - c0;
-            c3 = self.lp(self.cube, x, y_n, z_n) - self.lp(self.cube, x, y_n, z);
-        } else {
-            //rz > ry && ry > rx
-            c1 = self.lp(self.cube, x_n, y_n, z_n) - self.lp(self.cube, x, y_n, z_n);
-            c2 = self.lp(self.cube, x, y_n, z_n) - self.lp(self.cube, x, y, z_n);
-            c3 = self.lp(self.cube, x, y, z_n) - c0;
-        }
-        c0 + c1 * rx + c2 * ry + c3 * rz
+    fn compress_cmyk_lut<const BIT_DEPTH: usize>(self) -> u8 {
+        self
     }
 }
 
-impl<const LAYOUT: u8, const GRID_SIZE: usize> TransformLut4XyzToRgb<LAYOUT, GRID_SIZE> {
+impl CompressCmykLut for u16 {
+    #[inline]
+    fn compress_cmyk_lut<const BIT_DEPTH: usize>(self) -> u8 {
+        let scale = BIT_DEPTH - 8;
+        (self >> scale).min(255) as u8
+    }
+}
+
+impl<
+    T: Copy + AsPrimitive<f32> + Default + CompressCmykLut,
+    const LAYOUT: u8,
+    const GRID_SIZE: usize,
+    const BIT_DEPTH: usize,
+> TransformLut4XyzToRgb<T, LAYOUT, GRID_SIZE, BIT_DEPTH>
+where
+    f32: AsPrimitive<T>,
+    u32: AsPrimitive<T>,
+{
     #[inline(always)]
-    fn transform_chunk(&self, src: &[u8], dst: &mut [u8]) {
+    fn transform_chunk(&self, src: &[T], dst: &mut [T]) {
         let cn = Layout::from(LAYOUT);
         let channels = cn.channels();
         let grid_size = GRID_SIZE as i32;
         let grid_size3 = grid_size * grid_size * grid_size;
+
+        let value_scale = ((1 << BIT_DEPTH) - 1) as f32;
+        let max_value = ((1 << BIT_DEPTH) - 1u32).as_();
+
         for (src, dst) in src.chunks_exact(4).zip(dst.chunks_exact_mut(channels)) {
-            let c = src[0];
-            let m = src[1];
-            let y = src[2];
-            let k = src[3];
+            let c = src[0].compress_cmyk_lut::<BIT_DEPTH>();
+            let m = src[1].compress_cmyk_lut::<BIT_DEPTH>();
+            let y = src[2].compress_cmyk_lut::<BIT_DEPTH>();
+            let k = src[3].compress_cmyk_lut::<BIT_DEPTH>();
             let linear_k: f32 = k as i32 as f32 / 255.0;
             let w: i32 = k as i32 * (GRID_SIZE as i32 - 1) / 255;
             let w_n: i32 = rounding_div_ceil(k as i32 * (GRID_SIZE as i32 - 1), 255);
@@ -325,21 +280,28 @@ impl<const LAYOUT: u8, const GRID_SIZE: usize> TransformLut4XyzToRgb<LAYOUT, GRI
             let tetrahedral2 = Tetrahedral::<GRID_SIZE>::new(table2);
             let r1 = tetrahedral1.interpolate(c, m, y);
             let r2 = tetrahedral2.interpolate(c, m, y);
-            let r = lerp(r1, r2, Vector3f::from(t)) * 255.0f32 + 0.5f32;
-            dst[cn.r_i()] = r.v[0] as u8;
-            dst[cn.g_i()] = r.v[1] as u8;
-            dst[cn.b_i()] = r.v[2] as u8;
+            let r = lerp(r1, r2, Vector3f::from(t)) * value_scale + 0.5f32;
+            dst[cn.r_i()] = r.v[0].as_();
+            dst[cn.g_i()] = r.v[1].as_();
+            dst[cn.b_i()] = r.v[2].as_();
             if channels == 4 {
-                dst[cn.a_i()] = 255;
+                dst[cn.a_i()] = max_value;
             }
         }
     }
 }
 
-impl<const LAYOUT: u8, const GRID_SIZE: usize> TransformExecutor<u8>
-    for TransformLut4XyzToRgb<LAYOUT, GRID_SIZE>
+impl<
+    T: Copy + AsPrimitive<f32> + Default + CompressCmykLut,
+    const LAYOUT: u8,
+    const GRID_SIZE: usize,
+    const BIT_DEPTH: usize,
+> TransformExecutor<T> for TransformLut4XyzToRgb<T, LAYOUT, GRID_SIZE, BIT_DEPTH>
+where
+    f32: AsPrimitive<T>,
+    u32: AsPrimitive<T>,
 {
-    fn transform(&self, src: &[u8], dst: &mut [u8]) -> Result<(), CmsError> {
+    fn transform(&self, src: &[T], dst: &mut [T]) -> Result<(), CmsError> {
         let cn = Layout::from(LAYOUT);
         let channels = cn.channels();
         if src.len() % 4 != 0 {
@@ -360,11 +322,23 @@ impl<const LAYOUT: u8, const GRID_SIZE: usize> TransformExecutor<u8>
     }
 }
 
-pub(crate) fn create_cmyk_to_rgb(
+pub(crate) fn make_cmyk_to_rgb<
+    T: Copy + Default + AsPrimitive<f32> + Send + Sync + CompressCmykLut,
+    const BIT_DEPTH: usize,
+    const GAMMA_LUT: usize,
+>(
+    src_layout: Layout,
     source: &ColorProfile,
+    dst_layout: Layout,
     dest: &ColorProfile,
-    layout: Layout,
-) -> Result<Box<Transform8BitExecutor>, CmsError> {
+) -> Result<Box<dyn TransformExecutor<T> + Send + Sync>, CmsError>
+where
+    f32: AsPrimitive<T>,
+    u32: AsPrimitive<T>,
+{
+    if src_layout != Layout::Rgba {
+        return Err(CmsError::InvalidLayout);
+    }
     if source.color_space != DataColorSpace::Cmyk && dest.color_space != DataColorSpace::Rgb {
         return Err(CmsError::UnsupportedProfileConnection);
     }
@@ -377,10 +351,10 @@ pub(crate) fn create_cmyk_to_rgb(
         .as_ref()
         .ok_or(CmsError::UnsupportedProfileConnection)?;
 
-    let lut: Option<Box<Transform8BitExecutor>> = None;
+    let lut: Option<Box<dyn TransformExecutor<T> + Send + Sync>> = None;
 
     if source.color_space == DataColorSpace::Cmyk && dest.color_space == DataColorSpace::Rgb {
-        if layout != Layout::Rgb8 && layout != Layout::Rgba8 {
+        if dst_layout != Layout::Rgb && dst_layout != Layout::Rgba {
             return Err(CmsError::UnsupportedProfileConnection);
         }
 
@@ -399,9 +373,12 @@ pub(crate) fn create_cmyk_to_rgb(
         }
 
         if dest.color_space == DataColorSpace::Rgb {
-            let gamma_map_r: Box<[u8; 65536]> = dest.build_8bit_gamma_table(&dest.red_trc)?;
-            let gamma_map_g: Box<[u8; 65536]> = dest.build_8bit_gamma_table(&dest.green_trc)?;
-            let gamma_map_b: Box<[u8; 65536]> = dest.build_8bit_gamma_table(&dest.blue_trc)?;
+            let gamma_map_r =
+                dest.build_gamma_table::<T, 65536, GAMMA_LUT, BIT_DEPTH>(&dest.red_trc)?;
+            let gamma_map_g =
+                dest.build_gamma_table::<T, 65536, GAMMA_LUT, BIT_DEPTH>(&dest.green_trc)?;
+            let gamma_map_b =
+                dest.build_gamma_table::<T, 65536, GAMMA_LUT, BIT_DEPTH>(&dest.blue_trc)?;
 
             let xyz_to_rgb = dest
                 .rgb_to_xyz_matrix()
@@ -418,7 +395,7 @@ pub(crate) fn create_cmyk_to_rgb(
             }];
 
             matrices.push(xyz_to_rgb);
-            let xyz_to_rgb_stage = XyzToRgbStage::<u8, 8, 8192> {
+            let xyz_to_rgb_stage = XyzToRgbStage::<T, BIT_DEPTH, GAMMA_LUT> {
                 r_gamma: gamma_map_r,
                 g_gamma: gamma_map_g,
                 b_gamma: gamma_map_b,
@@ -427,12 +404,22 @@ pub(crate) fn create_cmyk_to_rgb(
             xyz_to_rgb_stage.transform(&mut lut)?;
         }
 
-        return Ok(match layout {
-            Layout::Rgb8 => {
-                Box::new(TransformLut4XyzToRgb::<{ Layout::Rgb8 as u8 }, GRID_SIZE> { lut })
+        return Ok(match dst_layout {
+            Layout::Rgb => {
+                Box::new(
+                    TransformLut4XyzToRgb::<T, { Layout::Rgb as u8 }, GRID_SIZE, BIT_DEPTH> {
+                        lut,
+                        _phantom: PhantomData,
+                    },
+                )
             }
-            Layout::Rgba8 => {
-                Box::new(TransformLut4XyzToRgb::<{ Layout::Rgba8 as u8 }, GRID_SIZE> { lut })
+            Layout::Rgba => {
+                Box::new(
+                    TransformLut4XyzToRgb::<T, { Layout::Rgba as u8 }, GRID_SIZE, BIT_DEPTH> {
+                        lut,
+                        _phantom: PhantomData,
+                    },
+                )
             }
             _ => unimplemented!(),
         });
