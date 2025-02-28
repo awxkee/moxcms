@@ -9,7 +9,7 @@ moxcms = {path = "../"}
 turbojpeg = "1.2.2"
 lcms2 = "6.1.0"
 jxl-oxide = "0.11.2"
-zune-jpeg = {path = "../../zune-image/crates/zune-jpeg"}
+zune-jpeg = {version = "0.5.0-rc2"}
 
 [dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }
