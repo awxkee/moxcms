@@ -542,8 +542,9 @@ fn invert_lut(table: &[u16], out_length: usize) -> Vec<u16> {
     /* for now we invert the lut by creating a lut of size out_length
      * and attempting to lookup a value for each entry using lut_inverse_interp16 */
     let mut output = vec![0u16; out_length];
+    let scale_value = 65535f64 / (out_length - 1) as f64;
     for (i, out) in output.iter_mut().enumerate() {
-        let x: f64 = i as f64 * 65535.0 / (out_length - 1) as f64;
+        let x: f64 = i as f64 * scale_value;
         let input: u16 = (x + 0.5f64).floor() as u16;
         *out = lut_inverse_interp16(input, table);
     }
@@ -607,6 +608,7 @@ impl Trc {
 }
 
 impl ColorProfile {
+    /// Produces LUT for 8 bit tone linearization
     pub fn build_8bit_lin_table(&self, trc: &Option<Trc>) -> Result<Box<[f32; 256]>, CmsError> {
         trc.as_ref()
             .and_then(|trc| trc.build_linearize_table::<256>())
@@ -660,7 +662,7 @@ impl ColorProfile {
     /// Build gamma table for 12 bit depth
     /// Only 16384 first bins are used and values scaled in 0..4095
     pub fn build_12bit_gamma_table(&self, trc: &Option<Trc>) -> Result<Box<[u8; 65536]>, CmsError> {
-        self.build_gamma_table::<u8, 65536, 8192, 12>(trc)
+        self.build_gamma_table::<u8, 65536, 16384, 12>(trc)
     }
 
     /// Build gamma table for 16 bit depth

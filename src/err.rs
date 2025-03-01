@@ -45,6 +45,7 @@ pub enum CmsError {
     InvalidLayout,
     UnsupportedProfileConnection,
     BuildTransferFunction,
+    UnsupportedChannelConfiguration,
 }
 
 impl Display for CmsError {
@@ -70,6 +71,9 @@ impl Display for CmsError {
             CmsError::InvalidLayout => f.write_str("Invalid layout"),
             CmsError::UnsupportedProfileConnection => f.write_str("Unsupported profile connection"),
             CmsError::BuildTransferFunction => f.write_str("Can't reconstruct transfer function"),
+            CmsError::UnsupportedChannelConfiguration => {
+                f.write_str("Can't reconstruct channel configuration")
+            }
         }
     }
 }
