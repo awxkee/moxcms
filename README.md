@@ -1,6 +1,6 @@
 # Rust ICC management
 
-Supports only CMYK -> RGBX and RGBX -> RGBX
+Supports only CMYK -> RGBX and RGBX -> RGBX, GRAY -> RGB, RGB -> GRAY
 
 # Example
 
