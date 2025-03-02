@@ -2,11 +2,11 @@ workspace = { members = ["app", "fuzz"] }
 
 [package]
 name = "moxcms"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2024"
 description = "Simple Color Management in Rust"
 readme = "./README.md"
-keywords = ["icc", "cms", "color"]
+keywords = ["icc", "cms", "color", "cmyk"]
 license = "BSD-3-Clause OR Apache-2.0"
 authors = ["Radzivon Bartoshyk"]
 documentation = "https://github.com/awxkee/moxcms"
