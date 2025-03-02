@@ -110,6 +110,19 @@ where
             rendering_intent: intent,
             options,
         }));
+    } else if (src_layout == Layout::Rgb) && (dst_layout == Layout::Rgb) {
+        return Ok(Box::new(TransformProfilePcsXYZRgb::<
+            T,
+            { Layout::Rgb as u8 },
+            { Layout::Rgb as u8 },
+            LINEAR_CAP,
+            GAMMA_LUT,
+            BIT_DEPTH,
+        > {
+            profile,
+            rendering_intent: intent,
+            options,
+        }));
     }
     Err(CmsError::UnsupportedProfileConnection)
 }

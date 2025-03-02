@@ -53,15 +53,18 @@ pub(crate) fn make_gray_to_x<
     dst_layout: Layout,
     gray_linear: Box<[f32; BUCKET]>,
     gray_gamma: Box<[T; 65536]>,
-) -> Box<dyn TransformExecutor<T> + Sync + Send>
+) -> Result<Box<dyn TransformExecutor<T> + Sync + Send>, CmsError>
 where
     u32: AsPrimitive<T>,
 {
+    if src_layout != Layout::Gray && src_layout != Layout::GrayAlpha {
+        return Err(CmsError::UnsupportedProfileConnection);
+    }
     match src_layout {
         Layout::Rgb => unreachable!(),
         Layout::Rgba => unreachable!(),
         Layout::Gray => match dst_layout {
-            Layout::Rgb => Box::new(TransformProfileGrayToRgb::<
+            Layout::Rgb => Ok(Box::new(TransformProfileGrayToRgb::<
                 T,
                 { Layout::Gray as u8 },
                 { Layout::Rgb as u8 },
@@ -71,8 +74,8 @@ where
             > {
                 gray_linear,
                 gray_gamma,
-            }),
-            Layout::Rgba => Box::new(TransformProfileGrayToRgb::<
+            })),
+            Layout::Rgba => Ok(Box::new(TransformProfileGrayToRgb::<
                 T,
                 { Layout::Gray as u8 },
                 { Layout::Rgba as u8 },
@@ -82,8 +85,8 @@ where
             > {
                 gray_linear,
                 gray_gamma,
-            }),
-            Layout::Gray => Box::new(TransformProfileGrayToRgb::<
+            })),
+            Layout::Gray => Ok(Box::new(TransformProfileGrayToRgb::<
                 T,
                 { Layout::Gray as u8 },
                 { Layout::Gray as u8 },
@@ -93,8 +96,8 @@ where
             > {
                 gray_linear,
                 gray_gamma,
-            }),
-            Layout::GrayAlpha => Box::new(TransformProfileGrayToRgb::<
+            })),
+            Layout::GrayAlpha => Ok(Box::new(TransformProfileGrayToRgb::<
                 T,
                 { Layout::Gray as u8 },
                 { Layout::GrayAlpha as u8 },
@@ -104,10 +107,10 @@ where
             > {
                 gray_linear,
                 gray_gamma,
-            }),
+            })),
         },
         Layout::GrayAlpha => match dst_layout {
-            Layout::Rgb => Box::new(TransformProfileGrayToRgb::<
+            Layout::Rgb => Ok(Box::new(TransformProfileGrayToRgb::<
                 T,
                 { Layout::Gray as u8 },
                 { Layout::GrayAlpha as u8 },
@@ -117,8 +120,8 @@ where
             > {
                 gray_linear,
                 gray_gamma,
-            }),
-            Layout::Rgba => Box::new(TransformProfileGrayToRgb::<
+            })),
+            Layout::Rgba => Ok(Box::new(TransformProfileGrayToRgb::<
                 T,
                 { Layout::Gray as u8 },
                 { Layout::Rgba as u8 },
@@ -128,8 +131,8 @@ where
             > {
                 gray_linear,
                 gray_gamma,
-            }),
-            Layout::Gray => Box::new(TransformProfileGrayToRgb::<
+            })),
+            Layout::Gray => Ok(Box::new(TransformProfileGrayToRgb::<
                 T,
                 { Layout::Gray as u8 },
                 { Layout::Gray as u8 },
@@ -139,8 +142,8 @@ where
             > {
                 gray_linear,
                 gray_gamma,
-            }),
-            Layout::GrayAlpha => Box::new(TransformProfileGrayToRgb::<
+            })),
+            Layout::GrayAlpha => Ok(Box::new(TransformProfileGrayToRgb::<
                 T,
                 { Layout::GrayAlpha as u8 },
                 { Layout::GrayAlpha as u8 },
@@ -150,7 +153,7 @@ where
             > {
                 gray_linear,
                 gray_gamma,
-            }),
+            })),
         },
     }
 }

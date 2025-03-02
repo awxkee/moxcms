@@ -363,11 +363,8 @@ where
     table
 }
 
-fn lut_interp_linear_precache_output<
-    T: Default + Copy + 'static,
-    const N: usize,
-    const BIT_DEPTH: usize,
->(
+#[inline]
+fn lut_interp_linear_gamma<T: Default + Copy + 'static, const N: usize, const BIT_DEPTH: usize>(
     input_value: u32,
     table: &[u16],
 ) -> T
@@ -384,9 +381,10 @@ where
     let lower: u32 = value / cap_value as u32;
     /* interp is the distance from upper to value scaled to 0..PRECACHE_OUTPUT_MAX */
     let interp: u32 = value % cap_value as u32;
+    let lw_value = table[lower as usize];
+    let hw_value = table[upper as usize];
     /* the table values range from 0..65535 */
-    value =
-        table[upper as usize] as u32 * interp + table[lower as usize] as u32 * (N as u32 - interp); // 0..(65535*PRECACHE_OUTPUT_MAX)
+    value = hw_value as u32 * interp + lw_value as u32 * ((N - 1) as u32 - interp); // 0..(65535*PRECACHE_OUTPUT_MAX)
 
     /* round and scale */
     let max_colors = (1 << BIT_DEPTH) - 1;
@@ -408,7 +406,7 @@ where
 {
     let mut new_table = Box::new([T::default(); BUCKET]);
     for (v, output) in new_table.iter_mut().take(N).enumerate() {
-        *output = lut_interp_linear_precache_output::<T, N, BIT_DEPTH>(v as u32, table);
+        *output = lut_interp_linear_gamma::<T, N, BIT_DEPTH>(v as u32, table);
     }
     new_table
 }
@@ -416,7 +414,7 @@ where
 pub(crate) fn lut_interp_linear16(input_value: u16, table: &[u16]) -> u16 {
     /* Start scaling input_value to the length of the array: 65535*(length-1).
      * We'll divide out the 65535 next */
-    let mut value: u32 = (input_value as i32 * (table.len() as i32 - 1)) as u32; /* equivalent to ceil(value/65535) */
+    let mut value: u32 = input_value as u32 * (table.len() as u32 - 1); /* equivalent to ceil(value/65535) */
     let upper: u32 = value.div_ceil(65535); /* equivalent to floor(value/65535) */
     let lower: u32 = value / 65535;
     /* interp is the distance from upper to value scaled to 0..65535 */
@@ -579,10 +577,10 @@ impl Trc {
     {
         match self {
             Trc::Parametric(params) => {
-                let mut gamma_table_uint: [u16; 256] = [0; 256];
+                let mut gamma_table_uint: [u16; N] = [0; N];
 
-                let inverted_size: usize = 256;
-                let gamma_table = linear_curve_parametric::<256>(params)?;
+                let inverted_size: usize = N;
+                let gamma_table = linear_curve_parametric::<N>(params)?;
                 for (&src, dst) in gamma_table.iter().zip(gamma_table_uint.iter_mut()) {
                     *dst = (src * 65535f32) as u16;
                 }
@@ -697,5 +695,36 @@ impl ColorProfile {
         trc.as_ref()
             .and_then(|trc| trc.build_gamma_table::<T, BUCKET, N, BIT_DEPTH>())
             .ok_or(CmsError::BuildTransferFunction)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_16_bit_parametric() {
+        let mut gamma_table_uint: [u16; 65536] = [0; 65536];
+
+        let curve = vec![2.4, 1. / 1.055, 0.055 / 1.055, 1. / 12.92, 0.04045f32];
+
+        let inverted_size: usize = 65536;
+        let gamma_table = linear_curve_parametric::<65536>(&curve).unwrap();
+        for (&src, dst) in gamma_table.iter().zip(gamma_table_uint.iter_mut()) {
+            *dst = (src * 65535f32) as u16;
+        }
+        let inverted = invert_lut(&gamma_table_uint, inverted_size);
+        let value = lut_interp_linear_gamma::<u16, 65536, 16>(65535, &inverted);
+        assert_ne!(value, 0);
+        let inverted_lut = make_gamma_lut::<u16, 65536, 65536, 16>(&inverted);
+        let last100 = &inverted[inverted_lut.len() - 50..inverted_lut.len() - 1];
+        for &item in last100.iter() {
+            assert_ne!(item, 0);
+        }
+
+        let last_inverted_100 = &inverted_lut[inverted_lut.len() - 50..inverted_lut.len() - 1];
+        for &item in last_inverted_100.iter() {
+            assert_ne!(item, 0);
+        }
     }
 }

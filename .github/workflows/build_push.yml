@@ -29,6 +29,17 @@ jobs:
       - run: RUSTFLAGS="-C target-feature=+avx2" cargo build --target x86_64-unknown-linux-gnu
       - run: RUSTFLAGS="-C target-feature=+simd128" cargo build --target wasm32-unknown-unknown
 
+  tests:
+    name: Tests
+    strategy:
+      matrix:
+        platform: [ ubuntu-latest, macos-latest ]
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo test
+
   clippy_x86:
     name: Clippy x86 Stable
     runs-on: ubuntu-latest
