@@ -255,19 +255,19 @@ impl ColorProfile {
             && self.pcs == DataColorSpace::Xyz
             && dst_pr.pcs == DataColorSpace::Xyz
         {
-            if src_layout != Layout::GrayAlpha && src_layout == Layout::Gray {
+            if src_layout != Layout::GrayAlpha && src_layout != Layout::Gray {
                 return Err(CmsError::InvalidLayout);
             }
             let gray_linear = self.build_gray_linearize_table::<LINEAR_CAP>()?;
             let gray_gamma =
                 dst_pr.build_gamma_table::<T, 65536, GAMMA_CAP, BIT_DEPTH>(&self.gray_trc)?;
 
-            return Ok(make_gray_to_x::<T, LINEAR_CAP, BIT_DEPTH, GAMMA_CAP>(
+            return make_gray_to_x::<T, LINEAR_CAP, BIT_DEPTH, GAMMA_CAP>(
                 src_layout,
                 dst_layout,
                 gray_linear,
                 gray_gamma,
-            ));
+            );
         } else if self.color_space == DataColorSpace::Rgb
             && dst_pr.color_space == DataColorSpace::Gray
             && dst_pr.pcs == DataColorSpace::Xyz
@@ -384,7 +384,7 @@ mod tests {
         let random_point_x = rand::rng().random_range(0..255);
         let transform = srgb_profile
             .create_transform_8bit(
-                Layout::Rgb,
+                Layout::Gray,
                 &bt2020_profile,
                 Layout::Rgb,
                 TransformOptions::default(),
@@ -402,7 +402,7 @@ mod tests {
         let random_point_x = rand::rng().random_range(0..255);
         let transform = srgb_profile
             .create_transform_8bit(
-                Layout::Rgba,
+                Layout::Gray,
                 &bt2020_profile,
                 Layout::Rgba,
                 TransformOptions::default(),
@@ -420,7 +420,7 @@ mod tests {
         let random_point_x = rand::rng().random_range(0..255);
         let transform = srgb_profile
             .create_transform_8bit(
-                Layout::GrayAlpha,
+                Layout::Gray,
                 &bt2020_profile,
                 Layout::GrayAlpha,
                 TransformOptions::default(),
