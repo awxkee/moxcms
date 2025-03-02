@@ -649,30 +649,30 @@ impl ColorProfile {
 
     /// Build gamma table for 8 bit depth
     /// Only 8192 first bins are used and values scaled in 0..255
-    pub fn build_8bit_gamma_table(&self, trc: &Option<Trc>) -> Result<Box<[u8; 65536]>, CmsError> {
-        self.build_gamma_table::<u8, 65536, 8192, 8>(trc)
+    pub fn build_8bit_gamma_table(&self, trc: &Option<Trc>) -> Result<Box<[u16; 65536]>, CmsError> {
+        self.build_gamma_table::<u16, 65536, 8192, 8>(trc)
     }
 
     /// Build gamma table for 10 bit depth
     /// Only 8192 first bins are used and values scaled in 0..1023
-    pub fn build_10bit_gamma_table(&self, trc: &Option<Trc>) -> Result<Box<[u8; 65536]>, CmsError> {
-        self.build_gamma_table::<u8, 65536, 8192, 10>(trc)
+    pub fn build_10bit_gamma_table(&self, trc: &Option<Trc>) -> Result<Box<[u16; 65536]>, CmsError> {
+        self.build_gamma_table::<u16, 65536, 8192, 10>(trc)
     }
 
     /// Build gamma table for 12 bit depth
     /// Only 16384 first bins are used and values scaled in 0..4095
-    pub fn build_12bit_gamma_table(&self, trc: &Option<Trc>) -> Result<Box<[u8; 65536]>, CmsError> {
-        self.build_gamma_table::<u8, 65536, 16384, 12>(trc)
+    pub fn build_12bit_gamma_table(&self, trc: &Option<Trc>) -> Result<Box<[u16; 65536]>, CmsError> {
+        self.build_gamma_table::<u16, 65536, 16384, 12>(trc)
     }
 
     /// Build gamma table for 16 bit depth
     /// Only 16384 first bins are used and values scaled in 0..65535
-    pub fn build_16bit_gamma_table(&self, trc: &Option<Trc>) -> Result<Box<[u8; 65536]>, CmsError> {
-        self.build_gamma_table::<u8, 65536, 65536, 16>(trc)
+    pub fn build_16bit_gamma_table(&self, trc: &Option<Trc>) -> Result<Box<[u16; 65536]>, CmsError> {
+        self.build_gamma_table::<u16, 65536, 65536, 16>(trc)
     }
 
     #[inline]
-    pub(crate) fn build_gamma_table<
+    pub fn build_gamma_table<
         T: Default + Copy + 'static,
         const BUCKET: usize,
         const N: usize,
