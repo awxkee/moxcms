@@ -26,9 +26,9 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-use std::fs;
 use image::GenericImageView;
 use moxcms::{ColorProfile, Layout, TransformOptions};
+use std::fs;
 use std::fs::File;
 use std::io::{BufReader, Read};
 use std::time::Instant;
@@ -43,7 +43,7 @@ fn main() {
 
     let img = image::ImageReader::open(f_str).unwrap().decode().unwrap();
     let rgb = img.to_rgb8();
-    
+
     let reader = BufReader::new(file);
     let ref_reader = &reader;
 
@@ -55,7 +55,7 @@ fn main() {
     decoder.options().set_use_unsafe(true);
     decoder.decode_headers().unwrap();
     let mut real_dst = vec![0u8; decoder.output_buffer_size().unwrap()];
-    
+
     decoder.decode_into(&mut real_dst).unwrap();
     let icc = decoder.icc_profile().unwrap();
     let color_profile = ColorProfile::new_from_slice(&icc).unwrap();
@@ -143,7 +143,7 @@ fn main() {
     //     image::ExtendedColorType::Rgb8,
     // )
     // .unwrap();
-    
+
     image::save_buffer(
         "v_new.png",
         &real_dst,
