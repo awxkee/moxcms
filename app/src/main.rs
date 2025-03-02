@@ -28,15 +28,17 @@
  */
 use image::GenericImageView;
 use moxcms::{ColorProfile, Layout, TransformOptions};
+use std::fs;
 use std::fs::File;
-use std::io::BufReader;
+use std::io::{BufReader, Read};
 use std::time::Instant;
+use turbojpeg::PixelFormat;
 use zune_jpeg::JpegDecoder;
 use zune_jpeg::zune_core::colorspace::ColorSpace;
 use zune_jpeg::zune_core::options::DecoderOptions;
 
 fn main() {
-    let f_str = "./assets/mnts.jpg";
+    let f_str = "./assets/bench.jpg";
     let file = File::open(f_str).expect("Failed to open file");
 
     let img = image::ImageReader::open(f_str).unwrap().decode().unwrap();
@@ -143,11 +145,11 @@ fn main() {
     // .unwrap();
 
     image::save_buffer(
-        "v6.png",
-        &dst,
+        "v_new.png",
+        &real_dst,
         img.dimensions().0,
         img.dimensions().1,
-        image::ExtendedColorType::Rgba8,
+        image::ExtendedColorType::Rgb8,
     )
     .unwrap();
 }

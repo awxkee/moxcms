@@ -140,7 +140,7 @@ fn stage_lut_4x3(lut: &LutDataType) -> Box<dyn Stage> {
     Box::new(transform)
 }
 
-fn create_lut<const SAMPLES: usize>(lut: &LutDataType) -> Result<Vec<f32>, CmsError> {
+fn create_lut4<const SAMPLES: usize>(lut: &LutDataType) -> Result<Vec<f32>, CmsError> {
     if lut.num_input_channels != 4 {
         return Err(CmsError::UnsupportedProfileConnection);
     }
@@ -351,8 +351,6 @@ where
         .as_ref()
         .ok_or(CmsError::UnsupportedProfileConnection)?;
 
-    let lut: Option<Box<dyn TransformExecutor<T> + Send + Sync>> = None;
-
     if source.color_space == DataColorSpace::Cmyk && dest.color_space == DataColorSpace::Rgb {
         if dst_layout != Layout::Rgb && dst_layout != Layout::Rgba {
             return Err(CmsError::UnsupportedProfileConnection);
@@ -360,7 +358,7 @@ where
 
         const GRID_SIZE: usize = 17;
 
-        let mut lut = create_lut::<GRID_SIZE>(lut_a_to_b)?;
+        let mut lut = create_lut4::<GRID_SIZE>(lut_a_to_b)?;
 
         if source.pcs == DataColorSpace::Lab {
             let lab_to_xyz_stage = StageLabToXyz::default();
@@ -402,29 +400,30 @@ where
                 matrices,
             };
             xyz_to_rgb_stage.transform(&mut lut)?;
-        }
 
-        return Ok(match dst_layout {
-            Layout::Rgb => {
-                Box::new(
-                    TransformLut4XyzToRgb::<T, { Layout::Rgb as u8 }, GRID_SIZE, BIT_DEPTH> {
-                        lut,
-                        _phantom: PhantomData,
-                    },
-                )
-            }
-            Layout::Rgba => {
-                Box::new(
-                    TransformLut4XyzToRgb::<T, { Layout::Rgba as u8 }, GRID_SIZE, BIT_DEPTH> {
-                        lut,
-                        _phantom: PhantomData,
-                    },
-                )
-            }
-            _ => unimplemented!(),
-        });
+            return Ok(match dst_layout {
+                Layout::Rgb => Box::new(TransformLut4XyzToRgb::<
+                    T,
+                    { Layout::Rgb as u8 },
+                    GRID_SIZE,
+                    BIT_DEPTH,
+                > {
+                    lut,
+                    _phantom: PhantomData,
+                }),
+                Layout::Rgba => Box::new(TransformLut4XyzToRgb::<
+                    T,
+                    { Layout::Rgba as u8 },
+                    GRID_SIZE,
+                    BIT_DEPTH,
+                > {
+                    lut,
+                    _phantom: PhantomData,
+                }),
+                _ => unimplemented!(),
+            });
+        }
     }
 
-    lut.map(Ok)
-        .unwrap_or(Err(CmsError::UnsupportedProfileConnection))
+    Err(CmsError::UnsupportedProfileConnection)
 }
