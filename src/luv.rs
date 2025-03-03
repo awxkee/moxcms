@@ -149,6 +149,11 @@ impl LCh {
     }
 
     #[inline]
+    pub fn from_xyz(xyz: Xyz) -> Self {
+        Self::from_luv(Luv::from_xyz(xyz))
+    }
+
+    #[inline]
     pub const fn const_from_luv(luv: Luv) -> Self {
         LCh {
             l: luv.l,

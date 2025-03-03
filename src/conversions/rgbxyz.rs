@@ -27,6 +27,7 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::conversions::chunking::compute_chunk_sizes;
+use crate::conversions::stages::{RelativeColorMetricRgbXyz, SaturationRgbXyz};
 use crate::conversions::{GamutClipScaleStage, MatrixClipScaleStage, MatrixStage};
 use crate::profile::RenderingIntent;
 use crate::{CmsError, InPlaceStage, Layout, Matrix3f, TransformExecutor, TransformOptions};
@@ -41,6 +42,8 @@ pub(crate) struct TransformProfileRgb<T: Clone, const BUCKET: usize> {
     pub(crate) g_gamma: Box<[T; 65536]>,
     pub(crate) b_gamma: Box<[T; 65536]>,
     pub(crate) adaptation_matrix: Option<Matrix3f>,
+    pub(crate) r2xyz: Option<Matrix3f>,
+    pub(crate) xyz2rgb: Option<Matrix3f>,
 }
 
 struct TransformProfilePcsXYZRgb<
@@ -167,16 +170,55 @@ where
 
         if let Some(transform) = self.profile.adaptation_matrix {
             let sliced = &mut working_set[..src.len()];
-            let gamut_clipping_intent = self.rendering_intent == RenderingIntent::Perceptual
-                || self.rendering_intent == RenderingIntent::RelativeColorimetric
-                || self.rendering_intent == RenderingIntent::Saturation;
 
             // Check if rendering intent is adequate for gamut chroma clipping
-            if gamut_clipping_intent && self.options.allow_chroma_clipping {
+            if self.rendering_intent == RenderingIntent::Perceptual
+                && self.options.allow_chroma_clipping
+            {
                 let stage = MatrixStage::<SRC_LAYOUT> { matrix: transform };
                 stage.transform(sliced)?;
 
                 let stage = GamutClipScaleStage::<SRC_LAYOUT> { scale: cap_values };
+                stage.transform(sliced)?;
+            } else if self.rendering_intent == RenderingIntent::RelativeColorimetric
+                && self.profile.r2xyz.is_some()
+                && self.profile.xyz2rgb.is_some()
+            {
+                let r2xyz = self
+                    .profile
+                    .r2xyz
+                    .expect("Expected RGB to XYZ matrix, this is internal configuration error");
+                let xyz2rgb = self
+                    .profile
+                    .xyz2rgb
+                    .expect("Expected XYZ to RGB matrix, this is internal configuration error");
+
+                let stage = RelativeColorMetricRgbXyz::<SRC_LAYOUT> {
+                    matrix: transform,
+                    r2xyz,
+                    xyz2rgb,
+                    scale: cap_values,
+                };
+                stage.transform(sliced)?;
+            } else if self.rendering_intent == RenderingIntent::Saturation
+                && self.profile.r2xyz.is_some()
+                && self.profile.xyz2rgb.is_some()
+            {
+                let r2xyz = self
+                    .profile
+                    .r2xyz
+                    .expect("Expected RGB to XYZ matrix, this is internal configuration error");
+                let xyz2rgb = self
+                    .profile
+                    .xyz2rgb
+                    .expect("Expected XYZ to RGB matrix, this is internal configuration error");
+
+                let stage = SaturationRgbXyz::<SRC_LAYOUT> {
+                    matrix: transform,
+                    r2xyz,
+                    xyz2rgb,
+                    scale: cap_values,
+                };
                 stage.transform(sliced)?;
             } else {
                 let stage = MatrixClipScaleStage::<SRC_LAYOUT> {

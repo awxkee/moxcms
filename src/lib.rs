@@ -32,7 +32,6 @@ mod chad;
 mod cicp;
 mod conversions;
 mod err;
-mod gamut;
 mod lab;
 mod luv;
 /// One of main intent is to provide fast math available in const context
@@ -62,7 +61,9 @@ pub use matrix::{
 pub use nd_array::{Array3D, Array4D};
 pub use oklab::Oklab;
 pub use oklch::Oklch;
-pub use profile::{CicpProfile, ColorProfile, DataColorSpace, LutType, ProfileClass};
+pub use profile::{
+    CicpProfile, ColorProfile, DataColorSpace, LutType, ProfileClass, RenderingIntent,
+};
 pub use rgb::Rgb;
 pub use transform::{
     InPlaceStage, Layout, Stage, Transform8BitExecutor, Transform16BitExecutor, TransformExecutor,

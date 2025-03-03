@@ -4,8 +4,11 @@
  * // Use of this source code is governed by a BSD-style
  * // license that can be found in the LICENSE file.
  */
+use crate::math::{m_clamp, m_max, m_min};
+use crate::mlaf::mlaf;
+use crate::{Matrix3f, Xyz};
 use num_traits::{AsPrimitive, Bounded, Float, Num, Pow};
-use std::cmp::{Ordering, max, min};
+use std::cmp::Ordering;
 use std::ops::{Add, AddAssign, Div, DivAssign, Index, IndexMut, Mul, MulAssign, Neg, Sub};
 
 #[repr(C)]
@@ -32,6 +35,52 @@ where
 {
     pub fn dup(v: T) -> Rgb<T> {
         Rgb { r: v, g: v, b: v }
+    }
+}
+
+impl Rgb<f32> {
+    #[inline(always)]
+    pub fn apply(&self, matrix: Matrix3f) -> Rgb<f32> {
+        let new_r = mlaf(
+            mlaf(self.r * matrix.v[0][0], self.g, matrix.v[0][1]),
+            self.b,
+            matrix.v[0][2],
+        );
+
+        let new_g = mlaf(
+            mlaf(self.r * matrix.v[1][0], self.g, matrix.v[1][1]),
+            self.b,
+            matrix.v[1][2],
+        );
+
+        let new_b = mlaf(
+            mlaf(self.r * matrix.v[2][0], self.g, matrix.v[2][1]),
+            self.b,
+            matrix.v[2][2],
+        );
+
+        Rgb {
+            r: new_r,
+            g: new_g,
+            b: new_b,
+        }
+    }
+
+    #[inline(always)]
+    pub fn to_xyz(&self, matrix: Matrix3f) -> Xyz {
+        let new_self = self.apply(matrix);
+        Xyz {
+            x: new_self.r,
+            y: new_self.g,
+            z: new_self.b,
+        }
+    }
+
+    #[inline(always)]
+    pub fn is_out_of_gamut(&self) -> bool {
+        !(0.0..=1.0).contains(&self.r)
+            || !(0.0..=1.0).contains(&self.g)
+            || !(0.0..=1.0).contains(&self.b)
     }
 }
 
@@ -317,16 +366,16 @@ where
 
 impl<T> Rgb<T>
 where
-    T: Num + PartialOrd + Copy + Bounded + Ord,
+    T: Num + PartialOrd + Copy + Bounded,
 {
     /// Clamp function to clamp each channel within a given range
     #[inline]
     #[allow(clippy::manual_clamp)]
     pub fn clamp(&self, min_value: T, max_value: T) -> Rgb<T> {
         Rgb::new(
-            min(max(self.r, min_value), max_value),
-            min(max(self.g, min_value), max_value),
-            min(max(self.b, min_value), max_value),
+            m_clamp(self.r, min_value, max_value),
+            m_clamp(self.g, min_value, max_value),
+            m_clamp(self.b, min_value, max_value),
         )
     }
 
@@ -334,9 +383,9 @@ where
     #[inline]
     pub fn min(&self, other_min: T) -> Rgb<T> {
         Rgb::new(
-            min(self.r, other_min),
-            min(self.g, other_min),
-            min(self.b, other_min),
+            m_min(self.r, other_min),
+            m_min(self.g, other_min),
+            m_min(self.b, other_min),
         )
     }
 
@@ -344,9 +393,9 @@ where
     #[inline]
     pub fn max(&self, other_max: T) -> Rgb<T> {
         Rgb::new(
-            max(self.r, other_max),
-            max(self.g, other_max),
-            max(self.b, other_max),
+            m_max(self.r, other_max),
+            m_max(self.g, other_max),
+            m_max(self.b, other_max),
         )
     }
 
@@ -355,9 +404,9 @@ where
     #[allow(clippy::manual_clamp)]
     pub fn clamp_p(&self, min_value: Rgb<T>, max_value: Rgb<T>) -> Rgb<T> {
         Rgb::new(
-            max(min(self.r, max_value.r), min_value.r),
-            max(min(self.g, max_value.g), min_value.g),
-            max(min(self.b, max_value.b), min_value.b),
+            m_clamp(self.r, max_value.r, min_value.r),
+            m_clamp(self.g, max_value.g, min_value.g),
+            m_clamp(self.b, max_value.b, min_value.b),
         )
     }
 
@@ -365,9 +414,9 @@ where
     #[inline]
     pub fn min_p(&self, other_min: Rgb<T>) -> Rgb<T> {
         Rgb::new(
-            min(self.r, other_min.r),
-            min(self.g, other_min.g),
-            min(self.b, other_min.b),
+            m_min(self.r, other_min.r),
+            m_min(self.g, other_min.g),
+            m_min(self.b, other_min.b),
         )
     }
 
@@ -375,9 +424,9 @@ where
     #[inline]
     pub fn max_p(&self, other_max: Rgb<T>) -> Rgb<T> {
         Rgb::new(
-            max(self.r, other_max.r),
-            max(self.g, other_max.g),
-            max(self.b, other_max.b),
+            m_max(self.r, other_max.r),
+            m_max(self.g, other_max.g),
+            m_max(self.b, other_max.b),
         )
     }
 }

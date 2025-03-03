@@ -29,6 +29,7 @@
 use crate::err::CmsError;
 use crate::mlaf::mlaf;
 use crate::profile::s15_fixed16_number_to_float;
+use crate::{LCh, Lab};
 use num_traits::AsPrimitive;
 use std::ops::{Add, Mul, Sub};
 
@@ -396,6 +397,78 @@ impl Xyz {
         Vector3f {
             v: [self.x, self.y, self.z],
         }
+    }
+
+    #[inline]
+    pub fn get_boundary(self) -> LCh {
+        let src_lab = Lab::from_xyz(self);
+        let white_point_lab = Lab::new(50.0, 0.0f32, 0.0f32);
+        let dl = src_lab.l - white_point_lab.l;
+        let da = src_lab.a - white_point_lab.a;
+        let db = src_lab.b - white_point_lab.b;
+        let eps = 0.00001f32;
+        let r = (dl * dl + da * da + db * db).sqrt().max(eps);
+        let theta = (dl * dl / (db * db + da * da).sqrt()).atan();
+        let a = ((db * db) / (da * da)).atan();
+        LCh::new(theta, r, a)
+    }
+
+    #[inline]
+    pub fn from_linear_rgb(rgb: crate::Rgb<f32>, rgb_to_xyz: Matrix3f) -> Self {
+        let r = rgb.r;
+        let g = rgb.g;
+        let b = rgb.b;
+
+        let transform = rgb_to_xyz;
+
+        let new_r = mlaf(
+            mlaf(r * transform.v[0][0], g, transform.v[0][1]),
+            b,
+            transform.v[0][2],
+        );
+
+        let new_g = mlaf(
+            mlaf(r * transform.v[1][0], g, transform.v[1][1]),
+            b,
+            transform.v[1][2],
+        );
+
+        let new_b = mlaf(
+            mlaf(r * transform.v[2][0], g, transform.v[2][1]),
+            b,
+            transform.v[2][2],
+        );
+
+        Xyz::new(new_r, new_g, new_b)
+    }
+
+    #[inline]
+    pub fn to_linear_rgb(self, rgb_to_xyz: Matrix3f) -> crate::Rgb<f32> {
+        let x = self.x;
+        let y = self.y;
+        let z = self.z;
+
+        let transform = rgb_to_xyz;
+
+        let new_r = mlaf(
+            mlaf(x * transform.v[0][0], y, transform.v[0][1]),
+            z,
+            transform.v[0][2],
+        );
+
+        let new_g = mlaf(
+            mlaf(x * transform.v[1][0], y, transform.v[1][1]),
+            z,
+            transform.v[1][2],
+        );
+
+        let new_b = mlaf(
+            mlaf(x * transform.v[2][0], y, transform.v[2][1]),
+            z,
+            transform.v[2][2],
+        );
+
+        crate::Rgb::<f32>::new(new_r, new_g, new_b)
     }
 }
 
