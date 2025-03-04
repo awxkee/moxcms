@@ -230,7 +230,6 @@ where
     }
 }
 
-
 impl<T> Div for Rgb<T>
 where
     T: Div<Output = T>,
