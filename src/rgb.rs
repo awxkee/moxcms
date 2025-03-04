@@ -218,6 +218,19 @@ where
     }
 }
 
+impl<T: Copy + Clone> Sub<T> for Rgb<T>
+where
+    T: Sub<Output = T>,
+{
+    type Output = Rgb<T>;
+
+    #[inline]
+    fn sub(self, rhs: T) -> Self::Output {
+        Rgb::new(self.r - rhs, self.g - rhs, self.b - rhs)
+    }
+}
+
+
 impl<T> Div for Rgb<T>
 where
     T: Div<Output = T>,
@@ -227,6 +240,18 @@ where
     #[inline]
     fn div(self, rhs: Self) -> Self::Output {
         Rgb::new(self.r / rhs.r, self.g / rhs.g, self.b / rhs.b)
+    }
+}
+
+impl<T: Clone + Copy> Div<T> for Rgb<T>
+where
+    T: Div<Output = T>,
+{
+    type Output = Rgb<T>;
+
+    #[inline]
+    fn div(self, rhs: T) -> Self::Output {
+        Rgb::new(self.r / rhs, self.g / rhs, self.b / rhs)
     }
 }
 
