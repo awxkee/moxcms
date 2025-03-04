@@ -168,6 +168,7 @@ impl<const LAYOUT: u8> InPlaceStage for GamutClipScaleStage<LAYOUT> {
                 rgb = gamut_clip_adaptive_l0_0_5(rgb, 0.5f32);
             }
             rgb = rgb.clamp(0.0, 1.0) * Rgb::dup(self.scale);
+            rgb = rgb.round();
             chunk[0] = rgb.r;
             chunk[1] = rgb.g;
             chunk[2] = rgb.b;
@@ -199,6 +200,7 @@ impl<const LAYOUT: u8> InPlaceStage for RelativeColorMetricRgbXyz<LAYOUT> {
             }
             new_rgb = new_rgb.clamp(0.0, 1.0);
             new_rgb *= self.scale;
+            new_rgb = new_rgb.round();
 
             chunk[0] = new_rgb.r;
             chunk[1] = new_rgb.g;

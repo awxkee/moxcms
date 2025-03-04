@@ -26,12 +26,12 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+use crate::Chromacity;
 use crate::chad::adapt_to_d50;
 use crate::cicp::{ChromacityTriple, ColorPrimaries, MatrixCoefficients, TransferCharacteristics};
 use crate::err::CmsError;
-use crate::matrix::{Matrix3f, XyY, Xyz, BT2020_MATRIX, DISPLAY_P3_MATRIX, SRGB_MATRIX};
-use crate::trc::{curve_from_gamma, Trc};
-use crate::Chromacity;
+use crate::matrix::{BT2020_MATRIX, DISPLAY_P3_MATRIX, Matrix3f, SRGB_MATRIX, XyY, Xyz};
+use crate::trc::{Trc, curve_from_gamma};
 use std::io::Read;
 
 const ACSP_SIGNATURE: u32 = u32::from_ne_bytes(*b"acsp").to_be(); // 'acsp' signature for ICC
