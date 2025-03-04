@@ -27,7 +27,10 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::mlaf::mlaf;
-use crate::{CmsError, InPlaceStage, LCh, Layout, Matrix3f, Rgb};
+use crate::{
+    gamut_clip_adaptive_l0_0_5, gamut_clip_preserve_chroma, CmsError, InPlaceStage, Layout, Matrix3f,
+    Rgb,
+};
 use std::ops::Mul;
 
 pub(crate) struct MatrixClipScaleStage<const LAYOUT: u8> {
@@ -161,14 +164,8 @@ impl<const LAYOUT: u8> InPlaceStage for GamutClipScaleStage<LAYOUT> {
 
         for chunk in dst.chunks_exact_mut(channels) {
             let mut rgb = Rgb::new(chunk[0], chunk[1], chunk[2]);
-            if !(0.0..=1.0).contains(&rgb.r) {
-                rgb.r = rgb.r * (1f32 - (rgb.r - 1f32));
-            }
-            if !(0.0..=1.0).contains(&rgb.g) {
-                rgb.g = rgb.g * (1f32 - (rgb.g - 1f32));
-            }
-            if !(0.0..=1.0).contains(&rgb.b) {
-                rgb.b = rgb.b * (1f32 - (rgb.b - 1f32));
+            if rgb.is_out_of_gamut() {
+                rgb = gamut_clip_adaptive_l0_0_5(rgb, 0.5f32);
             }
             rgb = rgb.clamp(0.0, 1.0) * Rgb::dup(self.scale);
             chunk[0] = rgb.r;
@@ -182,8 +179,6 @@ impl<const LAYOUT: u8> InPlaceStage for GamutClipScaleStage<LAYOUT> {
 
 pub(crate) struct RelativeColorMetricRgbXyz<const LAYOUT: u8> {
     pub(crate) matrix: Matrix3f,
-    pub(crate) r2xyz: Matrix3f,
-    pub(crate) xyz2rgb: Matrix3f,
     pub(crate) scale: f32,
 }
 
@@ -200,54 +195,8 @@ impl<const LAYOUT: u8> InPlaceStage for RelativeColorMetricRgbXyz<LAYOUT> {
 
             let mut new_rgb = rgb.apply(transform);
             if new_rgb.is_out_of_gamut() {
-                let source_xyz = rgb.to_xyz(self.r2xyz);
-                let boundary = source_xyz.get_boundary();
-                let mut source_lch = LCh::from_xyz_lab(source_xyz);
-                if source_lch.c > boundary.c {
-                    source_lch.c = boundary.c * (source_lch.c / (source_lch.c + 5f32));
-                }
-                let target_xyz = source_lch.to_xyz_lab();
-                let approximated_new_rgb = target_xyz.to_linear_rgb(self.xyz2rgb);
-                new_rgb = approximated_new_rgb.clamp(0.0, 1.0);
-                new_rgb *= self.scale;
-            }
-
-            chunk[0] = new_rgb.r;
-            chunk[1] = new_rgb.g;
-            chunk[2] = new_rgb.b;
-        }
-
-        Ok(())
-    }
-}
-
-pub(crate) struct SaturationRgbXyz<const LAYOUT: u8> {
-    pub(crate) matrix: Matrix3f,
-    pub(crate) r2xyz: Matrix3f,
-    pub(crate) xyz2rgb: Matrix3f,
-    pub(crate) scale: f32,
-}
-
-impl<const LAYOUT: u8> InPlaceStage for SaturationRgbXyz<LAYOUT> {
-    #[inline]
-    fn transform(&self, dst: &mut [f32]) -> Result<(), CmsError> {
-        let cn = Layout::from(LAYOUT);
-        let channels = cn.channels();
-
-        let transform = self.matrix;
-
-        for chunk in dst.chunks_exact_mut(channels) {
-            let rgb = Rgb::new(chunk[0], chunk[1], chunk[2]);
-
-            let mut new_rgb = rgb.apply(transform);
-            if new_rgb.is_out_of_gamut() {
-                let source_xyz = rgb.to_xyz(self.r2xyz);
-                let boundary = source_xyz.get_boundary();
-                let mut source_lch = LCh::from_xyz_lab(source_xyz);
-                source_lch.c = source_lch.c.min(boundary.c);
-                let target_xyz = source_lch.to_xyz_lab();
-                let approximated_new_rgb = target_xyz.to_linear_rgb(self.xyz2rgb);
-                new_rgb = approximated_new_rgb.clamp(0.0, 1.0);
+                new_rgb = gamut_clip_preserve_chroma(rgb);
+                new_rgb = new_rgb.clamp(0.0, 1.0);
                 new_rgb *= self.scale;
             }
 

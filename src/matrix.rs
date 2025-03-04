@@ -29,9 +29,8 @@
 use crate::err::CmsError;
 use crate::mlaf::mlaf;
 use crate::profile::s15_fixed16_number_to_float;
-use crate::{LCh, Lab};
 use num_traits::AsPrimitive;
-use std::ops::{Add, Mul, Sub};
+use std::ops::{Add, Div, Mul, Sub};
 
 /// Vector math helper
 #[derive(Copy, Clone, Debug, Default)]
@@ -168,6 +167,11 @@ pub struct Matrix3f {
     pub v: [[f32; 3]; 3],
 }
 
+#[derive(Copy, Clone, Debug, Default)]
+pub struct Matrix4f {
+    pub v: [[f32; 4]; 4],
+}
+
 pub const SRGB_MATRIX: Matrix3f = Matrix3f {
     v: [
         [
@@ -203,6 +207,58 @@ pub const BT2020_MATRIX: Matrix3f = Matrix3f {
         [-0.00193139f32, 0.0299794f32, 0.797162f32],
     ],
 };
+
+impl Matrix4f {
+    #[inline]
+    pub fn determinant(&self) -> Option<f32> {
+        let a = self.v[0][0];
+        let b = self.v[0][1];
+        let c = self.v[0][2];
+        let d = self.v[0][3];
+
+        // Cofactor expansion
+
+        let m11 = Matrix3f {
+            v: [
+                [self.v[1][1], self.v[1][2], self.v[1][3]],
+                [self.v[2][1], self.v[2][2], self.v[2][3]],
+                [self.v[3][1], self.v[3][2], self.v[3][3]],
+            ],
+        };
+
+        let m12 = Matrix3f {
+            v: [
+                [self.v[1][0], self.v[1][2], self.v[1][3]],
+                [self.v[2][0], self.v[2][2], self.v[2][3]],
+                [self.v[3][0], self.v[3][2], self.v[3][3]],
+            ],
+        };
+
+        let m13 = Matrix3f {
+            v: [
+                [self.v[1][0], self.v[1][1], self.v[1][3]],
+                [self.v[2][0], self.v[2][1], self.v[2][3]],
+                [self.v[3][0], self.v[3][1], self.v[3][3]],
+            ],
+        };
+
+        let m14 = Matrix3f {
+            v: [
+                [self.v[1][0], self.v[1][1], self.v[1][2]],
+                [self.v[2][0], self.v[2][1], self.v[2][2]],
+                [self.v[3][0], self.v[3][1], self.v[3][2]],
+            ],
+        };
+
+        let m1_det = m11.determinant()?;
+        let m2_det = m12.determinant()?;
+        let m3_det = m13.determinant()?;
+        let m4_det = m14.determinant()?;
+
+        // Apply cofactor expansion on the first row
+        Some(a * m1_det - b * m2_det + c * m3_det - d * m4_det)
+    }
+}
 
 impl Matrix3f {
     pub const IDENTITY: Matrix3f = Matrix3f {
@@ -400,25 +456,6 @@ impl Xyz {
     }
 
     #[inline]
-    pub fn get_boundary(self) -> LCh {
-        let src_lab = Lab::from_xyz(self);
-        let white_point_lab = Lab::new(50.0, 0.0f32, 0.0f32);
-        let dl = src_lab.l - white_point_lab.l;
-        let da = src_lab.a - white_point_lab.a;
-        let db = src_lab.b - white_point_lab.b;
-        let eps = 0.00001f32;
-        let r = (dl * dl + da * da + db * db).sqrt().max(eps);
-        let theta = (dl / (db * db + da * da).sqrt()).atan();
-        let a = (db / da).atan();
-        let new_b = r * theta.cos();
-        LCh::new(
-            white_point_lab.l + r / (std::f32::consts::PI - theta),
-            a.cos() * new_b,
-            new_b,
-        )
-    }
-
-    #[inline]
     pub fn from_linear_rgb(rgb: crate::Rgb<f32>, rgb_to_xyz: Matrix3f) -> Self {
         let r = rgb.r;
         let g = rgb.g;
@@ -499,6 +536,32 @@ impl Mul<Xyz> for Xyz {
             x: self.x * rhs.x,
             y: self.y * rhs.y,
             z: self.z * rhs.z,
+        }
+    }
+}
+
+impl Div<Xyz> for Xyz {
+    type Output = Xyz;
+
+    #[inline]
+    fn div(self, rhs: Xyz) -> Self::Output {
+        Self {
+            x: self.x / rhs.x,
+            y: self.y / rhs.y,
+            z: self.z / rhs.z,
+        }
+    }
+}
+
+impl Div<f32> for Xyz {
+    type Output = Xyz;
+
+    #[inline]
+    fn div(self, rhs: f32) -> Self::Output {
+        Self {
+            x: self.x / rhs,
+            y: self.y / rhs,
+            z: self.z / rhs,
         }
     }
 }

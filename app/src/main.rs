@@ -27,7 +27,10 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use image::GenericImageView;
-use moxcms::{ColorProfile, Layout, RenderingIntent, TransformOptions};
+use moxcms::{
+    Chromacity, ChromacityTriple, ColorPrimaries, ColorProfile, Layout, Matrix4f, RenderingIntent,
+    TransformOptions,
+};
 use std::fs;
 use std::fs::File;
 use std::io::{BufReader, Read};
@@ -61,6 +64,7 @@ fn main() {
     let color_profile = ColorProfile::new_from_slice(&icc).unwrap();
     // let color_profile = ColorProfile::new_gray_with_gamma(2.2);
     let mut dest_profile = ColorProfile::new_srgb();
+ 
     dest_profile.rendering_intent = RenderingIntent::RelativeColorimetric;
     let transform = color_profile
         .create_transform_8bit(

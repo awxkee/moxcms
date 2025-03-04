@@ -242,6 +242,18 @@ where
     }
 }
 
+impl<T: Clone + Copy> Mul<T> for Rgb<T>
+where
+    T: Mul<Output = T>,
+{
+    type Output = Rgb<T>;
+
+    #[inline]
+    fn mul(self, rhs: T) -> Self::Output {
+        Rgb::new(self.r * rhs, self.g * rhs, self.b * rhs)
+    }
+}
+
 impl<T> MulAssign for Rgb<T>
 where
     T: MulAssign<T>,

@@ -26,12 +26,12 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-use crate::Chromacity;
 use crate::chad::adapt_to_d50;
 use crate::cicp::{ChromacityTriple, ColorPrimaries, MatrixCoefficients, TransferCharacteristics};
 use crate::err::CmsError;
-use crate::matrix::{BT2020_MATRIX, DISPLAY_P3_MATRIX, Matrix3f, SRGB_MATRIX, XyY, Xyz};
-use crate::trc::{Trc, curve_from_gamma};
+use crate::matrix::{Matrix3f, XyY, Xyz, BT2020_MATRIX, DISPLAY_P3_MATRIX, SRGB_MATRIX};
+use crate::trc::{curve_from_gamma, Trc};
+use crate::Chromacity;
 use std::io::Read;
 
 const ACSP_SIGNATURE: u32 = u32::from_ne_bytes(*b"acsp").to_be(); // 'acsp' signature for ICC
@@ -989,6 +989,22 @@ impl ColorProfile {
         let dst = dest.rgb_to_xyz_matrix()?;
         let dest_inverse = dst.inverse()?;
         Some(dest_inverse.mat_mul(source))
+    }
+
+    /// Returns volume of colors stored in profile
+    pub fn profile_volume(&self) -> Option<f32> {
+        let red_prim = self.red_colorant;
+        let green_prim = self.green_colorant;
+        let blue_prim = self.blue_colorant;
+        let tetrahedral_vertices = Matrix3f {
+            v: [
+                [red_prim.x, red_prim.y, red_prim.z],
+                [green_prim.x, green_prim.y, green_prim.z],
+                [blue_prim.x, blue_prim.y, blue_prim.z],
+            ],
+        };
+        let det = tetrahedral_vertices.determinant()?;
+        Some(det / 6.0f32)
     }
 }
 

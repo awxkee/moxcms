@@ -221,8 +221,6 @@ impl ColorProfile {
                 return Err(CmsError::InvalidLayout);
             }
             let transform = self.transform_matrix(dst_pr);
-            let rgb_to_xyz_matrix = self.rgb_to_xyz_matrix();
-            let dest_rgb_to_xyz_matrix = self.rgb_to_xyz_matrix().and_then(|x| x.inverse());
 
             let lin_r = self.build_r_linearize_table::<LINEAR_CAP>()?;
             let lin_g = self.build_g_linearize_table::<LINEAR_CAP>()?;
@@ -243,8 +241,6 @@ impl ColorProfile {
                 g_gamma: gamma_g,
                 b_gamma: gamma_b,
                 adaptation_matrix: transform,
-                r2xyz: rgb_to_xyz_matrix,
-                xyz2rgb: dest_rgb_to_xyz_matrix,
             };
 
             return make_rgb_xyz_rgb_transform::<T, LINEAR_CAP, GAMMA_CAP, BIT_DEPTH>(
