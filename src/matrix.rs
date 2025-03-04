@@ -408,9 +408,14 @@ impl Xyz {
         let db = src_lab.b - white_point_lab.b;
         let eps = 0.00001f32;
         let r = (dl * dl + da * da + db * db).sqrt().max(eps);
-        let theta = (dl * dl / (db * db + da * da).sqrt()).atan();
-        let a = ((db * db) / (da * da)).atan();
-        LCh::new(theta, r, a)
+        let theta = (dl / (db * db + da * da).sqrt()).atan();
+        let a = (db / da).atan();
+        let new_b = r * theta.cos();
+        LCh::new(
+            white_point_lab.l + r / (std::f32::consts::PI - theta),
+            a.cos() * new_b,
+            new_b,
+        )
     }
 
     #[inline]

@@ -202,11 +202,11 @@ impl<const LAYOUT: u8> InPlaceStage for RelativeColorMetricRgbXyz<LAYOUT> {
             if new_rgb.is_out_of_gamut() {
                 let source_xyz = rgb.to_xyz(self.r2xyz);
                 let boundary = source_xyz.get_boundary();
-                let mut source_lch = LCh::from_xyz(source_xyz);
+                let mut source_lch = LCh::from_xyz_lab(source_xyz);
                 if source_lch.c > boundary.c {
-                    source_lch.c = boundary.c * (source_lch.c / (source_lch.c + 0.5f32));
+                    source_lch.c = boundary.c * (source_lch.c / (source_lch.c + 5f32));
                 }
-                let target_xyz = source_lch.to_xyz();
+                let target_xyz = source_lch.to_xyz_lab();
                 let approximated_new_rgb = target_xyz.to_linear_rgb(self.xyz2rgb);
                 new_rgb = approximated_new_rgb.clamp(0.0, 1.0);
                 new_rgb *= self.scale;
@@ -243,9 +243,9 @@ impl<const LAYOUT: u8> InPlaceStage for SaturationRgbXyz<LAYOUT> {
             if new_rgb.is_out_of_gamut() {
                 let source_xyz = rgb.to_xyz(self.r2xyz);
                 let boundary = source_xyz.get_boundary();
-                let mut source_lch = LCh::from_xyz(source_xyz);
+                let mut source_lch = LCh::from_xyz_lab(source_xyz);
                 source_lch.c = source_lch.c.min(boundary.c);
-                let target_xyz = source_lch.to_xyz();
+                let target_xyz = source_lch.to_xyz_lab();
                 let approximated_new_rgb = target_xyz.to_linear_rgb(self.xyz2rgb);
                 new_rgb = approximated_new_rgb.clamp(0.0, 1.0);
                 new_rgb *= self.scale;

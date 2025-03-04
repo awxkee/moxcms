@@ -54,7 +54,7 @@ pub struct LCh {
 }
 
 use crate::math::cbrtf;
-use crate::{Chromacity, Xyz, atan2f, const_hypotf, cosf, hypotf, powf, sinf};
+use crate::{Chromacity, Lab, Xyz, atan2f, const_hypotf, cosf, hypotf, powf, sinf};
 use num_traits::Pow;
 use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 
@@ -139,6 +139,7 @@ impl LCh {
         LCh { l, c, h }
     }
 
+    /// Converts Lab to LCh(uv)
     #[inline]
     pub fn from_luv(luv: Luv) -> Self {
         LCh {
@@ -148,9 +149,26 @@ impl LCh {
         }
     }
 
+    /// Converts Lab to LCh(ab)
+    #[inline]
+    pub fn from_lab(luv: Lab) -> Self {
+        LCh {
+            l: luv.l,
+            c: hypotf(luv.a, luv.b),
+            h: atan2f(luv.b, luv.a),
+        }
+    }
+
+    /// Computes LCh(uv)
     #[inline]
     pub fn from_xyz(xyz: Xyz) -> Self {
         Self::from_luv(Luv::from_xyz(xyz))
+    }
+
+    /// Computes LCh(ab)
+    #[inline]
+    pub fn from_xyz_lab(xyz: Xyz) -> Self {
+        Self::from_lab(Lab::from_xyz(xyz))
     }
 
     #[inline]
@@ -162,9 +180,16 @@ impl LCh {
         }
     }
 
+    /// Converts LCh(uv) to Luv
     #[inline]
     pub const fn to_xyz(&self) -> Xyz {
         self.to_luv().to_xyz()
+    }
+
+    /// Converts LCh(ab) to Lab
+    #[inline]
+    pub const fn to_xyz_lab(&self) -> Xyz {
+        self.to_lab().to_xyz()
     }
 
     #[inline]
@@ -173,6 +198,15 @@ impl LCh {
             l: self.l,
             u: self.c * cosf(self.h),
             v: self.c * sinf(self.h),
+        }
+    }
+
+    #[inline]
+    pub const fn to_lab(&self) -> Lab {
+        Lab {
+            l: self.l,
+            a: self.c * cosf(self.h),
+            b: self.c * sinf(self.h),
         }
     }
 }
