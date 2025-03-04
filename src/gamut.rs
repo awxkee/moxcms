@@ -1,5 +1,5 @@
 /*
- * // Copyright (c) Radzivon Bartoshyk 2/2025. All rights reserved.
+ * // Copyright (c) Radzivon Bartoshyk 3/2025. All rights reserved.
  * //
  * // Redistribution and use in source and binary forms, with or without modification,
  * // are permitted provided that the following conditions are met:
@@ -209,82 +209,92 @@ fn find_gamut_intersection(a: f32, b: f32, ll1: f32, cc1: f32, ll0: f32) -> f32 
     t
 }
 
-// #[inline]
-// pub(crate) fn gamut_clip_preserve_chroma(rgb: Rgb<f32>) -> Rgb<f32> {
-//     if rgb.r <= 1. && rgb.g <= 1. && rgb.b <= 1. && rgb.r >= 0. && rgb.g >= 0. && rgb.b >= 0. {
-//         return rgb;
-//     }
-//
-//     let laba = Oklab::from_linear_rgb(rgb);
-//
-//     let ll = laba.l;
-//     let eps: f32 = 0.00001;
-//     let cc = eps.max((laba.a * laba.a + laba.b * laba.b).sqrt());
-//     let a_ = laba.a / cc;
-//     let b_ = laba.b / cc;
-//
-//     let ll0 = ll.clamp(0., 1.);
-//
-//     let t = find_gamut_intersection(a_, b_, ll, cc, ll0);
-//     let ll_clipped = ll0 * (1. - t) + t * ll;
-//     let cc_clipped = t * cc;
-//
-//     let mut result = Oklab::new(ll_clipped, cc_clipped * a_, cc_clipped * b_).to_linear_rgb();
-//
-//     result.r = result.r.clamp(0., 1.);
-//     result.g = result.g.clamp(0., 1.);
-//     result.b = result.b.clamp(0., 1.);
-//
-//     // Don't bother if the result is very close
-//     if (rgb.r - result.r).abs() < 0.003
-//         && (rgb.g - result.g).abs() < 0.003
-//         && (rgb.b - result.b).abs() < 0.003
-//     {
-//         return rgb;
-//     }
-//
-//     result
-// }
-//
-// pub(crate) fn gamut_clip_project_to_l_cusp(rgb: Rgb<f32>) -> Rgb<f32> {
-//     if rgb.r < 1f32 && rgb.g < 1f32 && rgb.b < 1f32 && rgb.r > 0f32 && rgb.g > 0f32 && rgb.b > 0f32
-//     {
-//         return rgb;
-//     }
-//
-//     let lab = Oklab::from_linear_rgb(rgb);
-//
-//     let l = lab.l;
-//     let eps = 0.00001f32;
-//     let chroma = f32::max(eps, (lab.a * lab.a + lab.b * lab.b).sqrt());
-//     let a_ = lab.a / chroma;
-//     let b_ = lab.b / chroma;
-//
-//     // The cusp is computed here and in find_gamut_intersection, an optimized solution would only compute it once.
-//     let cusp = find_cusp(a_, b_);
-//
-//     let l0 = cusp.0;
-//
-//     let t = find_gamut_intersection(a_, b_, l, chroma, l0);
-//
-//     let l_clipped = l0 * (1f32 - t) + t * l;
-//     let c_clipped = t * chroma;
-//
-//     Oklab::new(l_clipped, c_clipped * a_, c_clipped * b_).to_linear_rgb()
-// }
+#[inline]
+pub fn gamut_clip_preserve_chroma(rgb: Rgb<f32>) -> Rgb<f32> {
+    if rgb.r <= 1. && rgb.g <= 1. && rgb.b <= 1. && rgb.r >= 0. && rgb.g >= 0. && rgb.b >= 0. {
+        return rgb;
+    }
+
+    let laba = Oklab::from_linear_rgb(rgb);
+
+    let ll = laba.l;
+    let eps: f32 = 0.00001;
+    let cc = eps.max((laba.a * laba.a + laba.b * laba.b).sqrt());
+    let a_ = laba.a / cc;
+    let b_ = laba.b / cc;
+
+    let ll0 = ll.clamp(0., 1.);
+
+    let t = find_gamut_intersection(a_, b_, ll, cc, ll0);
+    let ll_clipped = ll0 * (1. - t) + t * ll;
+    let cc_clipped = t * cc;
+
+    let mut result = Oklab::new(ll_clipped, cc_clipped * a_, cc_clipped * b_).to_linear_rgb();
+
+    result.r = result.r.clamp(0., 1.);
+    result.g = result.g.clamp(0., 1.);
+    result.b = result.b.clamp(0., 1.);
+
+    // Don't bother if the result is very close
+    if (rgb.r - result.r).abs() < 0.003
+        && (rgb.g - result.g).abs() < 0.003
+        && (rgb.b - result.b).abs() < 0.003
+    {
+        return rgb;
+    }
+
+    result
+}
+
+pub fn gamut_clip_project_to_l_cusp(rgb: Rgb<f32>) -> Rgb<f32> {
+    let lab = Oklab::from_linear_rgb(rgb);
+
+    let l = lab.l;
+    let eps = 0.00001f32;
+    let chroma = f32::max(eps, (lab.a * lab.a + lab.b * lab.b).sqrt());
+    let a_ = lab.a / chroma;
+    let b_ = lab.b / chroma;
+
+    // The cusp is computed here and in find_gamut_intersection, an optimized solution would only compute it once.
+    let cusp = find_cusp(a_, b_);
+
+    let l0 = cusp.0;
+
+    let t = find_gamut_intersection(a_, b_, l, chroma, l0);
+
+    let l_clipped = l0 * (1f32 - t) + t * l;
+    let c_clipped = t * chroma;
+
+    Oklab::new(l_clipped, c_clipped * a_, c_clipped * b_).to_linear_rgb()
+}
 
 #[inline]
 fn sgn(x: f32) -> f32 {
     (0.0 < x) as i32 as f32 - (x < 0.0) as i32 as f32
 }
 
-#[inline]
-pub(crate) fn gamut_clip_adaptive_l0_l_cusp(rgb: Rgb<f32>, alpha: f32) -> Rgb<f32> {
-    if rgb.r < 1f32 && rgb.g < 1f32 && rgb.b < 1f32 && rgb.r > 0f32 && rgb.g > 0f32 && rgb.b > 0f32
-    {
-        return rgb;
-    }
+pub fn gamut_clip_adaptive_l0_0_5(rgb: Rgb<f32>, alpha: f32) -> Rgb<f32> {
+    let lab = Oklab::from_linear_rgb(rgb);
 
+    let lc = lab.l;
+    let eps = 0.00001f32;
+    let chroma_sat = f32::max(eps, f32::sqrt(lab.a * lab.a + lab.b * lab.b));
+    let a_ = lab.a / chroma_sat;
+    let b_ = lab.b / chroma_sat;
+
+    let l_d = lc - 0.5f32;
+    let e1 = 0.5f32 + l_d.abs() + alpha * chroma_sat;
+    let l_ = 0.5f32 * (1f32 + sgn(l_d) * (e1 - f32::sqrt(e1 * e1 - 2f32 * l_d.abs())));
+
+    let t = find_gamut_intersection(a_, b_, lc, chroma_sat, l_);
+    let l_clipped = l_ * (1f32 - t) + t * lc;
+    let c_clipped = t * chroma_sat;
+
+    Oklab::new(l_clipped, c_clipped * a_, c_clipped * b_).to_linear_rgb()
+}
+
+#[inline]
+pub fn gamut_clip_adaptive_l0_l_cusp(rgb: Rgb<f32>, alpha: f32) -> Rgb<f32> {
     let lab = Oklab::from_linear_rgb(rgb);
 
     let lum = lab.l;

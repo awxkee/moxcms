@@ -56,7 +56,8 @@ pub trait InPlaceStage {
 pub struct TransformOptions {
     /// If enabled in the transformation attempt to
     /// clip gamut chroma if it is out range will be performed.
-    /// This is slow option. Transformation will be at least 2 times slower.
+    /// This enables additional functional only on Perceptual rendering intent
+    /// Other intents may do chroma clipping by default
     pub allow_chroma_clipping: bool,
 }
 
@@ -246,7 +247,7 @@ impl ColorProfile {
                 src_layout,
                 dst_layout,
                 profile_transform,
-                self.rendering_intent,
+                dst_pr.rendering_intent,
                 options,
             );
         } else if self.color_space == DataColorSpace::Gray
@@ -338,12 +339,12 @@ impl ColorProfile {
 
 #[cfg(test)]
 mod tests {
-    use crate::{ColorProfile, Layout, TransformOptions};
+    use crate::{ColorProfile, Layout, RenderingIntent, TransformOptions};
     use rand::Rng;
 
     #[test]
     fn test_transform_rgb8() {
-        let srgb_profile = ColorProfile::new_srgb();
+        let mut srgb_profile = ColorProfile::new_srgb();
         let bt2020_profile = ColorProfile::new_bt2020();
         let random_point_x = rand::rng().random_range(0..255);
         let transform = bt2020_profile
@@ -356,6 +357,42 @@ mod tests {
             .unwrap();
         let src = vec![random_point_x; 256 * 256 * 3];
         let mut dst = vec![random_point_x; 256 * 256 * 3];
+        transform.transform(&src, &mut dst).unwrap();
+
+        let transform = bt2020_profile
+            .create_transform_8bit(
+                Layout::Rgb,
+                &srgb_profile,
+                Layout::Rgb,
+                TransformOptions {
+                    allow_chroma_clipping: true,
+                },
+            )
+            .unwrap();
+        transform.transform(&src, &mut dst).unwrap();
+        srgb_profile.rendering_intent = RenderingIntent::RelativeColorimetric;
+        let transform = bt2020_profile
+            .create_transform_8bit(
+                Layout::Rgb,
+                &srgb_profile,
+                Layout::Rgb,
+                TransformOptions {
+                    allow_chroma_clipping: true,
+                },
+            )
+            .unwrap();
+        transform.transform(&src, &mut dst).unwrap();
+        srgb_profile.rendering_intent = RenderingIntent::Saturation;
+        let transform = bt2020_profile
+            .create_transform_8bit(
+                Layout::Rgb,
+                &srgb_profile,
+                Layout::Rgb,
+                TransformOptions {
+                    allow_chroma_clipping: true,
+                },
+            )
+            .unwrap();
         transform.transform(&src, &mut dst).unwrap();
     }
 

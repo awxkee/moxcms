@@ -27,7 +27,10 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use image::GenericImageView;
-use moxcms::{ColorProfile, Layout, TransformOptions};
+use moxcms::{
+    Chromacity, ChromacityTriple, ColorPrimaries, ColorProfile, Layout, Matrix4f, RenderingIntent,
+    TransformOptions,
+};
 use std::fs;
 use std::fs::File;
 use std::io::{BufReader, Read};
@@ -38,7 +41,7 @@ use zune_jpeg::zune_core::colorspace::ColorSpace;
 use zune_jpeg::zune_core::options::DecoderOptions;
 
 fn main() {
-    let f_str = "./assets/bench.jpg";
+    let f_str = "./assets/04.jpg";
     let file = File::open(f_str).expect("Failed to open file");
 
     let img = image::ImageReader::open(f_str).unwrap().decode().unwrap();
@@ -60,7 +63,9 @@ fn main() {
     let icc = decoder.icc_profile().unwrap();
     let color_profile = ColorProfile::new_from_slice(&icc).unwrap();
     // let color_profile = ColorProfile::new_gray_with_gamma(2.2);
-    let dest_profile = ColorProfile::new_srgb();
+    let mut dest_profile = ColorProfile::new_srgb();
+ 
+    dest_profile.rendering_intent = RenderingIntent::RelativeColorimetric;
     let transform = color_profile
         .create_transform_8bit(
             Layout::Rgb,
@@ -145,7 +150,7 @@ fn main() {
     // .unwrap();
 
     image::save_buffer(
-        "v_new.png",
+        "v_new_rel.png",
         &real_dst,
         img.dimensions().0,
         img.dimensions().1,

@@ -27,6 +27,9 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 #![allow(clippy::approx_constant)]
+
+use num_traits::Num;
+
 #[inline(always)]
 const fn halley_refine_f(x: f32, a: f32) -> f32 {
     let tx = x * x * x;
@@ -549,6 +552,30 @@ pub const fn atan2f(y: f32, x: f32) -> f32 {
 #[inline]
 pub const fn rounding_div_ceil(value: i32, div: i32) -> i32 {
     (value + div - 1) / div
+}
+
+// Generic function for max
+#[inline(always)]
+pub(crate) fn m_max<T: Num + PartialOrd>(a: T, b: T) -> T {
+    if a > b { a } else { b }
+}
+
+// Generic function for min
+#[inline(always)]
+pub(crate) fn m_min<T: Num + PartialOrd>(a: T, b: T) -> T {
+    if a < b { a } else { b }
+}
+
+#[inline]
+pub(crate) fn m_clamp<T: Num + PartialOrd>(a: T, min: T, max: T) -> T {
+    if a > max {
+        max
+    } else if a >= min {
+        a
+    } else {
+        // a < min or a is NaN
+        min
+    }
 }
 
 #[cfg(test)]

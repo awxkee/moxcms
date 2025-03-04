@@ -101,7 +101,7 @@ impl TryFrom<u8> for ColorPrimaries {
 }
 
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct ChromacityTriple {
+pub struct ChromacityTriple {
     pub red: Chromacity,
     pub green: Chromacity,
     pub blue: Chromacity,

@@ -27,6 +27,7 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::conversions::chunking::compute_chunk_sizes;
+use crate::conversions::stages::RelativeColorMetricRgbXyz;
 use crate::conversions::{GamutClipScaleStage, MatrixClipScaleStage, MatrixStage};
 use crate::profile::RenderingIntent;
 use crate::{CmsError, InPlaceStage, Layout, Matrix3f, TransformExecutor, TransformOptions};
@@ -167,16 +168,23 @@ where
 
         if let Some(transform) = self.profile.adaptation_matrix {
             let sliced = &mut working_set[..src.len()];
-            let gamut_clipping_intent = self.rendering_intent == RenderingIntent::Perceptual
-                || self.rendering_intent == RenderingIntent::RelativeColorimetric
-                || self.rendering_intent == RenderingIntent::Saturation;
 
             // Check if rendering intent is adequate for gamut chroma clipping
-            if gamut_clipping_intent && self.options.allow_chroma_clipping {
+            if self.rendering_intent == RenderingIntent::Perceptual
+                && self.options.allow_chroma_clipping
+            {
                 let stage = MatrixStage::<SRC_LAYOUT> { matrix: transform };
                 stage.transform(sliced)?;
 
                 let stage = GamutClipScaleStage::<SRC_LAYOUT> { scale: cap_values };
+                stage.transform(sliced)?;
+            } else if self.rendering_intent == RenderingIntent::RelativeColorimetric
+                || self.rendering_intent == RenderingIntent::Saturation
+            {
+                let stage = RelativeColorMetricRgbXyz::<SRC_LAYOUT> {
+                    matrix: transform,
+                    scale: cap_values,
+                };
                 stage.transform(sliced)?;
             } else {
                 let stage = MatrixClipScaleStage::<SRC_LAYOUT> {

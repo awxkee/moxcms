@@ -30,7 +30,7 @@ use crate::err::CmsError;
 use crate::mlaf::mlaf;
 use crate::profile::s15_fixed16_number_to_float;
 use num_traits::AsPrimitive;
-use std::ops::{Add, Mul, Sub};
+use std::ops::{Add, Div, Mul, Sub};
 
 /// Vector math helper
 #[derive(Copy, Clone, Debug, Default)]
@@ -167,6 +167,11 @@ pub struct Matrix3f {
     pub v: [[f32; 3]; 3],
 }
 
+#[derive(Copy, Clone, Debug, Default)]
+pub struct Matrix4f {
+    pub v: [[f32; 4]; 4],
+}
+
 pub const SRGB_MATRIX: Matrix3f = Matrix3f {
     v: [
         [
@@ -202,6 +207,58 @@ pub const BT2020_MATRIX: Matrix3f = Matrix3f {
         [-0.00193139f32, 0.0299794f32, 0.797162f32],
     ],
 };
+
+impl Matrix4f {
+    #[inline]
+    pub fn determinant(&self) -> Option<f32> {
+        let a = self.v[0][0];
+        let b = self.v[0][1];
+        let c = self.v[0][2];
+        let d = self.v[0][3];
+
+        // Cofactor expansion
+
+        let m11 = Matrix3f {
+            v: [
+                [self.v[1][1], self.v[1][2], self.v[1][3]],
+                [self.v[2][1], self.v[2][2], self.v[2][3]],
+                [self.v[3][1], self.v[3][2], self.v[3][3]],
+            ],
+        };
+
+        let m12 = Matrix3f {
+            v: [
+                [self.v[1][0], self.v[1][2], self.v[1][3]],
+                [self.v[2][0], self.v[2][2], self.v[2][3]],
+                [self.v[3][0], self.v[3][2], self.v[3][3]],
+            ],
+        };
+
+        let m13 = Matrix3f {
+            v: [
+                [self.v[1][0], self.v[1][1], self.v[1][3]],
+                [self.v[2][0], self.v[2][1], self.v[2][3]],
+                [self.v[3][0], self.v[3][1], self.v[3][3]],
+            ],
+        };
+
+        let m14 = Matrix3f {
+            v: [
+                [self.v[1][0], self.v[1][1], self.v[1][2]],
+                [self.v[2][0], self.v[2][1], self.v[2][2]],
+                [self.v[3][0], self.v[3][1], self.v[3][2]],
+            ],
+        };
+
+        let m1_det = m11.determinant()?;
+        let m2_det = m12.determinant()?;
+        let m3_det = m13.determinant()?;
+        let m4_det = m14.determinant()?;
+
+        // Apply cofactor expansion on the first row
+        Some(a * m1_det - b * m2_det + c * m3_det - d * m4_det)
+    }
+}
 
 impl Matrix3f {
     pub const IDENTITY: Matrix3f = Matrix3f {
@@ -397,6 +454,64 @@ impl Xyz {
             v: [self.x, self.y, self.z],
         }
     }
+
+    #[inline]
+    pub fn from_linear_rgb(rgb: crate::Rgb<f32>, rgb_to_xyz: Matrix3f) -> Self {
+        let r = rgb.r;
+        let g = rgb.g;
+        let b = rgb.b;
+
+        let transform = rgb_to_xyz;
+
+        let new_r = mlaf(
+            mlaf(r * transform.v[0][0], g, transform.v[0][1]),
+            b,
+            transform.v[0][2],
+        );
+
+        let new_g = mlaf(
+            mlaf(r * transform.v[1][0], g, transform.v[1][1]),
+            b,
+            transform.v[1][2],
+        );
+
+        let new_b = mlaf(
+            mlaf(r * transform.v[2][0], g, transform.v[2][1]),
+            b,
+            transform.v[2][2],
+        );
+
+        Xyz::new(new_r, new_g, new_b)
+    }
+
+    #[inline]
+    pub fn to_linear_rgb(self, rgb_to_xyz: Matrix3f) -> crate::Rgb<f32> {
+        let x = self.x;
+        let y = self.y;
+        let z = self.z;
+
+        let transform = rgb_to_xyz;
+
+        let new_r = mlaf(
+            mlaf(x * transform.v[0][0], y, transform.v[0][1]),
+            z,
+            transform.v[0][2],
+        );
+
+        let new_g = mlaf(
+            mlaf(x * transform.v[1][0], y, transform.v[1][1]),
+            z,
+            transform.v[1][2],
+        );
+
+        let new_b = mlaf(
+            mlaf(x * transform.v[2][0], y, transform.v[2][1]),
+            z,
+            transform.v[2][2],
+        );
+
+        crate::Rgb::<f32>::new(new_r, new_g, new_b)
+    }
 }
 
 impl Mul<f32> for Xyz {
@@ -421,6 +536,32 @@ impl Mul<Xyz> for Xyz {
             x: self.x * rhs.x,
             y: self.y * rhs.y,
             z: self.z * rhs.z,
+        }
+    }
+}
+
+impl Div<Xyz> for Xyz {
+    type Output = Xyz;
+
+    #[inline]
+    fn div(self, rhs: Xyz) -> Self::Output {
+        Self {
+            x: self.x / rhs.x,
+            y: self.y / rhs.y,
+            z: self.z / rhs.z,
+        }
+    }
+}
+
+impl Div<f32> for Xyz {
+    type Output = Xyz;
+
+    #[inline]
+    fn div(self, rhs: f32) -> Self::Output {
+        Self {
+            x: self.x / rhs,
+            y: self.y / rhs,
+            z: self.z / rhs,
         }
     }
 }
