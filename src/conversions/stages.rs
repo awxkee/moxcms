@@ -28,8 +28,8 @@
  */
 use crate::mlaf::mlaf;
 use crate::{
-    gamut_clip_adaptive_l0_0_5, gamut_clip_preserve_chroma, CmsError, InPlaceStage, Layout, Matrix3f,
-    Rgb,
+    CmsError, InPlaceStage, Layout, Matrix3f, Rgb, gamut_clip_adaptive_l0_0_5,
+    gamut_clip_preserve_chroma,
 };
 use std::ops::Mul;
 
@@ -196,9 +196,9 @@ impl<const LAYOUT: u8> InPlaceStage for RelativeColorMetricRgbXyz<LAYOUT> {
             let mut new_rgb = rgb.apply(transform);
             if new_rgb.is_out_of_gamut() {
                 new_rgb = gamut_clip_preserve_chroma(rgb);
-                new_rgb = new_rgb.clamp(0.0, 1.0);
-                new_rgb *= self.scale;
             }
+            new_rgb = new_rgb.clamp(0.0, 1.0);
+            new_rgb *= self.scale;
 
             chunk[0] = new_rgb.r;
             chunk[1] = new_rgb.g;

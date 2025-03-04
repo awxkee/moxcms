@@ -64,7 +64,7 @@ fn main() {
     let color_profile = ColorProfile::new_from_slice(&icc).unwrap();
     // let color_profile = ColorProfile::new_gray_with_gamma(2.2);
     let mut dest_profile = ColorProfile::new_srgb();
- 
+
     dest_profile.rendering_intent = RenderingIntent::RelativeColorimetric;
     let transform = color_profile
         .create_transform_8bit(
