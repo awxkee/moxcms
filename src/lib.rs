@@ -63,7 +63,7 @@ pub use math::{
 };
 pub use matrix::{
     BT2020_MATRIX, Chromacity, DISPLAY_P3_MATRIX, Matrix3f, Matrix4f, SRGB_MATRIX, Vector3,
-    Vector3f, Vector3i, Vector3u, XyY, Xyz,
+    Vector3f, Vector3i, Vector3u, Vector4, Vector4f, XyY, Xyz,
 };
 pub use nd_array::{Array3D, Array4D};
 pub use oklab::Oklab;

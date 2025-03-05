@@ -42,7 +42,7 @@ const MIN_S32_FITS_IN_FLOAT: f32 = -2_147_483_648.0; // i32::MIN as f32
 
 /// Fixed-point scaling factor (assuming Fixed1 = 65536 like in ICC profiles)
 const FIXED1: f32 = 65536.0;
-const MAX_PROFILE_SIZE: usize = 1024 * 1024 * 3;
+const MAX_PROFILE_SIZE: usize = 1024 * 1024 * 10; // 10 MB max, for Fogra39 etc
 const TAG_SIZE: usize = 12;
 const MARK_TRC_CURV: u32 = u32::from_ne_bytes(*b"curv").to_be();
 const MARK_TRC_PARAM: u32 = u32::from_ne_bytes(*b"para").to_be();

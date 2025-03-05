@@ -27,24 +27,21 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use image::GenericImageView;
-use moxcms::{
-    Chromacity, ChromacityTriple, ColorPrimaries, ColorProfile, Layout, Matrix3f, Matrix4f,
-    RenderingIntent, TransformOptions,
-};
+use lcms2::{Intent, PixelFormat, Profile, Transform};
+use moxcms::{ColorProfile, Layout, RenderingIntent, TransformOptions};
 use std::fs;
 use std::fs::File;
 use std::io::{BufReader, Read};
 use std::time::Instant;
-use turbojpeg::PixelFormat;
 use zune_jpeg::JpegDecoder;
 use zune_jpeg::zune_core::colorspace::ColorSpace;
 use zune_jpeg::zune_core::options::DecoderOptions;
 
 fn main() {
-    let funny_icc = fs::read("./assets/funny_icc.icc").unwrap();
+    let funny_icc = fs::read("./assets/fogra39_coated.icc").unwrap();
     let funny_profile = ColorProfile::new_from_slice(&funny_icc).unwrap();
 
-    let f_str = "./assets/sonderland.jpg";
+    let f_str = "./assets/bench.jpg";
     let file = File::open(f_str).expect("Failed to open file");
 
     let img = image::ImageReader::open(f_str).unwrap().decode().unwrap();
@@ -62,24 +59,64 @@ fn main() {
     decoder.decode_headers().unwrap();
     let mut real_dst = vec![0u8; decoder.output_buffer_size().unwrap()];
 
+    let custom_profile = Profile::new_icc(&funny_icc).unwrap();
+
+    let srgb_profile = Profile::new_srgb();
+
     decoder.decode_into(&mut real_dst).unwrap();
+
+    // let t = Transform::new(&srgb_profile, PixelFormat::RGB_8, &custom_profile, PixelFormat::CMYK_8, Intent::Perceptual).unwrap();
+    let t1 = Transform::new(
+        &custom_profile,
+        PixelFormat::CMYK_8,
+        &srgb_profile,
+        PixelFormat::RGBA_8,
+        Intent::Perceptual,
+    )
+    .unwrap();
+
+    let mut cmyk = vec![0u8; (decoder.output_buffer_size().unwrap() / 3) * 4];
+
+    // t.transform_pixels(&real_dst, &mut cmyk);
+
     let icc = decoder.icc_profile().unwrap();
     let color_profile = ColorProfile::new_from_slice(&icc).unwrap();
     // let color_profile = ColorProfile::new_gray_with_gamma(2.2);
     let mut dest_profile = ColorProfile::new_srgb();
 
-    dest_profile.rendering_intent = RenderingIntent::Perceptual;
-    let transform = color_profile
+    let instant = Instant::now();
+    let rgb_to_cmyk = dest_profile
         .create_transform_8bit(
             Layout::Rgb,
-            &dest_profile,
+            &funny_profile,
             Layout::Rgba,
             TransformOptions {
                 allow_chroma_clipping: false,
+                rendering_intent: RenderingIntent::Perceptual,
             },
         )
         .unwrap();
+
+    rgb_to_cmyk.transform(&real_dst, &mut cmyk).unwrap();
+
+    println!("Execution time: {:?}", instant.elapsed());
+
+    dest_profile.rendering_intent = RenderingIntent::Perceptual;
+    // let transform = funny_profile
+    //     .create_transform_8bit(
+    //         Layout::Rgba,
+    //         &dest_profile,
+    //         Layout::Rgba,
+    //         TransformOptions {
+    //             allow_chroma_clipping: false,
+    //             rendering_intent: RenderingIntent::Perceptual,
+    //         },
+    //     )
+    //     .unwrap();
     let mut dst = vec![0u8; rgb.len() / 3 * 4];
+    let instant = Instant::now();
+    t1.transform_pixels(&cmyk, &mut dst);
+    println!("Execution time: {:?}", instant.elapsed());
 
     // let gray_image = rgb
     //     .chunks_exact(3)
@@ -88,20 +125,20 @@ fn main() {
     //             as u8
     //     })
     //     .collect::<Vec<u8>>();
-
-    let instant = Instant::now();
-    for (src, dst) in real_dst
-        .chunks_exact(img.width() as usize * 3)
-        .zip(dst.chunks_exact_mut(img.width() as usize * 4))
-    {
-        transform
-            .transform(
-                &src[..img.width() as usize * 3],
-                &mut dst[..img.width() as usize * 4],
-            )
-            .unwrap();
-    }
-    println!("Estimated time: {:?}", instant.elapsed());
+    //
+    // let instant = Instant::now();
+    // for (src, dst) in cmyk
+    //     .chunks_exact(img.width() as usize * 4)
+    //     .zip(dst.chunks_exact_mut(img.width() as usize * 4))
+    // {
+    //     transform
+    //         .transform(
+    //             &src[..img.width() as usize * 4],
+    //             &mut dst[..img.width() as usize * 4],
+    //         )
+    //         .unwrap();
+    // }
+    // println!("Estimated time: {:?}", instant.elapsed());
 
     // let image = JxlImage::builder()
     //     .pool(JxlThreadPool::none())
@@ -151,6 +188,10 @@ fn main() {
     //     image::ExtendedColorType::Rgb8,
     // )
     // .unwrap();
+
+    for (chunk) in dst.chunks_exact_mut(4) {
+        chunk[3] = 255;
+    }
 
     image::save_buffer(
         "v_new_rel.png",

@@ -26,6 +26,7 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+use crate::RenderingIntent;
 use std::error::Error;
 use std::fmt::Display;
 
@@ -48,6 +49,7 @@ pub enum CmsError {
     UnsupportedChannelConfiguration,
     UnknownTag(u32),
     UnknownTagTypeDefinition(u32),
+    UnsupportedLutRenderingIntent(RenderingIntent),
 }
 
 impl Display for CmsError {
@@ -80,6 +82,10 @@ impl Display for CmsError {
             CmsError::UnknownTagTypeDefinition(t) => {
                 f.write_fmt(format_args!("Unknown tag type definition: {}", t))
             }
+            CmsError::UnsupportedLutRenderingIntent(intent) => f.write_fmt(format_args!(
+                "Can't find LUT for rendering intent: {:?}",
+                intent
+            )),
         }
     }
 }
