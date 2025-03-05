@@ -43,7 +43,7 @@ fn main() {
 
     let srgb_perceptual_icc = fs::read("./assets/srgb_perceptual.icc").unwrap();
     let srgb_perceptual_profile = ColorProfile::new_from_slice(&srgb_perceptual_icc).unwrap();
-    
+
     println!("{:?}", srgb_perceptual_profile);
 
     let f_str = "./assets/bench.jpg";

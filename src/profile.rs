@@ -26,12 +26,12 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-use crate::Chromacity;
 use crate::chad::adapt_to_d50;
 use crate::cicp::{ChromacityTriple, ColorPrimaries, MatrixCoefficients, TransferCharacteristics};
 use crate::err::CmsError;
 use crate::matrix::{BT2020_MATRIX, DISPLAY_P3_MATRIX, Matrix3f, SRGB_MATRIX, XyY, Xyz};
 use crate::trc::{Trc, curve_from_gamma};
+use crate::{Chromacity, Vector3f};
 use std::io::Read;
 
 const ACSP_SIGNATURE: u32 = u32::from_ne_bytes(*b"acsp").to_be(); // 'acsp' signature for ICC
@@ -44,8 +44,6 @@ const MIN_S32_FITS_IN_FLOAT: f32 = -2_147_483_648.0; // i32::MIN as f32
 const FIXED1: f32 = 65536.0;
 const MAX_PROFILE_SIZE: usize = 1024 * 1024 * 10; // 10 MB max, for Fogra39 etc
 const TAG_SIZE: usize = 12;
-const MARK_TRC_CURV: u32 = u32::from_ne_bytes(*b"curv").to_be();
-const MARK_TRC_PARAM: u32 = u32::from_ne_bytes(*b"para").to_be();
 
 #[derive(Debug, Copy, Clone, PartialEq, Ord, PartialOrd, Eq, Hash)]
 pub(crate) enum ProfileTags {
@@ -123,6 +121,10 @@ const CHROMATIC_TYPE: u32 = u32::from_ne_bytes(*b"sf32").to_be();
 pub(crate) enum TagTypeDefinition {
     Text,
     MultiLocalizedUnicode,
+    MabLut,
+    MbaLut,
+    ParametricToneCurve,
+    LutToneCurve,
 }
 
 impl TryFrom<u32> for TagTypeDefinition {
@@ -135,6 +137,14 @@ impl TryFrom<u32> for TagTypeDefinition {
             return Ok(TagTypeDefinition::MultiLocalizedUnicode);
         } else if value == u32::from_ne_bytes(*b"text").to_be() {
             return Ok(TagTypeDefinition::Text);
+        } else if value == u32::from_ne_bytes(*b"mAB ").to_be() {
+            return Ok(TagTypeDefinition::MabLut);
+        } else if value == u32::from_ne_bytes(*b"mBA ").to_be() {
+            return Ok(TagTypeDefinition::MbaLut);
+        } else if value == u32::from_ne_bytes(*b"para").to_be() {
+            return Ok(TagTypeDefinition::ParametricToneCurve);
+        } else if value == u32::from_ne_bytes(*b"curv").to_be() {
+            return Ok(TagTypeDefinition::LutToneCurve);
         }
         Err(CmsError::UnknownTagTypeDefinition(value))
     }
@@ -338,6 +348,21 @@ impl From<DataColorSpace> for u32 {
 }
 
 #[derive(Debug, Clone)]
+pub enum LutWarehouse {
+    Lut(LutDataType),
+    Abm(LutMType),
+}
+
+impl LutWarehouse {
+    pub(crate) fn as_lut(&self) -> Option<&LutDataType> {
+        match self {
+            LutWarehouse::Lut(lut) => Some(lut),
+            LutWarehouse::Abm(_) => None,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct LutDataType {
     // used by lut8Type/lut16Type (mft2) only
     pub num_input_channels: u8,
@@ -350,6 +375,19 @@ pub struct LutDataType {
     pub clut_table: Vec<f32>,
     pub output_table: Vec<f32>,
     pub lut_type: LutType,
+}
+
+#[derive(Debug, Clone)]
+pub struct LutMType {
+    pub num_input_channels: u8,
+    pub num_output_channels: u8,
+    pub grid_points: [u8; 16],
+    pub clut: Vec<f32>,
+    pub a_curves: Vec<Trc>,
+    pub b_curves: Vec<Trc>,
+    pub m_curves: Vec<Trc>,
+    pub matrix: Matrix3f,
+    pub bias: Vector3f,
 }
 
 /// Clamps the float value within the range of an `i32`
@@ -517,12 +555,12 @@ pub struct ColorProfile {
     pub gray_trc: Option<Trc>,
     pub cicp: Option<CicpProfile>,
     pub chromatic_adaptation: Option<Matrix3f>,
-    pub lut_a_to_b_perceptual: Option<LutDataType>,
-    pub lut_a_to_b_colorimetric: Option<LutDataType>,
-    pub lut_a_to_b_saturation: Option<LutDataType>,
-    pub lut_b_to_a_perceptual: Option<LutDataType>,
-    pub lut_b_to_a_colorimetric: Option<LutDataType>,
-    pub lut_b_to_a_saturation: Option<LutDataType>,
+    pub lut_a_to_b_perceptual: Option<LutWarehouse>,
+    pub lut_a_to_b_colorimetric: Option<LutWarehouse>,
+    pub lut_a_to_b_saturation: Option<LutWarehouse>,
+    pub lut_b_to_a_perceptual: Option<LutWarehouse>,
+    pub lut_b_to_a_colorimetric: Option<LutWarehouse>,
+    pub lut_b_to_a_saturation: Option<LutWarehouse>,
     pub copyright: Option<String>,
 }
 
@@ -540,11 +578,33 @@ const fn uint16_number_to_float(a: u32) -> f32 {
 
 impl ColorProfile {
     #[inline]
-    fn read_trc_tag(slice: &[u8], entry: usize, tag_size: usize) -> Result<Option<Trc>, CmsError> {
-        if tag_size < TAG_SIZE {
+    fn read_trc_tag(
+        slice: &[u8],
+        entry: usize,
+        tag_size: usize,
+        read_size: &mut usize,
+    ) -> Result<Option<Trc>, CmsError> {
+        if slice.len() < entry + 4 {
             return Ok(None);
         }
-        let last_tag_offset = tag_size + entry;
+        let small_tag = &slice[entry..entry + 4];
+        // We require always recognize tone curves.
+        let curve_type = TagTypeDefinition::try_from(u32::from_be_bytes([
+            small_tag[0],
+            small_tag[1],
+            small_tag[2],
+            small_tag[3],
+        ]))?;
+        if tag_size != 0 {
+            if tag_size < TAG_SIZE {
+                return Ok(None);
+            }
+        }
+        let last_tag_offset = if tag_size != 0 {
+            tag_size + entry
+        } else {
+            slice.len()
+        };
         if last_tag_offset > slice.len() {
             return Err(CmsError::InvalidIcc);
         }
@@ -552,9 +612,7 @@ impl ColorProfile {
         if tag.len() < TAG_SIZE {
             return Err(CmsError::InvalidIcc);
         }
-
-        let curve_type = u32::from_be_bytes([tag[0], tag[1], tag[2], tag[3]]);
-        if curve_type == MARK_TRC_CURV {
+        if curve_type == TagTypeDefinition::LutToneCurve {
             let entry_count = u32::from_be_bytes([tag[8], tag[9], tag[10], tag[11]]) as usize;
             if entry_count == 0 {
                 return Ok(Some(Trc::Lut(vec![])));
@@ -571,8 +629,9 @@ impl ColorProfile {
                 let gamma_s15 = u16::from_be_bytes([value[0], value[1]]);
                 *curve_value = gamma_s15;
             }
+            *read_size = 12 + entry_count * size_of::<u16>();
             Ok(Some(Trc::Lut(curve_values)))
-        } else if curve_type == MARK_TRC_PARAM {
+        } else if curve_type == TagTypeDefinition::ParametricToneCurve {
             let entry_count = u16::from_be_bytes([tag[8], tag[9]]) as usize;
             if entry_count > 4 {
                 return Err(CmsError::InvalidIcc);
@@ -596,6 +655,7 @@ impl ColorProfile {
                     return Err(CmsError::ParametricCurveZeroDivision);
                 }
             }
+            *read_size = 12 + COUNT_TO_LENGTH[entry_count as usize] * 4;
             return Ok(Some(Trc::Parametric(params)));
         } else {
             return Err(CmsError::InvalidIcc);
@@ -743,11 +803,200 @@ impl ColorProfile {
     }
 
     #[inline]
+    fn read_nested_tone_curves(
+        slice: &[u8],
+        offset: usize,
+        length: usize,
+    ) -> Result<Option<Vec<Trc>>, CmsError> {
+        let mut curve_offset: usize = offset;
+        let mut curves = Vec::new();
+        for i in 0..length {
+            if slice.len() < curve_offset + 12 {
+                return Err(CmsError::InvalidIcc);
+            }
+            let mut tag_size = 0usize;
+            let new_curve = Self::read_trc_tag(slice, curve_offset, 0, &mut tag_size)?;
+            match new_curve {
+                None => return Err(CmsError::InvalidIcc),
+                Some(curve) => curves.push(curve),
+            }
+            curve_offset += tag_size;
+            // 4 byte aligned
+            if tag_size % 4 != 0 {
+                curve_offset += 4 - tag_size % 4;
+            }
+        }
+        Ok(Some(curves))
+    }
+
+    #[inline]
+    fn read_lut_abm_type(
+        slice: &[u8],
+        entry: usize,
+        tag_size: usize,
+    ) -> Result<Option<LutWarehouse>, CmsError> {
+        if tag_size < 48 {
+            return Ok(None);
+        }
+        let last_tag_offset = tag_size + entry;
+        if last_tag_offset > slice.len() {
+            return Err(CmsError::InvalidIcc);
+        }
+        let tag = &slice[entry..last_tag_offset];
+        if tag.len() < 48 {
+            return Err(CmsError::InvalidIcc);
+        }
+        let tag_type = u32::from_be_bytes([tag[0], tag[1], tag[2], tag[3]]);
+        let tag_type_definition = TagTypeDefinition::try_from(tag_type).ok();
+        if tag_type_definition.is_none() {
+            return Ok(None);
+        }
+        let tag_type_definition = tag_type_definition.unwrap();
+        if tag_type_definition != TagTypeDefinition::MabLut
+            && tag_type_definition != TagTypeDefinition::MbaLut
+        {
+            return Ok(None);
+        }
+        let in_channels = tag[8];
+        let out_channels = tag[9];
+        if in_channels > 4 && out_channels > 4 {
+            return Ok(None);
+        }
+        let a_curve_offset = u32::from_be_bytes([tag[28], tag[29], tag[30], tag[31]]) as usize;
+        let clut_offset = u32::from_be_bytes([tag[24], tag[25], tag[26], tag[27]]) as usize;
+        let m_curve_offset = u32::from_be_bytes([tag[20], tag[21], tag[22], tag[23]]) as usize;
+        let matrix_offset = u32::from_be_bytes([tag[16], tag[17], tag[18], tag[19]]) as usize;
+        let b_curve_offset = u32::from_be_bytes([tag[12], tag[13], tag[14], tag[15]]) as usize;
+
+        let matrix_end = matrix_offset + 12 * 4;
+        if tag.len() < matrix_end {
+            return Err(CmsError::InvalidIcc);
+        }
+
+        let m_tag = &tag[matrix_offset..matrix_end];
+
+        let e00 = i32::from_be_bytes([m_tag[0], m_tag[1], m_tag[2], m_tag[3]]);
+        let e01 = i32::from_be_bytes([m_tag[4], m_tag[5], m_tag[6], m_tag[7]]);
+        let e02 = i32::from_be_bytes([m_tag[8], m_tag[9], m_tag[10], m_tag[11]]);
+
+        let e10 = i32::from_be_bytes([m_tag[12], m_tag[13], m_tag[14], m_tag[15]]);
+        let e11 = i32::from_be_bytes([m_tag[16], m_tag[17], m_tag[18], m_tag[19]]);
+        let e12 = i32::from_be_bytes([m_tag[20], m_tag[21], m_tag[22], m_tag[23]]);
+
+        let e20 = i32::from_be_bytes([m_tag[24], m_tag[25], m_tag[26], m_tag[27]]);
+        let e21 = i32::from_be_bytes([m_tag[28], m_tag[29], m_tag[30], m_tag[31]]);
+        let e22 = i32::from_be_bytes([m_tag[32], m_tag[33], m_tag[34], m_tag[35]]);
+
+        let b0 = i32::from_be_bytes([m_tag[36], m_tag[37], m_tag[38], m_tag[39]]);
+        let b1 = i32::from_be_bytes([m_tag[40], m_tag[41], m_tag[42], m_tag[43]]);
+        let b2 = i32::from_be_bytes([m_tag[44], m_tag[45], m_tag[46], m_tag[47]]);
+
+        let transform = Matrix3f {
+            v: [
+                [
+                    s15_fixed16_number_to_float(e00),
+                    s15_fixed16_number_to_float(e01),
+                    s15_fixed16_number_to_float(e02),
+                ],
+                [
+                    s15_fixed16_number_to_float(e10),
+                    s15_fixed16_number_to_float(e11),
+                    s15_fixed16_number_to_float(e12),
+                ],
+                [
+                    s15_fixed16_number_to_float(e20),
+                    s15_fixed16_number_to_float(e21),
+                    s15_fixed16_number_to_float(e22),
+                ],
+            ],
+        };
+
+        let bias = Vector3f {
+            v: [
+                s15_fixed16_number_to_float(b0),
+                s15_fixed16_number_to_float(b1),
+                s15_fixed16_number_to_float(b2),
+            ],
+        };
+
+        // Check if CLUT formed correctly
+        if clut_offset + 20 > tag.len() {
+            return Err(CmsError::InvalidIcc);
+        }
+
+        let clut_sizes_slice = &tag[clut_offset..clut_offset + 16];
+        let mut grid_points: [u8; 16] = [0; 16];
+        for (&s, v) in clut_sizes_slice.iter().zip(grid_points.iter_mut()) {
+            *v = s;
+        }
+
+        let mut clut_size = 1u32;
+        for &i in grid_points.iter().take(in_channels as usize) {
+            clut_size *= i as u32;
+        }
+        clut_size *= out_channels as u32;
+
+        if clut_size == 0 {
+            return Err(CmsError::InvalidIcc);
+        }
+
+        if clut_size > 10_000_000 {
+            return Err(CmsError::InvalidIcc);
+        }
+
+        let clut_header = &tag[clut_offset..clut_offset + 20];
+        let entry_size = clut_header[16];
+        if entry_size != 1 && entry_size != 2 {
+            return Err(CmsError::InvalidIcc);
+        }
+
+        if tag.len() < clut_offset + 20 + clut_size as usize * entry_size as usize {
+            return Err(CmsError::InvalidIcc);
+        }
+
+        let mut clut_table = vec![0f32; clut_size as usize];
+
+        let shaped_clut_table =
+            &tag[clut_offset + 20..clut_offset + 20 + clut_size as usize * entry_size as usize];
+        Self::read_lut_table_f32(
+            shaped_clut_table,
+            &mut clut_table,
+            if entry_size == 1 {
+                LutType::Lut8
+            } else {
+                LutType::Lut16
+            },
+        );
+
+        let a_curves = Self::read_nested_tone_curves(tag, a_curve_offset, in_channels as usize)?
+            .ok_or(CmsError::InvalidIcc)?;
+
+        let m_curves = Self::read_nested_tone_curves(tag, m_curve_offset, out_channels as usize)?
+            .ok_or(CmsError::InvalidIcc)?;
+
+        let b_curves = Self::read_nested_tone_curves(tag, b_curve_offset, out_channels as usize)?
+            .ok_or(CmsError::InvalidIcc)?;
+
+        let wh = LutWarehouse::Abm(LutMType {
+            num_input_channels: in_channels,
+            num_output_channels: out_channels,
+            matrix: transform,
+            clut: clut_table,
+            a_curves,
+            b_curves,
+            m_curves,
+            grid_points,
+            bias,
+        });
+        Ok(Some(wh))
+    }
+
+    #[inline]
     fn read_lut_a_to_b_type(
         slice: &[u8],
         entry: usize,
         tag_size: usize,
-    ) -> Result<Option<LutDataType>, CmsError> {
+    ) -> Result<Option<LutWarehouse>, CmsError> {
         if tag_size < 48 {
             return Ok(None);
         }
@@ -881,7 +1130,7 @@ impl ColorProfile {
         let shaped_output_table = &tag[output_offset..output_offset + output_size * entry_size];
         Self::read_lut_table_f32(shaped_output_table, &mut output_table, lut_type);
 
-        Ok(Some(LutDataType {
+        let wh = LutWarehouse::Lut(LutDataType {
             num_input_table_entries,
             num_output_table_entries,
             num_input_channels: in_chan,
@@ -892,7 +1141,8 @@ impl ColorProfile {
             clut_table,
             output_table,
             lut_type,
-        }))
+        });
+        Ok(Some(wh))
     }
 
     #[allow(clippy::field_reassign_with_default)]
@@ -950,26 +1200,46 @@ impl ColorProfile {
                         }
                         ProfileTags::RedToneReproduction => {
                             if color_space == DataColorSpace::Rgb {
-                                profile.red_trc =
-                                    Self::read_trc_tag(slice, tag_entry as usize, tag_size)?;
+                                let mut _empty = 0usize;
+                                profile.red_trc = Self::read_trc_tag(
+                                    slice,
+                                    tag_entry as usize,
+                                    tag_size,
+                                    &mut _empty,
+                                )?;
                             }
                         }
                         ProfileTags::GreenToneReproduction => {
                             if color_space == DataColorSpace::Rgb {
-                                profile.green_trc =
-                                    Self::read_trc_tag(slice, tag_entry as usize, tag_size)?;
+                                let mut _empty = 0usize;
+                                profile.green_trc = Self::read_trc_tag(
+                                    slice,
+                                    tag_entry as usize,
+                                    tag_size,
+                                    &mut _empty,
+                                )?;
                             }
                         }
                         ProfileTags::BlueToneReproduction => {
                             if color_space == DataColorSpace::Rgb {
-                                profile.blue_trc =
-                                    Self::read_trc_tag(slice, tag_entry as usize, tag_size)?;
+                                let mut _empty = 0usize;
+                                profile.blue_trc = Self::read_trc_tag(
+                                    slice,
+                                    tag_entry as usize,
+                                    tag_size,
+                                    &mut _empty,
+                                )?;
                             }
                         }
                         ProfileTags::GreyToneReproduction => {
                             if color_space == DataColorSpace::Rgb {
-                                profile.gray_trc =
-                                    Self::read_trc_tag(slice, tag_entry as usize, tag_size)?;
+                                let mut _empty = 0usize;
+                                profile.gray_trc = Self::read_trc_tag(
+                                    slice,
+                                    tag_entry as usize,
+                                    tag_size,
+                                    &mut _empty,
+                                )?;
                             }
                         }
                         ProfileTags::MediaWhitePoint => {
@@ -1001,6 +1271,9 @@ impl ColorProfile {
                                     tag_entry as usize,
                                     tag_size,
                                 )?;
+                            } else if lut_type == LutType::LutMab {
+                                profile.lut_a_to_b_perceptual =
+                                    Self::read_lut_abm_type(slice, tag_entry as usize, tag_size)?;
                             }
                         }
                         ProfileTags::DeviceToPcsLutColorimetric => {
@@ -1012,6 +1285,9 @@ impl ColorProfile {
                                     tag_entry as usize,
                                     tag_size,
                                 )?;
+                            } else if lut_type == LutType::LutMab {
+                                profile.lut_a_to_b_colorimetric =
+                                    Self::read_lut_abm_type(slice, tag_entry as usize, tag_size)?;
                             }
                         }
                         ProfileTags::DeviceToPcsLutSaturation => {
@@ -1023,6 +1299,9 @@ impl ColorProfile {
                                     tag_entry as usize,
                                     tag_size,
                                 )?;
+                            } else if lut_type == LutType::LutMab {
+                                profile.lut_a_to_b_saturation =
+                                    Self::read_lut_abm_type(slice, tag_entry as usize, tag_size)?;
                             }
                         }
                         ProfileTags::PcsToDeviceLutPerceptual => {
@@ -1034,6 +1313,9 @@ impl ColorProfile {
                                     tag_entry as usize,
                                     tag_size,
                                 )?;
+                            } else if lut_type == LutType::LutMba {
+                                profile.lut_b_to_a_perceptual =
+                                    Self::read_lut_abm_type(slice, tag_entry as usize, tag_size)?;
                             }
                         }
                         ProfileTags::PcsToDeviceLutColorimetric => {
@@ -1045,6 +1327,9 @@ impl ColorProfile {
                                     tag_entry as usize,
                                     tag_size,
                                 )?;
+                            } else if lut_type == LutType::LutMba {
+                                profile.lut_b_to_a_colorimetric =
+                                    Self::read_lut_abm_type(slice, tag_entry as usize, tag_size)?;
                             }
                         }
                         ProfileTags::PcsToDeviceLutSaturation => {
@@ -1056,6 +1341,9 @@ impl ColorProfile {
                                     tag_entry as usize,
                                     tag_size,
                                 )?;
+                            } else if lut_type == LutType::LutMba {
+                                profile.lut_b_to_a_saturation =
+                                    Self::read_lut_abm_type(slice, tag_entry as usize, tag_size)?;
                             }
                         }
                         ProfileTags::Copyright => {
