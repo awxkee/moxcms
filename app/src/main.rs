@@ -41,6 +41,11 @@ fn main() {
     let funny_icc = fs::read("./assets/fogra39_coated.icc").unwrap();
     let funny_profile = ColorProfile::new_from_slice(&funny_icc).unwrap();
 
+    let srgb_perceptual_icc = fs::read("./assets/srgb_perceptual.icc").unwrap();
+    let srgb_perceptual_profile = ColorProfile::new_from_slice(&srgb_perceptual_icc).unwrap();
+    
+    println!("{:?}", srgb_perceptual_profile);
+
     let f_str = "./assets/bench.jpg";
     let file = File::open(f_str).expect("Failed to open file");
 
@@ -66,14 +71,14 @@ fn main() {
     decoder.decode_into(&mut real_dst).unwrap();
 
     // let t = Transform::new(&srgb_profile, PixelFormat::RGB_8, &custom_profile, PixelFormat::CMYK_8, Intent::Perceptual).unwrap();
-    let t1 = Transform::new(
-        &custom_profile,
-        PixelFormat::CMYK_8,
-        &srgb_profile,
-        PixelFormat::RGBA_8,
-        Intent::Perceptual,
-    )
-    .unwrap();
+    // let t1 = Transform::new(
+    //     &custom_profile,
+    //     PixelFormat::CMYK_8,
+    //     &srgb_profile,
+    //     PixelFormat::RGBA_8,
+    //     Intent::Perceptual,
+    // )
+    // .unwrap();
 
     let mut cmyk = vec![0u8; (decoder.output_buffer_size().unwrap() / 3) * 4];
 
@@ -102,21 +107,18 @@ fn main() {
     println!("Execution time: {:?}", instant.elapsed());
 
     dest_profile.rendering_intent = RenderingIntent::Perceptual;
-    // let transform = funny_profile
-    //     .create_transform_8bit(
-    //         Layout::Rgba,
-    //         &dest_profile,
-    //         Layout::Rgba,
-    //         TransformOptions {
-    //             allow_chroma_clipping: false,
-    //             rendering_intent: RenderingIntent::Perceptual,
-    //         },
-    //     )
-    //     .unwrap();
+    let transform = funny_profile
+        .create_transform_8bit(
+            Layout::Rgba,
+            &dest_profile,
+            Layout::Rgba,
+            TransformOptions {
+                allow_chroma_clipping: false,
+                rendering_intent: RenderingIntent::Saturation,
+            },
+        )
+        .unwrap();
     let mut dst = vec![0u8; rgb.len() / 3 * 4];
-    let instant = Instant::now();
-    t1.transform_pixels(&cmyk, &mut dst);
-    println!("Execution time: {:?}", instant.elapsed());
 
     // let gray_image = rgb
     //     .chunks_exact(3)
@@ -126,19 +128,19 @@ fn main() {
     //     })
     //     .collect::<Vec<u8>>();
     //
-    // let instant = Instant::now();
-    // for (src, dst) in cmyk
-    //     .chunks_exact(img.width() as usize * 4)
-    //     .zip(dst.chunks_exact_mut(img.width() as usize * 4))
-    // {
-    //     transform
-    //         .transform(
-    //             &src[..img.width() as usize * 4],
-    //             &mut dst[..img.width() as usize * 4],
-    //         )
-    //         .unwrap();
-    // }
-    // println!("Estimated time: {:?}", instant.elapsed());
+    let instant = Instant::now();
+    for (src, dst) in cmyk
+        .chunks_exact(img.width() as usize * 4)
+        .zip(dst.chunks_exact_mut(img.width() as usize * 4))
+    {
+        transform
+            .transform(
+                &src[..img.width() as usize * 4],
+                &mut dst[..img.width() as usize * 4],
+            )
+            .unwrap();
+    }
+    println!("Estimated time: {:?}", instant.elapsed());
 
     // let image = JxlImage::builder()
     //     .pool(JxlThreadPool::none())
@@ -194,7 +196,7 @@ fn main() {
     }
 
     image::save_buffer(
-        "v_new_rel.png",
+        "v_new_sat.png",
         &dst,
         img.dimensions().0,
         img.dimensions().1,
