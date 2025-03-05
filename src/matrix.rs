@@ -38,6 +38,14 @@ pub struct Vector3<T> {
     pub v: [T; 3],
 }
 
+/// Vector math helper
+#[derive(Copy, Clone, Debug, Default)]
+pub struct Vector4<T> {
+    pub v: [T; 4],
+}
+
+pub type Vector4f = Vector4<f32>;
+
 pub type Vector3f = Vector3<f32>;
 pub type Vector3i = Vector3<i32>;
 pub type Vector3u = Vector3<u32>;
@@ -86,6 +94,25 @@ where
     }
 }
 
+impl<T> Mul<Vector4<T>> for Vector4<T>
+where
+    T: Mul<Output = T> + Copy,
+{
+    type Output = Vector4<T>;
+
+    #[inline]
+    fn mul(self, rhs: Vector4<T>) -> Self::Output {
+        Self {
+            v: [
+                self.v[0] * rhs.v[0],
+                self.v[1] * rhs.v[1],
+                self.v[2] * rhs.v[2],
+                self.v[3] * rhs.v[3],
+            ],
+        }
+    }
+}
+
 impl<T> Mul<T> for Vector3<T>
 where
     T: Mul<Output = T> + Copy,
@@ -100,6 +127,25 @@ where
     }
 }
 
+impl<T> Mul<T> for Vector4<T>
+where
+    T: Mul<Output = T> + Copy,
+{
+    type Output = Vector4<T>;
+
+    #[inline]
+    fn mul(self, rhs: T) -> Self::Output {
+        Self {
+            v: [
+                self.v[0] * rhs,
+                self.v[1] * rhs,
+                self.v[2] * rhs,
+                self.v[3] * rhs,
+            ],
+        }
+    }
+}
+
 impl<T> From<T> for Vector3<T>
 where
     T: Copy,
@@ -107,6 +153,17 @@ where
     fn from(value: T) -> Self {
         Self {
             v: [value, value, value],
+        }
+    }
+}
+
+impl<T> From<T> for Vector4<T>
+where
+    T: Copy,
+{
+    fn from(value: T) -> Self {
+        Self {
+            v: [value, value, value, value],
         }
     }
 }
@@ -129,6 +186,25 @@ where
     }
 }
 
+impl<T> Add<Vector4<T>> for Vector4<T>
+where
+    T: Add<Output = T> + Copy,
+{
+    type Output = Vector4<T>;
+
+    #[inline]
+    fn add(self, rhs: Vector4<T>) -> Self::Output {
+        Self {
+            v: [
+                self.v[0] + rhs.v[0],
+                self.v[1] + rhs.v[1],
+                self.v[2] + rhs.v[2],
+                self.v[3] + rhs.v[3],
+            ],
+        }
+    }
+}
+
 impl<T> Add<T> for Vector3<T>
 where
     T: Add<Output = T> + Copy,
@@ -139,6 +215,25 @@ where
     fn add(self, rhs: T) -> Self::Output {
         Self {
             v: [self.v[0] + rhs, self.v[1] + rhs, self.v[2] + rhs],
+        }
+    }
+}
+
+impl<T> Add<T> for Vector4<T>
+where
+    T: Add<Output = T> + Copy,
+{
+    type Output = Vector4<T>;
+
+    #[inline]
+    fn add(self, rhs: T) -> Self::Output {
+        Self {
+            v: [
+                self.v[0] + rhs,
+                self.v[1] + rhs,
+                self.v[2] + rhs,
+                self.v[3] + rhs,
+            ],
         }
     }
 }
@@ -161,12 +256,33 @@ where
     }
 }
 
+impl<T> Sub<Vector4<T>> for Vector4<T>
+where
+    T: Sub<Output = T> + Copy,
+{
+    type Output = Vector4<T>;
+
+    #[inline]
+    fn sub(self, rhs: Vector4<T>) -> Self::Output {
+        Self {
+            v: [
+                self.v[0] - rhs.v[0],
+                self.v[1] - rhs.v[1],
+                self.v[2] - rhs.v[2],
+                self.v[3] - rhs.v[3],
+            ],
+        }
+    }
+}
+
 /// Matrix math helper
+#[repr(C)]
 #[derive(Copy, Clone, Debug, Default)]
 pub struct Matrix3f {
     pub v: [[f32; 3]; 3],
 }
 
+#[repr(C)]
 #[derive(Copy, Clone, Debug, Default)]
 pub struct Matrix4f {
     pub v: [[f32; 4]; 4],

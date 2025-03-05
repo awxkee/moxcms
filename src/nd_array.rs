@@ -26,7 +26,7 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-use crate::Vector3f;
+use crate::{Vector3f, Vector4f};
 use std::ops::{Add, Mul, Sub};
 
 #[inline]
@@ -126,6 +126,44 @@ pub struct Array3D<'a> {
     grid_size: usize,
 }
 
+trait ArrayFetch<T> {
+    fn fetch(&self, x: i32, y: i32, z: i32) -> T;
+}
+
+struct ArrayFetchVector3f<'a> {
+    array: &'a [f32],
+    x_stride: u32,
+    y_stride: u32,
+}
+
+impl ArrayFetch<Vector3f> for ArrayFetchVector3f<'_> {
+    #[inline]
+    fn fetch(&self, x: i32, y: i32, z: i32) -> Vector3f {
+        let start = (x as u32 * self.x_stride + y as u32 * self.y_stride + z as u32) as usize * 3;
+        let k = &self.array[start..start + 3];
+        Vector3f {
+            v: [k[0], k[1], k[2]],
+        }
+    }
+}
+
+struct ArrayFetchVector4f<'a> {
+    array: &'a [f32],
+    x_stride: u32,
+    y_stride: u32,
+}
+
+impl ArrayFetch<Vector4f> for ArrayFetchVector4f<'_> {
+    #[inline]
+    fn fetch(&self, x: i32, y: i32, z: i32) -> Vector4f {
+        let start = (x as u32 * self.x_stride + y as u32 * self.y_stride + z as u32) as usize * 4;
+        let k = &self.array[start..start + 4];
+        Vector4f {
+            v: [k[0], k[1], k[2], k[3]],
+        }
+    }
+}
+
 impl Array3D<'_> {
     pub fn new(array: &[f32], grid_size: usize) -> Array3D {
         let y_stride = grid_size;
@@ -148,7 +186,24 @@ impl Array3D<'_> {
     }
 
     #[inline]
-    pub fn trilinear_interpolation(&self, lin_x: f32, lin_y: f32, lin_z: f32) -> Vector3f {
+    pub fn vec4(&self, x: i32, y: i32, z: i32) -> Vector4f {
+        let start = (x as u32 * self.x_stride + y as u32 * self.y_stride + z as u32) as usize * 4;
+        let k = &self.array[start..start + 4];
+        Vector4f {
+            v: [k[0], k[1], k[2], k[3]],
+        }
+    }
+
+    #[inline]
+    fn trilinear<
+        T: Copy + From<f32> + Sub<T, Output = T> + Mul<T, Output = T> + Add<T, Output = T>,
+    >(
+        &self,
+        lin_x: f32,
+        lin_y: f32,
+        lin_z: f32,
+        fetch: impl ArrayFetch<T>,
+    ) -> T {
         let scale = (self.grid_size as i32 - 1) as f32;
 
         let x = (lin_x * scale).floor() as i32;
@@ -159,28 +214,56 @@ impl Array3D<'_> {
         let y_n = (lin_y * scale).ceil() as i32;
         let z_n = (lin_z * scale).ceil() as i32;
 
-        let x_d = Vector3f::from(lin_x * scale - x as f32);
-        let y_d = Vector3f::from(lin_y * scale - y as f32);
-        let z_d = Vector3f::from(lin_z * scale - z as f32);
+        let x_d = T::from(lin_x * scale - x as f32);
+        let y_d = T::from(lin_y * scale - y as f32);
+        let z_d = T::from(lin_z * scale - z as f32);
 
-        let c000 = self.vec3(x, y, z);
-        let c100 = self.vec3(x_n, y, z);
-        let c010 = self.vec3(x, y_n, z);
-        let c110 = self.vec3(x_n, y_n, z);
-        let c001 = self.vec3(x, y, z_n);
-        let c101 = self.vec3(x_n, y, z_n);
-        let c011 = self.vec3(x, y_n, z_n);
-        let c111 = self.vec3(x_n, y_n, z_n);
+        let c000 = fetch.fetch(x, y, z);
+        let c100 = fetch.fetch(x_n, y, z);
+        let c010 = fetch.fetch(x, y_n, z);
+        let c110 = fetch.fetch(x_n, y_n, z);
+        let c001 = fetch.fetch(x, y, z_n);
+        let c101 = fetch.fetch(x_n, y, z_n);
+        let c011 = fetch.fetch(x, y_n, z_n);
+        let c111 = fetch.fetch(x_n, y_n, z_n);
 
         // Perform trilinear interpolation
-        let c00 = c000 * (Vector3f::from(1.0) - x_d) + c100 * x_d;
-        let c10 = c010 * (Vector3f::from(1.0) - x_d) + c110 * x_d;
-        let c01 = c001 * (Vector3f::from(1.0) - x_d) + c101 * x_d;
-        let c11 = c011 * (Vector3f::from(1.0) - x_d) + c111 * x_d;
+        let c00 = c000 * (T::from(1.0) - x_d) + c100 * x_d;
+        let c10 = c010 * (T::from(1.0) - x_d) + c110 * x_d;
+        let c01 = c001 * (T::from(1.0) - x_d) + c101 * x_d;
+        let c11 = c011 * (T::from(1.0) - x_d) + c111 * x_d;
 
-        let c0 = c00 * (Vector3f::from(1.0) - y_d) + c10 * y_d;
-        let c1 = c01 * (Vector3f::from(1.0) - y_d) + c11 * y_d;
+        let c0 = c00 * (T::from(1.0) - y_d) + c10 * y_d;
+        let c1 = c01 * (T::from(1.0) - y_d) + c11 * y_d;
 
-        c0 * (Vector3f::from(1.0) - z_d) + c1 * z_d
+        c0 * (T::from(1.0) - z_d) + c1 * z_d
+    }
+
+    #[inline]
+    pub fn trilinear_vec3(&self, lin_x: f32, lin_y: f32, lin_z: f32) -> Vector3f {
+        self.trilinear(
+            lin_x,
+            lin_y,
+            lin_z,
+            ArrayFetchVector3f {
+                array: self.array,
+                x_stride: self.x_stride,
+                y_stride: self.y_stride,
+            },
+        )
+    }
+
+    #[inline]
+    pub fn trilinear_vec4(&self, lin_x: f32, lin_y: f32, lin_z: f32) -> Vector4f {
+        self.trilinear(
+            lin_x,
+            lin_y,
+            lin_z,
+            ArrayFetchVector4f {
+                array: self.array,
+                x_stride: self.x_stride,
+                y_stride: self.y_stride,
+            },
+        )
     }
 }

@@ -27,14 +27,17 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 mod chunking;
-mod cmyk2rgb;
+mod cmyk;
 mod gray2rgb;
+mod lut3;
+mod lut3_to_4;
+mod lut4;
 mod rgb2gray;
 mod rgbxyz;
 mod stages;
 mod tetrahedral;
 
-pub(crate) use cmyk2rgb::{CompressCmykLut, make_cmyk_to_rgb};
+pub(crate) use cmyk::{CompressCmykLut, make_cmyk_luts};
 pub(crate) use gray2rgb::make_gray_to_x;
 pub(crate) use rgb2gray::{ToneReproductionRgbToGray, make_rgb_to_gray};
 pub(crate) use rgbxyz::{TransformProfileRgb, make_rgb_xyz_rgb_transform};

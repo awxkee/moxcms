@@ -26,7 +26,8 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-use crate::{Vector3f, rounding_div_ceil};
+use crate::{Vector3f, Vector4f, rounding_div_ceil};
+use std::ops::{Add, Mul, Sub};
 
 pub(crate) struct Tetrahedral<'a, const GRID_SIZE: usize> {
     pub(crate) cube: &'a [f32],
@@ -38,18 +39,40 @@ impl<'a, const GRID_SIZE: usize> Tetrahedral<'a, GRID_SIZE> {
     }
 
     #[inline]
-    fn lp(&self, tab: &[f32], x: i32, y: i32, z: i32) -> Vector3f {
+    fn find3(cube: &[f32], x: i32, y: i32, z: i32) -> Vector3f {
         let offset = (x as u32 * (GRID_SIZE as u32 * GRID_SIZE as u32)
             + y as u32 * GRID_SIZE as u32
             + z as u32) as usize
             * 3;
-        let jx = &tab[offset..offset + 3];
+        let jx = &cube[offset..offset + 3];
         Vector3f {
             v: [jx[0], jx[1], jx[2]],
         }
     }
 
-    pub(crate) fn interpolate(&self, in_r: u8, in_g: u8, in_b: u8) -> Vector3f {
+    #[inline]
+    fn find4(tab: &[f32], x: i32, y: i32, z: i32) -> Vector4f {
+        let offset = (x as u32 * (GRID_SIZE as u32 * GRID_SIZE as u32)
+            + y as u32 * GRID_SIZE as u32
+            + z as u32) as usize
+            * 4;
+        let jx = &tab[offset..offset + 4];
+        Vector4f {
+            v: [jx[0], jx[1], jx[2], jx[3]],
+        }
+    }
+
+    #[inline]
+    fn interpolate<
+        T: Copy + Sub<T, Output = T> + Mul<T, Output = T> + Mul<f32, Output = T> + Add<T, Output = T>,
+        Retriever: Fn(&[f32], i32, i32, i32) -> T,
+    >(
+        &self,
+        in_r: u8,
+        in_g: u8,
+        in_b: u8,
+        r: Retriever,
+    ) -> T {
         let linear_r: f32 = in_r as i32 as f32 / 255.0;
         let linear_g: f32 = in_g as i32 as f32 / 255.0;
         let linear_b: f32 = in_b as i32 as f32 / 255.0;
@@ -62,43 +85,53 @@ impl<'a, const GRID_SIZE: usize> Tetrahedral<'a, GRID_SIZE> {
         let rx: f32 = linear_r * (GRID_SIZE as i32 - 1) as f32 - x as f32;
         let ry: f32 = linear_g * (GRID_SIZE as i32 - 1) as f32 - y as f32;
         let rz: f32 = linear_b * (GRID_SIZE as i32 - 1) as f32 - z as f32;
-        let c0 = self.lp(self.cube, x, y, z);
+        let c0 = r(self.cube, x, y, z);
         let c2;
         let c1;
         let c3;
         if rx >= ry {
             if ry >= rz {
                 //rx >= ry && ry >= rz
-                c1 = self.lp(self.cube, x_n, y, z) - c0;
-                c2 = self.lp(self.cube, x_n, y_n, z) - self.lp(self.cube, x_n, y, z);
-                c3 = self.lp(self.cube, x_n, y_n, z_n) - self.lp(self.cube, x_n, y_n, z);
+                c1 = r(self.cube, x_n, y, z) - c0;
+                c2 = r(self.cube, x_n, y_n, z) - r(self.cube, x_n, y, z);
+                c3 = r(self.cube, x_n, y_n, z_n) - r(self.cube, x_n, y_n, z);
             } else if rx >= rz {
                 //rx >= rz && rz >= ry
-                c1 = self.lp(self.cube, x_n, y, z) - c0;
-                c2 = self.lp(self.cube, x_n, y_n, z_n) - self.lp(self.cube, x_n, y, z_n);
-                c3 = self.lp(self.cube, x_n, y, z_n) - self.lp(self.cube, x_n, y, z);
+                c1 = r(self.cube, x_n, y, z) - c0;
+                c2 = r(self.cube, x_n, y_n, z_n) - r(self.cube, x_n, y, z_n);
+                c3 = r(self.cube, x_n, y, z_n) - r(self.cube, x_n, y, z);
             } else {
                 //rz > rx && rx >= ry
-                c1 = self.lp(self.cube, x_n, y, z_n) - self.lp(self.cube, x, y, z_n);
-                c2 = self.lp(self.cube, x_n, y_n, z_n) - self.lp(self.cube, x_n, y, z_n);
-                c3 = self.lp(self.cube, x, y, z_n) - c0;
+                c1 = r(self.cube, x_n, y, z_n) - r(self.cube, x, y, z_n);
+                c2 = r(self.cube, x_n, y_n, z_n) - r(self.cube, x_n, y, z_n);
+                c3 = r(self.cube, x, y, z_n) - c0;
             }
         } else if rx >= rz {
             //ry > rx && rx >= rz
-            c1 = self.lp(self.cube, x_n, y_n, z) - self.lp(self.cube, x, y_n, z);
-            c2 = self.lp(self.cube, x, y_n, z) - c0;
-            c3 = self.lp(self.cube, x_n, y_n, z_n) - self.lp(self.cube, x_n, y_n, z);
+            c1 = r(self.cube, x_n, y_n, z) - r(self.cube, x, y_n, z);
+            c2 = r(self.cube, x, y_n, z) - c0;
+            c3 = r(self.cube, x_n, y_n, z_n) - r(self.cube, x_n, y_n, z);
         } else if ry >= rz {
             //ry >= rz && rz > rx
-            c1 = self.lp(self.cube, x_n, y_n, z_n) - self.lp(self.cube, x, y_n, z_n);
-            c2 = self.lp(self.cube, x, y_n, z) - c0;
-            c3 = self.lp(self.cube, x, y_n, z_n) - self.lp(self.cube, x, y_n, z);
+            c1 = r(self.cube, x_n, y_n, z_n) - r(self.cube, x, y_n, z_n);
+            c2 = r(self.cube, x, y_n, z) - c0;
+            c3 = r(self.cube, x, y_n, z_n) - r(self.cube, x, y_n, z);
         } else {
             //rz > ry && ry > rx
-            c1 = self.lp(self.cube, x_n, y_n, z_n) - self.lp(self.cube, x, y_n, z_n);
-            c2 = self.lp(self.cube, x, y_n, z_n) - self.lp(self.cube, x, y, z_n);
-            c3 = self.lp(self.cube, x, y, z_n) - c0;
+            c1 = r(self.cube, x_n, y_n, z_n) - r(self.cube, x, y_n, z_n);
+            c2 = r(self.cube, x, y_n, z_n) - r(self.cube, x, y, z_n);
+            c3 = r(self.cube, x, y, z_n) - c0;
         }
         c0 + c1 * rx + c2 * ry + c3 * rz
+    }
+
+    #[inline]
+    pub(crate) fn inter4(&self, in_r: u8, in_g: u8, in_b: u8) -> Vector4f {
+        self.interpolate(in_r, in_g, in_b, Self::find4)
+    }
+
+    #[inline]
+    pub(crate) fn inter3(&self, in_r: u8, in_g: u8, in_b: u8) -> Vector3f {
+        self.interpolate(in_r, in_g, in_b, Self::find3)
     }
 }

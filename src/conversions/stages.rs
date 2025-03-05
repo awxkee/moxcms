@@ -31,7 +31,6 @@ use crate::{
     CmsError, InPlaceStage, Layout, Matrix3f, Rgb, gamut_clip_adaptive_l0_0_5,
     gamut_clip_preserve_chroma,
 };
-use std::ops::Mul;
 
 pub(crate) struct MatrixClipScaleStage<const LAYOUT: u8> {
     pub(crate) matrix: Matrix3f,
@@ -53,34 +52,40 @@ impl<const LAYOUT: u8> InPlaceStage for MatrixClipScaleStage<LAYOUT> {
             let b = chunk[2];
 
             chunk[0] = mlaf(
-                mlaf(r * transform.v[0][0], g, transform.v[0][1]),
-                b,
-                transform.v[0][2],
-            )
-            .max(0f32)
-            .min(1f32)
-            .mul(scale)
-            .round();
+                0.5f32,
+                mlaf(
+                    mlaf(r * transform.v[0][0], g, transform.v[0][1]),
+                    b,
+                    transform.v[0][2],
+                )
+                .max(0f32)
+                .min(1f32),
+                scale,
+            );
 
             chunk[1] = mlaf(
-                mlaf(r * transform.v[1][0], g, transform.v[1][1]),
-                b,
-                transform.v[1][2],
-            )
-            .max(0f32)
-            .min(1f32)
-            .mul(scale)
-            .round();
+                0.5f32,
+                mlaf(
+                    mlaf(r * transform.v[1][0], g, transform.v[1][1]),
+                    b,
+                    transform.v[1][2],
+                )
+                .max(0f32)
+                .min(1f32),
+                scale,
+            );
 
             chunk[2] = mlaf(
-                mlaf(r * transform.v[2][0], g, transform.v[2][1]),
-                b,
-                transform.v[2][2],
+                0.5f32,
+                mlaf(
+                    mlaf(r * transform.v[2][0], g, transform.v[2][1]),
+                    b,
+                    transform.v[2][2],
+                )
+                .max(0f32)
+                .min(1f32),
+                scale,
             )
-            .max(0f32)
-            .min(1f32)
-            .mul(scale)
-            .round();
         }
 
         Ok(())
@@ -167,8 +172,7 @@ impl<const LAYOUT: u8> InPlaceStage for GamutClipScaleStage<LAYOUT> {
             if rgb.is_out_of_gamut() {
                 rgb = gamut_clip_adaptive_l0_0_5(rgb, 0.5f32);
             }
-            rgb = rgb.clamp(0.0, 1.0) * Rgb::dup(self.scale);
-            rgb = rgb.round();
+            rgb = rgb.clamp(0.0, 1.0) * Rgb::dup(self.scale) + Rgb::dup(0.5f32);
             chunk[0] = rgb.r;
             chunk[1] = rgb.g;
             chunk[2] = rgb.b;
@@ -200,7 +204,7 @@ impl<const LAYOUT: u8> InPlaceStage for RelativeColorMetricRgbXyz<LAYOUT> {
             }
             new_rgb = new_rgb.clamp(0.0, 1.0);
             new_rgb *= self.scale;
-            new_rgb = new_rgb.round();
+            new_rgb += 0.5f32;
 
             chunk[0] = new_rgb.r;
             chunk[1] = new_rgb.g;

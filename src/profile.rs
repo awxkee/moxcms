@@ -42,25 +42,103 @@ const MIN_S32_FITS_IN_FLOAT: f32 = -2_147_483_648.0; // i32::MIN as f32
 
 /// Fixed-point scaling factor (assuming Fixed1 = 65536 like in ICC profiles)
 const FIXED1: f32 = 65536.0;
-const MAX_PROFILE_SIZE: usize = 1024 * 1024 * 3;
+const MAX_PROFILE_SIZE: usize = 1024 * 1024 * 10; // 10 MB max, for Fogra39 etc
 const TAG_SIZE: usize = 12;
 const MARK_TRC_CURV: u32 = u32::from_ne_bytes(*b"curv").to_be();
 const MARK_TRC_PARAM: u32 = u32::from_ne_bytes(*b"para").to_be();
 
-const R_TAG_XYZ: u32 = u32::from_ne_bytes(*b"rXYZ").to_be();
-const G_TAG_XYZ: u32 = u32::from_ne_bytes(*b"gXYZ").to_be();
-const B_TAG_XYZ: u32 = u32::from_ne_bytes(*b"bXYZ").to_be();
-const R_TAG_TRC: u32 = u32::from_ne_bytes(*b"rTRC").to_be();
-const G_TAG_TRC: u32 = u32::from_ne_bytes(*b"gTRC").to_be();
-const B_TAG_TRC: u32 = u32::from_ne_bytes(*b"bTRC").to_be();
-const K_TAG_TRC: u32 = u32::from_ne_bytes(*b"kTRC").to_be();
-const WT_PT_TAG: u32 = u32::from_ne_bytes(*b"wtpt").to_be();
-const CICP_TAG: u32 = u32::from_ne_bytes(*b"cicp").to_be();
-const CHAD_TAG: u32 = u32::from_ne_bytes(*b"chad").to_be();
-const BLACKPOINT_TAG: u32 = u32::from_ne_bytes(*b"bkpt").to_be();
-const ATOB0_TAG: u32 = u32::from_ne_bytes(*b"A2B0").to_be();
-const B2A0_TAG: u32 = u32::from_ne_bytes(*b"B2A0").to_be();
+#[derive(Debug, Copy, Clone, PartialEq, Ord, PartialOrd, Eq, Hash)]
+pub(crate) enum ProfileTags {
+    RedXyz,
+    GreenXyz,
+    BlueXyz,
+    RedToneReproduction,
+    GreenToneReproduction,
+    BlueToneReproduction,
+    GreyToneReproduction,
+    MediaWhitePoint,
+    CodeIndependentPoints,
+    ChromaticAdaptation,
+    BlackPoint,
+    DeviceToPcsLutPerceptual,
+    DeviceToPcsLutColorimetric,
+    DeviceToPcsLutSaturation,
+    PcsToDeviceLutPerceptual,
+    PcsToDeviceLutColorimetric,
+    PcsToDeviceLutSaturation,
+    ProfileDescription,
+    Copyright,
+}
+
+impl TryFrom<u32> for ProfileTags {
+    type Error = CmsError;
+
+    fn try_from(value: u32) -> Result<Self, Self::Error> {
+        if value == u32::from_ne_bytes(*b"rXYZ").to_be() {
+            return Ok(Self::RedXyz);
+        } else if value == u32::from_ne_bytes(*b"gXYZ").to_be() {
+            return Ok(Self::GreenXyz);
+        } else if value == u32::from_ne_bytes(*b"bXYZ").to_be() {
+            return Ok(Self::BlueXyz);
+        } else if value == u32::from_ne_bytes(*b"rTRC").to_be() {
+            return Ok(Self::RedToneReproduction);
+        } else if value == u32::from_ne_bytes(*b"gTRC").to_be() {
+            return Ok(Self::GreenToneReproduction);
+        } else if value == u32::from_ne_bytes(*b"bTRC").to_be() {
+            return Ok(Self::BlueToneReproduction);
+        } else if value == u32::from_ne_bytes(*b"kTRC").to_be() {
+            return Ok(Self::GreyToneReproduction);
+        } else if value == u32::from_ne_bytes(*b"wtpt").to_be() {
+            return Ok(Self::MediaWhitePoint);
+        } else if value == u32::from_ne_bytes(*b"cicp").to_be() {
+            return Ok(Self::CodeIndependentPoints);
+        } else if value == u32::from_ne_bytes(*b"chad").to_be() {
+            return Ok(Self::ChromaticAdaptation);
+        } else if value == u32::from_ne_bytes(*b"bkpt").to_be() {
+            return Ok(Self::BlackPoint);
+        } else if value == u32::from_ne_bytes(*b"A2B0").to_be() {
+            return Ok(Self::DeviceToPcsLutPerceptual);
+        } else if value == u32::from_ne_bytes(*b"A2B1").to_be() {
+            return Ok(Self::DeviceToPcsLutColorimetric);
+        } else if value == u32::from_ne_bytes(*b"A2B2").to_be() {
+            return Ok(Self::DeviceToPcsLutSaturation);
+        } else if value == u32::from_ne_bytes(*b"B2A0").to_be() {
+            return Ok(Self::PcsToDeviceLutPerceptual);
+        } else if value == u32::from_ne_bytes(*b"B2A1").to_be() {
+            return Ok(Self::PcsToDeviceLutColorimetric);
+        } else if value == u32::from_ne_bytes(*b"B2A2").to_be() {
+            return Ok(Self::PcsToDeviceLutSaturation);
+        } else if value == u32::from_ne_bytes(*b"desc").to_be() {
+            return Ok(Self::ProfileDescription);
+        } else if value == u32::from_ne_bytes(*b"cprt").to_be() {
+            return Ok(Self::Copyright);
+        }
+        Err(CmsError::UnknownTag(value))
+    }
+}
+
 const CHROMATIC_TYPE: u32 = u32::from_ne_bytes(*b"sf32").to_be();
+
+#[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
+pub(crate) enum TagTypeDefinition {
+    Text,
+    MultiLocalizedUnicode,
+}
+
+impl TryFrom<u32> for TagTypeDefinition {
+    type Error = CmsError;
+
+    fn try_from(value: u32) -> Result<Self, Self::Error> {
+        if value == u32::from_ne_bytes(*b"mluc").to_be()
+            || value == u32::from_ne_bytes(*b"desc").to_be()
+        {
+            return Ok(TagTypeDefinition::MultiLocalizedUnicode);
+        } else if value == u32::from_ne_bytes(*b"text").to_be() {
+            return Ok(TagTypeDefinition::Text);
+        }
+        Err(CmsError::UnknownTagTypeDefinition(value))
+    }
+}
 
 #[inline]
 fn uint8_number_to_float(a: u8) -> f32 {
@@ -430,17 +508,22 @@ pub struct ColorProfile {
     pub red_colorant: Xyz,
     pub green_colorant: Xyz,
     pub blue_colorant: Xyz,
-    pub white_point: Option<Xyz>,
+    pub white_point: Xyz,
     pub black_point: Option<Xyz>,
-    pub image_white_point: Xyz,
+    pub media_white_point: Option<Xyz>,
     pub red_trc: Option<Trc>,
     pub green_trc: Option<Trc>,
     pub blue_trc: Option<Trc>,
     pub gray_trc: Option<Trc>,
     pub cicp: Option<CicpProfile>,
     pub chromatic_adaptation: Option<Matrix3f>,
-    pub lut_a_to_b: Option<LutDataType>,
-    pub lut_b_to_a: Option<LutDataType>,
+    pub lut_a_to_b_perceptual: Option<LutDataType>,
+    pub lut_a_to_b_colorimetric: Option<LutDataType>,
+    pub lut_a_to_b_saturation: Option<LutDataType>,
+    pub lut_b_to_a_perceptual: Option<LutDataType>,
+    pub lut_b_to_a_colorimetric: Option<LutDataType>,
+    pub lut_b_to_a_saturation: Option<LutDataType>,
+    pub copyright: Option<String>,
 }
 
 /* produces the nearest float to 'a' with a maximum error
@@ -614,6 +697,39 @@ impl ColorProfile {
     }
 
     #[inline]
+    fn read_string_tag(
+        slice: &[u8],
+        entry: usize,
+        tag_size: usize,
+    ) -> Result<Option<String>, CmsError> {
+        let tag_size = if tag_size == 0 { TAG_SIZE } else { tag_size };
+        if tag_size < 4 {
+            return Ok(None);
+        }
+        let last_tag_offset = tag_size + entry;
+        if last_tag_offset > slice.len() {
+            return Err(CmsError::InvalidIcc);
+        }
+        let tag = &slice[entry..last_tag_offset];
+        if tag.len() < 8 {
+            return Err(CmsError::InvalidIcc);
+        }
+        let tag_type =
+            TagTypeDefinition::try_from(u32::from_be_bytes([tag[0], tag[1], tag[2], tag[3]])).ok();
+        // Ignore unknown
+        if tag_type.is_none() {
+            return Ok(None);
+        }
+        let tag_type = tag_type.unwrap();
+        if tag_type == TagTypeDefinition::Text {
+            let sliced_from_to_end = &tag[8..tag.len()];
+            let str = String::from_utf8_lossy(sliced_from_to_end);
+            return Ok(Some(str.to_string()));
+        }
+        Ok(None)
+    }
+
+    #[inline]
     fn read_lut_table_f32(table: &[u8], output: &mut [f32], lut_type: LutType) {
         if lut_type == LutType::Lut16 {
             for (src, dst) in table.chunks_exact(2).zip(output.iter_mut()) {
@@ -744,16 +860,13 @@ impl ColorProfile {
         let shaped_input_table = &tag[input_offset..input_offset + lut_input_size * entry_size];
         Self::read_lut_table_f32(shaped_input_table, &mut input_table, lut_type);
 
-        let clut_size_table_size =
-            (num_input_table_entries as usize * in_chan as usize) * entry_size;
-
-        let clut_offset = input_offset + clut_size_table_size;
-
-        if tag.len() < clut_offset + clut_size_table_size * out_chan as usize {
-            return Err(CmsError::InvalidIcc);
-        }
+        let clut_offset = input_offset + lut_input_size * entry_size;
 
         let clut_data_size = (clut_size * out_chan as usize) * entry_size;
+
+        if tag.len() < clut_offset + clut_data_size {
+            return Err(CmsError::InvalidIcc);
+        }
 
         let mut clut_table = vec![0f32; clut_size * out_chan as usize];
 
@@ -799,7 +912,7 @@ impl ColorProfile {
         profile.pcs = DataColorSpace::try_from(header.pcs)?;
         profile.profile_class = ProfileClass::try_from(header.profile_class)?;
         profile.color_space = DataColorSpace::try_from(header.data_color_space)?;
-        profile.image_white_point = Xyz {
+        profile.white_point = Xyz {
             x: s15_fixed16_number_to_float(header.illuminant_x),
             y: s15_fixed16_number_to_float(header.illuminant_y),
             z: s15_fixed16_number_to_float(header.illuminant_z),
@@ -814,51 +927,142 @@ impl ColorProfile {
                 let tag_value = u32::from_be_bytes([tag[0], tag[1], tag[2], tag[3]]);
                 let tag_entry = u32::from_be_bytes([tag[4], tag[5], tag[6], tag[7]]);
                 let tag_size = u32::from_be_bytes([tag[8], tag[9], tag[10], tag[11]]) as usize;
-                if tag_value == R_TAG_XYZ && color_space == DataColorSpace::Rgb {
-                    profile.red_colorant = Self::read_xyz_tag(slice, tag_entry as usize, tag_size)?;
-                } else if tag_value == G_TAG_XYZ && color_space == DataColorSpace::Rgb {
-                    profile.green_colorant =
-                        Self::read_xyz_tag(slice, tag_entry as usize, tag_size)?;
-                } else if tag_value == B_TAG_XYZ && color_space == DataColorSpace::Rgb {
-                    profile.blue_colorant =
-                        Self::read_xyz_tag(slice, tag_entry as usize, tag_size)?;
-                } else if tag_value == CICP_TAG {
-                    profile.cicp = Self::read_cicp_tag(slice, tag_entry as usize, tag_size)?;
-                } else if tag_value == R_TAG_TRC && color_space == DataColorSpace::Rgb {
-                    profile.red_trc = Self::read_trc_tag(slice, tag_entry as usize, tag_size)?;
-                } else if tag_value == G_TAG_TRC && color_space == DataColorSpace::Rgb {
-                    profile.green_trc = Self::read_trc_tag(slice, tag_entry as usize, tag_size)?;
-                } else if tag_value == B_TAG_TRC && color_space == DataColorSpace::Rgb {
-                    profile.blue_trc = Self::read_trc_tag(slice, tag_entry as usize, tag_size)?;
-                } else if tag_value == K_TAG_TRC && color_space == DataColorSpace::Rgb {
-                    profile.gray_trc = Self::read_trc_tag(slice, tag_entry as usize, tag_size)?;
-                } else if tag_value == WT_PT_TAG {
-                    match Self::read_xyz_tag(slice, tag_entry as usize, tag_size) {
-                        Ok(wt) => profile.white_point = Some(wt),
-                        Err(err) => return Err(err),
-                    }
-                } else if tag_value == BLACKPOINT_TAG {
-                    match Self::read_xyz_tag(slice, tag_entry as usize, tag_size) {
-                        Ok(wt) => profile.black_point = Some(wt),
-                        Err(err) => return Err(err),
-                    }
-                } else if tag_value == CHAD_TAG {
-                    profile.chromatic_adaptation =
-                        Some(Self::read_chad_tag(slice, tag_entry as usize, tag_size)?);
-                } else if tag_value == ATOB0_TAG
-                    && (profile.color_space == DataColorSpace::Rgb
-                        || profile.color_space == DataColorSpace::Cmyk)
-                {
-                    let lut_type = Self::read_lut_type(slice, tag_entry as usize, tag_size)?;
-                    if lut_type == LutType::Lut8 || lut_type == LutType::Lut16 {
-                        profile.lut_a_to_b =
-                            Self::read_lut_a_to_b_type(slice, tag_entry as usize, tag_size)?;
-                    }
-                } else if tag_value == B2A0_TAG {
-                    let lut_type = Self::read_lut_type(slice, tag_entry as usize, tag_size)?;
-                    if lut_type == LutType::Lut8 || lut_type == LutType::Lut16 {
-                        profile.lut_b_to_a =
-                            Self::read_lut_a_to_b_type(slice, tag_entry as usize, tag_size)?;
+                // Just ignore unknown tags
+                if let Ok(tag) = ProfileTags::try_from(tag_value) {
+                    match tag {
+                        ProfileTags::RedXyz => {
+                            if color_space == DataColorSpace::Rgb {
+                                profile.red_colorant =
+                                    Self::read_xyz_tag(slice, tag_entry as usize, tag_size)?;
+                            }
+                        }
+                        ProfileTags::GreenXyz => {
+                            if color_space == DataColorSpace::Rgb {
+                                profile.green_colorant =
+                                    Self::read_xyz_tag(slice, tag_entry as usize, tag_size)?;
+                            }
+                        }
+                        ProfileTags::BlueXyz => {
+                            if color_space == DataColorSpace::Rgb {
+                                profile.blue_colorant =
+                                    Self::read_xyz_tag(slice, tag_entry as usize, tag_size)?;
+                            }
+                        }
+                        ProfileTags::RedToneReproduction => {
+                            if color_space == DataColorSpace::Rgb {
+                                profile.red_trc =
+                                    Self::read_trc_tag(slice, tag_entry as usize, tag_size)?;
+                            }
+                        }
+                        ProfileTags::GreenToneReproduction => {
+                            if color_space == DataColorSpace::Rgb {
+                                profile.green_trc =
+                                    Self::read_trc_tag(slice, tag_entry as usize, tag_size)?;
+                            }
+                        }
+                        ProfileTags::BlueToneReproduction => {
+                            if color_space == DataColorSpace::Rgb {
+                                profile.blue_trc =
+                                    Self::read_trc_tag(slice, tag_entry as usize, tag_size)?;
+                            }
+                        }
+                        ProfileTags::GreyToneReproduction => {
+                            if color_space == DataColorSpace::Rgb {
+                                profile.gray_trc =
+                                    Self::read_trc_tag(slice, tag_entry as usize, tag_size)?;
+                            }
+                        }
+                        ProfileTags::MediaWhitePoint => {
+                            match Self::read_xyz_tag(slice, tag_entry as usize, tag_size) {
+                                Ok(wt) => profile.media_white_point = Some(wt),
+                                Err(err) => return Err(err),
+                            }
+                        }
+                        ProfileTags::CodeIndependentPoints => {
+                            profile.cicp =
+                                Self::read_cicp_tag(slice, tag_entry as usize, tag_size)?;
+                        }
+                        ProfileTags::ChromaticAdaptation => {
+                            profile.chromatic_adaptation =
+                                Some(Self::read_chad_tag(slice, tag_entry as usize, tag_size)?);
+                        }
+                        ProfileTags::BlackPoint => {
+                            match Self::read_xyz_tag(slice, tag_entry as usize, tag_size) {
+                                Ok(wt) => profile.black_point = Some(wt),
+                                Err(err) => return Err(err),
+                            }
+                        }
+                        ProfileTags::DeviceToPcsLutPerceptual => {
+                            let lut_type =
+                                Self::read_lut_type(slice, tag_entry as usize, tag_size)?;
+                            if lut_type == LutType::Lut8 || lut_type == LutType::Lut16 {
+                                profile.lut_a_to_b_perceptual = Self::read_lut_a_to_b_type(
+                                    slice,
+                                    tag_entry as usize,
+                                    tag_size,
+                                )?;
+                            }
+                        }
+                        ProfileTags::DeviceToPcsLutColorimetric => {
+                            let lut_type =
+                                Self::read_lut_type(slice, tag_entry as usize, tag_size)?;
+                            if lut_type == LutType::Lut8 || lut_type == LutType::Lut16 {
+                                profile.lut_a_to_b_colorimetric = Self::read_lut_a_to_b_type(
+                                    slice,
+                                    tag_entry as usize,
+                                    tag_size,
+                                )?;
+                            }
+                        }
+                        ProfileTags::DeviceToPcsLutSaturation => {
+                            let lut_type =
+                                Self::read_lut_type(slice, tag_entry as usize, tag_size)?;
+                            if lut_type == LutType::Lut8 || lut_type == LutType::Lut16 {
+                                profile.lut_a_to_b_saturation = Self::read_lut_a_to_b_type(
+                                    slice,
+                                    tag_entry as usize,
+                                    tag_size,
+                                )?;
+                            }
+                        }
+                        ProfileTags::PcsToDeviceLutPerceptual => {
+                            let lut_type =
+                                Self::read_lut_type(slice, tag_entry as usize, tag_size)?;
+                            if lut_type == LutType::Lut8 || lut_type == LutType::Lut16 {
+                                profile.lut_b_to_a_perceptual = Self::read_lut_a_to_b_type(
+                                    slice,
+                                    tag_entry as usize,
+                                    tag_size,
+                                )?;
+                            }
+                        }
+                        ProfileTags::PcsToDeviceLutColorimetric => {
+                            let lut_type =
+                                Self::read_lut_type(slice, tag_entry as usize, tag_size)?;
+                            if lut_type == LutType::Lut8 || lut_type == LutType::Lut16 {
+                                profile.lut_b_to_a_colorimetric = Self::read_lut_a_to_b_type(
+                                    slice,
+                                    tag_entry as usize,
+                                    tag_size,
+                                )?;
+                            }
+                        }
+                        ProfileTags::PcsToDeviceLutSaturation => {
+                            let lut_type =
+                                Self::read_lut_type(slice, tag_entry as usize, tag_size)?;
+                            if lut_type == LutType::Lut8 || lut_type == LutType::Lut16 {
+                                profile.lut_b_to_a_saturation = Self::read_lut_a_to_b_type(
+                                    slice,
+                                    tag_entry as usize,
+                                    tag_size,
+                                )?;
+                            }
+                        }
+                        ProfileTags::Copyright => {
+                            profile.copyright =
+                                Self::read_string_tag(slice, tag_entry as usize, tag_size)?;
+                        }
+                        ProfileTags::ProfileDescription => { /* Do Nothing */ }
                     }
                 }
             }
@@ -1068,8 +1272,8 @@ impl ColorProfile {
         profile.rendering_intent = RenderingIntent::Perceptual;
         profile.color_space = DataColorSpace::Rgb;
         profile.pcs = DataColorSpace::Xyz;
-        profile.image_white_point = Chromacity::D65.to_xyz();
-        profile.white_point = Some(Chromacity::D50.to_xyz());
+        profile.media_white_point = Some(Chromacity::D65.to_xyz());
+        profile.white_point = Chromacity::D50.to_xyz();
         profile
     }
 
@@ -1087,8 +1291,8 @@ impl ColorProfile {
         profile.rendering_intent = RenderingIntent::Perceptual;
         profile.color_space = DataColorSpace::Rgb;
         profile.pcs = DataColorSpace::Xyz;
-        profile.image_white_point = Chromacity::D65.to_xyz();
-        profile.white_point = Some(Chromacity::D50.to_xyz());
+        profile.media_white_point = Some(Chromacity::D65.to_xyz());
+        profile.white_point = Chromacity::D50.to_xyz();
         profile
     }
 
@@ -1106,8 +1310,8 @@ impl ColorProfile {
         profile.rendering_intent = RenderingIntent::Perceptual;
         profile.color_space = DataColorSpace::Rgb;
         profile.pcs = DataColorSpace::Xyz;
-        profile.image_white_point = Chromacity::D65.to_xyz();
-        profile.white_point = Some(Chromacity::D50.to_xyz());
+        profile.media_white_point = Some(Chromacity::D65.to_xyz());
+        profile.white_point = Chromacity::D50.to_xyz();
         profile
     }
 
@@ -1117,8 +1321,8 @@ impl ColorProfile {
             profile_class: ProfileClass::DisplayDevice,
             rendering_intent: RenderingIntent::Perceptual,
             color_space: DataColorSpace::Gray,
-            image_white_point: Chromacity::D65.to_xyz(),
-            white_point: Some(Chromacity::D50.to_xyz()),
+            media_white_point: Some(Chromacity::D65.to_xyz()),
+            white_point: Chromacity::D50.to_xyz(),
             ..Default::default()
         }
     }

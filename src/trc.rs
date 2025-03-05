@@ -26,6 +26,8 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+use crate::math::m_clamp;
+use crate::mlaf::mlaf;
 use crate::{CmsError, ColorProfile, pow, powf};
 use num_traits::AsPrimitive;
 
@@ -272,16 +274,18 @@ fn linear_forward_table<const N: usize>(gamma: u16) -> Box<[f32; N]> {
 }
 
 #[inline]
-pub(crate) fn lut_interp_linear_float(mut value: f32, table: &[f32]) -> f32 {
-    value *= (table.len() - 1) as f32;
+pub(crate) fn lut_interp_linear_float(x: f32, table: &[f32]) -> f32 {
+    let value = x * (table.len() - 1) as f32;
 
     let upper: i32 = value.ceil() as i32;
     let lower: i32 = value.floor() as i32;
-    //XXX: can we be more performant here?
-    value = (table[upper as usize] as f64 * (1.0f64 - (upper as f32 - value) as f64)
-        + (table[lower as usize] * (upper as f32 - value)) as f64) as f32;
-    /* scale the value */
-    value
+
+    let diff = upper as f32 - value;
+    mlaf(
+        table[upper as usize] * (1.0f32 - diff),
+        table[lower as usize],
+        diff,
+    )
 }
 
 #[inline]
@@ -312,36 +316,13 @@ fn linear_lut_interpolate<const N: usize>(table: &[u16]) -> Box<[f32; N]> {
     gamma_table
 }
 
-#[inline]
-pub(crate) fn clamp_float(a: f32) -> f32 {
-    /* One would naturally write this function as the following:
-    if (a > 1.)
-      return 1.;
-    else if (a < 0)
-      return 0;
-    else
-      return a;
-
-    However, that version will let NaNs pass through which is undesirable
-    for most consumers.
-    */
-    if a > 1. {
-        1.
-    } else if a >= 0. {
-        a
-    } else {
-        // a < 0 or a is NaN
-        0.
-    }
-}
-
 fn linear_curve_parametric<const N: usize>(params: &[f32]) -> Option<Box<[f32; N]>> {
     let params = ParametricCurve::new(params)?;
     let mut gamma_table = Box::new([0f32; N]);
     let scale_value = 1f32 / (N - 1) as f32;
     for (i, g) in gamma_table.iter_mut().enumerate() {
         let x = i as f32 * scale_value;
-        *g = clamp_float(params.eval(x));
+        *g = m_clamp(params.eval(x), 0.0, 1.0);
     }
     Some(gamma_table)
 }

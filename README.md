@@ -1,6 +1,8 @@
 # Rust ICC management
 
-Supports only CMYK -> RGBX and RGBX -> RGBX, GRAY -> RGB, RGB -> GRAY
+Fast and safe converting between ICC profiles in pure Rust.
+
+Supports CMYK -> RGBX and RGBX -> RGBX, Gray -> RGBX, RGBX -> GRAY, RGBX -> CMYK
 
 # Example
 

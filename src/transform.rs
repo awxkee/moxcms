@@ -27,11 +27,12 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::conversions::{
-    CompressCmykLut, ToneReproductionRgbToGray, TransformProfileRgb, make_cmyk_to_rgb,
+    CompressCmykLut, ToneReproductionRgbToGray, TransformProfileRgb, make_cmyk_luts,
     make_gray_to_x, make_rgb_to_gray, make_rgb_xyz_rgb_transform,
 };
 use crate::err::CmsError;
-use crate::{ColorProfile, DataColorSpace, Vector3f};
+use crate::profile::LutDataType;
+use crate::{ColorProfile, DataColorSpace, RenderingIntent, Vector3f};
 use num_traits::AsPrimitive;
 
 /// Transformation executor itself
@@ -59,6 +60,7 @@ pub struct TransformOptions {
     /// This enables additional functional only on Perceptual rendering intent
     /// Other intents may do chroma clipping by default
     pub allow_chroma_clipping: bool,
+    pub rendering_intent: RenderingIntent,
 }
 
 pub type Transform8BitExecutor = dyn TransformExecutor<u8> + Send + Sync;
@@ -247,7 +249,7 @@ impl ColorProfile {
                 src_layout,
                 dst_layout,
                 profile_transform,
-                dst_pr.rendering_intent,
+                options.rendering_intent,
                 options,
             );
         } else if self.color_space == DataColorSpace::Gray
@@ -305,8 +307,10 @@ impl ColorProfile {
             return Ok(make_rgb_to_gray::<T, LINEAR_CAP, BIT_DEPTH, GAMMA_CAP>(
                 src_layout, dst_layout, trc_box, vector,
             ));
-        } else if self.color_space == DataColorSpace::Cmyk
-            && dst_pr.color_space == DataColorSpace::Rgb
+        } else if (self.color_space == DataColorSpace::Cmyk
+            || self.color_space == DataColorSpace::Rgb)
+            && (dst_pr.color_space == DataColorSpace::Rgb
+                || dst_pr.color_space == DataColorSpace::Cmyk)
             && (dst_pr.pcs == DataColorSpace::Xyz || dst_pr.pcs == DataColorSpace::Lab)
             && (self.pcs == DataColorSpace::Xyz || self.pcs == DataColorSpace::Lab)
         {
@@ -316,8 +320,8 @@ impl ColorProfile {
             if dst_layout == Layout::Gray || dst_layout == Layout::GrayAlpha {
                 return Err(CmsError::InvalidLayout);
             }
-            return make_cmyk_to_rgb::<T, BIT_DEPTH, GAMMA_CAP>(
-                src_layout, self, dst_layout, dst_pr,
+            return make_cmyk_luts::<T, BIT_DEPTH, LINEAR_CAP, GAMMA_CAP>(
+                src_layout, self, dst_layout, dst_pr, options,
             );
         }
 
@@ -334,6 +338,24 @@ impl ColorProfile {
         options: TransformOptions,
     ) -> Result<Box<Transform8BitExecutor>, CmsError> {
         self.create_transform_nbit::<u8, 8, 256, 8192>(src_layout, dst_pr, dst_layout, options)
+    }
+
+    pub(crate) fn get_device_to_pcs_lut(&self, intent: RenderingIntent) -> Option<&LutDataType> {
+        match intent {
+            RenderingIntent::AbsoluteColorimetric => self.lut_a_to_b_colorimetric.as_ref(),
+            RenderingIntent::Saturation => self.lut_a_to_b_saturation.as_ref(),
+            RenderingIntent::RelativeColorimetric => self.lut_a_to_b_colorimetric.as_ref(),
+            RenderingIntent::Perceptual => self.lut_a_to_b_perceptual.as_ref(),
+        }
+    }
+
+    pub(crate) fn get_pcs_to_device_lut(&self, intent: RenderingIntent) -> Option<&LutDataType> {
+        match intent {
+            RenderingIntent::AbsoluteColorimetric => self.lut_b_to_a_colorimetric.as_ref(),
+            RenderingIntent::Saturation => self.lut_b_to_a_saturation.as_ref(),
+            RenderingIntent::RelativeColorimetric => self.lut_b_to_a_colorimetric.as_ref(),
+            RenderingIntent::Perceptual => self.lut_b_to_a_perceptual.as_ref(),
+        }
     }
 }
 
@@ -366,6 +388,7 @@ mod tests {
                 Layout::Rgb,
                 TransformOptions {
                     allow_chroma_clipping: true,
+                    ..TransformOptions::default()
                 },
             )
             .unwrap();
@@ -378,6 +401,7 @@ mod tests {
                 Layout::Rgb,
                 TransformOptions {
                     allow_chroma_clipping: true,
+                    ..TransformOptions::default()
                 },
             )
             .unwrap();
@@ -390,6 +414,7 @@ mod tests {
                 Layout::Rgb,
                 TransformOptions {
                     allow_chroma_clipping: true,
+                    ..TransformOptions::default()
                 },
             )
             .unwrap();
