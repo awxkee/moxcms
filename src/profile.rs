@@ -595,10 +595,8 @@ impl ColorProfile {
             small_tag[2],
             small_tag[3],
         ]))?;
-        if tag_size != 0 {
-            if tag_size < TAG_SIZE {
-                return Ok(None);
-            }
+        if tag_size != 0 && tag_size < TAG_SIZE {
+            return Ok(None);
         }
         let last_tag_offset = if tag_size != 0 {
             tag_size + entry
@@ -655,7 +653,7 @@ impl ColorProfile {
                     return Err(CmsError::ParametricCurveZeroDivision);
                 }
             }
-            *read_size = 12 + COUNT_TO_LENGTH[entry_count as usize] * 4;
+            *read_size = 12 + COUNT_TO_LENGTH[entry_count] * 4;
             return Ok(Some(Trc::Parametric(params)));
         } else {
             return Err(CmsError::InvalidIcc);
@@ -810,7 +808,7 @@ impl ColorProfile {
     ) -> Result<Option<Vec<Trc>>, CmsError> {
         let mut curve_offset: usize = offset;
         let mut curves = Vec::new();
-        for i in 0..length {
+        for _ in 0..length {
             if slice.len() < curve_offset + 12 {
                 return Err(CmsError::InvalidIcc);
             }
