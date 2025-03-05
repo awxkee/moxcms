@@ -347,7 +347,7 @@ where
     }
 
     let lut_a_to_b = source
-        .lut_a_to_b
+        .lut_a_to_b_perceptual
         .as_ref()
         .ok_or(CmsError::UnsupportedProfileConnection)?;
 

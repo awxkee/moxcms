@@ -46,6 +46,8 @@ pub enum CmsError {
     UnsupportedProfileConnection,
     BuildTransferFunction,
     UnsupportedChannelConfiguration,
+    UnknownTag(u32),
+    UnknownTagTypeDefinition(u32),
 }
 
 impl Display for CmsError {
@@ -73,6 +75,10 @@ impl Display for CmsError {
             CmsError::BuildTransferFunction => f.write_str("Can't reconstruct transfer function"),
             CmsError::UnsupportedChannelConfiguration => {
                 f.write_str("Can't reconstruct channel configuration")
+            }
+            CmsError::UnknownTag(t) => f.write_fmt(format_args!("Unknown tag: {}", t)),
+            CmsError::UnknownTagTypeDefinition(t) => {
+                f.write_fmt(format_args!("Unknown tag type definition: {}", t))
             }
         }
     }

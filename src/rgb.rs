@@ -319,6 +319,7 @@ impl<T> AddAssign for Rgb<T>
 where
     T: AddAssign<T>,
 {
+    #[inline]
     fn add_assign(&mut self, rhs: Self) {
         self.r += rhs.r;
         self.g += rhs.g;
@@ -328,7 +329,7 @@ where
 
 macro_rules! generated_add_assign_definition_rgb {
     ($T: ty) => {
-        impl<T> AddAssign<$T> for Rgb<T>
+        impl<T: Copy> AddAssign<$T> for Rgb<T>
         where
             T: AddAssign<$T>,
         {
@@ -365,7 +366,7 @@ where
 
 macro_rules! generated_div_assign_definition_rgb {
     ($T: ty) => {
-        impl<T> DivAssign<$T> for Rgb<T>
+        impl<T: Copy> DivAssign<$T> for Rgb<T>
         where
             T: DivAssign<$T>,
         {

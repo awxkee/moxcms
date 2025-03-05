@@ -47,6 +47,7 @@ mod profile;
 mod rgb;
 mod transform;
 mod trc;
+mod yrg;
 
 pub use cicp::{ChromacityTriple, ColorPrimaries, MatrixCoefficients, TransferCharacteristics};
 pub use err::CmsError;
@@ -75,3 +76,4 @@ pub use transform::{
     InPlaceStage, Layout, Stage, Transform8BitExecutor, Transform16BitExecutor, TransformExecutor,
     TransformOptions,
 };
+pub use yrg::{Ych, Yrg, cie_y_1931_to_cie_y_2006};

@@ -231,9 +231,7 @@ pub fn gamut_clip_preserve_chroma(rgb: Rgb<f32>) -> Rgb<f32> {
 
     let mut result = Oklab::new(ll_clipped, cc_clipped * a_, cc_clipped * b_).to_linear_rgb();
 
-    result.r = result.r.clamp(0., 1.);
-    result.g = result.g.clamp(0., 1.);
-    result.b = result.b.clamp(0., 1.);
+    result = result.clamp(0., 1.);
 
     // Don't bother if the result is very close
     if (rgb.r - result.r).abs() < 0.003
@@ -247,6 +245,10 @@ pub fn gamut_clip_preserve_chroma(rgb: Rgb<f32>) -> Rgb<f32> {
 }
 
 pub fn gamut_clip_project_to_l_cusp(rgb: Rgb<f32>) -> Rgb<f32> {
+    if rgb.r <= 1. && rgb.g <= 1. && rgb.b <= 1. && rgb.r >= 0. && rgb.g >= 0. && rgb.b >= 0. {
+        return rgb;
+    }
+
     let lab = Oklab::from_linear_rgb(rgb);
 
     let l = lab.l;
@@ -274,6 +276,10 @@ fn sgn(x: f32) -> f32 {
 }
 
 pub fn gamut_clip_adaptive_l0_0_5(rgb: Rgb<f32>, alpha: f32) -> Rgb<f32> {
+    if rgb.r <= 1. && rgb.g <= 1. && rgb.b <= 1. && rgb.r >= 0. && rgb.g >= 0. && rgb.b >= 0. {
+        return rgb;
+    }
+
     let lab = Oklab::from_linear_rgb(rgb);
 
     let lc = lab.l;
@@ -295,6 +301,10 @@ pub fn gamut_clip_adaptive_l0_0_5(rgb: Rgb<f32>, alpha: f32) -> Rgb<f32> {
 
 #[inline]
 pub fn gamut_clip_adaptive_l0_l_cusp(rgb: Rgb<f32>, alpha: f32) -> Rgb<f32> {
+    if rgb.r <= 1. && rgb.g <= 1. && rgb.b <= 1. && rgb.r >= 0. && rgb.g >= 0. && rgb.b >= 0. {
+        return rgb;
+    }
+
     let lab = Oklab::from_linear_rgb(rgb);
 
     let lum = lab.l;

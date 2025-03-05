@@ -162,11 +162,13 @@ where
 }
 
 /// Matrix math helper
+#[repr(C)]
 #[derive(Copy, Clone, Debug, Default)]
 pub struct Matrix3f {
     pub v: [[f32; 3]; 3],
 }
 
+#[repr(C)]
 #[derive(Copy, Clone, Debug, Default)]
 pub struct Matrix4f {
     pub v: [[f32; 4]; 4],
