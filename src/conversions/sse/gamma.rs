@@ -42,8 +42,8 @@ unsafe fn gamma_search_8bit_impl<
     r_gamma: &[u8; 65536],
     g_gamma: &[u8; 65536],
     b_gamma: &[u8; 65536],
-) 
-{
+)
+{ unsafe {
     const BIT_DEPTH: usize = 8;
     let max_value = ((1u32 << BIT_DEPTH) - 1) as u8;
     let src_cn = Layout::from(SRC_LAYOUT);
@@ -63,9 +63,9 @@ unsafe fn gamma_search_8bit_impl<
             let src_f = _mm_cvtps_epi32(_mm_castsi128_ps(src_vl));
             let packed_u16 = _mm_packus_epi32(src_f, src_vl);
             _mm_storeu_si64(temporary.as_mut_ptr() as *mut _, packed_u16);
-            dst[dst_cn.r_i()] = r_gamma[temporary[0] as usize];
-            dst[dst_cn.g_i()] = g_gamma[temporary[1] as usize];
-            dst[dst_cn.b_i()] = b_gamma[temporary[2] as usize];
+            dst[dst_cn.r_i()] = *r_gamma.get_unchecked(temporary[0] as usize);
+            dst[dst_cn.g_i()] = *g_gamma.get_unchecked(temporary[1] as usize);
+            dst[dst_cn.b_i()] = *b_gamma.get_unchecked(temporary[2] as usize);
             if dst_channels == 4 {
                 dst[dst_cn.a_i()] = max_value;
             }
@@ -73,15 +73,15 @@ unsafe fn gamma_search_8bit_impl<
             let src_f = _mm_cvtps_epi32(_mm_loadu_ps(chunk.as_ptr()));
             let packed_u16 = _mm_packus_epi32(src_f, src_f);
             _mm_storeu_si64(temporary.as_mut_ptr() as *mut _, packed_u16);
-            dst[dst_cn.r_i()] = r_gamma[temporary[0] as usize];
-            dst[dst_cn.g_i()] = g_gamma[temporary[1] as usize];
-            dst[dst_cn.b_i()] = b_gamma[temporary[2] as usize];
+            dst[dst_cn.r_i()] = *r_gamma.get_unchecked(temporary[0] as usize);
+            dst[dst_cn.g_i()] = *g_gamma.get_unchecked(temporary[1] as usize);
+            dst[dst_cn.b_i()] = *b_gamma.get_unchecked(temporary[2] as usize);
             if dst_channels == 4 {
                 dst[dst_cn.a_i()] = chunk[3].to_bits() as u8;
             }
         }
     }
-}
+}}
 
 pub(crate) fn gamma_search_8bit<const SRC_LAYOUT: u8, const DST_LAYOUT: u8>(
     working_set: &[f32],
@@ -89,7 +89,7 @@ pub(crate) fn gamma_search_8bit<const SRC_LAYOUT: u8, const DST_LAYOUT: u8>(
     r_gamma: &[u8; 65536],
     g_gamma: &[u8; 65536],
     b_gamma: &[u8; 65536],
-) 
+)
 {
     unsafe {
         gamma_search_8bit_impl::< SRC_LAYOUT, DST_LAYOUT>(
