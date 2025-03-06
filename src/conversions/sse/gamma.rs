@@ -223,13 +223,18 @@ fn linear_search_rgb_impl<const CAP: usize, const SRC_LAYOUT: u8>(
                 let r = chunk[src_cn.r_i()];
                 let g = chunk[src_cn.g_i()];
                 let b = chunk[src_cn.b_i()];
-                let r_l = *r_linear.get_unchecked(r as usize);
-                let g_l = *g_linear.get_unchecked(g as usize);
-                let b_l = *b_linear.get_unchecked(b as usize);
-                let dst =  working_set.get_unchecked_mut(x..x + 3);
-                dst[0] = r_l;
-                dst[1] = g_l;
-                dst[2] = b_l;
+                let r_l = _mm_broadcast_ss(&r_linear.get_unchecked(r as usize));
+                let g_l = _mm_broadcast_ss(&g_linear.get_unchecked(g as usize));
+                let b_l = _mm_broadcast_ss(&b_linear.get_unchecked(b as usize));
+                let r_g = _mm_unpacklo_ps(r_l, g_l);
+                _mm_storeu_si64(
+                    working_set.get_unchecked_mut(x..).as_mut_ptr() as *mut _,
+                    _mm_castps_si128(r_g),
+                );
+                _mm_storeu_si32(
+                    working_set.get_unchecked_mut(x + 2..).as_mut_ptr() as *mut _,
+                    _mm_castps_si128(b_l),
+                );
                 x += 3
             }
         }
