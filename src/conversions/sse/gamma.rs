@@ -31,6 +31,7 @@ use crate::Layout;
 use std::arch::x86::*;
 #[cfg(target_arch = "x86_64")]
 use std::arch::x86_64::*;
+use num_traits::AsPrimitive;
 
 #[target_feature(enable = "sse4.1")]
 unsafe fn gamma_search_8bit_impl<const SRC_LAYOUT: u8, const DST_LAYOUT: u8>(
@@ -215,22 +216,13 @@ fn linear_search_rgb_impl<const CAP: usize, const SRC_LAYOUT: u8>(
                 x += 4;
             }
         } else {
-            let mut x = 0usize;
-            let total_length = src.len();
-            assert!(src.len() <= working_set.len());
-            while x < total_length {
-                let chunk = src.get_unchecked(x..x + 3);
-                let r = chunk[src_cn.r_i()];
-                let g = chunk[src_cn.g_i()];
-                let b = chunk[src_cn.b_i()];
-                let r_l = *r_linear.get_unchecked(r as usize);
-                let g_l = *g_linear.get_unchecked(g as usize);
-                let b_l = *b_linear.get_unchecked(b as usize);
-                let dst =  working_set.get_unchecked_mut(x..x + 3);
-                dst[0] = r_l;
-                dst[1] = g_l;
-                dst[2] = b_l;
-                x += 3
+            for (chunk, dst) in src
+                .chunks_exact(src_channels)
+                .zip(working_set.chunks_exact_mut(src_channels))
+            {
+                dst[0] = *r_linear.get_unchecked(chunk[src_cn.r_i()].as_());
+                dst[1] = *g_linear.get_unchecked(chunk[src_cn.g_i()].as_());
+                dst[2] = *b_linear.get_unchecked(chunk[src_cn.b_i()].as_());
             }
         }
     }
