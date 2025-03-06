@@ -40,6 +40,7 @@ pub(crate) struct TransformProfileRgb<T: Clone, const BUCKET: usize> {
     pub(crate) adaptation_matrix: Option<Matrix3f>,
 }
 
+#[cfg(not(all(target_arch = "aarch64", target_feature = "neon")))]
 struct TransformProfilePcsXYZRgb<
     T: Clone,
     const SRC_LAYOUT: u8,
@@ -273,6 +274,7 @@ where
     Err(CmsError::UnsupportedProfileConnection)
 }
 
+#[cfg(not(all(target_arch = "aarch64", target_feature = "neon")))]
 impl<
     T: Clone + AsPrimitive<usize> + Default,
     const SRC_LAYOUT: u8,
