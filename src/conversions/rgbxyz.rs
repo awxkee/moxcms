@@ -32,6 +32,7 @@ use crate::conversions::{GamutClipScaleStage, MatrixClipScaleStage, MatrixStage}
 use crate::profile::RenderingIntent;
 use crate::{CmsError, InPlaceStage, Layout, Matrix3f, TransformExecutor, TransformOptions};
 use num_traits::AsPrimitive;
+use crate::mlaf::mlaf;
 
 pub(crate) struct TransformProfileRgb<T: Clone, const BUCKET: usize> {
     pub(crate) r_linear: Box<[f32; BUCKET]>,
@@ -61,23 +62,23 @@ fn make_clip_scale_stage<const LAYOUT: u8, const GAMMA_LUT: usize>(
     matrix: Option<Matrix3f>,
 ) -> Box<dyn InPlaceStage + Send + Sync> {
     let scale = (GAMMA_LUT - 1) as f32;
-    // #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-    // {
-    //     if std::arch::is_x86_feature_detected!("avx2") {
-    //         use crate::conversions::avx::{MatrixClipScaleStageAvx, MatrixClipScaleStageAvxFma};
-    //         return if std::arch::is_x86_feature_detected!("fma") {
-    //             Box::new(MatrixClipScaleStageAvxFma::<LAYOUT> {
-    //                 scale,
-    //                 matrix: matrix.unwrap_or(Matrix3f::IDENTITY),
-    //             })
-    //         } else {
-    //             Box::new(MatrixClipScaleStageAvx::<LAYOUT> {
-    //                 scale,
-    //                 matrix: matrix.unwrap_or(Matrix3f::IDENTITY),
-    //             })
-    //         }
-    //     }
-    // }
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+    {
+        if std::arch::is_x86_feature_detected!("avx2") {
+            use crate::conversions::avx::{MatrixClipScaleStageAvx, MatrixClipScaleStageAvxFma};
+            return if std::arch::is_x86_feature_detected!("fma") {
+                Box::new(MatrixClipScaleStageAvxFma::<LAYOUT> {
+                    scale,
+                    matrix: matrix.unwrap_or(Matrix3f::IDENTITY),
+                })
+            } else {
+                Box::new(MatrixClipScaleStageAvx::<LAYOUT> {
+                    scale,
+                    matrix: matrix.unwrap_or(Matrix3f::IDENTITY),
+                })
+            }
+        }
+    }
     Box::new(MatrixClipScaleStage::<LAYOUT> {
         scale,
         matrix: matrix.unwrap_or(Matrix3f::IDENTITY),
@@ -169,88 +170,220 @@ where
     Err(CmsError::UnsupportedProfileConnection)
 }
 
-impl<
-    T: Clone + AsPrimitive<usize>,
-    const SRC_LAYOUT: u8,
-    const DST_LAYOUT: u8,
-    const LINEAR_CAP: usize,
-    const GAMMA_LUT: usize,
-    const BIT_DEPTH: usize,
-> TransformProfilePcsXYZRgb<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>
-where
-    u32: AsPrimitive<T>,
-{
-    #[inline(always)]
-    fn transform_chunk(
-        &self,
-        src: &[T],
-        dst: &mut [T],
-        working_set: &mut [f32; 672],
-    ) -> Result<(), CmsError> {
-        let src_cn = Layout::from(SRC_LAYOUT);
-        let src_channels = src_cn.channels();
+// impl<
+//     T: Clone + AsPrimitive<usize>,
+//     const SRC_LAYOUT: u8,
+//     const DST_LAYOUT: u8,
+//     const LINEAR_CAP: usize,
+//     const GAMMA_LUT: usize,
+//     const BIT_DEPTH: usize,
+// > TransformProfilePcsXYZRgb<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>
+// where
+//     u32: AsPrimitive<T>,
+// {
+//     #[inline(always)]
+//     fn transform_chunk(
+//         &self,
+//         src: &[T],
+//         dst: &mut [T],
+//         working_set: &mut [f32; 672],
+//     ) -> Result<(), CmsError> {
+//         let src_cn = Layout::from(SRC_LAYOUT);
+//         let src_channels = src_cn.channels();
+// 
+//         let dst_cn = Layout::from(DST_LAYOUT);
+//         let dst_channels = dst_cn.channels();
+// 
+//         for (chunk, dst) in src
+//             .chunks_exact(src_channels)
+//             .zip(working_set.chunks_exact_mut(src_channels))
+//         {
+//             dst[0] = self.profile.r_linear[chunk[src_cn.r_i()].as_()];
+//             dst[1] = self.profile.g_linear[chunk[src_cn.g_i()].as_()];
+//             dst[2] = self.profile.b_linear[chunk[src_cn.b_i()].as_()];
+//             if src_channels == 4 {
+//                 dst[3] = f32::from_bits(chunk[src_cn.a_i()].as_() as u32);
+//             }
+//         }
+// 
+//         let cap_values = (GAMMA_LUT - 1) as f32;
+// 
+//         if let Some(transform) = self.profile.adaptation_matrix {
+//             let sliced = &mut working_set[..src.len()];
+// 
+//             // Check if rendering intent is adequate for gamut chroma clipping
+//             if self.rendering_intent == RenderingIntent::Perceptual
+//                 && self.options.allow_chroma_clipping
+//             {
+//                 let stage = MatrixStage::<SRC_LAYOUT> { matrix: transform };
+//                 stage.transform(sliced)?;
+// 
+//                 let stage = GamutClipScaleStage::<SRC_LAYOUT> { scale: cap_values };
+//                 stage.transform(sliced)?;
+//             } else if self.rendering_intent == RenderingIntent::RelativeColorimetric
+//                 || self.rendering_intent == RenderingIntent::Saturation
+//             {
+//                 let stage = RelativeColorMetricRgbXyz::<SRC_LAYOUT> {
+//                     matrix: transform,
+//                     scale: cap_values,
+//                 };
+//                 stage.transform(sliced)?;
+//             } else {
+//                 self.matrix_clip_scale_stage.transform(sliced)?;
+//             }
+//         }
+// 
+//         let max_value = ((1u32 << BIT_DEPTH) - 1).as_();
+// 
+//         for (chunk, dst) in working_set
+//             .chunks_exact(src_channels)
+//             .zip(dst.chunks_exact_mut(dst_channels))
+//         {
+//             dst[dst_cn.r_i()] = self.profile.r_gamma[chunk[0] as usize];
+//             dst[dst_cn.g_i()] = self.profile.g_gamma[chunk[1] as usize];
+//             dst[dst_cn.b_i()] = self.profile.b_gamma[chunk[2] as usize];
+//             if src_channels == 4 && dst_channels == 4 {
+//                 dst[dst_cn.a_i()] = chunk[3].to_bits().as_();
+//             } else if src_channels == 3 && dst_channels == 4 {
+//                 dst[dst_cn.a_i()] = max_value;
+//             }
+//         }
+// 
+//         Ok(())
+//     }
+// }
+// 
+// impl<
+//     T: Clone + AsPrimitive<usize> + Default,
+//     const SRC_LAYOUT: u8,
+//     const DST_LAYOUT: u8,
+//     const LINEAR_CAP: usize,
+//     const GAMMA_LUT: usize,
+//     const BIT_DEPTH: usize,
+// > TransformExecutor<T>
+//     for TransformProfilePcsXYZRgb<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>
+// where
+//     u32: AsPrimitive<T>,
+// {
+//     fn transform(&self, src: &[T], dst: &mut [T]) -> Result<(), CmsError> {
+//         let src_cn = Layout::from(SRC_LAYOUT);
+//         let dst_cn = Layout::from(DST_LAYOUT);
+//         let src_channels = src_cn.channels();
+//         let dst_channels = dst_cn.channels();
+// 
+//         if src.len() / src_channels != dst.len() / dst_channels {
+//             return Err(CmsError::LaneSizeMismatch);
+//         }
+//         if src.len() % src_channels != 0 {
+//             return Err(CmsError::LaneMultipleOfChannels);
+//         }
+//         if dst.len() % dst_channels != 0 {
+//             return Err(CmsError::LaneMultipleOfChannels);
+//         }
+//         let mut working_set = [0f32; 672];
+// 
+//         let (src_chunks, dst_chunks) = compute_chunk_sizes(672, src_channels, dst_channels);
+// 
+//         for (src, dst) in src
+//             .chunks_exact(src_chunks)
+//             .zip(dst.chunks_exact_mut(dst_chunks))
+//         {
+//             self.transform_chunk(src, dst, &mut working_set)?;
+//         }
+// 
+//         let rem = src.chunks_exact(src_chunks).remainder();
+//         let dst_rem = dst.chunks_exact_mut(dst_chunks).into_remainder();
+// 
+//         if !rem.is_empty() {
+//             self.transform_chunk(rem, dst_rem, &mut working_set)?;
+//         }
+// 
+//         Ok(())
+//     }
+// }
 
-        let dst_cn = Layout::from(DST_LAYOUT);
-        let dst_channels = dst_cn.channels();
-
-        for (chunk, dst) in src
-            .chunks_exact(src_channels)
-            .zip(working_set.chunks_exact_mut(src_channels))
-        {
-            dst[0] = self.profile.r_linear[chunk[src_cn.r_i()].as_()];
-            dst[1] = self.profile.g_linear[chunk[src_cn.g_i()].as_()];
-            dst[2] = self.profile.b_linear[chunk[src_cn.b_i()].as_()];
-            if src_channels == 4 {
-                dst[3] = f32::from_bits(chunk[src_cn.a_i()].as_() as u32);
-            }
-        }
-
-        let cap_values = (GAMMA_LUT - 1) as f32;
-
-        if let Some(transform) = self.profile.adaptation_matrix {
-            let sliced = &mut working_set[..src.len()];
-
-            // Check if rendering intent is adequate for gamut chroma clipping
-            if self.rendering_intent == RenderingIntent::Perceptual
-                && self.options.allow_chroma_clipping
-            {
-                let stage = MatrixStage::<SRC_LAYOUT> { matrix: transform };
-                stage.transform(sliced)?;
-
-                let stage = GamutClipScaleStage::<SRC_LAYOUT> { scale: cap_values };
-                stage.transform(sliced)?;
-            } else if self.rendering_intent == RenderingIntent::RelativeColorimetric
-                || self.rendering_intent == RenderingIntent::Saturation
-            {
-                let stage = RelativeColorMetricRgbXyz::<SRC_LAYOUT> {
-                    matrix: transform,
-                    scale: cap_values,
-                };
-                stage.transform(sliced)?;
-            } else {
-                self.matrix_clip_scale_stage.transform(sliced)?;
-            }
-        }
-
-        let max_value = ((1u32 << BIT_DEPTH) - 1).as_();
-
-        for (chunk, dst) in working_set
-            .chunks_exact(src_channels)
-            .zip(dst.chunks_exact_mut(dst_channels))
-        {
-            dst[dst_cn.r_i()] = self.profile.r_gamma[chunk[0] as usize];
-            dst[dst_cn.g_i()] = self.profile.g_gamma[chunk[1] as usize];
-            dst[dst_cn.b_i()] = self.profile.b_gamma[chunk[2] as usize];
-            if src_channels == 4 && dst_channels == 4 {
-                dst[dst_cn.a_i()] = chunk[3].to_bits().as_();
-            } else if src_channels == 3 && dst_channels == 4 {
-                dst[dst_cn.a_i()] = max_value;
-            }
-        }
-
-        Ok(())
-    }
-}
+// impl<
+//     T: Clone + AsPrimitive<usize>,
+//     const SRC_LAYOUT: u8,
+//     const DST_LAYOUT: u8,
+//     const LINEAR_CAP: usize,
+//     const GAMMA_LUT: usize,
+//     const BIT_DEPTH: usize,
+// > TransformProfilePcsXYZRgb<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>
+// where
+//     u32: AsPrimitive<T>,
+// {
+//     #[inline(always)]
+//     fn transform_chunk(
+//         &self,
+//         src: &[T],
+//         dst: &mut [T],
+//         working_set: &mut [f32; 672],
+//     ) -> Result<(), CmsError> {
+//         let src_cn = Layout::from(SRC_LAYOUT);
+//         let src_channels = src_cn.channels();
+// 
+//         let dst_cn = Layout::from(DST_LAYOUT);
+//         let dst_channels = dst_cn.channels();
+// 
+//         for (chunk, dst) in src
+//             .chunks_exact(src_channels)
+//             .zip(working_set.chunks_exact_mut(src_channels))
+//         {
+//             dst[0] = self.profile.r_linear[chunk[src_cn.r_i()].as_()];
+//             dst[1] = self.profile.g_linear[chunk[src_cn.g_i()].as_()];
+//             dst[2] = self.profile.b_linear[chunk[src_cn.b_i()].as_()];
+//             if src_channels == 4 {
+//                 dst[3] = f32::from_bits(chunk[src_cn.a_i()].as_() as u32);
+//             }
+//         }
+// 
+//         let cap_values = (GAMMA_LUT - 1) as f32;
+// 
+//         if let Some(transform) = self.profile.adaptation_matrix {
+//             let sliced = &mut working_set[..src.len()];
+// 
+//             // Check if rendering intent is adequate for gamut chroma clipping
+//             if self.rendering_intent == RenderingIntent::Perceptual
+//                 && self.options.allow_chroma_clipping
+//             {
+//                 let stage = MatrixStage::<SRC_LAYOUT> { matrix: transform };
+//                 stage.transform(sliced)?;
+// 
+//                 let stage = GamutClipScaleStage::<SRC_LAYOUT> { scale: cap_values };
+//                 stage.transform(sliced)?;
+//             } else if self.rendering_intent == RenderingIntent::RelativeColorimetric
+//                 || self.rendering_intent == RenderingIntent::Saturation
+//             {
+//                 let stage = RelativeColorMetricRgbXyz::<SRC_LAYOUT> {
+//                     matrix: transform,
+//                     scale: cap_values,
+//                 };
+//                 stage.transform(sliced)?;
+//             } else {
+//                 self.matrix_clip_scale_stage.transform(sliced)?;
+//             }
+//         }
+// 
+//         let max_value = ((1u32 << BIT_DEPTH) - 1).as_();
+// 
+//         for (chunk, dst) in working_set
+//             .chunks_exact(src_channels)
+//             .zip(dst.chunks_exact_mut(dst_channels))
+//         {
+//             dst[dst_cn.r_i()] = self.profile.r_gamma[chunk[0] as usize];
+//             dst[dst_cn.g_i()] = self.profile.g_gamma[chunk[1] as usize];
+//             dst[dst_cn.b_i()] = self.profile.b_gamma[chunk[2] as usize];
+//             if src_channels == 4 && dst_channels == 4 {
+//                 dst[dst_cn.a_i()] = chunk[3].to_bits().as_();
+//             } else if src_channels == 3 && dst_channels == 4 {
+//                 dst[dst_cn.a_i()] = max_value;
+//             }
+//         }
+// 
+//         Ok(())
+//     }
+// }
 
 impl<
     T: Clone + AsPrimitive<usize> + Default,
@@ -260,7 +393,7 @@ impl<
     const GAMMA_LUT: usize,
     const BIT_DEPTH: usize,
 > TransformExecutor<T>
-    for TransformProfilePcsXYZRgb<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>
+for TransformProfilePcsXYZRgb<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>
 where
     u32: AsPrimitive<T>,
 {
@@ -279,22 +412,71 @@ where
         if dst.len() % dst_channels != 0 {
             return Err(CmsError::LaneMultipleOfChannels);
         }
-        let mut working_set = [0f32; 672];
-
-        let (src_chunks, dst_chunks) = compute_chunk_sizes(672, src_channels, dst_channels);
-
+        
+        let max_value = (1 << BIT_DEPTH ) - 1;
+        
         for (src, dst) in src
-            .chunks_exact(src_chunks)
-            .zip(dst.chunks_exact_mut(dst_chunks))
+            .chunks_exact(src_channels)
+            .zip(dst.chunks_exact_mut(dst_channels))
         {
-            self.transform_chunk(src, dst, &mut working_set)?;
-        }
+            let a: f32;
+            let r = self.profile.r_linear[src[src_cn.r_i()].as_()];
+            let g = self.profile.g_linear[src[src_cn.g_i()].as_()];
+            let b = self.profile.b_linear[src[src_cn.b_i()].as_()];
+            if src_channels == 4 {
+               a = f32::from_bits(src[src_cn.a_i()].as_() as u32);
+            } else {
+                a = f32::from_bits(max_value);
+            }
+            
+            let transform = self.profile.adaptation_matrix.unwrap_or(Matrix3f::IDENTITY);
+            let scale = (GAMMA_LUT - 1) as f32;
 
-        let rem = src.chunks_exact(src_chunks).remainder();
-        let dst_rem = dst.chunks_exact_mut(dst_chunks).into_remainder();
+            let new_r = mlaf(
+                0.5f32,
+                mlaf(
+                    mlaf(r * transform.v[0][0], g, transform.v[0][1]),
+                    b,
+                    transform.v[0][2],
+                )
+                    .max(0f32)
+                    .min(1f32),
+                scale,
+            );
 
-        if !rem.is_empty() {
-            self.transform_chunk(rem, dst_rem, &mut working_set)?;
+            let new_g = mlaf(
+                0.5f32,
+                mlaf(
+                    mlaf(r * transform.v[1][0], g, transform.v[1][1]),
+                    b,
+                    transform.v[1][2],
+                )
+                    .max(0f32)
+                    .min(1f32),
+                scale,
+            );
+            
+            let new_b = mlaf(
+                0.5f32,
+                mlaf(
+                    mlaf(r * transform.v[2][0], g, transform.v[2][1]),
+                    b,
+                    transform.v[2][2],
+                )
+                    .max(0f32)
+                    .min(1f32),
+                scale,
+            );
+
+            dst[dst_cn.r_i()] = self.profile.r_gamma[new_r as usize];
+            dst[dst_cn.g_i()] = self.profile.g_gamma[new_g as usize];
+            dst[dst_cn.b_i()] = self.profile.b_gamma[new_b as usize];
+            if src_channels == 4 && dst_channels == 4 {
+                dst[dst_cn.a_i()] = a.to_bits().as_();
+            } else if src_channels == 3 && dst_channels == 4 {
+                dst[dst_cn.a_i()] = max_value.as_();
+            }
+            
         }
 
         Ok(())
