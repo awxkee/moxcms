@@ -80,7 +80,7 @@ fn main() {
     // )
     // .unwrap();
 
-    let mut cmyk = vec![0u8; (decoder.output_buffer_size().unwrap() / 3) * 4];
+    let mut cmyk = vec![0u8; decoder.output_buffer_size().unwrap()];
 
     // t.transform_pixels(&real_dst, &mut cmyk);
 
@@ -94,7 +94,7 @@ fn main() {
         .create_transform_8bit(
             Layout::Rgb,
             &color_profile,
-            Layout::Rgba,
+            Layout::Rgb,
             TransformOptions {
                 allow_chroma_clipping: false,
                 rendering_intent: RenderingIntent::Perceptual,
@@ -109,16 +109,16 @@ fn main() {
     dest_profile.rendering_intent = RenderingIntent::Perceptual;
     let transform = color_profile
         .create_transform_8bit(
-            Layout::Rgba,
+            Layout::Rgb,
             &dest_profile,
-            Layout::Rgba,
+            Layout::Rgb,
             TransformOptions {
                 allow_chroma_clipping: false,
-                rendering_intent: RenderingIntent::Saturation,
+                rendering_intent: RenderingIntent::Perceptual,
             },
         )
         .unwrap();
-    let mut dst = vec![0u8; rgb.len() / 3 * 4];
+    let mut dst = vec![0u8; rgb.len()];
 
     // let gray_image = rgb
     //     .chunks_exact(3)
@@ -130,13 +130,13 @@ fn main() {
     //
     let instant = Instant::now();
     for (src, dst) in cmyk
-        .chunks_exact(img.width() as usize * 4)
-        .zip(dst.chunks_exact_mut(img.width() as usize * 4))
+        .chunks_exact(img.width() as usize * 3)
+        .zip(dst.chunks_exact_mut(img.width() as usize * 3))
     {
         transform
             .transform(
-                &src[..img.width() as usize * 4],
-                &mut dst[..img.width() as usize * 4],
+                &src[..img.width() as usize * 3],
+                &mut dst[..img.width() as usize * 3],
             )
             .unwrap();
     }
@@ -191,16 +191,12 @@ fn main() {
     // )
     // .unwrap();
 
-    for (chunk) in dst.chunks_exact_mut(4) {
-        chunk[3] = 255;
-    }
-
     image::save_buffer(
         "v_new_sat.png",
         &dst,
         img.dimensions().0,
         img.dimensions().1,
-        image::ExtendedColorType::Rgba8,
+        image::ExtendedColorType::Rgb8,
     )
     .unwrap();
 }
