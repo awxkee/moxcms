@@ -96,7 +96,6 @@ fn main() {
             &color_profile,
             Layout::Rgb,
             TransformOptions {
-                allow_chroma_clipping: false,
                 rendering_intent: RenderingIntent::Perceptual,
             },
         )
@@ -113,7 +112,6 @@ fn main() {
             &dest_profile,
             Layout::Rgb,
             TransformOptions {
-                allow_chroma_clipping: false,
                 rendering_intent: RenderingIntent::Perceptual,
             },
         )

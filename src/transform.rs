@@ -55,11 +55,6 @@ pub trait InPlaceStage {
 /// Declares additional transformation options
 #[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Default)]
 pub struct TransformOptions {
-    /// If enabled in the transformation attempt to
-    /// clip gamut chroma if it is out range will be performed.
-    /// This enables additional functional only on Perceptual rendering intent
-    /// Other intents may do chroma clipping by default
-    pub allow_chroma_clipping: bool,
     pub rendering_intent: RenderingIntent,
 }
 
@@ -254,8 +249,6 @@ impl ColorProfile {
                 src_layout,
                 dst_layout,
                 profile_transform,
-                options.rendering_intent,
-                options,
             );
         } else if self.color_space == DataColorSpace::Gray
             && (dst_pr.color_space == DataColorSpace::Rgb
@@ -412,7 +405,6 @@ mod tests {
                 &srgb_profile,
                 Layout::Rgb,
                 TransformOptions {
-                    allow_chroma_clipping: true,
                     ..TransformOptions::default()
                 },
             )
@@ -425,7 +417,6 @@ mod tests {
                 &srgb_profile,
                 Layout::Rgb,
                 TransformOptions {
-                    allow_chroma_clipping: true,
                     ..TransformOptions::default()
                 },
             )
@@ -438,7 +429,6 @@ mod tests {
                 &srgb_profile,
                 Layout::Rgb,
                 TransformOptions {
-                    allow_chroma_clipping: true,
                     ..TransformOptions::default()
                 },
             )

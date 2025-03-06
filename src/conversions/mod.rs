@@ -47,4 +47,4 @@ pub(crate) use cmyk::{CompressCmykLut, make_cmyk_luts};
 pub(crate) use gray2rgb::make_gray_to_x;
 pub(crate) use rgb2gray::{ToneReproductionRgbToGray, make_rgb_to_gray};
 pub(crate) use rgbxyz::{TransformProfileRgb, make_rgb_xyz_rgb_transform};
-pub(crate) use stages::{GammaSearchFactory, GamutClipScaleStage, MatrixStage};
+pub(crate) use stages::{GammaSearchFactory};

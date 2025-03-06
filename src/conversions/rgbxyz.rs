@@ -28,11 +28,9 @@
  */
 use crate::conversions::chunking::compute_chunk_sizes;
 use crate::conversions::stages::{
-    GammaSearchFactory, GammaSearchRgbFunction, LinearSearchRgbFunction, RelativeColorMetricRgbXyz,
+    GammaSearchFactory, GammaSearchRgbFunction, LinearSearchRgbFunction,
 };
-use crate::conversions::{GamutClipScaleStage, MatrixStage};
-use crate::profile::RenderingIntent;
-use crate::{CmsError, InPlaceStage, Layout, Matrix3f, TransformExecutor, TransformOptions};
+use crate::{CmsError, InPlaceStage, Layout, Matrix3f, TransformExecutor};
 use num_traits::AsPrimitive;
 
 pub(crate) struct TransformProfileRgb<T: Clone, const BUCKET: usize> {
@@ -54,8 +52,6 @@ struct TransformProfilePcsXYZRgb<
     const BIT_DEPTH: usize,
 > {
     pub(crate) profile: TransformProfileRgb<T, LINEAR_CAP>,
-    pub(crate) rendering_intent: RenderingIntent,
-    pub(crate) options: TransformOptions,
     pub(crate) matrix_clip_scale_stage: Box<dyn InPlaceStage + Send + Sync>,
     pub(crate) gamma_search: Box<GammaSearchRgbFunction<T>>,
     pub(crate) linear_search: Box<LinearSearchRgbFunction<T, LINEAR_CAP>>,
@@ -109,8 +105,6 @@ pub(crate) fn make_rgb_xyz_rgb_transform<
     src_layout: Layout,
     dst_layout: Layout,
     profile: TransformProfileRgb<T, LINEAR_CAP>,
-    intent: RenderingIntent,
-    options: TransformOptions,
 ) -> Result<Box<dyn TransformExecutor<T> + Send + Sync>, CmsError>
 where
     u32: AsPrimitive<T>,
@@ -127,8 +121,6 @@ where
             BIT_DEPTH,
         > {
             profile,
-            rendering_intent: intent,
-            options,
             matrix_clip_scale_stage: matrix_clip_stage,
             gamma_search: Box::new(T::provide_rgb_gamma_search::<
                 { Layout::Rgba as u8 },
@@ -153,8 +145,6 @@ where
             BIT_DEPTH,
         > {
             profile,
-            rendering_intent: intent,
-            options,
             matrix_clip_scale_stage: matrix_clip_stage,
             gamma_search: Box::new(T::provide_rgb_gamma_search::<
                 { Layout::Rgb as u8 },
@@ -180,9 +170,7 @@ where
             BIT_DEPTH,
         > {
             profile,
-            rendering_intent: intent,
             matrix_clip_scale_stage: matrix_clip_stage,
-            options,
             gamma_search: Box::new(T::provide_rgb_gamma_search::<
                 { Layout::Rgba as u8 },
                 { Layout::Rgb as u8 },
@@ -207,8 +195,6 @@ where
             BIT_DEPTH,
         > {
             profile,
-            rendering_intent: intent,
-            options,
             matrix_clip_scale_stage: matrix_clip_stage,
             gamma_search: Box::new(T::provide_rgb_gamma_search::<
                 { Layout::Rgb as u8 },
@@ -252,33 +238,11 @@ where
             &self.profile.b_linear,
         );
 
-        let cap_values = (GAMMA_LUT - 1) as f32;
+        let sliced = &mut working_set[..src.len()];
 
-        if let Some(transform) = self.profile.adaptation_matrix {
-            let sliced = &mut working_set[..src.len()];
-
-            // Check if rendering intent is adequate for gamut chroma clipping
-            if self.rendering_intent == RenderingIntent::Perceptual
-                && self.options.allow_chroma_clipping
-            {
-                let stage = MatrixStage::<SRC_LAYOUT> { matrix: transform };
-                stage.transform(sliced)?;
-
-                let stage = GamutClipScaleStage::<SRC_LAYOUT> { scale: cap_values };
-                stage.transform(sliced)?;
-            } else if self.rendering_intent == RenderingIntent::RelativeColorimetric
-                || self.rendering_intent == RenderingIntent::Saturation
-            {
-                let stage = RelativeColorMetricRgbXyz::<SRC_LAYOUT> {
-                    matrix: transform,
-                    scale: cap_values,
-                };
-                stage.transform(sliced)?;
-            } else {
-                self.matrix_clip_scale_stage.transform(sliced)?;
-            }
-        }
-
+        // Check if rendering intent is adequate for gamut chroma clipping
+        self.matrix_clip_scale_stage.transform(sliced)?;
+        
         let search_fn = self.gamma_search.as_ref();
         search_fn(
             working_set,
