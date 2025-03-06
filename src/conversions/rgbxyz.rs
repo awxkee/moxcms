@@ -241,7 +241,7 @@ where
         &self,
         src: &[T],
         dst: &mut [T],
-        working_set: &mut [f32; 1992],
+        working_set: &mut [f32; 12012],
     ) -> Result<(), CmsError> {
         let linear_fn = self.linear_search.as_ref();
         linear_fn(
@@ -275,7 +275,7 @@ where
                 };
                 stage.transform(sliced)?;
             } else {
-                // self.matrix_clip_scale_stage.transform(sliced)?;
+                self.matrix_clip_scale_stage.transform(sliced)?;
             }
         }
 
@@ -319,9 +319,9 @@ where
         if dst.len() % dst_channels != 0 {
             return Err(CmsError::LaneMultipleOfChannels);
         }
-        let mut working_set = [0f32; 1992];
+        let mut working_set = [0f32; 12012];
 
-        let (src_chunks, dst_chunks) = compute_chunk_sizes(1992, src_channels, dst_channels);
+        let (src_chunks, dst_chunks) = compute_chunk_sizes(12012, src_channels, dst_channels);
 
         for (src, dst) in src
             .chunks_exact(src_chunks)
