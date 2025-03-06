@@ -279,25 +279,25 @@ impl GammaSearchFactory<u8> for u8 {
         const DST_LAYOUT: u8,
         const BIT_DEPTH: usize,
     >() -> GammaSearchRgbFunction<u8> {
-        #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-        {
-            if std::arch::is_x86_feature_detected!("sse4.1") {
-                use crate::conversions::sse::gamma_search_8bit;
-                return gamma_search_8bit::<SRC_LAYOUT, DST_LAYOUT>;
-            }
-        }
+        // #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+        // {
+        //     if std::arch::is_x86_feature_detected!("sse4.1") {
+        //         use crate::conversions::sse::gamma_search_8bit;
+        //         return gamma_search_8bit::<SRC_LAYOUT, DST_LAYOUT>;
+        //     }
+        // }
         gamma_search::<u8, SRC_LAYOUT, DST_LAYOUT, BIT_DEPTH>
     }
 
     fn provide_rgb_linear_search<const CAP: usize, const SRC_LAYOUT: u8, const BIT_DEPTH: usize>()
     -> LinearSearchRgbFunction<u8, CAP> {
-        #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-        {
-            if std::arch::is_x86_feature_detected!("sse4.1") {
-                use crate::conversions::sse::linear_search_rgb8;
-                return linear_search_rgb8::<CAP, SRC_LAYOUT>;
-            }
-        }
+        // #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+        // {
+        //     if std::arch::is_x86_feature_detected!("sse4.1") {
+        //         use crate::conversions::sse::linear_search_rgb8;
+        //         return linear_search_rgb8::<CAP, SRC_LAYOUT>;
+        //     }
+        // }
         linear_search_rgb::<u8, CAP, SRC_LAYOUT, BIT_DEPTH>
     }
 }
