@@ -37,76 +37,179 @@ use zune_jpeg::JpegDecoder;
 use zune_jpeg::zune_core::colorspace::ColorSpace;
 use zune_jpeg::zune_core::options::DecoderOptions;
 
+// fn main() {
+//     let funny_icc = fs::read("./assets/fogra39_coated.icc").unwrap();
+//     let funny_profile = ColorProfile::new_from_slice(&funny_icc).unwrap();
+// 
+//     let srgb_perceptual_icc = fs::read("./assets/srgb_perceptual.icc").unwrap();
+//     let srgb_perceptual_profile = ColorProfile::new_from_slice(&srgb_perceptual_icc).unwrap();
+// 
+//     println!("{:?}", srgb_perceptual_profile);
+// 
+//     let f_str = "./assets/bench.jpg";
+//     let file = File::open(f_str).expect("Failed to open file");
+// 
+//     let img = image::ImageReader::open(f_str).unwrap().decode().unwrap();
+//     let rgb = img.to_rgb8();
+// 
+//     let reader = BufReader::new(file);
+//     let ref_reader = &reader;
+// 
+//     let options = DecoderOptions::new_fast().jpeg_set_out_colorspace(ColorSpace::RGB);
+// 
+//     let mut decoder = JpegDecoder::new_with_options(reader, options);
+// 
+//     // let mut decoder = JpegDecoder::new(reader);
+//     decoder.options().set_use_unsafe(true);
+//     decoder.decode_headers().unwrap();
+//     let mut real_dst = vec![0u8; decoder.output_buffer_size().unwrap()];
+// 
+//     // let custom_profile = Profile::new_icc(&funny_icc).unwrap();
+//     //
+//     // let srgb_profile = Profile::new_srgb();
+// 
+//     decoder.decode_into(&mut real_dst).unwrap();
+// 
+//     // let t = Transform::new(&srgb_profile, PixelFormat::RGB_8, &custom_profile, PixelFormat::CMYK_8, Intent::Perceptual).unwrap();
+//     // let t1 = Transform::new(
+//     //     &custom_profile,
+//     //     PixelFormat::CMYK_8,
+//     //     &srgb_profile,
+//     //     PixelFormat::RGBA_8,
+//     //     Intent::Perceptual,
+//     // )
+//     // .unwrap();
+// 
+//     let mut cmyk = vec![0u8; (decoder.output_buffer_size().unwrap() / 3) * 4];
+// 
+//     // t.transform_pixels(&real_dst, &mut cmyk);
+// 
+//     let icc = decoder.icc_profile().unwrap();
+//     let color_profile = ColorProfile::new_from_slice(&icc).unwrap();
+//     // let color_profile = ColorProfile::new_gray_with_gamma(2.2);
+//     let mut dest_profile = ColorProfile::new_srgb();
+// 
+//     let instant = Instant::now();
+//     let rgb_to_cmyk = dest_profile
+//         .create_transform_8bit(
+//             Layout::Rgb,
+//             &color_profile,
+//             Layout::Rgba,
+//             TransformOptions {
+//                 allow_chroma_clipping: false,
+//                 rendering_intent: RenderingIntent::Perceptual,
+//             },
+//         )
+//         .unwrap();
+// 
+//     rgb_to_cmyk.transform(&real_dst, &mut cmyk).unwrap();
+// 
+//     println!("Execution time: {:?}", instant.elapsed());
+// 
+//     dest_profile.rendering_intent = RenderingIntent::Perceptual;
+//     let transform = color_profile
+//         .create_transform_8bit(
+//             Layout::Rgba,
+//             &dest_profile,
+//             Layout::Rgba,
+//             TransformOptions {
+//                 allow_chroma_clipping: false,
+//                 rendering_intent: RenderingIntent::Saturation,
+//             },
+//         )
+//         .unwrap();
+//     let mut dst = vec![0u8; rgb.len() / 3 * 4];
+// 
+//     // let gray_image = rgb
+//     //     .chunks_exact(3)
+//     //     .map(|chunk| {
+//     //         (0.2126 * chunk[0] as f32 + 0.7152 * chunk[1] as f32 + 0.0722 * chunk[2] as f32).round()
+//     //             as u8
+//     //     })
+//     //     .collect::<Vec<u8>>();
+//     //
+//     let instant = Instant::now();
+//     for (src, dst) in cmyk
+//         .chunks_exact(img.width() as usize * 4)
+//         .zip(dst.chunks_exact_mut(img.width() as usize * 4))
+//     {
+//         transform
+//             .transform(
+//                 &src[..img.width() as usize * 4],
+//                 &mut dst[..img.width() as usize * 4],
+//             )
+//             .unwrap();
+//     }
+//     println!("Estimated time: {:?}", instant.elapsed());
+// 
+//     // let image = JxlImage::builder()
+//     //     .pool(JxlThreadPool::none())
+//     //     .read(std::io::Cursor::new(fs::read("./assets/test.jxl").unwrap()))
+//     //     .unwrap();
+//     //
+//     // let render = image.render_frame(0).unwrap();
+//     // let rendered_icc = image.rendered_icc();
+//     // let image = render.image_all_channels();
+//     // let float_image = RgbImage::from_raw(
+//     //     image.width() as u32,
+//     //     image.height() as u32,
+//     //     image
+//     //         .buf()
+//     //         .iter()
+//     //         .map(|x| x * 255. + 0.5)
+//     //         .map(|x| x as u8)
+//     //         .collect::<Vec<_>>(),
+//     // )
+//     //     .unwrap();
+//     //
+//     // let jxl_profile = ColorProfile::new_from_slice(&rendered_icc).unwrap();
+//     // let mut dst2 = vec![0u8; float_image.len()];
+//     // let transform2 = jxl_profile
+//     //     .create_transform_8bit(&dest_profile, Layout::Rgb8)
+//     //     .unwrap();
+//     //
+//     // for (src, dst) in float_image
+//     //     .chunks_exact(float_image.width() as usize * 3)
+//     //     .zip(dst2.chunks_exact_mut(float_image.dimensions().0 as usize * 3))
+//     // {
+//     //     // ot.transform_pixels(src, dst);
+//     //
+//     //     transform2
+//     //         .transform(
+//     //             &src[..float_image.dimensions().0 as usize * 3],
+//     //             &mut dst[..float_image.dimensions().0 as usize * 3],
+//     //         )
+//     //         .unwrap();
+//     // }
+//     //
+//     // image::save_buffer(
+//     //     "jx.jpg",
+//     //     &dst2,
+//     //     float_image.dimensions().0,
+//     //     float_image.dimensions().1,
+//     //     image::ExtendedColorType::Rgb8,
+//     // )
+//     // .unwrap();
+// 
+//     for (chunk) in dst.chunks_exact_mut(4) {
+//         chunk[3] = 255;
+//     }
+// 
+//     image::save_buffer(
+//         "v_new_sat.png",
+//         &dst,
+//         img.dimensions().0,
+//         img.dimensions().1,
+//         image::ExtendedColorType::Rgba8,
+//     )
+//     .unwrap();
+// }
+
 fn main() {
-    let funny_icc = fs::read("./assets/fogra39_coated.icc").unwrap();
-    let funny_profile = ColorProfile::new_from_slice(&funny_icc).unwrap();
-
-    let srgb_perceptual_icc = fs::read("./assets/srgb_perceptual.icc").unwrap();
-    let srgb_perceptual_profile = ColorProfile::new_from_slice(&srgb_perceptual_icc).unwrap();
-
-    println!("{:?}", srgb_perceptual_profile);
-
-    let f_str = "./assets/bench.jpg";
-    let file = File::open(f_str).expect("Failed to open file");
-
-    let img = image::ImageReader::open(f_str).unwrap().decode().unwrap();
-    let rgb = img.to_rgb8();
-
-    let reader = BufReader::new(file);
-    let ref_reader = &reader;
-
-    let options = DecoderOptions::new_fast().jpeg_set_out_colorspace(ColorSpace::RGB);
-
-    let mut decoder = JpegDecoder::new_with_options(reader, options);
-
-    // let mut decoder = JpegDecoder::new(reader);
-    decoder.options().set_use_unsafe(true);
-    decoder.decode_headers().unwrap();
-    let mut real_dst = vec![0u8; decoder.output_buffer_size().unwrap()];
-
-    // let custom_profile = Profile::new_icc(&funny_icc).unwrap();
-    //
-    // let srgb_profile = Profile::new_srgb();
-
-    decoder.decode_into(&mut real_dst).unwrap();
-
-    // let t = Transform::new(&srgb_profile, PixelFormat::RGB_8, &custom_profile, PixelFormat::CMYK_8, Intent::Perceptual).unwrap();
-    // let t1 = Transform::new(
-    //     &custom_profile,
-    //     PixelFormat::CMYK_8,
-    //     &srgb_profile,
-    //     PixelFormat::RGBA_8,
-    //     Intent::Perceptual,
-    // )
-    // .unwrap();
-
-    let mut cmyk = vec![0u8; (decoder.output_buffer_size().unwrap() / 3) * 4];
-
-    // t.transform_pixels(&real_dst, &mut cmyk);
-
-    let icc = decoder.icc_profile().unwrap();
-    let color_profile = ColorProfile::new_from_slice(&icc).unwrap();
+    let color_profile = ColorProfile::new_bt2020();
     // let color_profile = ColorProfile::new_gray_with_gamma(2.2);
-    let mut dest_profile = ColorProfile::new_srgb();
+    let dest_profile = ColorProfile::new_srgb();
 
-    let instant = Instant::now();
-    let rgb_to_cmyk = dest_profile
-        .create_transform_8bit(
-            Layout::Rgb,
-            &color_profile,
-            Layout::Rgba,
-            TransformOptions {
-                allow_chroma_clipping: false,
-                rendering_intent: RenderingIntent::Perceptual,
-            },
-        )
-        .unwrap();
-
-    rgb_to_cmyk.transform(&real_dst, &mut cmyk).unwrap();
-
-    println!("Execution time: {:?}", instant.elapsed());
-
-    dest_profile.rendering_intent = RenderingIntent::Perceptual;
     let transform = color_profile
         .create_transform_8bit(
             Layout::Rgba,
@@ -114,93 +217,25 @@ fn main() {
             Layout::Rgba,
             TransformOptions {
                 allow_chroma_clipping: false,
-                rendering_intent: RenderingIntent::Saturation,
+                rendering_intent: RenderingIntent::Perceptual,
             },
         )
         .unwrap();
-    let mut dst = vec![0u8; rgb.len() / 3 * 4];
-
-    // let gray_image = rgb
-    //     .chunks_exact(3)
-    //     .map(|chunk| {
-    //         (0.2126 * chunk[0] as f32 + 0.7152 * chunk[1] as f32 + 0.0722 * chunk[2] as f32).round()
-    //             as u8
-    //     })
-    //     .collect::<Vec<u8>>();
-    //
-    let instant = Instant::now();
-    for (src, dst) in cmyk
-        .chunks_exact(img.width() as usize * 4)
-        .zip(dst.chunks_exact_mut(img.width() as usize * 4))
+    let width = 1920;
+    let height = 1080;
+    let mut dst = vec![0u8; width * height  * 4];
+    let src = vec![251u8; width * height  * 4];
+    
+    for (src, dst) in src
+        .chunks_exact(width * 4)
+        .zip(dst.chunks_exact_mut(width * 4))
     {
         transform
             .transform(
-                &src[..img.width() as usize * 4],
-                &mut dst[..img.width() as usize * 4],
+                &src[..width * 4],
+                &mut dst[..width * 4],
             )
             .unwrap();
     }
-    println!("Estimated time: {:?}", instant.elapsed());
 
-    // let image = JxlImage::builder()
-    //     .pool(JxlThreadPool::none())
-    //     .read(std::io::Cursor::new(fs::read("./assets/test.jxl").unwrap()))
-    //     .unwrap();
-    //
-    // let render = image.render_frame(0).unwrap();
-    // let rendered_icc = image.rendered_icc();
-    // let image = render.image_all_channels();
-    // let float_image = RgbImage::from_raw(
-    //     image.width() as u32,
-    //     image.height() as u32,
-    //     image
-    //         .buf()
-    //         .iter()
-    //         .map(|x| x * 255. + 0.5)
-    //         .map(|x| x as u8)
-    //         .collect::<Vec<_>>(),
-    // )
-    //     .unwrap();
-    //
-    // let jxl_profile = ColorProfile::new_from_slice(&rendered_icc).unwrap();
-    // let mut dst2 = vec![0u8; float_image.len()];
-    // let transform2 = jxl_profile
-    //     .create_transform_8bit(&dest_profile, Layout::Rgb8)
-    //     .unwrap();
-    //
-    // for (src, dst) in float_image
-    //     .chunks_exact(float_image.width() as usize * 3)
-    //     .zip(dst2.chunks_exact_mut(float_image.dimensions().0 as usize * 3))
-    // {
-    //     // ot.transform_pixels(src, dst);
-    //
-    //     transform2
-    //         .transform(
-    //             &src[..float_image.dimensions().0 as usize * 3],
-    //             &mut dst[..float_image.dimensions().0 as usize * 3],
-    //         )
-    //         .unwrap();
-    // }
-    //
-    // image::save_buffer(
-    //     "jx.jpg",
-    //     &dst2,
-    //     float_image.dimensions().0,
-    //     float_image.dimensions().1,
-    //     image::ExtendedColorType::Rgb8,
-    // )
-    // .unwrap();
-
-    for (chunk) in dst.chunks_exact_mut(4) {
-        chunk[3] = 255;
-    }
-
-    image::save_buffer(
-        "v_new_sat.png",
-        &dst,
-        img.dimensions().0,
-        img.dimensions().1,
-        image::ExtendedColorType::Rgba8,
-    )
-    .unwrap();
 }

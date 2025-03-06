@@ -27,3 +27,7 @@ rand = "0.9.0"
 # RUSTDOCFLAGS="--cfg docsrs" cargo +nightly doc --all-features --no-deps --open --manifest-path ./Cargo.toml
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
+
+[profile.profiling]
+inherits = "release"
+debug = true

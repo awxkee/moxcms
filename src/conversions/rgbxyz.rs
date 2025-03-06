@@ -208,7 +208,7 @@ where
         &self,
         src: &[T],
         dst: &mut [T],
-        working_set: &mut [f32; 672],
+        working_set: &mut [f32; 1992],
     ) -> Result<(), CmsError> {
         let src_cn = Layout::from(SRC_LAYOUT);
         let src_channels = src_cn.channels();
@@ -292,9 +292,9 @@ where
         if dst.len() % dst_channels != 0 {
             return Err(CmsError::LaneMultipleOfChannels);
         }
-        let mut working_set = [0f32; 672];
+        let mut working_set = [0f32; 1992];
 
-        let (src_chunks, dst_chunks) = compute_chunk_sizes(672, src_channels, dst_channels);
+        let (src_chunks, dst_chunks) = compute_chunk_sizes(1992, src_channels, dst_channels);
 
         for (src, dst) in src
             .chunks_exact(src_chunks)
