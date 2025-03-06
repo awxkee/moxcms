@@ -422,9 +422,9 @@ where
 
         let lut_origins = create_lut3_samples::<T, GRID_SIZE>();
 
-        let lin_r = source.build_r_linearize_table::<LINEAR_CAP>()?;
-        let lin_g = source.build_g_linearize_table::<LINEAR_CAP>()?;
-        let lin_b = source.build_b_linearize_table::<LINEAR_CAP>()?;
+        let lin_r = source.build_r_linearize_table::<LINEAR_CAP, BIT_DEPTH>()?;
+        let lin_g = source.build_g_linearize_table::<LINEAR_CAP, BIT_DEPTH>()?;
+        let lin_b = source.build_b_linearize_table::<LINEAR_CAP, BIT_DEPTH>()?;
 
         let lin_stage = RgbLinearizationStage::<T, BIT_DEPTH, LINEAR_CAP, GRID_SIZE> {
             r_lin: lin_r,

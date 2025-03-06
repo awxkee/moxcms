@@ -248,9 +248,12 @@ fn gamma_search<
         .chunks_exact(src_channels)
         .zip(dst.chunks_exact_mut(dst_channels))
     {
-        dst[dst_cn.r_i()] = r_gamma[(chunk[0] as u16) as usize];
-        dst[dst_cn.g_i()] = g_gamma[(chunk[1] as u16) as usize];
-        dst[dst_cn.b_i()] = b_gamma[(chunk[2] as u16) as usize];
+        let r = (chunk[0] as u16) as usize;
+        let g = (chunk[1] as u16) as usize;
+        let b = (chunk[2] as u16) as usize;
+        dst[dst_cn.r_i()] = r_gamma[r];
+        dst[dst_cn.g_i()] = g_gamma[g];
+        dst[dst_cn.b_i()] = b_gamma[b];
         if src_channels == 4 && dst_channels == 4 {
             dst[dst_cn.a_i()] = chunk[3].to_bits().as_();
         } else if src_channels == 3 && dst_channels == 4 {
@@ -339,22 +342,104 @@ fn linear_search_rgb<
     let src_channels = src_cn.channels();
     if src_channels == 4 {
         for (chunk, dst) in src
-            .chunks_exact(src_channels)
-            .zip(working_set.chunks_exact_mut(src_channels))
+            .chunks_exact(src_channels * 3)
+            .zip(working_set.chunks_exact_mut(src_channels * 3))
         {
-            dst[0] = r_linear[chunk[src_cn.r_i()].as_()];
-            dst[1] = g_linear[chunk[src_cn.g_i()].as_()];
-            dst[2] = b_linear[chunk[src_cn.b_i()].as_()];
-            dst[3] = f32::from_bits(chunk[src_cn.a_i()].as_() as u32);
+            let r0 = chunk[src_cn.r_i()].as_();
+            let g0 = chunk[src_cn.g_i()].as_();
+            let b0 = chunk[src_cn.b_i()].as_();
+            let a0 = chunk[src_cn.a_i()].as_();
+
+            let r1 = chunk[src_cn.r_i() + 4].as_();
+            let g1 = chunk[src_cn.g_i() + 4].as_();
+            let b1 = chunk[src_cn.b_i() + 4].as_();
+            let a1 = chunk[src_cn.a_i() + 4].as_();
+
+            let r2 = chunk[src_cn.r_i() + 8].as_();
+            let g2 = chunk[src_cn.g_i() + 8].as_();
+            let b2 = chunk[src_cn.b_i() + 8].as_();
+            let a2 = chunk[src_cn.a_i() + 8].as_();
+
+            dst[0] = r_linear[r0];
+            dst[1] = g_linear[g0];
+            dst[2] = b_linear[b0];
+            dst[3] = f32::from_bits(a0 as u32);
+
+            dst[4] = r_linear[r1];
+            dst[5] = g_linear[g1];
+            dst[6] = b_linear[b1];
+            dst[7] = f32::from_bits(a1 as u32);
+
+            dst[8] = r_linear[r2];
+            dst[9] = g_linear[g2];
+            dst[10] = b_linear[b2];
+            dst[11] = f32::from_bits(a2 as u32);
         }
-    } else {
+
+        let src = src.chunks_exact(src_channels * 3).remainder();
+        let working_set = working_set
+            .chunks_exact_mut(src_channels * 3)
+            .into_remainder();
+
         for (chunk, dst) in src
             .chunks_exact(src_channels)
             .zip(working_set.chunks_exact_mut(src_channels))
         {
-            dst[0] = r_linear[chunk[src_cn.r_i()].as_()];
-            dst[1] = g_linear[chunk[src_cn.g_i()].as_()];
-            dst[2] = b_linear[chunk[src_cn.b_i()].as_()];
+            let r0 = chunk[src_cn.r_i()].as_();
+            let g0 = chunk[src_cn.g_i()].as_();
+            let b0 = chunk[src_cn.b_i()].as_();
+            let a0 = chunk[src_cn.a_i()].as_();
+
+            dst[0] = r_linear[r0];
+            dst[1] = g_linear[g0];
+            dst[2] = b_linear[b0];
+            dst[3] = f32::from_bits(a0 as u32);
+        }
+    } else if src_channels == 3 {
+        for (chunk, dst) in src
+            .chunks_exact(src_channels * 3)
+            .zip(working_set.chunks_exact_mut(src_channels * 3))
+        {
+            let r0 = chunk[src_cn.r_i()].as_();
+            let g0 = chunk[src_cn.g_i()].as_();
+            let b0 = chunk[src_cn.b_i()].as_();
+
+            let r1 = chunk[src_cn.r_i() + 3].as_();
+            let g1 = chunk[src_cn.g_i() + 3].as_();
+            let b1 = chunk[src_cn.b_i() + 3].as_();
+
+            let r2 = chunk[src_cn.r_i() + 6].as_();
+            let g2 = chunk[src_cn.g_i() + 6].as_();
+            let b2 = chunk[src_cn.b_i() + 6].as_();
+
+            dst[0] = r_linear[r0];
+            dst[1] = g_linear[g0];
+            dst[2] = b_linear[b0];
+
+            dst[3] = r_linear[r1];
+            dst[4] = g_linear[g1];
+            dst[5] = b_linear[b1];
+
+            dst[6] = r_linear[r2];
+            dst[7] = g_linear[g2];
+            dst[8] = b_linear[b2];
+        }
+
+        let src = src.chunks_exact(src_channels * 3).remainder();
+        let working_set = working_set
+            .chunks_exact_mut(src_channels * 3)
+            .into_remainder();
+
+        for (chunk, dst) in src
+            .chunks_exact(src_channels)
+            .zip(working_set.chunks_exact_mut(src_channels))
+        {
+            let r = chunk[src_cn.r_i()].as_();
+            let g = chunk[src_cn.g_i()].as_();
+            let b = chunk[src_cn.b_i()].as_();
+            dst[0] = r_linear[r];
+            dst[1] = g_linear[g];
+            dst[2] = b_linear[b];
         }
     }
 }

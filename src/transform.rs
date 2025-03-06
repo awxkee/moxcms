@@ -178,8 +178,7 @@ impl ColorProfile {
         dst_layout: Layout,
         options: TransformOptions,
     ) -> Result<Box<Transform16BitExecutor>, CmsError> {
-        const CAP: usize = 1 << 12;
-        self.create_transform_nbit::<u16, 12, CAP, 16384>(src_layout, dst_pr, dst_layout, options)
+        self.create_transform_nbit::<u16, 12, 65536, 16384>(src_layout, dst_pr, dst_layout, options)
     }
 
     /// Creates transform between source and destination profile
@@ -191,8 +190,7 @@ impl ColorProfile {
         dst_layout: Layout,
         options: TransformOptions,
     ) -> Result<Box<Transform16BitExecutor>, CmsError> {
-        const CAP: usize = 1 << 10;
-        self.create_transform_nbit::<u16, 10, CAP, 8192>(src_layout, dst_pr, dst_layout, options)
+        self.create_transform_nbit::<u16, 10, 65536, 8192>(src_layout, dst_pr, dst_layout, options)
     }
 
     fn create_transform_nbit<
@@ -231,9 +229,9 @@ impl ColorProfile {
             }
             let transform = self.transform_matrix(dst_pr);
 
-            let lin_r = self.build_r_linearize_table::<LINEAR_CAP>()?;
-            let lin_g = self.build_g_linearize_table::<LINEAR_CAP>()?;
-            let lin_b = self.build_b_linearize_table::<LINEAR_CAP>()?;
+            let lin_r = self.build_r_linearize_table::<LINEAR_CAP, BIT_DEPTH>()?;
+            let lin_g = self.build_g_linearize_table::<LINEAR_CAP, BIT_DEPTH>()?;
+            let lin_b = self.build_b_linearize_table::<LINEAR_CAP, BIT_DEPTH>()?;
 
             let gamma_r =
                 dst_pr.build_gamma_table::<T, 65536, GAMMA_CAP, BIT_DEPTH>(&self.red_trc)?;
@@ -268,7 +266,7 @@ impl ColorProfile {
             if src_layout != Layout::GrayAlpha && src_layout != Layout::Gray {
                 return Err(CmsError::InvalidLayout);
             }
-            let gray_linear = self.build_gray_linearize_table::<LINEAR_CAP>()?;
+            let gray_linear = self.build_gray_linearize_table::<LINEAR_CAP, BIT_DEPTH>()?;
             let gray_gamma =
                 dst_pr.build_gamma_table::<T, 65536, GAMMA_CAP, BIT_DEPTH>(&self.gray_trc)?;
 
@@ -290,9 +288,9 @@ impl ColorProfile {
                 return Err(CmsError::InvalidLayout);
             }
 
-            let lin_r = self.build_r_linearize_table::<LINEAR_CAP>()?;
-            let lin_g = self.build_g_linearize_table::<LINEAR_CAP>()?;
-            let lin_b = self.build_b_linearize_table::<LINEAR_CAP>()?;
+            let lin_r = self.build_r_linearize_table::<LINEAR_CAP, BIT_DEPTH>()?;
+            let lin_g = self.build_g_linearize_table::<LINEAR_CAP, BIT_DEPTH>()?;
+            let lin_b = self.build_b_linearize_table::<LINEAR_CAP, BIT_DEPTH>()?;
             let gray_linear =
                 dst_pr.build_gamma_table::<T, 65536, GAMMA_CAP, BIT_DEPTH>(&dst_pr.gray_trc)?;
 
