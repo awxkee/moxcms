@@ -36,10 +36,12 @@ pub(crate) unsafe fn _mm256_opt_fmlaf_ps<const FMA: bool>(
     a: __m256,
     b: __m256,
     c: __m256,
-) -> __m256 { unsafe {
-    if FMA {
-        _mm256_fmadd_ps(b, c, a)
-    } else {
-        _mm256_add_ps(_mm256_mul_ps(b, c), a)
+) -> __m256 {
+    unsafe {
+        if FMA {
+            _mm256_fmadd_ps(b, c, a)
+        } else {
+            _mm256_add_ps(_mm256_mul_ps(b, c), a)
+        }
     }
-}}
+}

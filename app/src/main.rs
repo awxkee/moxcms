@@ -65,7 +65,7 @@ fn main() {
     let mut real_dst = vec![0u8; decoder.output_buffer_size().unwrap()];
 
     // let custom_profile = Profile::new_icc(&funny_icc).unwrap();
-    // 
+    //
     // let srgb_profile = Profile::new_srgb();
 
     decoder.decode_into(&mut real_dst).unwrap();

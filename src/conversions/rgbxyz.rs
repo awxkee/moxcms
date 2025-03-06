@@ -260,7 +260,7 @@ where
             &self.profile.g_gamma,
             &self.profile.b_gamma,
         );
-        
+
         Ok(())
     }
 }

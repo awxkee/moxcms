@@ -290,6 +290,13 @@ impl GammaSearchFactory<u16> for u16 {
         const DST_LAYOUT: u8,
         const BIT_DEPTH: usize,
     >() -> GammaSearchFunction<u16> {
+        #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+        {
+            if std::arch::is_x86_feature_detected!("sse4.1") {
+                use crate::conversions::sse::gamma_search_16bit;
+                return gamma_search_16bit::<SRC_LAYOUT, DST_LAYOUT, BIT_DEPTH>;
+            }
+        }
         gamma_search::<u16, SRC_LAYOUT, DST_LAYOUT, BIT_DEPTH>
     }
 }
