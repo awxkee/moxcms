@@ -44,7 +44,6 @@ fn fuzz_8_bit(width: usize, height: usize, px: u8, src_layout: Layout, dst_layou
             &dst_profile,
             dst_layout,
             TransformOptions {
-                allow_chroma_clipping: false,
                 rendering_intent: RenderingIntent::Perceptual,
             },
         )
@@ -68,7 +67,6 @@ fn fuzz_16_bit(width: usize, height: usize, px: u16, src_layout: Layout, dst_lay
             &dst_profile,
             dst_layout,
             TransformOptions {
-                allow_chroma_clipping: false,
                 rendering_intent: RenderingIntent::Perceptual,
             },
         )

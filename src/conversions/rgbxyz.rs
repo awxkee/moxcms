@@ -30,6 +30,7 @@ use crate::conversions::chunking::compute_chunk_sizes;
 use crate::conversions::stages::{
     GammaSearchFactory, GammaSearchRgbFunction, LinearSearchRgbFunction,
 };
+use crate::mlaf::mlaf;
 use crate::{CmsError, InPlaceStage, Layout, Matrix3f, TransformExecutor};
 use num_traits::AsPrimitive;
 
@@ -242,7 +243,7 @@ where
 
         // Check if rendering intent is adequate for gamut chroma clipping
         self.matrix_clip_scale_stage.transform(sliced)?;
-        
+
         let search_fn = self.gamma_search.as_ref();
         search_fn(
             working_set,
@@ -283,22 +284,66 @@ where
         if dst.len() % dst_channels != 0 {
             return Err(CmsError::LaneMultipleOfChannels);
         }
-        let mut working_set = [0f32; 12012];
 
-        let (src_chunks, dst_chunks) = compute_chunk_sizes(12012, src_channels, dst_channels);
+        let transform = self.profile.adaptation_matrix.unwrap_or(Matrix3f::IDENTITY);
+        let scale = (GAMMA_LUT - 1) as f32;
+        let max_colors = (1 << BIT_DEPTH) - 1;
 
         for (src, dst) in src
-            .chunks_exact(src_chunks)
-            .zip(dst.chunks_exact_mut(dst_chunks))
+            .chunks_exact(src_channels)
+            .zip(dst.chunks_exact_mut(dst_channels))
         {
-            self.transform_chunk(src, dst, &mut working_set)?;
-        }
+            let r = self.profile.r_linear[src[src_cn.r_i()].as_()];
+            let g = self.profile.g_linear[src[src_cn.g_i()].as_()];
+            let b = self.profile.b_linear[src[src_cn.b_i()].as_()];
+            let a = if src_channels == 4 {
+                f32::from_bits(src[src_cn.a_i()].as_() as u32)
+            } else {
+                f32::from_bits(max_colors)
+            };
 
-        let rem = src.chunks_exact(src_chunks).remainder();
-        let dst_rem = dst.chunks_exact_mut(dst_chunks).into_remainder();
+            let new_r = mlaf(
+                0.5f32,
+                mlaf(
+                    mlaf(r * transform.v[0][0], g, transform.v[0][1]),
+                    b,
+                    transform.v[0][2],
+                )
+                .max(0f32)
+                .min(1f32),
+                scale,
+            );
 
-        if !rem.is_empty() {
-            self.transform_chunk(rem, dst_rem, &mut working_set)?;
+            let new_g = mlaf(
+                0.5f32,
+                mlaf(
+                    mlaf(r * transform.v[1][0], g, transform.v[1][1]),
+                    b,
+                    transform.v[1][2],
+                )
+                .max(0f32)
+                .min(1f32),
+                scale,
+            );
+
+            let new_b = mlaf(
+                0.5f32,
+                mlaf(
+                    mlaf(r * transform.v[2][0], g, transform.v[2][1]),
+                    b,
+                    transform.v[2][2],
+                )
+                .max(0f32)
+                .min(1f32),
+                scale,
+            );
+
+            dst[dst_cn.r_i()] = self.profile.r_gamma[(new_r as u16) as usize];
+            dst[dst_cn.g_i()] = self.profile.g_gamma[(new_g as u16) as usize];
+            dst[dst_cn.b_i()] = self.profile.b_gamma[(new_b as u16) as usize];
+            if dst_channels == 4 {
+                dst[dst_cn.a_i()] = a.to_bits().as_();
+            }
         }
 
         Ok(())
