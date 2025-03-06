@@ -33,11 +33,13 @@ use crate::{
 };
 use num_traits::AsPrimitive;
 
+#[cfg(not(all(target_arch = "aarch64", target_feature = "neon")))]
 pub(crate) struct MatrixClipScaleStage<const LAYOUT: u8> {
     pub(crate) matrix: Matrix3f,
     pub(crate) scale: f32,
 }
 
+#[cfg(not(all(target_arch = "aarch64", target_feature = "neon")))]
 impl<const LAYOUT: u8> InPlaceStage for MatrixClipScaleStage<LAYOUT> {
     #[inline]
     fn transform(&self, dst: &mut [f32]) -> Result<(), CmsError> {

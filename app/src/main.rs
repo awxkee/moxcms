@@ -40,36 +40,36 @@ use zune_jpeg::zune_core::options::DecoderOptions;
 // fn main() {
 //     let funny_icc = fs::read("./assets/fogra39_coated.icc").unwrap();
 //     let funny_profile = ColorProfile::new_from_slice(&funny_icc).unwrap();
-// 
+//
 //     let srgb_perceptual_icc = fs::read("./assets/srgb_perceptual.icc").unwrap();
 //     let srgb_perceptual_profile = ColorProfile::new_from_slice(&srgb_perceptual_icc).unwrap();
-// 
+//
 //     println!("{:?}", srgb_perceptual_profile);
-// 
+//
 //     let f_str = "./assets/bench.jpg";
 //     let file = File::open(f_str).expect("Failed to open file");
-// 
+//
 //     let img = image::ImageReader::open(f_str).unwrap().decode().unwrap();
 //     let rgb = img.to_rgb8();
-// 
+//
 //     let reader = BufReader::new(file);
 //     let ref_reader = &reader;
-// 
+//
 //     let options = DecoderOptions::new_fast().jpeg_set_out_colorspace(ColorSpace::RGB);
-// 
+//
 //     let mut decoder = JpegDecoder::new_with_options(reader, options);
-// 
+//
 //     // let mut decoder = JpegDecoder::new(reader);
 //     decoder.options().set_use_unsafe(true);
 //     decoder.decode_headers().unwrap();
 //     let mut real_dst = vec![0u8; decoder.output_buffer_size().unwrap()];
-// 
+//
 //     // let custom_profile = Profile::new_icc(&funny_icc).unwrap();
 //     //
 //     // let srgb_profile = Profile::new_srgb();
-// 
+//
 //     decoder.decode_into(&mut real_dst).unwrap();
-// 
+//
 //     // let t = Transform::new(&srgb_profile, PixelFormat::RGB_8, &custom_profile, PixelFormat::CMYK_8, Intent::Perceptual).unwrap();
 //     // let t1 = Transform::new(
 //     //     &custom_profile,
@@ -79,16 +79,16 @@ use zune_jpeg::zune_core::options::DecoderOptions;
 //     //     Intent::Perceptual,
 //     // )
 //     // .unwrap();
-// 
+//
 //     let mut cmyk = vec![0u8; (decoder.output_buffer_size().unwrap() / 3) * 4];
-// 
+//
 //     // t.transform_pixels(&real_dst, &mut cmyk);
-// 
+//
 //     let icc = decoder.icc_profile().unwrap();
 //     let color_profile = ColorProfile::new_from_slice(&icc).unwrap();
 //     // let color_profile = ColorProfile::new_gray_with_gamma(2.2);
 //     let mut dest_profile = ColorProfile::new_srgb();
-// 
+//
 //     let instant = Instant::now();
 //     let rgb_to_cmyk = dest_profile
 //         .create_transform_8bit(
@@ -101,11 +101,11 @@ use zune_jpeg::zune_core::options::DecoderOptions;
 //             },
 //         )
 //         .unwrap();
-// 
+//
 //     rgb_to_cmyk.transform(&real_dst, &mut cmyk).unwrap();
-// 
+//
 //     println!("Execution time: {:?}", instant.elapsed());
-// 
+//
 //     dest_profile.rendering_intent = RenderingIntent::Perceptual;
 //     let transform = color_profile
 //         .create_transform_8bit(
@@ -119,7 +119,7 @@ use zune_jpeg::zune_core::options::DecoderOptions;
 //         )
 //         .unwrap();
 //     let mut dst = vec![0u8; rgb.len() / 3 * 4];
-// 
+//
 //     // let gray_image = rgb
 //     //     .chunks_exact(3)
 //     //     .map(|chunk| {
@@ -141,7 +141,7 @@ use zune_jpeg::zune_core::options::DecoderOptions;
 //             .unwrap();
 //     }
 //     println!("Estimated time: {:?}", instant.elapsed());
-// 
+//
 //     // let image = JxlImage::builder()
 //     //     .pool(JxlThreadPool::none())
 //     //     .read(std::io::Cursor::new(fs::read("./assets/test.jxl").unwrap()))
@@ -190,11 +190,11 @@ use zune_jpeg::zune_core::options::DecoderOptions;
 //     //     image::ExtendedColorType::Rgb8,
 //     // )
 //     // .unwrap();
-// 
+//
 //     for (chunk) in dst.chunks_exact_mut(4) {
 //         chunk[3] = 255;
 //     }
-// 
+//
 //     image::save_buffer(
 //         "v_new_sat.png",
 //         &dst,
@@ -223,19 +223,15 @@ fn main() {
         .unwrap();
     let width = 1920;
     let height = 1080;
-    let mut dst = vec![0u8; width * height  * 4];
-    let src = vec![251u8; width * height  * 4];
-    
+    let mut dst = vec![0u8; width * height * 4];
+    let src = vec![251u8; width * height * 4];
+
     for (src, dst) in src
         .chunks_exact(width * 4)
         .zip(dst.chunks_exact_mut(width * 4))
     {
         transform
-            .transform(
-                &src[..width * 4],
-                &mut dst[..width * 4],
-            )
+            .transform(&src[..width * 4], &mut dst[..width * 4])
             .unwrap();
     }
-
 }

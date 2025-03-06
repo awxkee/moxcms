@@ -30,7 +30,7 @@ use crate::conversions::chunking::compute_chunk_sizes;
 use crate::conversions::stages::{
     GammaSearchFactory, GammaSearchFunction, RelativeColorMetricRgbXyz,
 };
-use crate::conversions::{GamutClipScaleStage, MatrixClipScaleStage, MatrixStage};
+use crate::conversions::{GamutClipScaleStage, MatrixStage};
 use crate::profile::RenderingIntent;
 use crate::{CmsError, InPlaceStage, Layout, Matrix3f, TransformExecutor, TransformOptions};
 use num_traits::AsPrimitive;
@@ -81,10 +81,22 @@ fn make_clip_scale_stage<const LAYOUT: u8, const GAMMA_LUT: usize>(
             };
         }
     }
-    Box::new(MatrixClipScaleStage::<LAYOUT> {
-        scale,
-        matrix: matrix.unwrap_or(Matrix3f::IDENTITY),
-    })
+    #[cfg(all(target_arch = "aarch64", target_feature = "neon"))]
+    {
+        use crate::conversions::neon::MatrixClipScaleStageNeon;
+        return Box::new(MatrixClipScaleStageNeon::<LAYOUT> {
+            scale,
+            matrix: matrix.unwrap_or(Matrix3f::IDENTITY),
+        });
+    }
+    #[cfg(not(all(target_arch = "aarch64", target_feature = "neon")))]
+    {
+        use crate::conversions::MatrixClipScaleStage;
+        Box::new(MatrixClipScaleStage::<LAYOUT> {
+            scale,
+            matrix: matrix.unwrap_or(Matrix3f::IDENTITY),
+        })
+    }
 }
 
 pub(crate) fn make_rgb_xyz_rgb_transform<
