@@ -210,7 +210,6 @@ fn main() {
             &dest_profile,
             Layout::Rgba,
             TransformOptions {
-                allow_chroma_clipping: false,
                 rendering_intent: RenderingIntent::Perceptual,
             },
         )

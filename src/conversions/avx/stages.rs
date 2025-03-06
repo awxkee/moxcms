@@ -160,8 +160,11 @@ where
                 let v2_0 = _mm_mul_ps(b0, m2);
                 let v2_1 = _mm_mul_ps(b1, m2);
 
-                let mut vr_0 = _mm_add_ps(_mm_add_ps(v0_0, v1_0), v2_0);
-                let mut vr_1 = _mm_add_ps(_mm_add_ps(v0_1, v1_1), v2_1);
+                let kv0 = _mm_add_ps(v0_0, v1_0);
+                let kv1 = _mm_add_ps(v0_1, v1_1);
+
+                let mut vr_0 = _mm_add_ps(kv0, v2_0);
+                let mut vr_1 = _mm_add_ps(kv1, v2_1);
                 vr_0 = _mm_max_ps(vr_0, zeros);
                 vr_1 = _mm_max_ps(vr_1, zeros);
                 vr_0 = _mm_opt_fmlaf_ps::<FMA>(rnd, vr_0, v_scale);
