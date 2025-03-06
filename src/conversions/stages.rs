@@ -286,6 +286,12 @@ impl GammaSearchFactory<u8> for u8 {
                 return gamma_search_8bit::<SRC_LAYOUT, DST_LAYOUT>;
             }
         }
+        #[cfg(all(target_arch = "aarch64", target_feature = "neon"))]
+        {
+            use crate::conversions::neon::gamma_search_8bit;
+            return gamma_search_8bit::<SRC_LAYOUT, DST_LAYOUT>;
+        }
+        #[cfg(not(all(target_arch = "aarch64", target_feature = "neon")))]
         gamma_search::<u8, SRC_LAYOUT, DST_LAYOUT, BIT_DEPTH>
     }
 

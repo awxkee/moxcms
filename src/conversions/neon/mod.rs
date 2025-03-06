@@ -27,5 +27,7 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 mod stages;
+mod gamma;
 
 pub(crate) use stages::MatrixClipScaleStageNeon;
+pub(crate) use gamma::gamma_search_8bit;
