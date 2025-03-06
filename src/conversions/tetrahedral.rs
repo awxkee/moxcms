@@ -94,9 +94,10 @@ impl<'a, const GRID_SIZE: usize> Tetrahedral<'a, GRID_SIZE> {
         in_b: u8,
         r: impl Fetcher<T>,
     ) -> T {
-        let linear_r: f32 = in_r as i32 as f32 / 255.0;
-        let linear_g: f32 = in_g as i32 as f32 / 255.0;
-        let linear_b: f32 = in_b as i32 as f32 / 255.0;
+        const SCALE: f32 = 1.0 / 255.0;
+        let linear_r: f32 = in_r as i32 as f32 * SCALE;
+        let linear_g: f32 = in_g as i32 as f32 * SCALE;
+        let linear_b: f32 = in_b as i32 as f32 * SCALE;
         let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / 255;
         let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / 255;
         let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / 255;
