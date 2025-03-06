@@ -235,7 +235,7 @@ fn linear_search_rgb_impl<const CAP: usize, const SRC_LAYOUT: u8>(
                     working_set.get_unchecked_mut(x + 2..).as_mut_ptr() as *mut _,
                     _mm_castps_si128(b_l),
                 );
-                x += 3
+                x += 3;
             }
         }
     }

@@ -204,12 +204,12 @@ fn main() {
     )
     .unwrap();
 }
-// 
+//
 // fn main() {
 //     let color_profile = ColorProfile::new_bt2020();
 //     // let color_profile = ColorProfile::new_gray_with_gamma(2.2);
 //     let dest_profile = ColorProfile::new_srgb();
-// 
+//
 //     let transform = color_profile
 //         .create_transform_8bit(
 //             Layout::Rgba,
@@ -225,7 +225,7 @@ fn main() {
 //     let height = 1080;
 //     let mut dst = vec![0u8; width * height * 4];
 //     let src = vec![251u8; width * height * 4];
-// 
+//
 //     for (src, dst) in src
 //         .chunks_exact(width * 4)
 //         .zip(dst.chunks_exact_mut(width * 4))
