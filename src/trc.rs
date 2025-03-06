@@ -253,20 +253,22 @@ fn u8_fixed_8number_to_float(x: u16) -> f32 {
     (x as i32 as f64 / 256.0) as f32
 }
 
-fn passthrough_table<const N: usize>() -> Box<[f32; N]> {
+fn passthrough_table<const N: usize, const BIT_DEPTH: usize>() -> Box<[f32; N]> {
     let mut gamma_table = Box::new([0f32; N]);
-    let scale_value = 1f64 / (N - 1) as f64;
-    for (i, g) in gamma_table.iter_mut().enumerate() {
+    let max_value = (1 << BIT_DEPTH) - 1;
+    let scale_value = 1f64 / max_value as f64;
+    for (i, g) in gamma_table.iter_mut().enumerate().take(max_value) {
         *g = (i as f64 * scale_value) as f32;
     }
     gamma_table
 }
 
-fn linear_forward_table<const N: usize>(gamma: u16) -> Box<[f32; N]> {
+fn linear_forward_table<const N: usize, const BIT_DEPTH: usize>(gamma: u16) -> Box<[f32; N]> {
     let mut gamma_table = Box::new([0f32; N]);
     let gamma_float: f32 = u8_fixed_8number_to_float(gamma);
-    let scale_value = 1f64 / (N - 1) as f64;
-    for (i, g) in gamma_table.iter_mut().enumerate() {
+    let max_value = (1 << BIT_DEPTH) - 1;
+    let scale_value = 1f64 / max_value as f64;
+    for (i, g) in gamma_table.iter_mut().enumerate().take(max_value) {
         // 0..1^(0..255 + 255/256) will always be between 0 and 1
         *g = pow(i as f64 * scale_value, gamma_float as f64) as f32;
     }
@@ -307,20 +309,35 @@ pub(crate) fn lut_interp_linear(input_value: f64, table: &[u16]) -> f32 {
     value * (1.0 / 65535.0)
 }
 
-fn linear_lut_interpolate<const N: usize>(table: &[u16]) -> Box<[f32; N]> {
+fn linear_lut_interpolate<const N: usize, const BIT_DEPTH: usize>(table: &[u16]) -> Box<[f32; N]> {
     let mut gamma_table = Box::new([0f32; N]);
-    let scale_value = 1f64 / (N - 1) as f64;
-    for (i, g) in gamma_table.iter_mut().enumerate() {
+    let max_value = (1 << BIT_DEPTH) - 1;
+    let scale_value = 1f64 / max_value as f64;
+    for (i, g) in gamma_table.iter_mut().enumerate().take(max_value) {
         *g = lut_interp_linear(i as f64 * scale_value, table);
     }
     gamma_table
 }
 
-fn linear_curve_parametric<const N: usize>(params: &[f32]) -> Option<Box<[f32; N]>> {
+fn linear_curve_parametric<const N: usize, const BIT_DEPTH: usize>(
+    params: &[f32],
+) -> Option<Box<[f32; N]>> {
+    let params = ParametricCurve::new(params)?;
+    let mut gamma_table = Box::new([0f32; N]);
+    let max_value = (1 << BIT_DEPTH) - 1;
+    let scale_value = 1f32 / max_value as f32;
+    for (i, g) in gamma_table.iter_mut().enumerate().take(N) {
+        let x = i as f32 * scale_value;
+        *g = m_clamp(params.eval(x), 0.0, 1.0);
+    }
+    Some(gamma_table)
+}
+
+fn linear_curve_parametric_s<const N: usize>(params: &[f32]) -> Option<Box<[f32; N]>> {
     let params = ParametricCurve::new(params)?;
     let mut gamma_table = Box::new([0f32; N]);
     let scale_value = 1f32 / (N - 1) as f32;
-    for (i, g) in gamma_table.iter_mut().enumerate() {
+    for (i, g) in gamma_table.iter_mut().enumerate().take(N) {
         let x = i as f32 * scale_value;
         *g = m_clamp(params.eval(x), 0.0, 1.0);
     }
@@ -532,13 +549,15 @@ fn invert_lut(table: &[u16], out_length: usize) -> Vec<u16> {
 
 impl Trc {
     #[inline(always)]
-    pub(crate) fn build_linearize_table<const N: usize>(&self) -> Option<Box<[f32; N]>> {
+    pub(crate) fn build_linearize_table<const N: usize, const BIT_DEPTH: usize>(
+        &self,
+    ) -> Option<Box<[f32; N]>> {
         match self {
-            Trc::Parametric(params) => linear_curve_parametric(params),
+            Trc::Parametric(params) => linear_curve_parametric::<N, BIT_DEPTH>(params),
             Trc::Lut(data) => match data.len() {
-                0 => Some(passthrough_table::<N>()),
-                1 => Some(linear_forward_table::<N>(data[0])),
-                _ => Some(linear_lut_interpolate::<N>(data)),
+                0 => Some(passthrough_table::<N, BIT_DEPTH>()),
+                1 => Some(linear_forward_table::<N, BIT_DEPTH>(data[0])),
+                _ => Some(linear_lut_interpolate::<N, BIT_DEPTH>(data)),
             },
         }
     }
@@ -561,7 +580,7 @@ impl Trc {
                 let mut gamma_table_uint: [u16; N] = [0; N];
 
                 let inverted_size: usize = N;
-                let gamma_table = linear_curve_parametric::<N>(params)?;
+                let gamma_table = linear_curve_parametric_s::<N>(params)?;
                 for (&src, dst) in gamma_table.iter().zip(gamma_table_uint.iter_mut()) {
                     *dst = (src * 65535f32) as u16;
                 }
@@ -590,46 +609,54 @@ impl ColorProfile {
     /// Produces LUT for 8 bit tone linearization
     pub fn build_8bit_lin_table(&self, trc: &Option<Trc>) -> Result<Box<[f32; 256]>, CmsError> {
         trc.as_ref()
-            .and_then(|trc| trc.build_linearize_table::<256>())
+            .and_then(|trc| trc.build_linearize_table::<256, 8>())
             .ok_or(CmsError::BuildTransferFunction)
     }
 
     /// Produces LUT for Gray transfer curve with N depth
-    pub fn build_gray_linearize_table<const N: usize>(&self) -> Result<Box<[f32; N]>, CmsError> {
+    pub fn build_gray_linearize_table<const N: usize, const BIT_DEPTH: usize>(
+        &self,
+    ) -> Result<Box<[f32; N]>, CmsError> {
         self.gray_trc
             .as_ref()
-            .and_then(|trc| trc.build_linearize_table::<N>())
+            .and_then(|trc| trc.build_linearize_table::<N, BIT_DEPTH>())
             .ok_or(CmsError::BuildTransferFunction)
     }
 
     /// Produces LUT for Red transfer curve with N depth
-    pub fn build_r_linearize_table<const N: usize>(&self) -> Result<Box<[f32; N]>, CmsError> {
+    pub fn build_r_linearize_table<const N: usize, const BIT_DEPTH: usize>(
+        &self,
+    ) -> Result<Box<[f32; N]>, CmsError> {
         self.red_trc
             .as_ref()
-            .and_then(|trc| trc.build_linearize_table::<N>())
+            .and_then(|trc| trc.build_linearize_table::<N, BIT_DEPTH>())
             .ok_or(CmsError::BuildTransferFunction)
     }
 
     /// Produces LUT for Green transfer curve with N depth
-    pub fn build_g_linearize_table<const N: usize>(&self) -> Result<Box<[f32; N]>, CmsError> {
+    pub fn build_g_linearize_table<const N: usize, const BIT_DEPTH: usize>(
+        &self,
+    ) -> Result<Box<[f32; N]>, CmsError> {
         self.green_trc
             .as_ref()
-            .and_then(|trc| trc.build_linearize_table::<N>())
+            .and_then(|trc| trc.build_linearize_table::<N, BIT_DEPTH>())
             .ok_or(CmsError::BuildTransferFunction)
     }
 
     /// Produces LUT for Blue transfer curve with N depth
-    pub fn build_b_linearize_table<const N: usize>(&self) -> Result<Box<[f32; N]>, CmsError> {
+    pub fn build_b_linearize_table<const N: usize, const BIT_DEPTH: usize>(
+        &self,
+    ) -> Result<Box<[f32; N]>, CmsError> {
         self.blue_trc
             .as_ref()
-            .and_then(|trc| trc.build_linearize_table::<N>())
+            .and_then(|trc| trc.build_linearize_table::<N, BIT_DEPTH>())
             .ok_or(CmsError::BuildTransferFunction)
     }
 
     /// Build gamma table for 8 bit depth
-    /// Only 8192 first bins are used and values scaled in 0..255
+    /// Only 4092 first bins are used and values scaled in 0..255
     pub fn build_8bit_gamma_table(&self, trc: &Option<Trc>) -> Result<Box<[u16; 65536]>, CmsError> {
-        self.build_gamma_table::<u16, 65536, 8192, 8>(trc)
+        self.build_gamma_table::<u16, 65536, 4092, 8>(trc)
     }
 
     /// Build gamma table for 10 bit depth
@@ -690,7 +717,7 @@ mod tests {
         let curve = vec![2.4, 1. / 1.055, 0.055 / 1.055, 1. / 12.92, 0.04045f32];
 
         let inverted_size: usize = 65536;
-        let gamma_table = linear_curve_parametric::<65536>(&curve).unwrap();
+        let gamma_table = linear_curve_parametric::<65536, 16>(&curve).unwrap();
         for (&src, dst) in gamma_table.iter().zip(gamma_table_uint.iter_mut()) {
             *dst = (src * 65535f32) as u16;
         }

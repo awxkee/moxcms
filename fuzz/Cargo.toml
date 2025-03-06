@@ -1,8 +1,21 @@
 [package]
-name = "fuzz"
-version = "0.1.0"
+name = "app-fuzz"
+version = "0.0.0"
+publish = false
 edition = "2024"
 
+[package.metadata]
+cargo-fuzz = true
+
 [dependencies]
-afl = "*"
-url = "*"
+libfuzzer-sys = "0.4"
+
+[dependencies.moxcms]
+path = ".."
+
+[[bin]]
+name = "unsafe"
+path = "unsafe/unsafe.rs"
+test = false
+doc = false
+bench = false

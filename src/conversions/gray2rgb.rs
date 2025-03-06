@@ -200,7 +200,7 @@ where
             .chunks_exact(src_channels)
             .zip(dst.chunks_exact_mut(dst_channels))
         {
-            let possible_value = (chunk[0] * max_lut_size).round() as usize;
+            let possible_value = ((chunk[0] * max_lut_size).round() as u16) as usize;
             let gamma_value = self.gray_gamma[possible_value];
 
             let alpha_value = if src_cn == Layout::GrayAlpha {
