@@ -220,9 +220,9 @@ fn linear_search_rgb_impl<const CAP: usize, const SRC_LAYOUT: u8>(
                 .chunks_exact(src_channels)
                 .zip(working_set.chunks_exact_mut(src_channels))
             {
-                dst[0] = *r_linear.get_unchecked(chunk[src_cn.r_i()].as_());
-                dst[1] = *g_linear.get_unchecked(chunk[src_cn.g_i()].as_());
-                dst[2] = *b_linear.get_unchecked(chunk[src_cn.b_i()].as_());
+                dst[0] = *r_linear.get_unchecked::<usize>(chunk[src_cn.r_i()].as_());
+                dst[1] = *g_linear.get_unchecked::<usize>(chunk[src_cn.g_i()].as_());
+                dst[2] = *b_linear.get_unchecked::<usize>(chunk[src_cn.b_i()].as_());
             }
         }
     }
