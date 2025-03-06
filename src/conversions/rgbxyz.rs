@@ -275,7 +275,7 @@ where
                 };
                 stage.transform(sliced)?;
             } else {
-                self.matrix_clip_scale_stage.transform(sliced)?;
+                // self.matrix_clip_scale_stage.transform(sliced)?;
             }
         }
 
