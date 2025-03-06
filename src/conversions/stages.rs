@@ -26,16 +26,18 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-use crate::Layout;
+
+use crate::mlaf::mlaf;
+use crate::{CmsError, InPlaceStage, Layout, Matrix3f};
 use num_traits::AsPrimitive;
 
-#[cfg(not(all(target_arch = "aarch64", target_feature = "neon")))]
+#[allow(dead_code, unused)]
 pub(crate) struct MatrixClipScaleStage<const LAYOUT: u8> {
     pub(crate) matrix: Matrix3f,
     pub(crate) scale: f32,
 }
 
-#[cfg(not(all(target_arch = "aarch64", target_feature = "neon")))]
+#[allow(dead_code, unused)]
 impl<const LAYOUT: u8> InPlaceStage for MatrixClipScaleStage<LAYOUT> {
     #[inline]
     fn transform(&self, dst: &mut [f32]) -> Result<(), CmsError> {
