@@ -71,7 +71,7 @@ unsafe fn gamma_search_8bit_impl<const SRC_LAYOUT: u8, const DST_LAYOUT: u8>(
 
                 let src_f0 = _mm_cvtps_epi32(_mm_castsi128_ps(src_vl0));
                 let src_f1 = _mm_cvtps_epi32(_mm_castsi128_ps(src_vl1));
-                let src_f2 = _mm_cvtps_epi32(_mm_castsi128_ps(src_vl1));
+                let src_f2 = _mm_cvtps_epi32(_mm_castsi128_ps(src_vl2));
 
                 let packed_u16_0 = _mm_packus_epi32(src_f0, src_f0);
                 let packed_u16_1 = _mm_packus_epi32(src_f1, src_f1);
