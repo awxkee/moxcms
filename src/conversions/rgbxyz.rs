@@ -51,7 +51,7 @@ struct TransformProfilePcsXYZRgb<
     pub(crate) profile: TransformProfileRgb<T, LINEAR_CAP>,
 }
 
-#[cfg(not(all(target_arch = "aarch64", target_feature = "neon")))]
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 macro_rules! create_rgb_xyz_dependant_executor {
     ($dep_name: ident, $dependant: ident) => {
         pub(crate) fn $dep_name<

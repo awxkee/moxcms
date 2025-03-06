@@ -118,11 +118,11 @@ where
                 .zip(dst.chunks_exact_mut(dst_channels * 2))
             {
                 let r0 =
-                    _mm_broadcast_ss(&self.profile.r_linear.get_unchecked(src[src_cn.r_i()].as_()));
+                    _mm_broadcast_ss(self.profile.r_linear.get_unchecked(src[src_cn.r_i()].as_()));
                 let g0 =
-                    _mm_broadcast_ss(&self.profile.g_linear.get_unchecked(src[src_cn.g_i()].as_()));
+                    _mm_broadcast_ss(self.profile.g_linear.get_unchecked(src[src_cn.g_i()].as_()));
                 let b0 =
-                    _mm_broadcast_ss(&self.profile.b_linear.get_unchecked(src[src_cn.b_i()].as_()));
+                    _mm_broadcast_ss(self.profile.b_linear.get_unchecked(src[src_cn.b_i()].as_()));
                 let a0 = if src_channels == 4 {
                     f32::from_bits(src[src_cn.a_i()].as_() as u32)
                 } else {
@@ -130,20 +130,17 @@ where
                 };
 
                 let r1 = _mm_broadcast_ss(
-                    &self
-                        .profile
+                    self.profile
                         .r_linear
                         .get_unchecked(src[src_cn.r_i() + src_channels].as_()),
                 );
                 let g1 = _mm_broadcast_ss(
-                    &self
-                        .profile
+                    self.profile
                         .g_linear
                         .get_unchecked(src[src_cn.g_i() + src_channels].as_()),
                 );
                 let b1 = _mm_broadcast_ss(
-                    &self
-                        .profile
+                    self.profile
                         .b_linear
                         .get_unchecked(src[src_cn.b_i() + src_channels].as_()),
                 );
@@ -200,11 +197,11 @@ where
                 .zip(dst.chunks_exact_mut(dst_channels))
             {
                 let r =
-                    _mm_broadcast_ss(&self.profile.r_linear.get_unchecked(src[src_cn.r_i()].as_()));
+                    _mm_broadcast_ss(self.profile.r_linear.get_unchecked(src[src_cn.r_i()].as_()));
                 let g =
-                    _mm_broadcast_ss(&self.profile.g_linear.get_unchecked(src[src_cn.g_i()].as_()));
+                    _mm_broadcast_ss(self.profile.g_linear.get_unchecked(src[src_cn.g_i()].as_()));
                 let b =
-                    _mm_broadcast_ss(&self.profile.b_linear.get_unchecked(src[src_cn.b_i()].as_()));
+                    _mm_broadcast_ss(self.profile.b_linear.get_unchecked(src[src_cn.b_i()].as_()));
                 let a = if src_channels == 4 {
                     f32::from_bits(src[src_cn.a_i()].as_() as u32)
                 } else {
