@@ -102,10 +102,14 @@ unsafe fn gamma_search_16bit_impl<
 
         let dst_cn = Layout::from(DST_LAYOUT);
         let dst_channels = dst_cn.channels();
-        for (chunk, dst) in working_set
-            .chunks_exact(src_channels)
-            .zip(dst.chunks_exact_mut(dst_channels))
-        {
+        let samples = dst.len() / dst_channels;
+
+        let mut x = 0usize;
+        let mut src_x = 0usize;
+        let mut dst_x = 0usize;
+        while x < samples {
+            let chunk = working_set.get_unchecked(src_x..);
+            let dst = dst.get_unchecked_mut(dst_x..);
             if src_channels == 3 {
                 let mut src_vl = _mm_loadu_si64(chunk.as_ptr() as *const u8);
                 src_vl = _mm_insert_epi32::<2>(src_vl, chunk[2].to_bits() as i32);
@@ -129,6 +133,10 @@ unsafe fn gamma_search_16bit_impl<
                     dst[dst_cn.a_i()] = chunk[3].to_bits() as u16;
                 }
             }
+
+            x += 1;
+            src_x += src_channels;
+            dst_x += dst_channels;
         }
     }
 }
