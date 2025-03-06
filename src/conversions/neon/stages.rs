@@ -63,7 +63,8 @@ where
         let src_channels = src_cn.channels();
         let dst_channels = dst_cn.channels();
 
-        let mut temporary = NeonAlignedU16([0; 8]);
+        let mut temporary0 = NeonAlignedU16([0; 8]);
+        let mut temporary1 = NeonAlignedU16([0; 8]);
 
         if src.len() / src_channels != dst.len() / dst_channels {
             return Err(CmsError::LaneSizeMismatch);
@@ -92,6 +93,87 @@ where
 
             let v_scale = vdupq_n_f32(scale);
 
+            let rnd = vdupq_n_f32(0.5f32);
+
+            for (src, dst) in src
+                .chunks_exact(src_channels * 2)
+                .zip(dst.chunks_exact_mut(dst_channels * 2))
+            {
+                let r0 =
+                    vld1q_dup_f32(self.profile.r_linear.get_unchecked(src[src_cn.r_i()].as_()));
+                let g0 =
+                    vld1q_dup_f32(self.profile.g_linear.get_unchecked(src[src_cn.g_i()].as_()));
+                let b0 =
+                    vld1q_dup_f32(self.profile.b_linear.get_unchecked(src[src_cn.b_i()].as_()));
+
+                let r1 = vld1q_dup_f32(
+                    self.profile
+                        .r_linear
+                        .get_unchecked(src[src_cn.r_i() + src_channels].as_()),
+                );
+                let g1 = vld1q_dup_f32(
+                    self.profile
+                        .g_linear
+                        .get_unchecked(src[src_cn.g_i() + src_channels].as_()),
+                );
+                let b1 = vld1q_dup_f32(
+                    self.profile
+                        .b_linear
+                        .get_unchecked(src[src_cn.b_i() + src_channels].as_()),
+                );
+
+                let a0 = if src_channels == 4 {
+                    f32::from_bits(src[src_cn.a_i()].as_() as u32)
+                } else {
+                    f32::from_bits(max_colors)
+                };
+
+                let a1 = if src_channels == 4 {
+                    f32::from_bits(src[src_cn.a_i() + src_channels].as_() as u32)
+                } else {
+                    f32::from_bits(max_colors)
+                };
+
+                let v0_0 = vmulq_f32(r0, m0);
+                let v1_0 = vmulq_f32(g0, m1);
+                let v2_0 = vmulq_f32(b0, m2);
+
+                let v0_1 = vmulq_f32(r1, m0);
+                let v1_1 = vmulq_f32(g1, m1);
+                let v2_1 = vmulq_f32(b1, m2);
+
+                let mut vr0 = vaddq_f32(vaddq_f32(v0_0, v1_0), v2_0);
+                let mut vr1 = vaddq_f32(vaddq_f32(v0_1, v1_1), v2_1);
+                vr0 = vmaxq_f32(vr0, zeros);
+                vr1 = vmaxq_f32(vr1, zeros);
+                vr0 = vfmaq_f32(rnd, vr0, v_scale);
+                vr1 = vfmaq_f32(rnd, vr1, v_scale);
+                vr0 = vminq_f32(vr0, v_scale);
+                vr1 = vminq_f32(vr1, v_scale);
+
+                let zx0 = vcvtaq_u32_f32(vr0);
+                let zx1 = vcvtaq_u32_f32(vr1);
+                vst1q_u32(temporary0.0.as_mut_ptr() as *mut _, zx0);
+                vst1q_u32(temporary1.0.as_mut_ptr() as *mut _, zx1);
+
+                dst[dst_cn.r_i()] = self.profile.r_gamma[temporary0.0[0] as usize];
+                dst[dst_cn.g_i()] = self.profile.g_gamma[temporary0.0[2] as usize];
+                dst[dst_cn.b_i()] = self.profile.b_gamma[temporary0.0[4] as usize];
+                if dst_channels == 4 {
+                    dst[dst_cn.a_i()] = a0.to_bits().as_();
+                }
+
+                dst[dst_cn.r_i() + dst_channels] = self.profile.r_gamma[temporary1.0[0] as usize];
+                dst[dst_cn.g_i() + dst_channels] = self.profile.g_gamma[temporary1.0[2] as usize];
+                dst[dst_cn.b_i() + dst_channels] = self.profile.b_gamma[temporary1.0[4] as usize];
+                if dst_channels == 4 {
+                    dst[dst_cn.a_i() + dst_channels] = a1.to_bits().as_();
+                }
+            }
+
+            let src = src.chunks_exact(src_channels * 2).remainder();
+            let dst = dst.chunks_exact_mut(dst_channels * 2).into_remainder();
+
             for (src, dst) in src
                 .chunks_exact(src_channels)
                 .zip(dst.chunks_exact_mut(dst_channels))
@@ -111,15 +193,15 @@ where
 
                 let mut v = vaddq_f32(vaddq_f32(v0, v1), v2);
                 v = vmaxq_f32(v, zeros);
-                v = vfmaq_f32(vdupq_n_f32(0.5f32), v, v_scale);
+                v = vfmaq_f32(rnd, v, v_scale);
                 v = vminq_f32(v, v_scale);
 
                 let zx = vcvtaq_u32_f32(v);
-                vst1q_u32(temporary.0.as_mut_ptr() as *mut _, zx);
+                vst1q_u32(temporary0.0.as_mut_ptr() as *mut _, zx);
 
-                dst[dst_cn.r_i()] = self.profile.r_gamma[temporary.0[0] as usize];
-                dst[dst_cn.g_i()] = self.profile.g_gamma[temporary.0[2] as usize];
-                dst[dst_cn.b_i()] = self.profile.b_gamma[temporary.0[4] as usize];
+                dst[dst_cn.r_i()] = self.profile.r_gamma[temporary0.0[0] as usize];
+                dst[dst_cn.g_i()] = self.profile.g_gamma[temporary0.0[2] as usize];
+                dst[dst_cn.b_i()] = self.profile.b_gamma[temporary0.0[4] as usize];
                 if dst_channels == 4 {
                     dst[dst_cn.a_i()] = a.to_bits().as_();
                 }
