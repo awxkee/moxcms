@@ -43,6 +43,18 @@ image::save_buffer(
     .unwrap();
 ```
 
+# Benchmarks
+
+### ICC transform 8-bit 
+
+Test made on the image 1997x1331 size
+
+| Conversion             | time(NEON) | Time(AVX2) |
+|------------------------|:----------:|:----------:|
+| moxcms RGB->RGB        |   4.94ms   |     -      |
+| lcms2 RGB->RGB         |   13.1ms   |     -      |
+| qcms RGB->RGB          |   6.47ms   |     -      |
+
 This project is licensed under either of
 
 - BSD-3-Clause License (see [LICENSE](LICENSE.md))
