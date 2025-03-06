@@ -27,7 +27,9 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::conversions::chunking::compute_chunk_sizes;
-use crate::conversions::stages::RelativeColorMetricRgbXyz;
+use crate::conversions::stages::{
+    GammaSearchFactory, GammaSearchFunction, RelativeColorMetricRgbXyz,
+};
 use crate::conversions::{GamutClipScaleStage, MatrixClipScaleStage, MatrixStage};
 use crate::profile::RenderingIntent;
 use crate::{CmsError, InPlaceStage, Layout, Matrix3f, TransformExecutor, TransformOptions};
@@ -55,6 +57,7 @@ struct TransformProfilePcsXYZRgb<
     pub(crate) rendering_intent: RenderingIntent,
     pub(crate) options: TransformOptions,
     pub(crate) matrix_clip_scale_stage: Box<dyn InPlaceStage + Send + Sync>,
+    pub(crate) gamma_search: Box<GammaSearchFunction<T>>,
 }
 
 fn make_clip_scale_stage<const LAYOUT: u8, const GAMMA_LUT: usize>(
@@ -85,7 +88,7 @@ fn make_clip_scale_stage<const LAYOUT: u8, const GAMMA_LUT: usize>(
 }
 
 pub(crate) fn make_rgb_xyz_rgb_transform<
-    T: Clone + Send + Sync + AsPrimitive<usize> + Default,
+    T: Clone + Send + Sync + AsPrimitive<usize> + Default + GammaSearchFactory<T>,
     const LINEAR_CAP: usize,
     const GAMMA_LUT: usize,
     const BIT_DEPTH: usize,
@@ -114,6 +117,11 @@ where
             rendering_intent: intent,
             options,
             matrix_clip_scale_stage: matrix_clip_stage,
+            gamma_search: Box::new(T::provide_rgb_gamma_search::<
+                { Layout::Rgba as u8 },
+                { Layout::Rgba as u8 },
+                BIT_DEPTH,
+            >()),
         }));
     } else if (src_layout == Layout::Rgb) && (dst_layout == Layout::Rgba) {
         let matrix_clip_stage =
@@ -130,6 +138,11 @@ where
             rendering_intent: intent,
             options,
             matrix_clip_scale_stage: matrix_clip_stage,
+            gamma_search: Box::new(T::provide_rgb_gamma_search::<
+                { Layout::Rgb as u8 },
+                { Layout::Rgba as u8 },
+                BIT_DEPTH,
+            >()),
         }));
     } else if (src_layout == Layout::Rgba) && (dst_layout == Layout::Rgb) {
         let matrix_clip_stage =
@@ -147,6 +160,11 @@ where
             rendering_intent: intent,
             matrix_clip_scale_stage: matrix_clip_stage,
             options,
+            gamma_search: Box::new(T::provide_rgb_gamma_search::<
+                { Layout::Rgba as u8 },
+                { Layout::Rgb as u8 },
+                BIT_DEPTH,
+            >()),
         }));
     } else if (src_layout == Layout::Rgb) && (dst_layout == Layout::Rgb) {
         let matrix_clip_stage =
@@ -164,6 +182,11 @@ where
             rendering_intent: intent,
             options,
             matrix_clip_scale_stage: matrix_clip_stage,
+            gamma_search: Box::new(T::provide_rgb_gamma_search::<
+                { Layout::Rgb as u8 },
+                { Layout::Rgb as u8 },
+                BIT_DEPTH,
+            >()),
         }));
     }
     Err(CmsError::UnsupportedProfileConnection)
@@ -189,9 +212,6 @@ where
     ) -> Result<(), CmsError> {
         let src_cn = Layout::from(SRC_LAYOUT);
         let src_channels = src_cn.channels();
-
-        let dst_cn = Layout::from(DST_LAYOUT);
-        let dst_channels = dst_cn.channels();
 
         for (chunk, dst) in src
             .chunks_exact(src_channels)
@@ -232,22 +252,15 @@ where
             }
         }
 
-        let max_value = ((1u32 << BIT_DEPTH) - 1).as_();
-
-        for (chunk, dst) in working_set
-            .chunks_exact(src_channels)
-            .zip(dst.chunks_exact_mut(dst_channels))
-        {
-            dst[dst_cn.r_i()] = self.profile.r_gamma[(chunk[0] as u16) as usize];
-            dst[dst_cn.g_i()] = self.profile.g_gamma[(chunk[1] as u16) as usize];
-            dst[dst_cn.b_i()] = self.profile.b_gamma[(chunk[2] as u16) as usize];
-            if src_channels == 4 && dst_channels == 4 {
-                dst[dst_cn.a_i()] = chunk[3].to_bits().as_();
-            } else if src_channels == 3 && dst_channels == 4 {
-                dst[dst_cn.a_i()] = max_value;
-            }
-        }
-
+        let search_fn = self.gamma_search.as_ref();
+        search_fn(
+            working_set,
+            dst,
+            &self.profile.r_gamma,
+            &self.profile.g_gamma,
+            &self.profile.b_gamma,
+        );
+        
         Ok(())
     }
 }

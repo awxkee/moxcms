@@ -31,6 +31,7 @@ use crate::{
     CmsError, InPlaceStage, Layout, Matrix3f, Rgb, gamut_clip_adaptive_l0_0_5,
     gamut_clip_preserve_chroma,
 };
+use num_traits::AsPrimitive;
 
 pub(crate) struct MatrixClipScaleStage<const LAYOUT: u8> {
     pub(crate) matrix: Matrix3f,
@@ -212,5 +213,83 @@ impl<const LAYOUT: u8> InPlaceStage for RelativeColorMetricRgbXyz<LAYOUT> {
         }
 
         Ok(())
+    }
+}
+
+pub(crate) type GammaSearchFunction<T> = fn(
+    working_set: &[f32],
+    dst: &mut [T],
+    r_gamma: &[T; 65536],
+    g_gamma: &[T; 65536],
+    b_gamma: &[T; 65536],
+);
+
+pub(crate) fn gamma_search<
+    T: Copy + 'static,
+    const SRC_LAYOUT: u8,
+    const DST_LAYOUT: u8,
+    const BIT_DEPTH: usize,
+>(
+    working_set: &[f32],
+    dst: &mut [T],
+    r_gamma: &[T; 65536],
+    g_gamma: &[T; 65536],
+    b_gamma: &[T; 65536],
+) where
+    u32: AsPrimitive<T>,
+{
+    let max_value = ((1u32 << BIT_DEPTH) - 1).as_();
+    let src_cn = Layout::from(SRC_LAYOUT);
+    let src_channels = src_cn.channels();
+
+    let dst_cn = Layout::from(DST_LAYOUT);
+    let dst_channels = dst_cn.channels();
+    for (chunk, dst) in working_set
+        .chunks_exact(src_channels)
+        .zip(dst.chunks_exact_mut(dst_channels))
+    {
+        dst[dst_cn.r_i()] = r_gamma[(chunk[0] as u16) as usize];
+        dst[dst_cn.g_i()] = g_gamma[(chunk[1] as u16) as usize];
+        dst[dst_cn.b_i()] = b_gamma[(chunk[2] as u16) as usize];
+        if src_channels == 4 && dst_channels == 4 {
+            dst[dst_cn.a_i()] = chunk[3].to_bits().as_();
+        } else if src_channels == 3 && dst_channels == 4 {
+            dst[dst_cn.a_i()] = max_value;
+        }
+    }
+}
+
+pub(crate) trait GammaSearchFactory<T> {
+    fn provide_rgb_gamma_search<
+        const SRC_LAYOUT: u8,
+        const DST_LAYOUT: u8,
+        const BIT_DEPTH: usize,
+    >() -> GammaSearchFunction<T>;
+}
+
+impl GammaSearchFactory<u8> for u8 {
+    fn provide_rgb_gamma_search<
+        const SRC_LAYOUT: u8,
+        const DST_LAYOUT: u8,
+        const BIT_DEPTH: usize,
+    >() -> GammaSearchFunction<u8> {
+        #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+        {
+            if std::arch::is_x86_feature_detected!("sse4.1") {
+                use crate::conversions::sse::gamma_search_8bit;
+                return gamma_search_8bit::<SRC_LAYOUT, DST_LAYOUT>;
+            }
+        }
+        gamma_search::<u8, SRC_LAYOUT, DST_LAYOUT, BIT_DEPTH>
+    }
+}
+
+impl GammaSearchFactory<u16> for u16 {
+    fn provide_rgb_gamma_search<
+        const SRC_LAYOUT: u8,
+        const DST_LAYOUT: u8,
+        const BIT_DEPTH: usize,
+    >() -> GammaSearchFunction<u16> {
+        gamma_search::<u16, SRC_LAYOUT, DST_LAYOUT, BIT_DEPTH>
     }
 }

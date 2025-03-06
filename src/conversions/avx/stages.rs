@@ -184,7 +184,7 @@ impl<const LAYOUT: u8> InPlaceStage for MatrixClipScaleStageAvx<LAYOUT> {
 }
 
 impl<const LAYOUT: u8> MatrixClipScaleStageAvxFma<LAYOUT> {
-    #[target_feature(enable = "avx2")]
+    #[target_feature(enable = "avx2", enable = "fma")]
     unsafe fn transform_call(&self, dst: &mut [f32]) {
         transform_executor::<LAYOUT, true>(dst, self.scale, self.matrix)
     }
