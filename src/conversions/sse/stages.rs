@@ -29,12 +29,15 @@
 use crate::conversions::TransformProfileRgb;
 use crate::{CmsError, Layout, Matrix3f, TransformExecutor};
 use num_traits::AsPrimitive;
-use std::arch::aarch64::*;
+#[cfg(target_arch = "x86")]
+use std::arch::x86::*;
+#[cfg(target_arch = "x86_64")]
+use std::arch::x86_64::*;
 
 #[repr(align(16), C)]
 struct NeonAlignedU16([u16; 8]);
 
-pub(crate) struct TransformProfilePcsXYZRgbNeon<
+pub(crate) struct TransformProfilePcsXYZRgbSse<
     T: Clone + AsPrimitive<usize> + Default,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
@@ -52,12 +55,12 @@ impl<
     const LINEAR_CAP: usize,
     const GAMMA_LUT: usize,
     const BIT_DEPTH: usize,
-> TransformExecutor<T>
-    for TransformProfilePcsXYZRgbNeon<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>
+> TransformProfilePcsXYZRgbSse<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>
 where
     u32: AsPrimitive<T>,
 {
-    fn transform(&self, src: &[T], dst: &mut [T]) -> Result<(), CmsError> {
+    #[target_feature(enable = "sse4.1")]
+    unsafe fn transform_impl(&self, src: &[T], dst: &mut [T]) -> Result<(), CmsError> {
         let src_cn = Layout::from(SRC_LAYOUT);
         let dst_cn = Layout::from(DST_LAYOUT);
         let src_channels = src_cn.channels();
@@ -84,38 +87,45 @@ where
         let max_colors = (1 << BIT_DEPTH) - 1;
 
         unsafe {
-            let m0 = vld1q_f32([t.v[0][0], t.v[0][1], t.v[0][2], 0f32].as_ptr());
-            let m1 = vld1q_f32([t.v[1][0], t.v[1][1], t.v[1][2], 0f32].as_ptr());
-            let m2 = vld1q_f32([t.v[2][0], t.v[2][1], t.v[2][2], 0f32].as_ptr());
+            let m0 = _mm_setr_ps(t.v[0][0], t.v[0][1], t.v[0][2], 0f32);
+            let m1 = _mm_setr_ps(t.v[1][0], t.v[1][1], t.v[1][2], 0f32);
+            let m2 = _mm_setr_ps(t.v[2][0], t.v[2][1], t.v[2][2], 0f32);
 
-            let zeros = vdupq_n_f32(0f32);
+            let zeros = _mm_setzero_ps();
 
-            let v_scale = vdupq_n_f32(scale);
+            let v_scale = _mm_set1_ps(scale);
 
             for (src, dst) in src
                 .chunks_exact(src_channels)
                 .zip(dst.chunks_exact_mut(dst_channels))
             {
-                let r = vld1q_dup_f32(self.profile.r_linear.get_unchecked(src[src_cn.r_i()].as_()));
-                let g = vld1q_dup_f32(self.profile.g_linear.get_unchecked(src[src_cn.g_i()].as_()));
-                let b = vld1q_dup_f32(self.profile.b_linear.get_unchecked(src[src_cn.b_i()].as_()));
+                let mut r =
+                    _mm_load_ss(self.profile.r_linear.get_unchecked(src[src_cn.r_i()].as_()));
+                let mut g =
+                    _mm_load_ss(self.profile.g_linear.get_unchecked(src[src_cn.g_i()].as_()));
+                let mut b =
+                    _mm_load_ss(self.profile.b_linear.get_unchecked(src[src_cn.b_i()].as_()));
                 let a = if src_channels == 4 {
                     f32::from_bits(src[src_cn.a_i()].as_() as u32)
                 } else {
                     f32::from_bits(max_colors)
                 };
 
-                let v0 = vmulq_f32(r, m0);
-                let v1 = vmulq_f32(g, m1);
-                let v2 = vmulq_f32(b, m2);
+                r = _mm_shuffle_ps::<0>(r, r);
+                g = _mm_shuffle_ps::<0>(g, g);
+                b = _mm_shuffle_ps::<0>(b, b);
 
-                let mut v = vaddq_f32(vaddq_f32(v0, v1), v2);
-                v = vmaxq_f32(v, zeros);
-                v = vfmaq_f32(vdupq_n_f32(0.5f32), v, v_scale);
-                v = vminq_f32(v, v_scale);
+                let v0 = _mm_mul_ps(r, m0);
+                let v1 = _mm_mul_ps(g, m1);
+                let v2 = _mm_mul_ps(b, m2);
 
-                let zx = vcvtaq_u32_f32(v);
-                vst1q_u32(temporary.0.as_mut_ptr() as *mut _, zx);
+                let mut v = _mm_add_ps(_mm_add_ps(v0, v1), v2);
+                v = _mm_max_ps(v, zeros);
+                v = _mm_add_ps(_mm_set1_ps(0.5f32), _mm_mul_ps(v, v_scale));
+                v = _mm_min_ps(v, v_scale);
+
+                let zx = _mm_cvtps_epi32(v);
+                _mm_store_si128(temporary.0.as_mut_ptr() as *mut _, zx);
 
                 dst[dst_cn.r_i()] = self.profile.r_gamma[temporary.0[0] as usize];
                 dst[dst_cn.g_i()] = self.profile.g_gamma[temporary.0[2] as usize];
@@ -127,5 +137,22 @@ where
         }
 
         Ok(())
+    }
+}
+
+impl<
+    T: Clone + AsPrimitive<usize> + Default,
+    const SRC_LAYOUT: u8,
+    const DST_LAYOUT: u8,
+    const LINEAR_CAP: usize,
+    const GAMMA_LUT: usize,
+    const BIT_DEPTH: usize,
+> TransformExecutor<T>
+    for TransformProfilePcsXYZRgbSse<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>
+where
+    u32: AsPrimitive<T>,
+{
+    fn transform(&self, src: &[T], dst: &mut [T]) -> Result<(), CmsError> {
+        unsafe { self.transform_impl(src, dst) }
     }
 }

@@ -26,12 +26,8 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-use crate::conversions::chunking::compute_chunk_sizes;
-use crate::conversions::stages::{
-    GammaSearchFactory, GammaSearchRgbFunction, LinearSearchRgbFunction,
-};
 use crate::mlaf::mlaf;
-use crate::{CmsError, InPlaceStage, Layout, Matrix3f, TransformExecutor};
+use crate::{CmsError, Layout, Matrix3f, TransformExecutor};
 use num_traits::AsPrimitive;
 
 pub(crate) struct TransformProfileRgb<T: Clone, const BUCKET: usize> {
@@ -53,52 +49,86 @@ struct TransformProfilePcsXYZRgb<
     const BIT_DEPTH: usize,
 > {
     pub(crate) profile: TransformProfileRgb<T, LINEAR_CAP>,
-    pub(crate) matrix_clip_scale_stage: Box<dyn InPlaceStage + Send + Sync>,
-    pub(crate) gamma_search: Box<GammaSearchRgbFunction<T>>,
-    pub(crate) linear_search: Box<LinearSearchRgbFunction<T, LINEAR_CAP>>,
 }
 
-fn make_clip_scale_stage<const LAYOUT: u8, const GAMMA_LUT: usize>(
-    matrix: Option<Matrix3f>,
-) -> Box<dyn InPlaceStage + Send + Sync> {
-    let scale = (GAMMA_LUT - 1) as f32;
-    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-    {
-        if std::arch::is_x86_feature_detected!("avx2") {
-            use crate::conversions::avx::{MatrixClipScaleStageAvx, MatrixClipScaleStageAvxFma};
-            return if std::arch::is_x86_feature_detected!("fma") {
-                Box::new(MatrixClipScaleStageAvxFma::<LAYOUT> {
-                    scale,
-                    matrix: matrix.unwrap_or(Matrix3f::IDENTITY),
-                })
-            } else {
-                Box::new(MatrixClipScaleStageAvx::<LAYOUT> {
-                    scale,
-                    matrix: matrix.unwrap_or(Matrix3f::IDENTITY),
-                })
-            };
+#[cfg(not(all(target_arch = "aarch64", target_feature = "neon")))]
+macro_rules! create_rgb_xyz_dependant_executor {
+    ($dep_name: ident, $dependant: ident) => {
+        pub(crate) fn $dep_name<
+            T: Clone + Send + Sync + AsPrimitive<usize> + Default,
+            const LINEAR_CAP: usize,
+            const GAMMA_LUT: usize,
+            const BIT_DEPTH: usize,
+        >(
+            src_layout: Layout,
+            dst_layout: Layout,
+            profile: TransformProfileRgb<T, LINEAR_CAP>,
+        ) -> Result<Box<dyn TransformExecutor<T> + Send + Sync>, CmsError>
+        where
+            u32: AsPrimitive<T>,
+        {
+            if (src_layout == Layout::Rgba) && (dst_layout == Layout::Rgba) {
+                return Ok(Box::new($dependant::<
+                    T,
+                    { Layout::Rgba as u8 },
+                    { Layout::Rgba as u8 },
+                    LINEAR_CAP,
+                    GAMMA_LUT,
+                    BIT_DEPTH,
+                > {
+                    profile,
+                }));
+            } else if (src_layout == Layout::Rgb) && (dst_layout == Layout::Rgba) {
+                return Ok(Box::new($dependant::<
+                    T,
+                    { Layout::Rgb as u8 },
+                    { Layout::Rgba as u8 },
+                    LINEAR_CAP,
+                    GAMMA_LUT,
+                    BIT_DEPTH,
+                > {
+                    profile,
+                }));
+            } else if (src_layout == Layout::Rgba) && (dst_layout == Layout::Rgb) {
+                return Ok(Box::new($dependant::<
+                    T,
+                    { Layout::Rgba as u8 },
+                    { Layout::Rgb as u8 },
+                    LINEAR_CAP,
+                    GAMMA_LUT,
+                    BIT_DEPTH,
+                > {
+                    profile,
+                }));
+            } else if (src_layout == Layout::Rgb) && (dst_layout == Layout::Rgb) {
+                return Ok(Box::new($dependant::<
+                    T,
+                    { Layout::Rgb as u8 },
+                    { Layout::Rgb as u8 },
+                    LINEAR_CAP,
+                    GAMMA_LUT,
+                    BIT_DEPTH,
+                > {
+                    profile,
+                }));
+            }
+            Err(CmsError::UnsupportedProfileConnection)
         }
-    }
-    #[cfg(all(target_arch = "aarch64", target_feature = "neon"))]
-    {
-        use crate::conversions::neon::MatrixClipScaleStageNeon;
-        return Box::new(MatrixClipScaleStageNeon::<LAYOUT> {
-            scale,
-            matrix: matrix.unwrap_or(Matrix3f::IDENTITY),
-        });
-    }
-    #[cfg(not(all(target_arch = "aarch64", target_feature = "neon")))]
-    {
-        use crate::conversions::stages::MatrixClipScaleStage;
-        Box::new(MatrixClipScaleStage::<LAYOUT> {
-            scale,
-            matrix: matrix.unwrap_or(Matrix3f::IDENTITY),
-        })
-    }
+    };
 }
 
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+use crate::conversions::sse::TransformProfilePcsXYZRgbSse;
+
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+create_rgb_xyz_dependant_executor!(
+    make_rgb_xyz_rgb_transform_sse_41,
+    TransformProfilePcsXYZRgbSse
+);
+
+#[cfg(not(all(target_arch = "aarch64", target_feature = "neon")))]
 pub(crate) fn make_rgb_xyz_rgb_transform<
-    T: Clone + Send + Sync + AsPrimitive<usize> + Default + GammaSearchFactory<T>,
+    T: Clone + Send + Sync + AsPrimitive<usize> + Default,
     const LINEAR_CAP: usize,
     const GAMMA_LUT: usize,
     const BIT_DEPTH: usize,
@@ -110,9 +140,15 @@ pub(crate) fn make_rgb_xyz_rgb_transform<
 where
     u32: AsPrimitive<T>,
 {
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+    {
+        if std::arch::is_x86_feature_detected!("sse4.1") {
+            return make_rgb_xyz_rgb_transform_sse_41::<T, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>(
+                src_layout, dst_layout, profile,
+            );
+        }
+    }
     if (src_layout == Layout::Rgba) && (dst_layout == Layout::Rgba) {
-        let matrix_clip_stage =
-            make_clip_scale_stage::<{ Layout::Rgba as u8 }, GAMMA_LUT>(profile.adaptation_matrix);
         return Ok(Box::new(TransformProfilePcsXYZRgb::<
             T,
             { Layout::Rgba as u8 },
@@ -122,21 +158,8 @@ where
             BIT_DEPTH,
         > {
             profile,
-            matrix_clip_scale_stage: matrix_clip_stage,
-            gamma_search: Box::new(T::provide_rgb_gamma_search::<
-                { Layout::Rgba as u8 },
-                { Layout::Rgba as u8 },
-                BIT_DEPTH,
-            >()),
-            linear_search: Box::new(T::provide_rgb_linear_search::<
-                LINEAR_CAP,
-                { Layout::Rgba as u8 },
-                BIT_DEPTH,
-            >()),
         }));
     } else if (src_layout == Layout::Rgb) && (dst_layout == Layout::Rgba) {
-        let matrix_clip_stage =
-            make_clip_scale_stage::<{ Layout::Rgb as u8 }, GAMMA_LUT>(profile.adaptation_matrix);
         return Ok(Box::new(TransformProfilePcsXYZRgb::<
             T,
             { Layout::Rgb as u8 },
@@ -146,22 +169,8 @@ where
             BIT_DEPTH,
         > {
             profile,
-            matrix_clip_scale_stage: matrix_clip_stage,
-            gamma_search: Box::new(T::provide_rgb_gamma_search::<
-                { Layout::Rgb as u8 },
-                { Layout::Rgba as u8 },
-                BIT_DEPTH,
-            >()),
-            linear_search: Box::new(T::provide_rgb_linear_search::<
-                LINEAR_CAP,
-                { Layout::Rgb as u8 },
-                BIT_DEPTH,
-            >()),
         }));
     } else if (src_layout == Layout::Rgba) && (dst_layout == Layout::Rgb) {
-        let matrix_clip_stage =
-            make_clip_scale_stage::<{ Layout::Rgba as u8 }, GAMMA_LUT>(profile.adaptation_matrix);
-
         return Ok(Box::new(TransformProfilePcsXYZRgb::<
             T,
             { Layout::Rgba as u8 },
@@ -171,22 +180,8 @@ where
             BIT_DEPTH,
         > {
             profile,
-            matrix_clip_scale_stage: matrix_clip_stage,
-            gamma_search: Box::new(T::provide_rgb_gamma_search::<
-                { Layout::Rgba as u8 },
-                { Layout::Rgb as u8 },
-                BIT_DEPTH,
-            >()),
-            linear_search: Box::new(T::provide_rgb_linear_search::<
-                LINEAR_CAP,
-                { Layout::Rgba as u8 },
-                BIT_DEPTH,
-            >()),
         }));
     } else if (src_layout == Layout::Rgb) && (dst_layout == Layout::Rgb) {
-        let matrix_clip_stage =
-            make_clip_scale_stage::<{ Layout::Rgb as u8 }, GAMMA_LUT>(profile.adaptation_matrix);
-
         return Ok(Box::new(TransformProfilePcsXYZRgb::<
             T,
             { Layout::Rgb as u8 },
@@ -196,65 +191,72 @@ where
             BIT_DEPTH,
         > {
             profile,
-            matrix_clip_scale_stage: matrix_clip_stage,
-            gamma_search: Box::new(T::provide_rgb_gamma_search::<
-                { Layout::Rgb as u8 },
-                { Layout::Rgb as u8 },
-                BIT_DEPTH,
-            >()),
-            linear_search: Box::new(T::provide_rgb_linear_search::<
-                LINEAR_CAP,
-                { Layout::Rgb as u8 },
-                BIT_DEPTH,
-            >()),
         }));
     }
     Err(CmsError::UnsupportedProfileConnection)
 }
 
-impl<
-    T: Clone + AsPrimitive<usize>,
-    const SRC_LAYOUT: u8,
-    const DST_LAYOUT: u8,
+#[cfg(all(target_arch = "aarch64", target_feature = "neon"))]
+pub(crate) fn make_rgb_xyz_rgb_transform<
+    T: Clone + Send + Sync + AsPrimitive<usize> + Default,
     const LINEAR_CAP: usize,
     const GAMMA_LUT: usize,
     const BIT_DEPTH: usize,
-> TransformProfilePcsXYZRgb<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>
+>(
+    src_layout: Layout,
+    dst_layout: Layout,
+    profile: TransformProfileRgb<T, LINEAR_CAP>,
+) -> Result<Box<dyn TransformExecutor<T> + Send + Sync>, CmsError>
 where
     u32: AsPrimitive<T>,
 {
-    #[inline(always)]
-    fn transform_chunk(
-        &self,
-        src: &[T],
-        dst: &mut [T],
-        working_set: &mut [f32; 12012],
-    ) -> Result<(), CmsError> {
-        let linear_fn = self.linear_search.as_ref();
-        linear_fn(
-            src,
-            working_set,
-            &self.profile.r_linear,
-            &self.profile.g_linear,
-            &self.profile.b_linear,
-        );
-
-        let sliced = &mut working_set[..src.len()];
-
-        // Check if rendering intent is adequate for gamut chroma clipping
-        self.matrix_clip_scale_stage.transform(sliced)?;
-
-        let search_fn = self.gamma_search.as_ref();
-        search_fn(
-            working_set,
-            dst,
-            &self.profile.r_gamma,
-            &self.profile.g_gamma,
-            &self.profile.b_gamma,
-        );
-
-        Ok(())
+    use crate::conversions::neon::TransformProfilePcsXYZRgbNeon;
+    if (src_layout == Layout::Rgba) && (dst_layout == Layout::Rgba) {
+        return Ok(Box::new(TransformProfilePcsXYZRgbNeon::<
+            T,
+            { Layout::Rgba as u8 },
+            { Layout::Rgba as u8 },
+            LINEAR_CAP,
+            GAMMA_LUT,
+            BIT_DEPTH,
+        > {
+            profile,
+        }));
+    } else if (src_layout == Layout::Rgb) && (dst_layout == Layout::Rgba) {
+        return Ok(Box::new(TransformProfilePcsXYZRgbNeon::<
+            T,
+            { Layout::Rgb as u8 },
+            { Layout::Rgba as u8 },
+            LINEAR_CAP,
+            GAMMA_LUT,
+            BIT_DEPTH,
+        > {
+            profile,
+        }));
+    } else if (src_layout == Layout::Rgba) && (dst_layout == Layout::Rgb) {
+        return Ok(Box::new(TransformProfilePcsXYZRgbNeon::<
+            T,
+            { Layout::Rgba as u8 },
+            { Layout::Rgb as u8 },
+            LINEAR_CAP,
+            GAMMA_LUT,
+            BIT_DEPTH,
+        > {
+            profile,
+        }));
+    } else if (src_layout == Layout::Rgb) && (dst_layout == Layout::Rgb) {
+        return Ok(Box::new(TransformProfilePcsXYZRgbNeon::<
+            T,
+            { Layout::Rgb as u8 },
+            { Layout::Rgb as u8 },
+            LINEAR_CAP,
+            GAMMA_LUT,
+            BIT_DEPTH,
+        > {
+            profile,
+        }));
     }
+    Err(CmsError::UnsupportedProfileConnection)
 }
 
 impl<

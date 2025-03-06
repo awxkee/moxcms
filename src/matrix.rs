@@ -377,6 +377,17 @@ impl Matrix4f {
 }
 
 impl Matrix3f {
+    #[inline]
+    pub fn transpose(&self) -> Matrix3f {
+        Matrix3f {
+            v: [
+                [self.v[0][0], self.v[1][0], self.v[2][0]],
+                [self.v[0][1], self.v[1][1], self.v[2][1]],
+                [self.v[0][2], self.v[1][2], self.v[2][2]],
+            ],
+        }
+    }
+    
     pub const IDENTITY: Matrix3f = Matrix3f {
         v: [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
     };

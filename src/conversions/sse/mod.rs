@@ -26,6 +26,6 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-mod gamma;
+mod stages;
 
-pub(crate) use gamma::{gamma_search_8bit, gamma_search_16bit, linear_search_rgb8};
+pub(crate) use stages::TransformProfilePcsXYZRgbSse;
