@@ -72,15 +72,19 @@ fn transform_executor<const LAYOUT: u8, const FMA: bool>(
 
         let v_scale = _mm256_set1_ps(scale);
 
-        for chunk in dst.chunks_exact_mut(channels * 8) {
+        let mut x = 0usize;
+        let total_width = dst.len();
+
+        while x + 8 * channels < total_width {
+            let chunk = dst.get_unchecked_mut(x..);
             let x0 = _mm256_loadu_ps(chunk.as_ptr());
-            let x1 = _mm256_loadu_ps(chunk.get_unchecked_mut(8..).as_ptr());
-            let x2 = _mm256_loadu_ps(chunk.get_unchecked_mut(16..).as_ptr());
+            let x1 = _mm256_loadu_ps(chunk.get_unchecked(8..).as_ptr());
+            let x2 = _mm256_loadu_ps(chunk.get_unchecked(16..).as_ptr());
             let (r, g, b, a) = if channels == 3 {
                 let xyz = _mm256_deinterleave_rgb_ps(x0, x1, x2);
                 (xyz.0, xyz.1, xyz.2, _mm256_setzero_ps())
             } else {
-                let x3 = _mm256_loadu_ps(chunk.get_unchecked_mut(24..).as_ptr());
+                let x3 = _mm256_loadu_ps(chunk.get_unchecked(24..).as_ptr());
                 _mm256_deinterleave_rgba_ps(x0, x1, x2, x3)
             };
 
@@ -120,6 +124,8 @@ fn transform_executor<const LAYOUT: u8, const FMA: bool>(
                 _mm256_storeu_ps(chunk.get_unchecked_mut(16..).as_mut_ptr(), xyz.2);
                 _mm256_storeu_ps(chunk.get_unchecked_mut(24..).as_mut_ptr(), xyz.3);
             }
+
+            x += 8 * channels;
         }
     }
 
