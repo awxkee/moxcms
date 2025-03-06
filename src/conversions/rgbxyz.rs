@@ -243,14 +243,14 @@ where
         dst: &mut [T],
         working_set: &mut [f32; 12012],
     ) -> Result<(), CmsError> {
-        let linear_fn = self.linear_search.as_ref();
-        linear_fn(
-            src,
-            working_set,
-            &self.profile.r_linear,
-            &self.profile.g_linear,
-            &self.profile.b_linear,
-        );
+        // let linear_fn = self.linear_search.as_ref();
+        // linear_fn(
+        //     src,
+        //     working_set,
+        //     &self.profile.r_linear,
+        //     &self.profile.g_linear,
+        //     &self.profile.b_linear,
+        // );
 
         let cap_values = (GAMMA_LUT - 1) as f32;
 
@@ -279,14 +279,14 @@ where
             }
         }
 
-        // let search_fn = self.gamma_search.as_ref();
-        // search_fn(
-        //     working_set,
-        //     dst,
-        //     &self.profile.r_gamma,
-        //     &self.profile.g_gamma,
-        //     &self.profile.b_gamma,
-        // );
+        let search_fn = self.gamma_search.as_ref();
+        search_fn(
+            working_set,
+            dst,
+            &self.profile.r_gamma,
+            &self.profile.g_gamma,
+            &self.profile.b_gamma,
+        );
 
         Ok(())
     }
