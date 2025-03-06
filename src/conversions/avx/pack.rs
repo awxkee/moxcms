@@ -36,7 +36,7 @@ pub(crate) unsafe fn _mm256_deinterleave_rgb_ps(
     a0: __m256,
     a1: __m256,
     a2: __m256,
-) -> (__m256, __m256, __m256) {
+) -> (__m256, __m256, __m256) { unsafe {
     let (v0, v1, v2) = _mm256_deinterleave_rgb_epi32((
         _mm256_castps_si256(a0),
         _mm256_castps_si256(a1),
@@ -47,12 +47,12 @@ pub(crate) unsafe fn _mm256_deinterleave_rgb_ps(
         _mm256_castsi256_ps(v1),
         _mm256_castsi256_ps(v2),
     )
-}
+}}
 
 #[inline(always)]
 pub(crate) unsafe fn _mm256_interleave_rgb_epi32(
     vals: (__m256i, __m256i, __m256i),
-) -> (__m256i, __m256i, __m256i) {
+) -> (__m256i, __m256i, __m256i) { unsafe {
     let b0 = _mm256_shuffle_epi32::<0x6c>(vals.0);
     let g0 = _mm256_shuffle_epi32::<0xb1>(vals.1);
     let r0 = _mm256_shuffle_epi32::<0xc6>(vals.2);
@@ -65,12 +65,12 @@ pub(crate) unsafe fn _mm256_interleave_rgb_epi32(
     let v1 = p2;
     let v2 = _mm256_permute2x128_si256::<49>(p0, p1);
     (v0, v1, v2)
-}
+}}
 
 #[inline(always)]
 pub(crate) unsafe fn _mm256_deinterleave_rgb_epi32(
     vals: (__m256i, __m256i, __m256i),
-) -> (__m256i, __m256i, __m256i) {
+) -> (__m256i, __m256i, __m256i) { unsafe {
     let s02_low = _mm256_permute2x128_si256::<32>(vals.0, vals.2);
     let s02_high = _mm256_permute2x128_si256::<49>(vals.0, vals.2);
 
@@ -82,14 +82,14 @@ pub(crate) unsafe fn _mm256_deinterleave_rgb_epi32(
     let v1 = _mm256_shuffle_epi32::<0xb1>(g0);
     let v2 = _mm256_shuffle_epi32::<0xc6>(r0);
     (v0, v1, v2)
-}
+}}
 
 #[inline(always)]
 pub(crate) unsafe fn _mm256_interleave_rgb_ps(
     a0: __m256,
     a1: __m256,
     a2: __m256,
-) -> (__m256, __m256, __m256) {
+) -> (__m256, __m256, __m256) { unsafe {
     let (v0, v1, v2) = _mm256_interleave_rgb_epi32((
         _mm256_castps_si256(a0),
         _mm256_castps_si256(a1),
@@ -100,7 +100,7 @@ pub(crate) unsafe fn _mm256_interleave_rgb_ps(
         _mm256_castsi256_ps(v1),
         _mm256_castsi256_ps(v2),
     )
-}
+}}
 
 #[inline(always)]
 pub(crate) unsafe fn _mm256_deinterleave_rgba_ps(
@@ -108,7 +108,7 @@ pub(crate) unsafe fn _mm256_deinterleave_rgba_ps(
     a1: __m256,
     a2: __m256,
     a3: __m256,
-) -> (__m256, __m256, __m256, __m256) {
+) -> (__m256, __m256, __m256, __m256) { unsafe {
     let (v0, v1, v2, v3) = _mm256_deinterleave_rgba_epi32((
         _mm256_castps_si256(a0),
         _mm256_castps_si256(a1),
@@ -121,12 +121,12 @@ pub(crate) unsafe fn _mm256_deinterleave_rgba_ps(
         _mm256_castsi256_ps(v2),
         _mm256_castsi256_ps(v3),
     )
-}
+}}
 
 #[inline(always)]
 pub(crate) unsafe fn _mm256_deinterleave_rgba_epi32(
     vals: (__m256i, __m256i, __m256i, __m256i),
-) -> (__m256i, __m256i, __m256i, __m256i) {
+) -> (__m256i, __m256i, __m256i, __m256i) { unsafe {
     let p01l = _mm256_unpacklo_epi32(vals.0, vals.1);
     let p01h = _mm256_unpackhi_epi32(vals.0, vals.1);
     let p23l = _mm256_unpacklo_epi32(vals.2, vals.3);
@@ -142,12 +142,12 @@ pub(crate) unsafe fn _mm256_deinterleave_rgba_epi32(
     let v2 = _mm256_unpacklo_epi32(phl, phh);
     let v3 = _mm256_unpackhi_epi32(phl, phh);
     (v0, v1, v2, v3)
-}
+}}
 
 #[inline(always)]
 pub(crate) unsafe fn _mm256_interleave_rgba_epi32(
     vals: (__m256i, __m256i, __m256i, __m256i),
-) -> (__m256i, __m256i, __m256i, __m256i) {
+) -> (__m256i, __m256i, __m256i, __m256i) { unsafe {
     let bg0 = _mm256_unpacklo_epi32(vals.0, vals.1);
     let bg1 = _mm256_unpackhi_epi32(vals.0, vals.1);
     let ra0 = _mm256_unpacklo_epi32(vals.2, vals.3);
@@ -164,7 +164,7 @@ pub(crate) unsafe fn _mm256_interleave_rgba_epi32(
     let v3 = _mm256_permute2x128_si256::<49>(bgra2_, bgra3_);
 
     (v0, v1, v2, v3)
-}
+}}
 
 #[inline(always)]
 pub(crate) unsafe fn _mm256_interleave_rgba_ps(
@@ -172,7 +172,7 @@ pub(crate) unsafe fn _mm256_interleave_rgba_ps(
     a1: __m256,
     a2: __m256,
     a3: __m256,
-) -> (__m256, __m256, __m256, __m256) {
+) -> (__m256, __m256, __m256, __m256) { unsafe {
     let (v0, v1, v2, v3) = _mm256_interleave_rgba_epi32((
         _mm256_castps_si256(a0),
         _mm256_castps_si256(a1),
@@ -185,4 +185,4 @@ pub(crate) unsafe fn _mm256_interleave_rgba_ps(
         _mm256_castsi256_ps(v2),
         _mm256_castsi256_ps(v3),
     )
-}
+}}

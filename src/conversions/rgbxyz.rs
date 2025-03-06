@@ -61,23 +61,23 @@ fn make_clip_scale_stage<const LAYOUT: u8, const GAMMA_LUT: usize>(
     matrix: Option<Matrix3f>,
 ) -> Box<dyn InPlaceStage + Send + Sync> {
     let scale = (GAMMA_LUT - 1) as f32;
-    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-    {
-        if std::arch::is_x86_feature_detected!("avx2") {
-            use crate::conversions::avx::{MatrixClipScaleStageAvx, MatrixClipScaleStageAvxFma};
-            if std::arch::is_x86_feature_detected!("fma") {
-                return Box::new(MatrixClipScaleStageAvxFma::<LAYOUT> {
-                    scale,
-                    matrix: matrix.unwrap_or(Matrix3f::IDENTITY),
-                });
-            } else {
-                return Box::new(MatrixClipScaleStageAvx::<LAYOUT> {
-                    scale,
-                    matrix: matrix.unwrap_or(Matrix3f::IDENTITY),
-                });
-            }
-        }
-    }
+    // #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+    // {
+    //     if std::arch::is_x86_feature_detected!("avx2") {
+    //         use crate::conversions::avx::{MatrixClipScaleStageAvx, MatrixClipScaleStageAvxFma};
+    //         return if std::arch::is_x86_feature_detected!("fma") {
+    //             Box::new(MatrixClipScaleStageAvxFma::<LAYOUT> {
+    //                 scale,
+    //                 matrix: matrix.unwrap_or(Matrix3f::IDENTITY),
+    //             })
+    //         } else {
+    //             Box::new(MatrixClipScaleStageAvx::<LAYOUT> {
+    //                 scale,
+    //                 matrix: matrix.unwrap_or(Matrix3f::IDENTITY),
+    //             })
+    //         }
+    //     }
+    // }
     Box::new(MatrixClipScaleStage::<LAYOUT> {
         scale,
         matrix: matrix.unwrap_or(Matrix3f::IDENTITY),
