@@ -91,7 +91,7 @@ fn make_clip_scale_stage<const LAYOUT: u8, const GAMMA_LUT: usize>(
     }
     #[cfg(not(all(target_arch = "aarch64", target_feature = "neon")))]
     {
-        use crate::conversions::MatrixClipScaleStage;
+        use crate::conversions::stages::MatrixClipScaleStage;
         Box::new(MatrixClipScaleStage::<LAYOUT> {
             scale,
             matrix: matrix.unwrap_or(Matrix3f::IDENTITY),
