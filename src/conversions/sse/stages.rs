@@ -35,7 +35,7 @@ use std::arch::x86::*;
 use std::arch::x86_64::*;
 
 #[repr(align(16), C)]
-struct NeonAlignedU16([u16; 8]);
+struct SseAlignedU16([u16; 8]);
 
 pub(crate) struct TransformProfilePcsXYZRgbSse<
     T: Clone + AsPrimitive<usize> + Default,
@@ -66,7 +66,7 @@ where
         let src_channels = src_cn.channels();
         let dst_channels = dst_cn.channels();
 
-        let mut temporary = NeonAlignedU16([0; 8]);
+        let mut temporary = SseAlignedU16([0; 8]);
 
         if src.len() / src_channels != dst.len() / dst_channels {
             return Err(CmsError::LaneSizeMismatch);
@@ -83,6 +83,7 @@ where
             .adaptation_matrix
             .unwrap_or(Matrix3f::IDENTITY)
             .transpose();
+        
         let scale = (GAMMA_LUT - 1) as f32;
         let max_colors = (1 << BIT_DEPTH) - 1;
 
