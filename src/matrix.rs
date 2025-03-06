@@ -34,12 +34,14 @@ use num_traits::{AsPrimitive, MulAdd};
 use std::ops::{Add, Div, Mul, Sub};
 
 /// Vector math helper
+#[repr(transparent)]
 #[derive(Copy, Clone, Debug, Default)]
 pub struct Vector3<T> {
     pub v: [T; 3],
 }
 
 /// Vector math helper
+#[repr(transparent)]
 #[derive(Copy, Clone, Debug, Default)]
 pub struct Vector4<T> {
     pub v: [T; 4],

@@ -51,9 +51,9 @@ Test made on the image 1997x1331 size
 
 | Conversion        | time(NEON) | Time(AVX2) |
 |-------------------|:----------:|:----------:|
-| moxcms RGB->RGB   |   3.95ms   |   5.13ms   |
+| moxcms RGB->RGB   |   3.84ms   |   5.13ms   |
 | moxcms RGBA->RGBA |   4.31ms   |   5.60ms   |
-| moxcms CMYK->RGBA |  36.89ms   |  74.40ms   |
+| moxcms CMYK->RGBA |  28.78ms   |  70.38ms   |
 | lcms2 RGB->RGB    |   13.1ms   |  27.73ms   |
 | lcms2 RGBA->RGBA  |  21.97ms   |  35.70ms   |
 | lcms2 CMYK->RGBA  |  21.97ms   |  79.40ms   |
