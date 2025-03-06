@@ -83,7 +83,7 @@ where
             .adaptation_matrix
             .unwrap_or(Matrix3f::IDENTITY)
             .transpose();
-        
+
         let scale = (GAMMA_LUT - 1) as f32;
         let max_colors = (1 << BIT_DEPTH) - 1;
 
@@ -95,6 +95,8 @@ where
             let zeros = _mm_setzero_ps();
 
             let v_scale = _mm_set1_ps(scale);
+
+            let rnd = _mm_set1_ps(0.5f32);
 
             for (src, dst) in src
                 .chunks_exact(src_channels)
@@ -122,7 +124,7 @@ where
 
                 let mut v = _mm_add_ps(_mm_add_ps(v0, v1), v2);
                 v = _mm_max_ps(v, zeros);
-                v = _mm_add_ps(_mm_set1_ps(0.5f32), _mm_mul_ps(v, v_scale));
+                v = _mm_add_ps(rnd, _mm_mul_ps(v, v_scale));
                 v = _mm_min_ps(v, v_scale);
 
                 let zx = _mm_cvtps_epi32(v);
