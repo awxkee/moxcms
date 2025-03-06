@@ -210,9 +210,9 @@ fn linear_search_rgb_impl<const CAP: usize, const SRC_LAYOUT: u8>(
                 let g = chunk[src_cn.g_i()];
                 let b = chunk[src_cn.b_i()];
                 let a = _mm_set1_ps(f32::from_bits(chunk[src_cn.a_i()] as u32));
-                let r_l = _mm_broadcast_ss(&r_linear.get_unchecked(r as usize));
-                let g_l = _mm_broadcast_ss(&g_linear.get_unchecked(g as usize));
-                let b_l = _mm_broadcast_ss(&b_linear.get_unchecked(b as usize));
+                let r_l = _mm_load_ss(r_linear.get_unchecked(r as usize..).as_ptr());
+                let g_l = _mm_load_ss(g_linear.get_unchecked(g as usize..).as_ptr());
+                let b_l = _mm_load_ss(b_linear.get_unchecked(b as usize..).as_ptr());
                 let r_g = _mm_unpacklo_ps(r_l, g_l);
                 let b_a = _mm_unpacklo_ps(b_l, a);
                 let interleaved = _mm_unpacklo_epi64(_mm_castps_si128(r_g), _mm_castps_si128(b_a));
