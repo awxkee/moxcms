@@ -381,8 +381,8 @@ fn linear_search_rgb_impl<const CAP: usize, const SRC_LAYOUT: u8>(
             let total_length = src.len();
             assert!(src.len() <= working_set.len());
 
-            while x + 9 < total_length {
-                let chunk = src.get_unchecked(x..x + 9);
+            while x + 6 < total_length {
+                let chunk = src.get_unchecked(x..x + 6);
                 let r0 = chunk[src_cn.r_i()];
                 let g0 = chunk[src_cn.g_i()];
                 let b0 = chunk[src_cn.b_i()];
@@ -390,10 +390,6 @@ fn linear_search_rgb_impl<const CAP: usize, const SRC_LAYOUT: u8>(
                 let r1 = chunk[src_cn.r_i() + 3];
                 let g1 = chunk[src_cn.g_i() + 3];
                 let b1 = chunk[src_cn.b_i() + 3];
-
-                let r2 = chunk[src_cn.r_i() + 6];
-                let g2 = chunk[src_cn.g_i() + 6];
-                let b2 = chunk[src_cn.b_i() + 6];
 
                 let r_l0 = _mm_load_ss(r_linear.get_unchecked(r0 as usize..).as_ptr());
                 let g_l0 = _mm_load_ss(g_linear.get_unchecked(g0 as usize..).as_ptr());
@@ -403,13 +399,8 @@ fn linear_search_rgb_impl<const CAP: usize, const SRC_LAYOUT: u8>(
                 let g_l1 = _mm_load_ss(g_linear.get_unchecked(g1 as usize..).as_ptr());
                 let b_l1 = _mm_load_ss(b_linear.get_unchecked(b1 as usize..).as_ptr());
 
-                let r_l2 = _mm_load_ss(r_linear.get_unchecked(r2 as usize..).as_ptr());
-                let g_l2 = _mm_load_ss(g_linear.get_unchecked(g2 as usize..).as_ptr());
-                let b_l2 = _mm_load_ss(b_linear.get_unchecked(b2 as usize..).as_ptr());
-
                 let r_g0 = _mm_unpacklo_ps(r_l0, g_l0);
                 let r_g1 = _mm_unpacklo_ps(r_l1, g_l1);
-                let r_g2 = _mm_unpacklo_ps(r_l2, g_l2);
 
                 _mm_storeu_si64(
                     working_set.get_unchecked_mut(x..).as_mut_ptr() as *mut _,
@@ -418,10 +409,6 @@ fn linear_search_rgb_impl<const CAP: usize, const SRC_LAYOUT: u8>(
                 _mm_storeu_si64(
                     working_set.get_unchecked_mut(x + 3..).as_mut_ptr() as *mut _,
                     _mm_castps_si128(r_g1),
-                );
-                _mm_storeu_si64(
-                    working_set.get_unchecked_mut(x + 6..).as_mut_ptr() as *mut _,
-                    _mm_castps_si128(r_g2),
                 );
 
                 _mm_storeu_si32(
@@ -432,11 +419,7 @@ fn linear_search_rgb_impl<const CAP: usize, const SRC_LAYOUT: u8>(
                     working_set.get_unchecked_mut(x + 5..).as_mut_ptr() as *mut _,
                     _mm_castps_si128(b_l1),
                 );
-                _mm_storeu_si32(
-                    working_set.get_unchecked_mut(x + 8..).as_mut_ptr() as *mut _,
-                    _mm_castps_si128(b_l2),
-                );
-                x += 9;
+                x += 6;
             }
 
             while x < total_length {
