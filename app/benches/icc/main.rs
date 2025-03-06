@@ -28,7 +28,35 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     let img = image::ImageReader::open(f_str).unwrap().decode().unwrap();
     let rgb = img.to_rgb8();
     let rgba = img.to_rgba8();
-    
+
+    let mut cmyk = vec![0u8; rgba.len()];
+    let t = Transform::new(
+        &srgb_profile,
+        PixelFormat::RGBA_8,
+        &cmyk_profile,
+        PixelFormat::CMYK_8,
+        Intent::Perceptual,
+    )
+    .unwrap();
+    t.transform_pixels(&rgba, &mut cmyk);
+
+    c.bench_function("moxcms: CMYK -> RGBA", |b| {
+        let color_profile = ColorProfile::new_from_slice(&us_swop_icc).unwrap();
+        let dest_profile = ColorProfile::new_srgb();
+        let mut dst = vec![0u8; rgba.len()];
+        let transform = color_profile
+            .create_transform_8bit(
+                Layout::Rgba,
+                &dest_profile,
+                Layout::Rgba,
+                TransformOptions::default(),
+            )
+            .unwrap();
+        b.iter(|| {
+            transform.transform(&cmyk, &mut dst).unwrap();
+        })
+    });
+
     c.bench_function("moxcms: RGB -> RGB", |b| {
         let color_profile = ColorProfile::new_from_slice(&src_icc_profile).unwrap();
         let dest_profile = ColorProfile::new_srgb();
@@ -139,34 +167,6 @@ pub fn criterion_benchmark(c: &mut Criterion) {
         })
     });
 
-    let mut cmyk = vec![0u8; rgba.len()];
-    let t = Transform::new(
-        &srgb_profile,
-        PixelFormat::RGBA_8,
-        &cmyk_profile,
-        PixelFormat::CMYK_8,
-        Intent::Perceptual,
-    )
-        .unwrap();
-    t.transform_pixels(&rgba, &mut cmyk);
-
-    c.bench_function("moxcms: CMYK -> RGBA", |b| {
-        let color_profile = ColorProfile::new_from_slice(&us_swop_icc).unwrap();
-        let dest_profile = ColorProfile::new_srgb();
-        let mut dst = vec![0u8; rgba.len()];
-        let transform = color_profile
-            .create_transform_8bit(
-                Layout::Rgba,
-                &dest_profile,
-                Layout::Rgba,
-                TransformOptions::default(),
-            )
-            .unwrap();
-        b.iter(|| {
-            transform.transform(&cmyk, &mut dst).unwrap();
-        })
-    });
-
     c.bench_function("lcms2: CMYK -> RGBA", |b| {
         let cmyk_profile = Profile::new_icc(&us_swop_icc).unwrap();
         let dest_profile = Profile::new_srgb();
@@ -178,7 +178,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
             PixelFormat::RGBA_8,
             Intent::Perceptual,
         )
-            .unwrap();
+        .unwrap();
 
         b.iter(|| {
             t.transform_pixels(&rgba, &mut dst);
@@ -196,13 +196,12 @@ pub fn criterion_benchmark(c: &mut Criterion) {
             qcms::DataType::RGBA8,
             qcms::Intent::default(),
         )
-            .unwrap();
+        .unwrap();
 
         b.iter(|| {
             xfm.convert(&rgba, &mut dst);
         })
     });
-
 }
 
 criterion_group!(benches, criterion_benchmark);

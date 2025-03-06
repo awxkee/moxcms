@@ -227,6 +227,12 @@ where
             }
         }
     }
+
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+    #[target_feature(enable = "avx2", enable = "fma")]
+    unsafe fn transform_avx2_fma(&self, src: &[T], dst: &mut [T]) {
+        self.transform_chunk(src, dst);
+    }
 }
 
 impl<
@@ -254,6 +260,17 @@ where
             return Err(CmsError::LaneSizeMismatch);
         }
 
+        #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+        {
+            if std::is_x86_feature_detected!("avx2") && std::is_x86_feature_detected!("fma") {
+                unsafe {
+                    self.transform_avx2_fma(src, dst);
+                }
+            } else {
+                self.transform_chunk(src, dst);
+            }
+        }
+        #[cfg(not(any(target_arch = "x86", target_arch = "x86_64")))]
         self.transform_chunk(src, dst);
 
         Ok(())

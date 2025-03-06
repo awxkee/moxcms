@@ -26,11 +26,51 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+use crate::math::FusedMultiplyAdd;
 use crate::{Vector3f, Vector4f, rounding_div_ceil};
 use std::ops::{Add, Mul, Sub};
 
 pub(crate) struct Tetrahedral<'a, const GRID_SIZE: usize> {
     pub(crate) cube: &'a [f32],
+}
+
+trait Fetcher<T> {
+    fn fetch(&self, x: i32, y: i32, z: i32) -> T;
+}
+
+struct TetrahedralFetchVector3f<'a, const GRID_SIZE: usize> {
+    cube: &'a [f32],
+}
+
+impl<const GRID_SIZE: usize> Fetcher<Vector3f> for TetrahedralFetchVector3f<'_, GRID_SIZE> {
+    fn fetch(&self, x: i32, y: i32, z: i32) -> Vector3f {
+        let offset = (x as u32 * (GRID_SIZE as u32 * GRID_SIZE as u32)
+            + y as u32 * GRID_SIZE as u32
+            + z as u32) as usize
+            * 3;
+        let jx = &self.cube[offset..offset + 3];
+        Vector3f {
+            v: [jx[0], jx[1], jx[2]],
+        }
+    }
+}
+
+struct TetrahedralFetchVector4f<'a, const GRID_SIZE: usize> {
+    cube: &'a [f32],
+}
+
+impl<const GRID_SIZE: usize> Fetcher<Vector4f> for TetrahedralFetchVector4f<'_, GRID_SIZE> {
+    #[inline(always)]
+    fn fetch(&self, x: i32, y: i32, z: i32) -> Vector4f {
+        let offset = (x as u32 * (GRID_SIZE as u32 * GRID_SIZE as u32)
+            + y as u32 * GRID_SIZE as u32
+            + z as u32) as usize
+            * 4;
+        let jx = &self.cube[offset..offset + 4];
+        Vector4f {
+            v: [jx[0], jx[1], jx[2], jx[3]],
+        }
+    }
 }
 
 impl<'a, const GRID_SIZE: usize> Tetrahedral<'a, GRID_SIZE> {
@@ -39,39 +79,20 @@ impl<'a, const GRID_SIZE: usize> Tetrahedral<'a, GRID_SIZE> {
     }
 
     #[inline]
-    fn find3(cube: &[f32], x: i32, y: i32, z: i32) -> Vector3f {
-        let offset = (x as u32 * (GRID_SIZE as u32 * GRID_SIZE as u32)
-            + y as u32 * GRID_SIZE as u32
-            + z as u32) as usize
-            * 3;
-        let jx = &cube[offset..offset + 3];
-        Vector3f {
-            v: [jx[0], jx[1], jx[2]],
-        }
-    }
-
-    #[inline]
-    fn find4(tab: &[f32], x: i32, y: i32, z: i32) -> Vector4f {
-        let offset = (x as u32 * (GRID_SIZE as u32 * GRID_SIZE as u32)
-            + y as u32 * GRID_SIZE as u32
-            + z as u32) as usize
-            * 4;
-        let jx = &tab[offset..offset + 4];
-        Vector4f {
-            v: [jx[0], jx[1], jx[2], jx[3]],
-        }
-    }
-
-    #[inline]
     fn interpolate<
-        T: Copy + Sub<T, Output = T> + Mul<T, Output = T> + Mul<f32, Output = T> + Add<T, Output = T>,
-        Retriever: Fn(&[f32], i32, i32, i32) -> T,
+        T: Copy
+            + Sub<T, Output = T>
+            + Mul<T, Output = T>
+            + Mul<f32, Output = T>
+            + Add<T, Output = T>
+            + From<f32>
+            + FusedMultiplyAdd<T>,
     >(
         &self,
         in_r: u8,
         in_g: u8,
         in_b: u8,
-        r: Retriever,
+        r: impl Fetcher<T>,
     ) -> T {
         let linear_r: f32 = in_r as i32 as f32 / 255.0;
         let linear_g: f32 = in_g as i32 as f32 / 255.0;
@@ -82,56 +103,68 @@ impl<'a, const GRID_SIZE: usize> Tetrahedral<'a, GRID_SIZE> {
         let x_n: i32 = rounding_div_ceil(in_r as i32 * (GRID_SIZE as i32 - 1), 255);
         let y_n: i32 = rounding_div_ceil(in_g as i32 * (GRID_SIZE as i32 - 1), 255);
         let z_n: i32 = rounding_div_ceil(in_b as i32 * (GRID_SIZE as i32 - 1), 255);
-        let rx: f32 = linear_r * (GRID_SIZE as i32 - 1) as f32 - x as f32;
-        let ry: f32 = linear_g * (GRID_SIZE as i32 - 1) as f32 - y as f32;
-        let rz: f32 = linear_b * (GRID_SIZE as i32 - 1) as f32 - z as f32;
-        let c0 = r(self.cube, x, y, z);
+        let rx = linear_r * (GRID_SIZE as i32 - 1) as f32 - x as f32;
+        let ry = linear_g * (GRID_SIZE as i32 - 1) as f32 - y as f32;
+        let rz = linear_b * (GRID_SIZE as i32 - 1) as f32 - z as f32;
+        let c0 = r.fetch(x, y, z);
         let c2;
         let c1;
         let c3;
         if rx >= ry {
             if ry >= rz {
                 //rx >= ry && ry >= rz
-                c1 = r(self.cube, x_n, y, z) - c0;
-                c2 = r(self.cube, x_n, y_n, z) - r(self.cube, x_n, y, z);
-                c3 = r(self.cube, x_n, y_n, z_n) - r(self.cube, x_n, y_n, z);
+                c1 = r.fetch(x_n, y, z) - c0;
+                c2 = r.fetch(x_n, y_n, z) - r.fetch(x_n, y, z);
+                c3 = r.fetch(x_n, y_n, z_n) - r.fetch(x_n, y_n, z);
             } else if rx >= rz {
                 //rx >= rz && rz >= ry
-                c1 = r(self.cube, x_n, y, z) - c0;
-                c2 = r(self.cube, x_n, y_n, z_n) - r(self.cube, x_n, y, z_n);
-                c3 = r(self.cube, x_n, y, z_n) - r(self.cube, x_n, y, z);
+                c1 = r.fetch(x_n, y, z) - c0;
+                c2 = r.fetch(x_n, y_n, z_n) - r.fetch(x_n, y, z_n);
+                c3 = r.fetch(x_n, y, z_n) - r.fetch(x_n, y, z);
             } else {
                 //rz > rx && rx >= ry
-                c1 = r(self.cube, x_n, y, z_n) - r(self.cube, x, y, z_n);
-                c2 = r(self.cube, x_n, y_n, z_n) - r(self.cube, x_n, y, z_n);
-                c3 = r(self.cube, x, y, z_n) - c0;
+                c1 = r.fetch(x_n, y, z_n) - r.fetch(x, y, z_n);
+                c2 = r.fetch(x_n, y_n, z_n) - r.fetch(x_n, y, z_n);
+                c3 = r.fetch(x, y, z_n) - c0;
             }
         } else if rx >= rz {
             //ry > rx && rx >= rz
-            c1 = r(self.cube, x_n, y_n, z) - r(self.cube, x, y_n, z);
-            c2 = r(self.cube, x, y_n, z) - c0;
-            c3 = r(self.cube, x_n, y_n, z_n) - r(self.cube, x_n, y_n, z);
+            c1 = r.fetch(x_n, y_n, z) - r.fetch(x, y_n, z);
+            c2 = r.fetch(x, y_n, z) - c0;
+            c3 = r.fetch(x_n, y_n, z_n) - r.fetch(x_n, y_n, z);
         } else if ry >= rz {
             //ry >= rz && rz > rx
-            c1 = r(self.cube, x_n, y_n, z_n) - r(self.cube, x, y_n, z_n);
-            c2 = r(self.cube, x, y_n, z) - c0;
-            c3 = r(self.cube, x, y_n, z_n) - r(self.cube, x, y_n, z);
+            c1 = r.fetch(x_n, y_n, z_n) - r.fetch(x, y_n, z_n);
+            c2 = r.fetch(x, y_n, z) - c0;
+            c3 = r.fetch(x, y_n, z_n) - r.fetch(x, y_n, z);
         } else {
             //rz > ry && ry > rx
-            c1 = r(self.cube, x_n, y_n, z_n) - r(self.cube, x, y_n, z_n);
-            c2 = r(self.cube, x, y_n, z_n) - r(self.cube, x, y, z_n);
-            c3 = r(self.cube, x, y, z_n) - c0;
+            c1 = r.fetch(x_n, y_n, z_n) - r.fetch(x, y_n, z_n);
+            c2 = r.fetch(x, y_n, z_n) - r.fetch(x, y, z_n);
+            c3 = r.fetch(x, y, z_n) - c0;
         }
-        c0 + c1 * rx + c2 * ry + c3 * rz
+        let s0 = c0.mla(c1, T::from(rx));
+        let s1 = s0.mla(c2, T::from(ry));
+        s1.mla(c3, T::from(rz))
     }
 
-    #[inline]
+    #[inline(always)]
     pub(crate) fn inter4(&self, in_r: u8, in_g: u8, in_b: u8) -> Vector4f {
-        self.interpolate(in_r, in_g, in_b, Self::find4)
+        self.interpolate(
+            in_r,
+            in_g,
+            in_b,
+            TetrahedralFetchVector4f::<GRID_SIZE> { cube: &self.cube },
+        )
     }
 
-    #[inline]
+    #[inline(always)]
     pub(crate) fn inter3(&self, in_r: u8, in_g: u8, in_b: u8) -> Vector3f {
-        self.interpolate(in_r, in_g, in_b, Self::find3)
+        self.interpolate(
+            in_r,
+            in_g,
+            in_b,
+            TetrahedralFetchVector3f::<GRID_SIZE> { cube: &self.cube },
+        )
     }
 }
