@@ -279,14 +279,14 @@ where
             }
         }
 
-        let search_fn = self.gamma_search.as_ref();
-        search_fn(
-            working_set,
-            dst,
-            &self.profile.r_gamma,
-            &self.profile.g_gamma,
-            &self.profile.b_gamma,
-        );
+        // let search_fn = self.gamma_search.as_ref();
+        // search_fn(
+        //     working_set,
+        //     dst,
+        //     &self.profile.r_gamma,
+        //     &self.profile.g_gamma,
+        //     &self.profile.b_gamma,
+        // );
 
         Ok(())
     }
