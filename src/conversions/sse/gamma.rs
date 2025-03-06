@@ -226,7 +226,7 @@ fn linear_search_rgb_impl<const CAP: usize, const SRC_LAYOUT: u8>(
                 let r_l = *r_linear.get_unchecked(r as usize);
                 let g_l = *g_linear.get_unchecked(g as usize);
                 let b_l = *b_linear.get_unchecked(b as usize);
-                let dst =  working_set.get_unchecked_mut(x..x + 3).as_mut_ptr();
+                let dst =  working_set.get_unchecked_mut(x..x + 3);
                 dst[0] = r_l;
                 dst[1] = g_l;
                 dst[2] = b_l;
