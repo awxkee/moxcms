@@ -243,29 +243,6 @@ where
         dst: &mut [T],
         working_set: &mut [f32; 1992],
     ) -> Result<(), CmsError> {
-        let src_cn = Layout::from(SRC_LAYOUT);
-        let src_channels = src_cn.channels();
-
-        if src_channels == 4 {
-            for (chunk, dst) in src
-                .chunks_exact(src_channels)
-                .zip(working_set.chunks_exact_mut(src_channels))
-            {
-                dst[0] = self.profile.r_linear[chunk[src_cn.r_i()].as_()];
-                dst[1] = self.profile.g_linear[chunk[src_cn.g_i()].as_()];
-                dst[2] = self.profile.b_linear[chunk[src_cn.b_i()].as_()];
-                dst[3] = f32::from_bits(chunk[src_cn.a_i()].as_() as u32);
-            }
-        } else {
-            for (chunk, dst) in src
-                .chunks_exact(src_channels)
-                .zip(working_set.chunks_exact_mut(src_channels))
-            {
-                dst[0] = self.profile.r_linear[chunk[src_cn.r_i()].as_()];
-                dst[1] = self.profile.g_linear[chunk[src_cn.g_i()].as_()];
-                dst[2] = self.profile.b_linear[chunk[src_cn.b_i()].as_()];
-            }
-        }
 
         let linear_fn = self.linear_search.as_ref();
         linear_fn(
