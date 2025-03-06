@@ -107,10 +107,10 @@ unsafe fn gamma_search_16bit_impl<
         let mut x = 0usize;
         let mut src_x = 0usize;
         let mut dst_x = 0usize;
-        while x < samples {
-            let chunk = working_set.get_unchecked(src_x..);
-            let dst = dst.get_unchecked_mut(dst_x..);
-            if src_channels == 3 {
+        if src_channels == 3 {
+            while x < samples {
+                let chunk = working_set.get_unchecked(src_x..);
+                let dst = dst.get_unchecked_mut(dst_x..);
                 let mut src_vl = _mm_loadu_si64(chunk.as_ptr() as *const u8);
                 src_vl = _mm_insert_epi32::<2>(src_vl, chunk[2].to_bits() as i32);
                 let src_f = _mm_cvtps_epi32(_mm_castsi128_ps(src_vl));
@@ -122,7 +122,15 @@ unsafe fn gamma_search_16bit_impl<
                 if dst_channels == 4 {
                     dst[dst_cn.a_i()] = max_value;
                 }
-            } else if src_channels == 4 {
+                x += 1;
+                src_x += src_channels;
+                dst_x += dst_channels;
+            }
+        } else if src_channels == 4 {
+            while x < samples {
+                let chunk = working_set.get_unchecked(src_x..);
+                let dst = dst.get_unchecked_mut(dst_x..);
+
                 let src_f = _mm_cvtps_epi32(_mm_loadu_ps(chunk.as_ptr()));
                 let packed_u16 = _mm_packus_epi32(src_f, src_f);
                 _mm_storeu_si64(temporary.as_mut_ptr() as *mut _, packed_u16);
@@ -132,11 +140,11 @@ unsafe fn gamma_search_16bit_impl<
                 if dst_channels == 4 {
                     dst[dst_cn.a_i()] = chunk[3].to_bits() as u16;
                 }
-            }
 
-            x += 1;
-            src_x += src_channels;
-            dst_x += dst_channels;
+                x += 1;
+                src_x += src_channels;
+                dst_x += dst_channels;
+            }
         }
     }
 }
