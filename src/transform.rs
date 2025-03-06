@@ -337,7 +337,7 @@ impl ColorProfile {
         dst_layout: Layout,
         options: TransformOptions,
     ) -> Result<Box<Transform8BitExecutor>, CmsError> {
-        self.create_transform_nbit::<u8, 8, 256, 8192>(src_layout, dst_pr, dst_layout, options)
+        self.create_transform_nbit::<u8, 8, 256, 4092>(src_layout, dst_pr, dst_layout, options)
     }
 
     pub(crate) fn get_device_to_pcs_lut(&self, intent: RenderingIntent) -> Option<&LutDataType> {

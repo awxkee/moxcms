@@ -7,6 +7,7 @@
 use criterion::{Criterion, criterion_group, criterion_main};
 use lcms2::{Intent, PixelFormat, Profile, Transform};
 use moxcms::{ColorProfile, Layout, TransformOptions};
+use std::fs;
 use std::fs::File;
 use std::io::BufReader;
 use zune_jpeg::JpegDecoder;
@@ -41,13 +42,13 @@ pub fn criterion_benchmark(c: &mut Criterion) {
 
     c.bench_function("lcms2: RGB -> RGB", |b| {
         let custom_profile = Profile::new_icc(&src_icc_profile).unwrap();
-        let srgb_profile = Profile::new_srgb();
+        let profile_bytes = fs::read("../assets/bt_2020.icc").unwrap();
+        let dest_profile = Profile::new_icc(&profile_bytes).unwrap();
         let mut dst = vec![0u8; rgb.len()];
-
         let t = Transform::new(
-            &srgb_profile,
-            PixelFormat::RGB_8,
             &custom_profile,
+            PixelFormat::RGB_8,
+            &dest_profile,
             PixelFormat::RGB_8,
             Intent::Perceptual,
         )
@@ -60,7 +61,8 @@ pub fn criterion_benchmark(c: &mut Criterion) {
 
     c.bench_function("qcms: RGB -> RGB", |b| {
         let custom_profile = qcms::Profile::new_from_slice(&src_icc_profile, false).unwrap();
-        let mut srgb_profile = qcms::Profile::new_sRGB();
+        let profile_bytes = fs::read("../assets/bt_2020.icc").unwrap();
+        let mut srgb_profile = qcms::Profile::new_from_slice(&profile_bytes, false).unwrap();
         let mut dst = vec![0u8; rgb.len()];
         srgb_profile.precache_output_transform();
         let xfm = qcms::Transform::new(
