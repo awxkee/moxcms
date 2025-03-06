@@ -293,9 +293,9 @@ impl<
             let j_r = src[0].as_() as f32 * scale;
             let j_g = src[1].as_() as f32 * scale;
             let j_b = src[2].as_() as f32 * scale;
-            dst[0] = self.r_lin[j_r as usize];
-            dst[1] = self.g_lin[j_g as usize];
-            dst[2] = self.b_lin[j_b as usize];
+            dst[0] = self.r_lin[(j_r as u16) as usize];
+            dst[1] = self.g_lin[(j_g as u16) as usize];
+            dst[2] = self.b_lin[(j_b as u16) as usize];
         }
         Ok(())
     }

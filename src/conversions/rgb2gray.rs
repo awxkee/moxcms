@@ -190,7 +190,7 @@ where
             .chunks_exact(dst_channels)
             .zip(dst.chunks_exact_mut(dst_channels))
         {
-            dst[0] = self.trc_box.gray_gamma[chunk[0] as usize];
+            dst[0] = self.trc_box.gray_gamma[(chunk[0] as u16) as usize];
             if dst_channels == 2 {
                 dst[1] = chunk[1].to_bits().as_();
             }
