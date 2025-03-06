@@ -26,7 +26,6 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-use crate::mlaf::mlaf;
 use crate::{CmsError, Layout, Matrix3f, TransformExecutor};
 use num_traits::AsPrimitive;
 
@@ -288,6 +287,7 @@ where
     u32: AsPrimitive<T>,
 {
     fn transform(&self, src: &[T], dst: &mut [T]) -> Result<(), CmsError> {
+        use crate::mlaf::mlaf;
         let src_cn = Layout::from(SRC_LAYOUT);
         let dst_cn = Layout::from(DST_LAYOUT);
         let src_channels = src_cn.channels();
