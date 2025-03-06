@@ -93,7 +93,7 @@ fn main() {
     let rgb_to_cmyk = dest_profile
         .create_transform_8bit(
             Layout::Rgb,
-            &funny_profile,
+            &color_profile,
             Layout::Rgba,
             TransformOptions {
                 allow_chroma_clipping: false,
@@ -107,7 +107,7 @@ fn main() {
     println!("Execution time: {:?}", instant.elapsed());
 
     dest_profile.rendering_intent = RenderingIntent::Perceptual;
-    let transform = funny_profile
+    let transform = color_profile
         .create_transform_8bit(
             Layout::Rgba,
             &dest_profile,

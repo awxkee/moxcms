@@ -33,7 +33,6 @@ use crate::profile::RenderingIntent;
 use crate::{CmsError, InPlaceStage, Layout, Matrix3f, TransformExecutor, TransformOptions};
 use num_traits::AsPrimitive;
 
-#[derive(Clone)]
 pub(crate) struct TransformProfileRgb<T: Clone, const BUCKET: usize> {
     pub(crate) r_linear: Box<[f32; BUCKET]>,
     pub(crate) g_linear: Box<[f32; BUCKET]>,
@@ -55,6 +54,34 @@ struct TransformProfilePcsXYZRgb<
     pub(crate) profile: TransformProfileRgb<T, LINEAR_CAP>,
     pub(crate) rendering_intent: RenderingIntent,
     pub(crate) options: TransformOptions,
+    pub(crate) matrix_clip_scale_stage: Box<dyn InPlaceStage + Send + Sync>,
+}
+
+fn make_clip_scale_stage<const LAYOUT: u8, const GAMMA_LUT: usize>(
+    matrix: Option<Matrix3f>,
+) -> Box<dyn InPlaceStage + Send + Sync> {
+    let scale = (GAMMA_LUT - 1) as f32;
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+    {
+        if std::arch::is_x86_feature_detected!("avx2") {
+            use crate::conversions::avx::{MatrixClipScaleStageAvx, MatrixClipScaleStageAvxFma};
+            if std::arch::is_x86_feature_detected!("fma") {
+                return Box::new(MatrixClipScaleStageAvxFma::<LAYOUT> {
+                    scale,
+                    matrix: matrix.unwrap_or(Matrix3f::IDENTITY),
+                });
+            } else {
+                return Box::new(MatrixClipScaleStageAvx::<LAYOUT> {
+                    scale,
+                    matrix: matrix.unwrap_or(Matrix3f::IDENTITY),
+                });
+            }
+        }
+    }
+    Box::new(MatrixClipScaleStage::<LAYOUT> {
+        scale,
+        matrix: matrix.unwrap_or(Matrix3f::IDENTITY),
+    })
 }
 
 pub(crate) fn make_rgb_xyz_rgb_transform<
@@ -73,6 +100,8 @@ where
     u32: AsPrimitive<T>,
 {
     if (src_layout == Layout::Rgba) && (dst_layout == Layout::Rgba) {
+        let matrix_clip_stage =
+            make_clip_scale_stage::<{ Layout::Rgba as u8 }, GAMMA_LUT>(profile.adaptation_matrix);
         return Ok(Box::new(TransformProfilePcsXYZRgb::<
             T,
             { Layout::Rgba as u8 },
@@ -84,8 +113,11 @@ where
             profile,
             rendering_intent: intent,
             options,
+            matrix_clip_scale_stage: matrix_clip_stage,
         }));
     } else if (src_layout == Layout::Rgb) && (dst_layout == Layout::Rgba) {
+        let matrix_clip_stage =
+            make_clip_scale_stage::<{ Layout::Rgb as u8 }, GAMMA_LUT>(profile.adaptation_matrix);
         return Ok(Box::new(TransformProfilePcsXYZRgb::<
             T,
             { Layout::Rgb as u8 },
@@ -97,8 +129,12 @@ where
             profile,
             rendering_intent: intent,
             options,
+            matrix_clip_scale_stage: matrix_clip_stage,
         }));
     } else if (src_layout == Layout::Rgba) && (dst_layout == Layout::Rgb) {
+        let matrix_clip_stage =
+            make_clip_scale_stage::<{ Layout::Rgba as u8 }, GAMMA_LUT>(profile.adaptation_matrix);
+
         return Ok(Box::new(TransformProfilePcsXYZRgb::<
             T,
             { Layout::Rgba as u8 },
@@ -109,9 +145,13 @@ where
         > {
             profile,
             rendering_intent: intent,
+            matrix_clip_scale_stage: matrix_clip_stage,
             options,
         }));
     } else if (src_layout == Layout::Rgb) && (dst_layout == Layout::Rgb) {
+        let matrix_clip_stage =
+            make_clip_scale_stage::<{ Layout::Rgb as u8 }, GAMMA_LUT>(profile.adaptation_matrix);
+
         return Ok(Box::new(TransformProfilePcsXYZRgb::<
             T,
             { Layout::Rgb as u8 },
@@ -123,6 +163,7 @@ where
             profile,
             rendering_intent: intent,
             options,
+            matrix_clip_scale_stage: matrix_clip_stage,
         }));
     }
     Err(CmsError::UnsupportedProfileConnection)
@@ -187,11 +228,7 @@ where
                 };
                 stage.transform(sliced)?;
             } else {
-                let stage = MatrixClipScaleStage::<SRC_LAYOUT> {
-                    matrix: transform,
-                    scale: cap_values,
-                };
-                stage.transform(sliced)?;
+                self.matrix_clip_scale_stage.transform(sliced)?;
             }
         }
 
