@@ -75,7 +75,7 @@ fn make_clip_scale_stage<const LAYOUT: u8, const GAMMA_LUT: usize>(
                     scale,
                     matrix: matrix.unwrap_or(Matrix3f::IDENTITY),
                 })
-            }
+            };
         }
     }
     Box::new(MatrixClipScaleStage::<LAYOUT> {
@@ -205,13 +205,22 @@ where
             // }
 
             dst[0] = unsafe {
-                *self.profile.r_linear.get_unchecked(chunk[src_cn.r_i()].as_())
+                *self
+                    .profile
+                    .r_linear
+                    .get_unchecked(chunk[src_cn.r_i()].as_())
             };
             dst[1] = unsafe {
-                *self.profile.g_linear.get_unchecked(chunk[src_cn.g_i()].as_())
+                *self
+                    .profile
+                    .g_linear
+                    .get_unchecked(chunk[src_cn.g_i()].as_())
             };
             dst[2] = unsafe {
-                *self.profile.b_linear.get_unchecked(chunk[src_cn.b_i()].as_())
+                *self
+                    .profile
+                    .b_linear
+                    .get_unchecked(chunk[src_cn.b_i()].as_())
             };
             if src_channels == 4 {
                 dst[3] = f32::from_bits(chunk[src_cn.a_i()].as_() as u32);
@@ -254,14 +263,23 @@ where
             // dst[dst_cn.r_i()] = self.profile.r_gamma[(chunk[0] as u16) as usize];
             // dst[dst_cn.g_i()] = self.profile.g_gamma[(chunk[1] as u16) as usize];
             // dst[dst_cn.b_i()] = self.profile.b_gamma[(chunk[2] as u16) as usize];
-            dst[dst_cn.r_i()] = unsafe {
-                *self.profile.r_gamma.get_unchecked((chunk[0] as u16) as usize)
+            unsafe {
+                *dst.get_unchecked_mut(dst_cn.r_i()) = *self
+                    .profile
+                    .r_gamma
+                    .get_unchecked((chunk[0] as u16) as usize)
             };
-            dst[dst_cn.g_i()] = unsafe {
-                *self.profile.g_gamma.get_unchecked((chunk[1] as u16) as usize)
+            unsafe {
+                *dst.get_unchecked_mut(dst_cn.g_i()) = *self
+                    .profile
+                    .g_gamma
+                    .get_unchecked((chunk[1] as u16) as usize)
             };
-            dst[dst_cn.b_i()] = unsafe {
-                *self.profile.b_gamma.get_unchecked((chunk[2] as u16) as usize)
+            unsafe {
+                *dst.get_unchecked_mut(dst_cn.b_i()) = *self
+                    .profile
+                    .b_gamma
+                    .get_unchecked((chunk[2] as u16) as usize)
             };
             if src_channels == 4 && dst_channels == 4 {
                 dst[dst_cn.a_i()] = chunk[3].to_bits().as_();
