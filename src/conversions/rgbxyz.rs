@@ -28,7 +28,7 @@
  */
 use crate::conversions::chunking::compute_chunk_sizes;
 use crate::conversions::stages::{
-    GammaSearchFactory, GammaSearchFunction, RelativeColorMetricRgbXyz,
+    GammaSearchFactory, GammaSearchRgbFunction, LinearSearchRgbFunction, RelativeColorMetricRgbXyz,
 };
 use crate::conversions::{GamutClipScaleStage, MatrixStage};
 use crate::profile::RenderingIntent;
@@ -57,7 +57,8 @@ struct TransformProfilePcsXYZRgb<
     pub(crate) rendering_intent: RenderingIntent,
     pub(crate) options: TransformOptions,
     pub(crate) matrix_clip_scale_stage: Box<dyn InPlaceStage + Send + Sync>,
-    pub(crate) gamma_search: Box<GammaSearchFunction<T>>,
+    pub(crate) gamma_search: Box<GammaSearchRgbFunction<T>>,
+    pub(crate) linear_search: Box<LinearSearchRgbFunction<T, LINEAR_CAP>>,
 }
 
 fn make_clip_scale_stage<const LAYOUT: u8, const GAMMA_LUT: usize>(
@@ -134,6 +135,11 @@ where
                 { Layout::Rgba as u8 },
                 BIT_DEPTH,
             >()),
+            linear_search: Box::new(T::provide_rgb_linear_search::<
+                LINEAR_CAP,
+                { Layout::Rgba as u8 },
+                BIT_DEPTH,
+            >()),
         }));
     } else if (src_layout == Layout::Rgb) && (dst_layout == Layout::Rgba) {
         let matrix_clip_stage =
@@ -153,6 +159,11 @@ where
             gamma_search: Box::new(T::provide_rgb_gamma_search::<
                 { Layout::Rgb as u8 },
                 { Layout::Rgba as u8 },
+                BIT_DEPTH,
+            >()),
+            linear_search: Box::new(T::provide_rgb_linear_search::<
+                LINEAR_CAP,
+                { Layout::Rgb as u8 },
                 BIT_DEPTH,
             >()),
         }));
@@ -177,6 +188,11 @@ where
                 { Layout::Rgb as u8 },
                 BIT_DEPTH,
             >()),
+            linear_search: Box::new(T::provide_rgb_linear_search::<
+                LINEAR_CAP,
+                { Layout::Rgba as u8 },
+                BIT_DEPTH,
+            >()),
         }));
     } else if (src_layout == Layout::Rgb) && (dst_layout == Layout::Rgb) {
         let matrix_clip_stage =
@@ -196,6 +212,11 @@ where
             matrix_clip_scale_stage: matrix_clip_stage,
             gamma_search: Box::new(T::provide_rgb_gamma_search::<
                 { Layout::Rgb as u8 },
+                { Layout::Rgb as u8 },
+                BIT_DEPTH,
+            >()),
+            linear_search: Box::new(T::provide_rgb_linear_search::<
+                LINEAR_CAP,
                 { Layout::Rgb as u8 },
                 BIT_DEPTH,
             >()),
@@ -245,6 +266,15 @@ where
                 dst[2] = self.profile.b_linear[chunk[src_cn.b_i()].as_()];
             }
         }
+
+        let linear_fn = self.linear_search.as_ref();
+        linear_fn(
+            src,
+            working_set,
+            &self.profile.r_linear,
+            &self.profile.g_linear,
+            &self.profile.b_linear,
+        );
 
         let cap_values = (GAMMA_LUT - 1) as f32;
 

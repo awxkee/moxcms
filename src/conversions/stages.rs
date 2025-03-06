@@ -218,15 +218,13 @@ impl<const LAYOUT: u8> InPlaceStage for RelativeColorMetricRgbXyz<LAYOUT> {
     }
 }
 
-pub(crate) type GammaSearchFunction<T> = fn(
-    working_set: &[f32],
-    dst: &mut [T],
-    r_gamma: &[T; 65536],
-    g_gamma: &[T; 65536],
-    b_gamma: &[T; 65536],
-);
+pub(crate) type GammaSearchRgbFunction<T> =
+    fn(&[f32], &mut [T], &[T; 65536], &[T; 65536], &[T; 65536]);
 
-pub(crate) fn gamma_search<
+pub(crate) type LinearSearchRgbFunction<T, const CAP: usize> =
+    fn(&[T], &mut [f32], &Box<[f32; CAP]>, &Box<[f32; CAP]>, &Box<[f32; CAP]>);
+
+fn gamma_search<
     T: Copy + 'static,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
@@ -266,7 +264,10 @@ pub(crate) trait GammaSearchFactory<T> {
         const SRC_LAYOUT: u8,
         const DST_LAYOUT: u8,
         const BIT_DEPTH: usize,
-    >() -> GammaSearchFunction<T>;
+    >() -> GammaSearchRgbFunction<T>;
+
+    fn provide_rgb_linear_search<const CAP: usize, const SRC_LAYOUT: u8, const BIT_DEPTH: usize>()
+    -> LinearSearchRgbFunction<T, CAP>;
 }
 
 impl GammaSearchFactory<u8> for u8 {
@@ -274,7 +275,7 @@ impl GammaSearchFactory<u8> for u8 {
         const SRC_LAYOUT: u8,
         const DST_LAYOUT: u8,
         const BIT_DEPTH: usize,
-    >() -> GammaSearchFunction<u8> {
+    >() -> GammaSearchRgbFunction<u8> {
         #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
         {
             if std::arch::is_x86_feature_detected!("sse4.1") {
@@ -284,6 +285,18 @@ impl GammaSearchFactory<u8> for u8 {
         }
         gamma_search::<u8, SRC_LAYOUT, DST_LAYOUT, BIT_DEPTH>
     }
+
+    fn provide_rgb_linear_search<const CAP: usize, const SRC_LAYOUT: u8, const BIT_DEPTH: usize>()
+    -> LinearSearchRgbFunction<u8, CAP> {
+        #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+        {
+            if std::arch::is_x86_feature_detected!("sse4.1") {
+                use crate::conversions::sse::linear_search_rgb8;
+                return linear_search_rgb8::<CAP, SRC_LAYOUT>;
+            }
+        }
+        linear_search_rgb::<u8, CAP, SRC_LAYOUT, BIT_DEPTH>
+    }
 }
 
 impl GammaSearchFactory<u16> for u16 {
@@ -291,7 +304,7 @@ impl GammaSearchFactory<u16> for u16 {
         const SRC_LAYOUT: u8,
         const DST_LAYOUT: u8,
         const BIT_DEPTH: usize,
-    >() -> GammaSearchFunction<u16> {
+    >() -> GammaSearchRgbFunction<u16> {
         #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
         {
             if std::arch::is_x86_feature_detected!("sse4.1") {
@@ -300,5 +313,48 @@ impl GammaSearchFactory<u16> for u16 {
             }
         }
         gamma_search::<u16, SRC_LAYOUT, DST_LAYOUT, BIT_DEPTH>
+    }
+
+    fn provide_rgb_linear_search<const CAP: usize, const SRC_LAYOUT: u8, const BIT_DEPTH: usize>()
+    -> LinearSearchRgbFunction<u16, CAP> {
+        linear_search_rgb::<u16, CAP, SRC_LAYOUT, BIT_DEPTH>
+    }
+}
+
+fn linear_search_rgb<
+    T: Copy + 'static + AsPrimitive<usize>,
+    const CAP: usize,
+    const SRC_LAYOUT: u8,
+    const BIT_DEPTH: usize,
+>(
+    src: &[T],
+    working_set: &mut [f32],
+    r_linear: &Box<[f32; CAP]>,
+    g_linear: &Box<[f32; CAP]>,
+    b_linear: &Box<[f32; CAP]>,
+) where
+    u32: AsPrimitive<T>,
+{
+    let src_cn = Layout::from(SRC_LAYOUT);
+    let src_channels = src_cn.channels();
+    if src_channels == 4 {
+        for (chunk, dst) in src
+            .chunks_exact(src_channels)
+            .zip(working_set.chunks_exact_mut(src_channels))
+        {
+            dst[0] = r_linear[chunk[src_cn.r_i()].as_()];
+            dst[1] = g_linear[chunk[src_cn.g_i()].as_()];
+            dst[2] = b_linear[chunk[src_cn.b_i()].as_()];
+            dst[3] = f32::from_bits(chunk[src_cn.a_i()].as_() as u32);
+        }
+    } else {
+        for (chunk, dst) in src
+            .chunks_exact(src_channels)
+            .zip(working_set.chunks_exact_mut(src_channels))
+        {
+            dst[0] = r_linear[chunk[src_cn.r_i()].as_()];
+            dst[1] = g_linear[chunk[src_cn.g_i()].as_()];
+            dst[2] = b_linear[chunk[src_cn.b_i()].as_()];
+        }
     }
 }

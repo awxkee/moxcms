@@ -28,4 +28,4 @@
  */
 mod gamma;
 
-pub(crate) use gamma::{gamma_search_8bit, gamma_search_16bit};
+pub(crate) use gamma::{gamma_search_8bit, gamma_search_16bit, linear_search_rgb8};
