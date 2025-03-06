@@ -77,6 +77,7 @@ fn transform_executor<const LAYOUT: u8, const FMA: bool>(
 
         while x + 8 * channels < total_width {
             let chunk = dst.get_unchecked_mut(x..);
+
             let x0 = _mm256_loadu_ps(chunk.as_ptr());
             let x1 = _mm256_loadu_ps(chunk.get_unchecked(8..).as_ptr());
             let x2 = _mm256_loadu_ps(chunk.get_unchecked(16..).as_ptr());

@@ -37,14 +37,14 @@ use zune_jpeg::JpegDecoder;
 use zune_jpeg::zune_core::colorspace::ColorSpace;
 use zune_jpeg::zune_core::options::DecoderOptions;
 
-/*fn main() {
-    let funny_icc = fs::read("./assets/fogra39_coated.icc").unwrap();
-    let funny_profile = ColorProfile::new_from_slice(&funny_icc).unwrap();
+fn main() {
+    // let funny_icc = fs::read("./assets/fogra39_coated.icc").unwrap();
+    // let funny_profile = ColorProfile::new_from_slice(&funny_icc).unwrap();
 
-    let srgb_perceptual_icc = fs::read("./assets/srgb_perceptual.icc").unwrap();
-    let srgb_perceptual_profile = ColorProfile::new_from_slice(&srgb_perceptual_icc).unwrap();
+    // let srgb_perceptual_icc = fs::read("./assets/srgb_perceptual.icc").unwrap();
+    // let srgb_perceptual_profile = ColorProfile::new_from_slice(&srgb_perceptual_icc).unwrap();
 
-    println!("{:?}", srgb_perceptual_profile);
+    // println!("{:?}", srgb_perceptual_profile);
 
     let f_str = "./assets/bench.jpg";
     let file = File::open(f_str).expect("Failed to open file");
@@ -199,8 +199,8 @@ use zune_jpeg::zune_core::options::DecoderOptions;
         image::ExtendedColorType::Rgb8,
     )
     .unwrap();
-}*/
-
+}
+/*
 fn main() {
     let color_profile = ColorProfile::new_bt2020();
     // let color_profile = ColorProfile::new_gray_with_gamma(2.2);
@@ -217,8 +217,8 @@ fn main() {
             },
         )
         .unwrap();
-    let width = 1920;
-    let height = 1080;
+    let width = 5000;
+    let height = 5000;
     let mut dst = vec![0u8; width * height * 4];
     let src = vec![251u8; width * height * 4];
 
@@ -231,3 +231,4 @@ fn main() {
             .unwrap();
     }
 }
+*/

@@ -32,6 +32,9 @@ use std::arch::x86::*;
 #[cfg(target_arch = "x86_64")]
 use std::arch::x86_64::*;
 
+#[repr(align(16), C)]
+struct SseAlignedU16([u16; 8]);
+
 #[target_feature(enable = "sse4.1")]
 unsafe fn gamma_search_8bit_impl<const SRC_LAYOUT: u8, const DST_LAYOUT: u8>(
     working_set: &[f32],
@@ -46,7 +49,8 @@ unsafe fn gamma_search_8bit_impl<const SRC_LAYOUT: u8, const DST_LAYOUT: u8>(
         let src_cn = Layout::from(SRC_LAYOUT);
         let src_channels = src_cn.channels();
 
-        let mut temporary: [u16; 8] = [0; 8];
+        let mut temporary0 = SseAlignedU16([0; 8]);
+        let mut temporary1 = SseAlignedU16([0; 8]);
 
         let dst_cn = Layout::from(DST_LAYOUT);
         let dst_channels = dst_cn.channels();
@@ -70,28 +74,22 @@ unsafe fn gamma_search_8bit_impl<const SRC_LAYOUT: u8, const DST_LAYOUT: u8>(
                 let src_f0 = _mm_cvtps_epi32(_mm_castsi128_ps(src_vl0));
                 let src_f1 = _mm_cvtps_epi32(_mm_castsi128_ps(src_vl1));
 
-                let packed_u16_0 = _mm_packus_epi32(src_f0, src_f0);
-                let packed_u16_1 = _mm_packus_epi32(src_f1, src_f1);
+                _mm_store_si128(temporary0.0.as_mut_ptr() as *mut _, src_f0);
+                _mm_store_si128(temporary1.0.as_mut_ptr() as *mut _, src_f1);
 
-                _mm_storeu_si64(temporary.as_mut_ptr() as *mut _, packed_u16_0);
-                _mm_storeu_si64(
-                    temporary.get_unchecked_mut(4..).as_mut_ptr() as *mut _,
-                    packed_u16_1,
-                );
-
-                *dst.get_unchecked_mut(dst_cn.r_i()) = r_gamma[temporary[0] as usize];
-                *dst.get_unchecked_mut(dst_cn.g_i()) = g_gamma[temporary[1] as usize];
-                *dst.get_unchecked_mut(dst_cn.b_i()) = b_gamma[temporary[2] as usize];
+                *dst.get_unchecked_mut(dst_cn.r_i()) = r_gamma[temporary0.0[0] as usize];
+                *dst.get_unchecked_mut(dst_cn.g_i()) = g_gamma[temporary0.0[2] as usize];
+                *dst.get_unchecked_mut(dst_cn.b_i()) = b_gamma[temporary0.0[4] as usize];
                 if dst_channels == 4 {
                     *dst.get_unchecked_mut(dst_cn.a_i()) = max_value;
                 }
 
                 *dst.get_unchecked_mut(dst_cn.r_i() + dst_channels) =
-                    r_gamma[temporary[4] as usize];
+                    r_gamma[temporary1.0[0] as usize];
                 *dst.get_unchecked_mut(dst_cn.g_i() + dst_channels) =
-                    g_gamma[temporary[5] as usize];
+                    g_gamma[temporary1.0[2] as usize];
                 *dst.get_unchecked_mut(dst_cn.b_i() + dst_channels) =
-                    b_gamma[temporary[6] as usize];
+                    b_gamma[temporary1.0[4] as usize];
                 if dst_channels == 4 {
                     *dst.get_unchecked_mut(dst_cn.a_i() + dst_channels) = max_value;
                 }
@@ -110,11 +108,13 @@ unsafe fn gamma_search_8bit_impl<const SRC_LAYOUT: u8, const DST_LAYOUT: u8>(
                 src_vl = _mm_insert_epi32::<2>(src_vl, chunk[2].to_bits() as i32);
 
                 let src_f = _mm_cvtps_epi32(_mm_castsi128_ps(src_vl));
-                let packed_u16 = _mm_packus_epi32(src_f, src_f);
-                _mm_storeu_si64(temporary.as_mut_ptr() as *mut _, packed_u16);
-                *dst.get_unchecked_mut(dst_cn.r_i()) = r_gamma[temporary[0] as usize];
-                *dst.get_unchecked_mut(dst_cn.g_i()) = g_gamma[temporary[1] as usize];
-                *dst.get_unchecked_mut(dst_cn.b_i()) = b_gamma[temporary[2] as usize];
+
+                _mm_store_si128(temporary0.0.as_mut_ptr() as *mut _, src_f);
+
+                *dst.get_unchecked_mut(dst_cn.r_i()) = r_gamma[temporary0.0[0] as usize];
+                *dst.get_unchecked_mut(dst_cn.g_i()) = g_gamma[temporary0.0[2] as usize];
+                *dst.get_unchecked_mut(dst_cn.b_i()) = b_gamma[temporary0.0[4] as usize];
+
                 if dst_channels == 4 {
                     dst[dst_cn.a_i()] = max_value;
                 }
@@ -128,11 +128,10 @@ unsafe fn gamma_search_8bit_impl<const SRC_LAYOUT: u8, const DST_LAYOUT: u8>(
                 let dst = dst.get_unchecked_mut(dst_x..);
 
                 let src_f = _mm_cvtps_epi32(_mm_loadu_ps(chunk.as_ptr()));
-                let packed_u16 = _mm_packus_epi32(src_f, src_f);
-                _mm_storeu_si64(temporary.as_mut_ptr() as *mut _, packed_u16);
-                *dst.get_unchecked_mut(dst_cn.r_i()) = r_gamma[temporary[0] as usize];
-                *dst.get_unchecked_mut(dst_cn.g_i()) = g_gamma[temporary[1] as usize];
-                *dst.get_unchecked_mut(dst_cn.b_i()) = b_gamma[temporary[2] as usize];
+                _mm_store_si128(temporary0.0.as_mut_ptr() as *mut _, src_f);
+                *dst.get_unchecked_mut(dst_cn.r_i()) = r_gamma[temporary0.0[0] as usize];
+                *dst.get_unchecked_mut(dst_cn.g_i()) = g_gamma[temporary0.0[2] as usize];
+                *dst.get_unchecked_mut(dst_cn.b_i()) = b_gamma[temporary0.0[4] as usize];
                 if dst_channels == 4 {
                     *dst.get_unchecked_mut(dst_cn.a_i()) = chunk[3].to_bits() as u8;
                 }
@@ -162,11 +161,12 @@ unsafe fn gamma_search_16bit_impl<
         let src_cn = Layout::from(SRC_LAYOUT);
         let src_channels = src_cn.channels();
 
-        let mut temporary: [u16; 8] = [0; 8];
-
         let dst_cn = Layout::from(DST_LAYOUT);
         let dst_channels = dst_cn.channels();
         let samples = dst.len() / dst_channels;
+
+        let mut temporary0 = SseAlignedU16([0; 8]);
+        let mut temporary1 = SseAlignedU16([0; 8]);
 
         let mut x = 0usize;
         let mut src_x = 0usize;
@@ -186,28 +186,22 @@ unsafe fn gamma_search_16bit_impl<
                 let src_f0 = _mm_cvtps_epi32(_mm_castsi128_ps(src_vl0));
                 let src_f1 = _mm_cvtps_epi32(_mm_castsi128_ps(src_vl1));
 
-                let packed_u16_0 = _mm_packus_epi32(src_f0, src_vl0);
-                let packed_u16_1 = _mm_packus_epi32(src_f0, src_f1);
+                _mm_store_si128(temporary0.0.as_mut_ptr() as *mut _, src_f0);
+                _mm_store_si128(temporary1.0.as_mut_ptr() as *mut _, src_f1);
 
-                _mm_storeu_si64(temporary.as_mut_ptr() as *mut _, packed_u16_0);
-                _mm_storeu_si64(
-                    temporary.get_unchecked_mut(4..).as_mut_ptr() as *mut _,
-                    packed_u16_1,
-                );
-
-                *dst.get_unchecked_mut(dst_cn.r_i()) = r_gamma[temporary[0] as usize];
-                *dst.get_unchecked_mut(dst_cn.g_i()) = g_gamma[temporary[1] as usize];
-                *dst.get_unchecked_mut(dst_cn.b_i()) = b_gamma[temporary[2] as usize];
+                *dst.get_unchecked_mut(dst_cn.r_i()) = r_gamma[temporary0.0[0] as usize];
+                *dst.get_unchecked_mut(dst_cn.g_i()) = g_gamma[temporary0.0[2] as usize];
+                *dst.get_unchecked_mut(dst_cn.b_i()) = b_gamma[temporary0.0[4] as usize];
                 if dst_channels == 4 {
                     *dst.get_unchecked_mut(dst_cn.a_i()) = max_value;
                 }
 
                 *dst.get_unchecked_mut(dst_cn.r_i() + dst_channels) =
-                    r_gamma[temporary[4] as usize];
+                    r_gamma[temporary1.0[0] as usize];
                 *dst.get_unchecked_mut(dst_cn.g_i() + dst_channels) =
-                    g_gamma[temporary[5] as usize];
+                    g_gamma[temporary1.0[2] as usize];
                 *dst.get_unchecked_mut(dst_cn.b_i() + dst_channels) =
-                    b_gamma[temporary[6] as usize];
+                    b_gamma[temporary1.0[4] as usize];
                 if dst_channels == 4 {
                     *dst.get_unchecked_mut(dst_cn.a_i() + dst_channels) = max_value;
                 }
@@ -226,11 +220,10 @@ unsafe fn gamma_search_16bit_impl<
                 src_vl = _mm_insert_epi32::<2>(src_vl, chunk[2].to_bits() as i32);
 
                 let src_f = _mm_cvtps_epi32(_mm_castsi128_ps(src_vl));
-                let packed_u16 = _mm_packus_epi32(src_f, src_vl);
-                _mm_storeu_si64(temporary.as_mut_ptr() as *mut _, packed_u16);
-                *dst.get_unchecked_mut(dst_cn.r_i()) = r_gamma[temporary[0] as usize];
-                *dst.get_unchecked_mut(dst_cn.g_i()) = g_gamma[temporary[1] as usize];
-                *dst.get_unchecked_mut(dst_cn.b_i()) = b_gamma[temporary[2] as usize];
+                _mm_store_si128(temporary0.0.as_mut_ptr() as *mut _, src_f);
+                *dst.get_unchecked_mut(dst_cn.r_i()) = r_gamma[temporary1.0[0] as usize];
+                *dst.get_unchecked_mut(dst_cn.g_i()) = g_gamma[temporary1.0[2] as usize];
+                *dst.get_unchecked_mut(dst_cn.b_i()) = b_gamma[temporary1.0[4] as usize];
                 if dst_channels == 4 {
                     dst[dst_cn.a_i()] = max_value;
                 }
@@ -244,11 +237,10 @@ unsafe fn gamma_search_16bit_impl<
                 let dst = dst.get_unchecked_mut(dst_x..);
 
                 let src_f = _mm_cvtps_epi32(_mm_loadu_ps(chunk.as_ptr()));
-                let packed_u16 = _mm_packus_epi32(src_f, src_f);
-                _mm_storeu_si64(temporary.as_mut_ptr() as *mut _, packed_u16);
-                *dst.get_unchecked_mut(dst_cn.r_i()) = r_gamma[temporary[0] as usize];
-                *dst.get_unchecked_mut(dst_cn.g_i()) = g_gamma[temporary[1] as usize];
-                *dst.get_unchecked_mut(dst_cn.b_i()) = b_gamma[temporary[2] as usize];
+                _mm_store_si128(temporary0.0.as_mut_ptr() as *mut _, src_f);
+                *dst.get_unchecked_mut(dst_cn.r_i()) = r_gamma[temporary1.0[0] as usize];
+                *dst.get_unchecked_mut(dst_cn.g_i()) = g_gamma[temporary1.0[2] as usize];
+                *dst.get_unchecked_mut(dst_cn.b_i()) = b_gamma[temporary1.0[4] as usize];
                 if dst_channels == 4 {
                     *dst.get_unchecked_mut(dst_cn.a_i()) = chunk[3].to_bits() as u16;
                 }
@@ -302,7 +294,7 @@ pub(crate) fn gamma_search_16bit<
 }
 
 #[target_feature(enable = "sse4.1")]
-fn linear_search_rgb_impl<const CAP: usize, const SRC_LAYOUT: u8>(
+unsafe fn linear_search_rgb_impl<const CAP: usize, const SRC_LAYOUT: u8>(
     src: &[u8],
     working_set: &mut [f32],
     r_linear: &Box<[f32; CAP]>,
@@ -411,13 +403,13 @@ fn linear_search_rgb_impl<const CAP: usize, const SRC_LAYOUT: u8>(
                     _mm_castps_si128(r_g1),
                 );
 
-                _mm_storeu_si32(
+                _mm_store_ss(
                     working_set.get_unchecked_mut(x + 2..).as_mut_ptr() as *mut _,
-                    _mm_castps_si128(b_l0),
+                    b_l0,
                 );
-                _mm_storeu_si32(
+                _mm_store_ss(
                     working_set.get_unchecked_mut(x + 5..).as_mut_ptr() as *mut _,
-                    _mm_castps_si128(b_l1),
+                    b_l1,
                 );
                 x += 6;
             }
@@ -435,9 +427,9 @@ fn linear_search_rgb_impl<const CAP: usize, const SRC_LAYOUT: u8>(
                     working_set.get_unchecked_mut(x..).as_mut_ptr() as *mut _,
                     _mm_castps_si128(r_g),
                 );
-                _mm_storeu_si32(
+                _mm_store_ss(
                     working_set.get_unchecked_mut(x + 2..).as_mut_ptr() as *mut _,
-                    _mm_castps_si128(b_l),
+                    b_l,
                 );
                 x += 3;
             }
