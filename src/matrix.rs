@@ -387,7 +387,7 @@ impl Matrix3f {
             ],
         }
     }
-    
+
     pub const IDENTITY: Matrix3f = Matrix3f {
         v: [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
     };

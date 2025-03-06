@@ -121,9 +121,18 @@ macro_rules! create_rgb_xyz_dependant_executor {
 use crate::conversions::sse::TransformProfilePcsXYZRgbSse;
 
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+use crate::conversions::avx::TransformProfilePcsXYZRgbAvx;
+
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 create_rgb_xyz_dependant_executor!(
     make_rgb_xyz_rgb_transform_sse_41,
     TransformProfilePcsXYZRgbSse
+);
+
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+create_rgb_xyz_dependant_executor!(
+    make_rgb_xyz_rgb_transform_avx2,
+    TransformProfilePcsXYZRgbAvx
 );
 
 #[cfg(not(all(target_arch = "aarch64", target_feature = "neon")))]
@@ -142,6 +151,11 @@ where
 {
     #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
     {
+        if std::arch::is_x86_feature_detected!("avx2") {
+            return make_rgb_xyz_rgb_transform_avx2::<T, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>(
+                src_layout, dst_layout, profile,
+            );
+        }
         if std::arch::is_x86_feature_detected!("sse4.1") {
             return make_rgb_xyz_rgb_transform_sse_41::<T, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>(
                 src_layout, dst_layout, profile,

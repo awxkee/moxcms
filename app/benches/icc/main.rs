@@ -57,7 +57,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
             transform.transform(&rgba, &mut dst).unwrap();
         })
     });
-    
+
     c.bench_function("lcms2: RGB -> RGB", |b| {
         let custom_profile = Profile::new_icc(&src_icc_profile).unwrap();
         let profile_bytes = fs::read("../assets/bt_2020.icc").unwrap();
@@ -89,7 +89,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
             PixelFormat::RGBA_8,
             Intent::Perceptual,
         )
-            .unwrap();
+        .unwrap();
 
         b.iter(|| {
             t.transform_pixels(&rgba, &mut dst);
@@ -127,7 +127,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
             qcms::DataType::RGBA8,
             qcms::Intent::default(),
         )
-            .unwrap();
+        .unwrap();
 
         b.iter(|| {
             xfm.convert(&rgba, &mut dst);

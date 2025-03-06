@@ -27,8 +27,8 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::conversions::{
-    CompressCmykLut, ToneReproductionRgbToGray, TransformProfileRgb,
-    make_cmyk_luts, make_gray_to_x, make_rgb_to_gray, make_rgb_xyz_rgb_transform,
+    CompressCmykLut, ToneReproductionRgbToGray, TransformProfileRgb, make_cmyk_luts,
+    make_gray_to_x, make_rgb_to_gray, make_rgb_xyz_rgb_transform,
 };
 use crate::err::CmsError;
 use crate::profile::LutDataType;
@@ -189,13 +189,7 @@ impl ColorProfile {
     }
 
     fn create_transform_nbit<
-        T: Copy
-            + Default
-            + AsPrimitive<usize>
-            + Send
-            + Sync
-            + AsPrimitive<f32>
-            + CompressCmykLut,
+        T: Copy + Default + AsPrimitive<usize> + Send + Sync + AsPrimitive<f32> + CompressCmykLut,
         const BIT_DEPTH: usize,
         const LINEAR_CAP: usize,
         const GAMMA_CAP: usize,
