@@ -58,34 +58,34 @@ unsafe fn gamma_search_8bit_impl<const SRC_LAYOUT: u8, const DST_LAYOUT: u8>(
         if src_channels == 3 {
             while x + 2 < samples {
                 let chunk = working_set.get_unchecked(src_x..src_x + 6);
-            
+
                 let dst = dst.get_unchecked_mut(dst_x..);
-            
+
                 let mut src_vl0 = _mm_loadu_si64(chunk.as_ptr() as *const u8);
                 let mut src_vl1 = _mm_loadu_si64(chunk.get_unchecked(3..).as_ptr() as *const u8);
-            
+
                 src_vl0 = _mm_insert_epi32::<2>(src_vl0, chunk[2].to_bits() as i32);
                 src_vl1 = _mm_insert_epi32::<2>(src_vl1, chunk[5].to_bits() as i32);
-            
+
                 let src_f0 = _mm_cvtps_epi32(_mm_castsi128_ps(src_vl0));
                 let src_f1 = _mm_cvtps_epi32(_mm_castsi128_ps(src_vl1));
-            
+
                 let packed_u16_0 = _mm_packus_epi32(src_f0, src_f0);
                 let packed_u16_1 = _mm_packus_epi32(src_f1, src_f1);
-            
+
                 _mm_storeu_si64(temporary.as_mut_ptr() as *mut _, packed_u16_0);
                 _mm_storeu_si64(
                     temporary.get_unchecked_mut(4..).as_mut_ptr() as *mut _,
                     packed_u16_1,
                 );
-            
+
                 *dst.get_unchecked_mut(dst_cn.r_i()) = r_gamma[temporary[0] as usize];
                 *dst.get_unchecked_mut(dst_cn.g_i()) = g_gamma[temporary[1] as usize];
                 *dst.get_unchecked_mut(dst_cn.b_i()) = b_gamma[temporary[2] as usize];
                 if dst_channels == 4 {
                     *dst.get_unchecked_mut(dst_cn.a_i()) = max_value;
                 }
-            
+
                 *dst.get_unchecked_mut(dst_cn.r_i() + dst_channels) =
                     r_gamma[temporary[4] as usize];
                 *dst.get_unchecked_mut(dst_cn.g_i() + dst_channels) =
@@ -95,7 +95,7 @@ unsafe fn gamma_search_8bit_impl<const SRC_LAYOUT: u8, const DST_LAYOUT: u8>(
                 if dst_channels == 4 {
                     *dst.get_unchecked_mut(dst_cn.a_i() + dst_channels) = max_value;
                 }
-            
+
                 x += 2;
                 src_x += src_channels * 2;
                 dst_x += dst_channels * 2;
@@ -316,6 +316,7 @@ fn linear_search_rgb_impl<const CAP: usize, const SRC_LAYOUT: u8>(
             let mut x = 0usize;
             let total_length = src.len();
             assert!(src.len() <= working_set.len());
+
             while x < total_length {
                 let chunk = src.get_unchecked(x..x + 4);
                 let r = chunk[src_cn.r_i()];
@@ -338,6 +339,48 @@ fn linear_search_rgb_impl<const CAP: usize, const SRC_LAYOUT: u8>(
             let mut x = 0usize;
             let total_length = src.len();
             assert!(src.len() <= working_set.len());
+
+            while x + 6 < total_length {
+                let chunk = src.get_unchecked(x..x + 6);
+                let r0 = chunk[src_cn.r_i()];
+                let g0 = chunk[src_cn.g_i()];
+                let b0 = chunk[src_cn.b_i()];
+
+                let r1 = chunk[src_cn.r_i() + 3];
+                let g1 = chunk[src_cn.g_i() + 3];
+                let b1 = chunk[src_cn.b_i() + 3];
+
+                let r_l0 = _mm_load_ss(r_linear.get_unchecked(r0 as usize..).as_ptr());
+                let g_l0 = _mm_load_ss(g_linear.get_unchecked(g0 as usize..).as_ptr());
+                let b_l0 = _mm_load_ss(b_linear.get_unchecked(b0 as usize..).as_ptr());
+
+                let r_l1 = _mm_load_ss(r_linear.get_unchecked(r1 as usize..).as_ptr());
+                let g_l1 = _mm_load_ss(g_linear.get_unchecked(g1 as usize..).as_ptr());
+                let b_l1 = _mm_load_ss(b_linear.get_unchecked(b1 as usize..).as_ptr());
+
+                let r_g0 = _mm_unpacklo_ps(r_l0, g_l0);
+                let r_g1 = _mm_unpacklo_ps(r_l1, g_l1);
+
+                _mm_storeu_si64(
+                    working_set.get_unchecked_mut(x..).as_mut_ptr() as *mut _,
+                    _mm_castps_si128(r_g0),
+                );
+                _mm_storeu_si64(
+                    working_set.get_unchecked_mut(x + 3..).as_mut_ptr() as *mut _,
+                    _mm_castps_si128(r_g1),
+                );
+
+                _mm_storeu_si32(
+                    working_set.get_unchecked_mut(x + 2..).as_mut_ptr() as *mut _,
+                    _mm_castps_si128(b_l0),
+                );
+                _mm_storeu_si32(
+                    working_set.get_unchecked_mut(x + 5..).as_mut_ptr() as *mut _,
+                    _mm_castps_si128(b_l1),
+                );
+                x += 6;
+            }
+
             while x < total_length {
                 let chunk = src.get_unchecked(x..x + 3);
                 let r = chunk[src_cn.r_i()];
