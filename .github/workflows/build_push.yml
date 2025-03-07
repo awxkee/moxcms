@@ -81,4 +81,4 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@nightly
       - run: cargo install cargo-fuzz
-      - run: cargo fuzz run unsafe --no-default-features -- -max_total_time=10
+      - run: cargo fuzz run unsafe --no-default-features -- -max_total_time=12

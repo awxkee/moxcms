@@ -26,7 +26,6 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-use crate::conversions::chunking::compute_chunk_sizes;
 use crate::{CmsError, Layout, TransformExecutor};
 use num_traits::AsPrimitive;
 
@@ -165,73 +164,6 @@ impl<
     const BUCKET: usize,
     const BIT_DEPTH: usize,
     const GAMMA_LUT: usize,
-> TransformProfileGrayToRgb<T, SRC_LAYOUT, DST_LAYOUT, BUCKET, BIT_DEPTH, GAMMA_LUT>
-where
-    u32: AsPrimitive<T>,
-{
-    #[inline(always)]
-    fn transform_chunk(
-        &self,
-        src: &[T],
-        dst: &mut [T],
-        working_set: &mut [f32; 672],
-    ) -> Result<(), CmsError> {
-        let src_cn = Layout::from(SRC_LAYOUT);
-        let dst_cn = Layout::from(DST_LAYOUT);
-        let src_channels = src_cn.channels();
-        let dst_channels = dst_cn.channels();
-
-        let is_gray_alpha = src_cn == Layout::GrayAlpha;
-
-        for (chunk, dst) in src
-            .chunks_exact(src_channels)
-            .zip(working_set.chunks_exact_mut(src_channels))
-        {
-            dst[0] = self.gray_linear[chunk[0].as_()];
-            if is_gray_alpha {
-                dst[1] = f32::from_bits(chunk[1].as_() as u32);
-            }
-        }
-
-        let max_value: T = ((1u32 << BIT_DEPTH as u32) - 1u32).as_();
-        let max_lut_size = (GAMMA_LUT - 1) as f32;
-
-        for (chunk, dst) in working_set
-            .chunks_exact(src_channels)
-            .zip(dst.chunks_exact_mut(dst_channels))
-        {
-            let possible_value = ((chunk[0] * max_lut_size).round() as u16) as usize;
-            let gamma_value = self.gray_gamma[possible_value];
-
-            let alpha_value = if src_cn == Layout::GrayAlpha {
-                (chunk[1] as u32).as_()
-            } else {
-                max_value
-            };
-
-            dst[0] = gamma_value;
-            if dst_cn == Layout::GrayAlpha {
-                dst[1] = alpha_value;
-            } else if dst_cn == Layout::Rgb {
-                dst[1] = gamma_value;
-                dst[2] = gamma_value;
-            } else if dst_cn == Layout::Rgba {
-                dst[1] = gamma_value;
-                dst[2] = gamma_value;
-                dst[3] = alpha_value;
-            }
-        }
-        Ok(())
-    }
-}
-
-impl<
-    T: Copy + Default + AsPrimitive<usize>,
-    const SRC_LAYOUT: u8,
-    const DST_LAYOUT: u8,
-    const BUCKET: usize,
-    const BIT_DEPTH: usize,
-    const GAMMA_LUT: usize,
 > TransformExecutor<T>
     for TransformProfileGrayToRgb<T, SRC_LAYOUT, DST_LAYOUT, BUCKET, BIT_DEPTH, GAMMA_LUT>
 where
@@ -252,22 +184,33 @@ where
         if dst.len() % dst_channels != 0 {
             return Err(CmsError::LaneMultipleOfChannels);
         }
-        let mut working_set = [0f32; 672];
 
-        let (src_chunks, dst_chunks) = compute_chunk_sizes(672, src_channels, dst_channels);
+        let is_gray_alpha = src_cn == Layout::GrayAlpha;
+
+        let max_value: T = ((1u32 << BIT_DEPTH as u32) - 1u32).as_();
+        let max_lut_size = (GAMMA_LUT - 1) as f32;
 
         for (src, dst) in src
-            .chunks_exact(src_chunks)
-            .zip(dst.chunks_exact_mut(dst_chunks))
+            .chunks_exact(src_channels)
+            .zip(dst.chunks_exact_mut(dst_channels))
         {
-            self.transform_chunk(src, dst, &mut working_set)?;
-        }
+            let g = self.gray_linear[src[0].as_()];
+            let a = if is_gray_alpha { src[1] } else { max_value };
 
-        let rem = src.chunks_exact(src_chunks).remainder();
-        let dst_rem = dst.chunks_exact_mut(dst_chunks).into_remainder();
+            let possible_value = ((g * max_lut_size).round() as u16) as usize;
+            let gamma_value = self.gray_gamma[possible_value];
 
-        if !rem.is_empty() {
-            self.transform_chunk(rem, dst_rem, &mut working_set)?;
+            dst[0] = gamma_value;
+            if dst_cn == Layout::GrayAlpha {
+                dst[1] = a;
+            } else if dst_cn == Layout::Rgb {
+                dst[1] = gamma_value;
+                dst[2] = gamma_value;
+            } else if dst_cn == Layout::Rgba {
+                dst[1] = gamma_value;
+                dst[2] = gamma_value;
+                dst[3] = a;
+            }
         }
 
         Ok(())
