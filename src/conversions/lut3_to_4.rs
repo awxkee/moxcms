@@ -27,7 +27,7 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::conversions::CompressCmykLut;
-use crate::conversions::tetrahedral::Tetrahedral;
+use crate::conversions::tetrahedral::TetrhedralInterpolation;
 use crate::{CmsError, Layout, TransformExecutor};
 use num_traits::AsPrimitive;
 use std::marker::PhantomData;
@@ -53,7 +53,11 @@ where
     u32: AsPrimitive<T>,
 {
     #[inline(always)]
-    fn transform_chunk(&self, src: &[T], dst: &mut [T]) {
+    fn transform_chunk<'b, V: TetrhedralInterpolation<'b, GRID_SIZE>>(
+        &'b self,
+        src: &[T],
+        dst: &mut [T],
+    ) {
         let cn = Layout::from(LAYOUT);
         let channels = cn.channels();
 
@@ -64,7 +68,7 @@ where
             let y = src[cn.g_i()].compress_cmyk_lut::<BIT_DEPTH>();
             let z = src[cn.b_i()].compress_cmyk_lut::<BIT_DEPTH>();
 
-            let tetrahedral = Tetrahedral::<GRID_SIZE>::new(&self.lut);
+            let tetrahedral = V::new(&self.lut);
             let v = tetrahedral.inter4(x, y, z);
             let r = v * value_scale + 0.5f32;
             dst[0] = r.v[0].as_();
@@ -72,6 +76,20 @@ where
             dst[2] = r.v[2].as_();
             dst[3] = r.v[3].as_();
         }
+    }
+
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+    #[target_feature(enable = "avx2", enable = "fma")]
+    unsafe fn transform_avx2_fma(&self, src: &[T], dst: &mut [T]) {
+        use crate::conversions::avx::TetrahedralAvxFma;
+        self.transform_chunk::<TetrahedralAvxFma<GRID_SIZE>>(src, dst);
+    }
+
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+    #[target_feature(enable = "avx2", enable = "fma")]
+    unsafe fn transform_sse41(&self, src: &[T], dst: &mut [T]) {
+        use crate::conversions::sse::TetrahedralSse;
+        self.transform_chunk::<TetrahedralSse<GRID_SIZE>>(src, dst);
     }
 }
 
@@ -100,7 +118,34 @@ where
             return Err(CmsError::LaneSizeMismatch);
         }
 
-        self.transform_chunk(src, dst);
+        #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+        {
+            if std::is_x86_feature_detected!("avx2") && std::is_x86_feature_detected!("fma") {
+                unsafe {
+                    self.transform_avx2_fma(src, dst);
+                }
+            } else if std::is_x86_feature_detected!("sse4.1") {
+                unsafe {
+                    self.transform_sse41(src, dst);
+                }
+            } else {
+                use crate::conversions::tetrahedral::Tetrahedral;
+                self.transform_chunk::<Tetrahedral<GRID_SIZE>>(src, dst);
+            }
+        }
+        #[cfg(not(any(
+            any(target_arch = "x86", target_arch = "x86_64"),
+            all(target_arch = "aarch64", target_feature = "neon")
+        )))]
+        {
+            use crate::conversions::tetrahedral::Tetrahedral;
+            self.transform_chunk::<Tetrahedral<GRID_SIZE>>(src, dst);
+        }
+        #[cfg(all(target_arch = "aarch64", target_feature = "neon"))]
+        {
+            use crate::conversions::neon::TetrahedralNeon;
+            self.transform_chunk::<TetrahedralNeon<GRID_SIZE>>(src, dst);
+        }
 
         Ok(())
     }

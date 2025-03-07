@@ -27,18 +27,21 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::err::CmsError;
+use crate::math::FusedMultiplyAdd;
 use crate::mlaf::mlaf;
 use crate::profile::s15_fixed16_number_to_float;
-use num_traits::AsPrimitive;
+use num_traits::{AsPrimitive, MulAdd};
 use std::ops::{Add, Div, Mul, Sub};
 
 /// Vector math helper
+#[repr(transparent)]
 #[derive(Copy, Clone, Debug, Default)]
 pub struct Vector3<T> {
     pub v: [T; 3],
 }
 
 /// Vector math helper
+#[repr(transparent)]
 #[derive(Copy, Clone, Debug, Default)]
 pub struct Vector4<T> {
     pub v: [T; 4],
@@ -142,6 +145,33 @@ where
                 self.v[2] * rhs,
                 self.v[3] * rhs,
             ],
+        }
+    }
+}
+
+impl<T: Copy + Mul<T, Output = T> + Add<T, Output = T> + MulAdd<T, Output = T>>
+    FusedMultiplyAdd<Vector3<T>> for Vector3<T>
+{
+    #[inline(always)]
+    fn mla(&self, b: Vector3<T>, c: Vector3<T>) -> Vector3<T> {
+        let x0 = mlaf(self.v[0], b.v[0], c.v[0]);
+        let x1 = mlaf(self.v[1], b.v[1], c.v[1]);
+        let x2 = mlaf(self.v[2], b.v[2], c.v[2]);
+        Vector3 { v: [x0, x1, x2] }
+    }
+}
+
+impl<T: Copy + Mul<T, Output = T> + Add<T, Output = T> + MulAdd<T, Output = T>>
+    FusedMultiplyAdd<Vector4<T>> for Vector4<T>
+{
+    #[inline(always)]
+    fn mla(&self, b: Vector4<T>, c: Vector4<T>) -> Vector4<T> {
+        let x0 = mlaf(self.v[0], b.v[0], c.v[0]);
+        let x1 = mlaf(self.v[1], b.v[1], c.v[1]);
+        let x2 = mlaf(self.v[2], b.v[2], c.v[2]);
+        let x3 = mlaf(self.v[3], b.v[3], c.v[3]);
+        Vector4 {
+            v: [x0, x1, x2, x3],
         }
     }
 }

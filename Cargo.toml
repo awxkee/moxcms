@@ -13,7 +13,7 @@ documentation = "https://github.com/awxkee/moxcms"
 categories = ["multimedia::images"]
 homepage = "https://github.com/awxkee/moxcms"
 repository = "https://github.com/awxkee/moxcms.git"
-exclude = ["*.jpg", "../../assets/*", "*.png"]
+exclude = ["*.jpg", "../../assets/*", "*.png", "*.icc", "./assets/*"]
 rust-version = "1.85.0"
 
 [dependencies]

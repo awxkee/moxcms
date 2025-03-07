@@ -26,16 +26,19 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+use crate::math::FusedMultiplyAdd;
 use crate::{Vector3f, Vector4f};
 use std::ops::{Add, Mul, Sub};
 
-#[inline]
-pub(crate) fn lerp<T: Mul<Output = T> + Sub<Output = T> + Add<Output = T> + From<f32> + Copy>(
+#[inline(always)]
+pub(crate) fn lerp<
+    T: Mul<Output = T> + Sub<Output = T> + Add<Output = T> + From<f32> + Copy + FusedMultiplyAdd<T>,
+>(
     a: T,
     b: T,
     t: T,
 ) -> T {
-    a * (T::from(1.0) - t) + b * t
+    (a * (T::from(1.0) - t)).mla(b, t)
 }
 
 /// 4D CLUT helper

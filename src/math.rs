@@ -549,7 +549,7 @@ pub const fn atan2f(y: f32, x: f32) -> f32 {
     }
 }
 
-#[inline]
+#[inline(always)]
 pub const fn rounding_div_ceil(value: i32, div: i32) -> i32 {
     (value + div - 1) / div
 }
@@ -576,6 +576,10 @@ pub(crate) fn m_clamp<T: Num + PartialOrd>(a: T, min: T, max: T) -> T {
         // a < min or a is NaN
         min
     }
+}
+
+pub(crate) trait FusedMultiplyAdd<T> {
+    fn mla(&self, b: T, c: T) -> T;
 }
 
 #[cfg(test)]
