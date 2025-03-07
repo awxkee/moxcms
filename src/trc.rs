@@ -269,7 +269,6 @@ fn linear_forward_table<const N: usize, const BIT_DEPTH: usize>(gamma: u16) -> B
     let max_value = (1 << BIT_DEPTH) - 1;
     let scale_value = 1f64 / max_value as f64;
     for (i, g) in gamma_table.iter_mut().enumerate().take(max_value) {
-        // 0..1^(0..255 + 255/256) will always be between 0 and 1
         *g = pow(i as f64 * scale_value, gamma_float as f64) as f32;
     }
     gamma_table
