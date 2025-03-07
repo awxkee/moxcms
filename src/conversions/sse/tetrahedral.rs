@@ -119,7 +119,7 @@ impl<const GRID_SIZE: usize> Fetcher<SseVector> for TetrahedralSseFetchVector4f<
     }
 }
 
-impl<'a, const GRID_SIZE: usize> TetrahedralSse<'a, GRID_SIZE> {
+impl<const GRID_SIZE: usize> TetrahedralSse<'_, GRID_SIZE> {
     #[inline(always)]
     fn interpolate(&self, in_r: u8, in_g: u8, in_b: u8, r: impl Fetcher<SseVector>) -> SseVector {
         const SCALE: f32 = 1.0 / 255.0;
@@ -191,7 +191,7 @@ impl<'a, const GRID_SIZE: usize> TetrhedralInterpolation<'a, GRID_SIZE>
             in_r,
             in_g,
             in_b,
-            TetrahedralSseFetchVector3f::<GRID_SIZE> { cube: &self.cube },
+            TetrahedralSseFetchVector3f::<GRID_SIZE> { cube: self.cube },
         );
         let mut vector3 = Vector3f { v: [0f32; 3] };
         unsafe {
@@ -207,7 +207,7 @@ impl<'a, const GRID_SIZE: usize> TetrhedralInterpolation<'a, GRID_SIZE>
             in_r,
             in_g,
             in_b,
-            TetrahedralSseFetchVector4f::<GRID_SIZE> { cube: &self.cube },
+            TetrahedralSseFetchVector4f::<GRID_SIZE> { cube: self.cube },
         );
         let mut vector4 = Vector4f { v: [0f32; 4] };
         unsafe {

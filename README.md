@@ -53,7 +53,7 @@ Test made on the image 1997x1331 size
 |-------------------|:----------:|:----------:|
 | moxcms RGB->RGB   |   3.84ms   |   5.13ms   |
 | moxcms RGBA->RGBA |   4.31ms   |   5.60ms   |
-| moxcms CMYK->RGBA |  23.53ms   |  70.38ms   |
+| moxcms CMYK->RGBA |  23.53ms   |  44.46ms   |
 | lcms2 RGB->RGB    |   13.1ms   |  27.73ms   |
 | lcms2 RGBA->RGBA  |  21.97ms   |  35.70ms   |
 | lcms2 CMYK->RGBA  |  39.71ms   |  79.40ms   |

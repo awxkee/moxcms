@@ -109,7 +109,7 @@ impl<const GRID_SIZE: usize> Fetcher<NeonVector> for TetrahedralNeonFetchVector4
     }
 }
 
-impl<'a, const GRID_SIZE: usize> TetrahedralNeon<'a, GRID_SIZE> {
+impl<const GRID_SIZE: usize> TetrahedralNeon<'_, GRID_SIZE> {
     #[inline(always)]
     fn interpolate(&self, in_r: u8, in_g: u8, in_b: u8, r: impl Fetcher<NeonVector>) -> NeonVector {
         const SCALE: f32 = 1.0 / 255.0;
@@ -181,7 +181,7 @@ impl<'a, const GRID_SIZE: usize> TetrhedralInterpolation<'a, GRID_SIZE>
             in_r,
             in_g,
             in_b,
-            TetrahedralNeonFetchVector4f::<GRID_SIZE> { cube: &self.cube },
+            TetrahedralNeonFetchVector4f::<GRID_SIZE> { cube: self.cube },
         );
         let mut vector4 = Vector4f { v: [0f32; 4] };
         unsafe {
@@ -196,7 +196,7 @@ impl<'a, const GRID_SIZE: usize> TetrhedralInterpolation<'a, GRID_SIZE>
             in_r,
             in_g,
             in_b,
-            TetrahedralNeonFetchVector3f::<GRID_SIZE> { cube: &self.cube },
+            TetrahedralNeonFetchVector3f::<GRID_SIZE> { cube: self.cube },
         );
         let mut vector3 = Vector3f { v: [0f32; 3] };
         unsafe {

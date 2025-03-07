@@ -80,7 +80,7 @@ impl<const GRID_SIZE: usize> Fetcher<Vector4f> for TetrahedralFetchVector4f<'_, 
     }
 }
 
-impl<'a, const GRID_SIZE: usize> Tetrahedral<'a, GRID_SIZE> {
+impl<const GRID_SIZE: usize> Tetrahedral<'_, GRID_SIZE> {
     #[inline]
     fn interpolate<
         T: Copy
@@ -166,7 +166,7 @@ impl<'a, const GRID_SIZE: usize> TetrhedralInterpolation<'a, GRID_SIZE>
             in_r,
             in_g,
             in_b,
-            TetrahedralFetchVector3f::<GRID_SIZE> { cube: &self.cube },
+            TetrahedralFetchVector3f::<GRID_SIZE> { cube: self.cube },
         )
     }
 
@@ -176,7 +176,7 @@ impl<'a, const GRID_SIZE: usize> TetrhedralInterpolation<'a, GRID_SIZE>
             in_r,
             in_g,
             in_b,
-            TetrahedralFetchVector4f::<GRID_SIZE> { cube: &self.cube },
+            TetrahedralFetchVector4f::<GRID_SIZE> { cube: self.cube },
         )
     }
 }

@@ -49,40 +49,42 @@ struct TetrahedralAvxFmaFetchVector3f<'a, const GRID_SIZE: usize> {
 }
 
 #[derive(Copy, Clone)]
-struct SseVector {
+struct AvxVectorSse {
     v: __m128,
 }
 
-impl From<f32> for SseVector {
+impl From<f32> for AvxVectorSse {
     #[inline(always)]
     fn from(v: f32) -> Self {
-        SseVector {
+        AvxVectorSse {
             v: unsafe { _mm_set1_ps(v) },
         }
     }
 }
 
-impl Sub<SseVector> for SseVector {
+impl Sub<AvxVectorSse> for AvxVectorSse {
     type Output = Self;
     #[inline(always)]
-    fn sub(self, rhs: SseVector) -> Self::Output {
-        SseVector {
+    fn sub(self, rhs: AvxVectorSse) -> Self::Output {
+        AvxVectorSse {
             v: unsafe { _mm_sub_ps(self.v, rhs.v) },
         }
     }
 }
 
-impl FusedMultiplyAdd<SseVector> for SseVector {
+impl FusedMultiplyAdd<AvxVectorSse> for AvxVectorSse {
     #[inline(always)]
-    fn mla(&self, b: SseVector, c: SseVector) -> SseVector {
-        SseVector {
+    fn mla(&self, b: AvxVectorSse, c: AvxVectorSse) -> AvxVectorSse {
+        AvxVectorSse {
             v: unsafe { _mm_fmadd_ps(b.v, c.v, self.v) },
         }
     }
 }
 
-impl<const GRID_SIZE: usize> Fetcher<SseVector> for TetrahedralAvxFmaFetchVector3f<'_, GRID_SIZE> {
-    fn fetch(&self, x: i32, y: i32, z: i32) -> SseVector {
+impl<const GRID_SIZE: usize> Fetcher<AvxVectorSse>
+    for TetrahedralAvxFmaFetchVector3f<'_, GRID_SIZE>
+{
+    fn fetch(&self, x: i32, y: i32, z: i32) -> AvxVectorSse {
         let offset = (x as u32 * (GRID_SIZE as u32 * GRID_SIZE as u32)
             + y as u32 * GRID_SIZE as u32
             + z as u32) as usize
@@ -95,7 +97,7 @@ impl<const GRID_SIZE: usize> Fetcher<SseVector> for TetrahedralAvxFmaFetchVector
                 (jx.get_unchecked(2..).as_ptr() as *const i32).read_unaligned(),
             )
         };
-        SseVector {
+        AvxVectorSse {
             v: unsafe { _mm_castsi128_ps(v1) },
         }
     }
@@ -105,23 +107,31 @@ struct TetrahedralAvxFmaFetchVector4f<'a, const GRID_SIZE: usize> {
     cube: &'a [f32],
 }
 
-impl<const GRID_SIZE: usize> Fetcher<SseVector> for TetrahedralAvxFmaFetchVector4f<'_, GRID_SIZE> {
+impl<const GRID_SIZE: usize> Fetcher<AvxVectorSse>
+    for TetrahedralAvxFmaFetchVector4f<'_, GRID_SIZE>
+{
     #[inline(always)]
-    fn fetch(&self, x: i32, y: i32, z: i32) -> SseVector {
+    fn fetch(&self, x: i32, y: i32, z: i32) -> AvxVectorSse {
         let offset = (x as u32 * (GRID_SIZE as u32 * GRID_SIZE as u32)
             + y as u32 * GRID_SIZE as u32
             + z as u32) as usize
             * 4;
         let jx = unsafe { self.cube.get_unchecked(offset..) };
-        SseVector {
+        AvxVectorSse {
             v: unsafe { _mm_loadu_ps(jx.as_ptr()) },
         }
     }
 }
 
-impl<'a, const GRID_SIZE: usize> TetrahedralAvxFma<'a, GRID_SIZE> {
+impl<const GRID_SIZE: usize> TetrahedralAvxFma<'_, GRID_SIZE> {
     #[inline(always)]
-    fn interpolate(&self, in_r: u8, in_g: u8, in_b: u8, r: impl Fetcher<SseVector>) -> SseVector {
+    fn interpolate(
+        &self,
+        in_r: u8,
+        in_g: u8,
+        in_b: u8,
+        r: impl Fetcher<AvxVectorSse>,
+    ) -> AvxVectorSse {
         const SCALE: f32 = 1.0 / 255.0;
         let linear_r: f32 = in_r as i32 as f32 * SCALE;
         let linear_g: f32 = in_g as i32 as f32 * SCALE;
@@ -172,9 +182,9 @@ impl<'a, const GRID_SIZE: usize> TetrahedralAvxFma<'a, GRID_SIZE> {
             c2 = r.fetch(x, y_n, z_n) - r.fetch(x, y, z_n);
             c3 = r.fetch(x, y, z_n) - c0;
         }
-        let s0 = c0.mla(c1, SseVector::from(rx));
-        let s1 = s0.mla(c2, SseVector::from(ry));
-        s1.mla(c3, SseVector::from(rz))
+        let s0 = c0.mla(c1, AvxVectorSse::from(rx));
+        let s1 = s0.mla(c2, AvxVectorSse::from(ry));
+        s1.mla(c3, AvxVectorSse::from(rz))
     }
 }
 
@@ -191,7 +201,7 @@ impl<'a, const GRID_SIZE: usize> TetrhedralInterpolation<'a, GRID_SIZE>
             in_r,
             in_g,
             in_b,
-            TetrahedralAvxFmaFetchVector3f::<GRID_SIZE> { cube: &self.cube },
+            TetrahedralAvxFmaFetchVector3f::<GRID_SIZE> { cube: self.cube },
         );
         let mut vector3 = Vector3f { v: [0f32; 3] };
         unsafe {
@@ -207,7 +217,7 @@ impl<'a, const GRID_SIZE: usize> TetrhedralInterpolation<'a, GRID_SIZE>
             in_r,
             in_g,
             in_b,
-            TetrahedralAvxFmaFetchVector4f::<GRID_SIZE> { cube: &self.cube },
+            TetrahedralAvxFmaFetchVector4f::<GRID_SIZE> { cube: self.cube },
         );
         let mut vector4 = Vector4f { v: [0f32; 4] };
         unsafe {
