@@ -27,7 +27,7 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::conversions::CompressCmykLut;
-use crate::conversions::tetrahedral::{Tetrahedral, TetrhedralInterpolation};
+use crate::conversions::tetrahedral::TetrhedralInterpolation;
 use crate::{CmsError, Layout, TransformExecutor};
 use num_traits::AsPrimitive;
 use std::marker::PhantomData;
