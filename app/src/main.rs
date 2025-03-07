@@ -37,9 +37,9 @@ use zune_jpeg::JpegDecoder;
 use zune_jpeg::zune_core::colorspace::ColorSpace;
 use zune_jpeg::zune_core::options::DecoderOptions;
 
-/*fn main() {
-    // let funny_icc = fs::read("./assets/fogra39_coated.icc").unwrap();
-    // let funny_profile = ColorProfile::new_from_slice(&funny_icc).unwrap();
+fn main() {
+    let funny_icc = fs::read("./assets/fogra39_coated.icc").unwrap();
+    let funny_profile = ColorProfile::new_from_slice(&funny_icc).unwrap();
 
     // let srgb_perceptual_icc = fs::read("./assets/srgb_perceptual.icc").unwrap();
     // let srgb_perceptual_profile = ColorProfile::new_from_slice(&srgb_perceptual_icc).unwrap();
@@ -80,12 +80,12 @@ use zune_jpeg::zune_core::options::DecoderOptions;
     // )
     // .unwrap();
 
-    let mut cmyk = vec![0u8; decoder.output_buffer_size().unwrap()];
+    let mut cmyk = vec![0u8; decoder.output_buffer_size().unwrap() / 3 * 4];
 
     // t.transform_pixels(&real_dst, &mut cmyk);
 
     let icc = decoder.icc_profile().unwrap();
-    let color_profile = ColorProfile::new_from_slice(&icc).unwrap();
+    let color_profile = ColorProfile::new_from_slice(&funny_icc).unwrap();
     // let color_profile = ColorProfile::new_gray_with_gamma(2.2);
     let mut dest_profile = ColorProfile::new_srgb();
 
@@ -94,7 +94,7 @@ use zune_jpeg::zune_core::options::DecoderOptions;
         .create_transform_8bit(
             Layout::Rgb,
             &color_profile,
-            Layout::Rgb,
+            Layout::Rgba,
             TransformOptions {
                 rendering_intent: RenderingIntent::Perceptual,
             },
@@ -108,7 +108,7 @@ use zune_jpeg::zune_core::options::DecoderOptions;
     dest_profile.rendering_intent = RenderingIntent::Perceptual;
     let transform = color_profile
         .create_transform_8bit(
-            Layout::Rgb,
+            Layout::Rgba,
             &dest_profile,
             Layout::Rgb,
             TransformOptions {
@@ -128,12 +128,12 @@ use zune_jpeg::zune_core::options::DecoderOptions;
     //
     let instant = Instant::now();
     for (src, dst) in cmyk
-        .chunks_exact(img.width() as usize * 3)
+        .chunks_exact(img.width() as usize * 4)
         .zip(dst.chunks_exact_mut(img.width() as usize * 3))
     {
         transform
             .transform(
-                &src[..img.width() as usize * 3],
+                &src[..img.width() as usize * 4],
                 &mut dst[..img.width() as usize * 3],
             )
             .unwrap();
@@ -197,26 +197,26 @@ use zune_jpeg::zune_core::options::DecoderOptions;
         image::ExtendedColorType::Rgb8,
     )
     .unwrap();
-}*/
-
-fn main() {
-    let us_swop_icc = fs::read("./assets/us_swop_coated.icc").unwrap();
-
-    let width = 5000;
-    let height = 5000;
-
-    let cmyk = vec![0u8; width * height * 4];
-
-    let color_profile = ColorProfile::new_from_slice(&us_swop_icc).unwrap();
-    let dest_profile = ColorProfile::new_srgb();
-    let mut dst = vec![0u8; width * height * 4];
-    let transform = color_profile
-        .create_transform_8bit(
-            Layout::Rgba,
-            &dest_profile,
-            Layout::Rgba,
-            TransformOptions::default(),
-        )
-        .unwrap();
-    transform.transform(&cmyk, &mut dst).unwrap();
 }
+
+// fn main() {
+//     let us_swop_icc = fs::read("./assets/us_swop_coated.icc").unwrap();
+//
+//     let width = 5000;
+//     let height = 5000;
+//
+//     let cmyk = vec![0u8; width * height * 4];
+//
+//     let color_profile = ColorProfile::new_from_slice(&us_swop_icc).unwrap();
+//     let dest_profile = ColorProfile::new_srgb();
+//     let mut dst = vec![0u8; width * height * 4];
+//     let transform = color_profile
+//         .create_transform_8bit(
+//             Layout::Rgba,
+//             &dest_profile,
+//             Layout::Rgba,
+//             TransformOptions::default(),
+//         )
+//         .unwrap();
+//     transform.transform(&cmyk, &mut dst).unwrap();
+// }

@@ -86,7 +86,7 @@ impl<const GRID_SIZE: usize> Fetcher<NeonVector> for TetrahedralNeonFetchVector3
             * 3;
         let jx = unsafe { self.cube.get_unchecked(offset..) };
         let v0 = unsafe { vcombine_f32(vld1_f32(jx.as_ptr()), vdup_n_f32(0.0f32)) };
-        let v1 = unsafe { vld1q_lane_f32::<0>(jx.get_unchecked(2..).as_ptr(), v0) };
+        let v1 = unsafe { vld1q_lane_f32::<2>(jx.get_unchecked(2..).as_ptr(), v0) };
         NeonVector { v: v1 }
     }
 }
@@ -176,6 +176,22 @@ impl<'a, const GRID_SIZE: usize> TetrhedralInterpolation<'a, GRID_SIZE>
     }
 
     #[inline(always)]
+    fn inter3(&self, in_r: u8, in_g: u8, in_b: u8) -> Vector3f {
+        let v = self.interpolate(
+            in_r,
+            in_g,
+            in_b,
+            TetrahedralNeonFetchVector3f::<GRID_SIZE> { cube: self.cube },
+        );
+        let mut vector3 = Vector3f { v: [0f32; 3] };
+        unsafe {
+            vst1_f32(vector3.v.as_mut_ptr(), vget_low_f32(v.v));
+            vst1q_lane_f32::<2>((vector3.v.as_mut_ptr()).add(2), v.v);
+        }
+        vector3
+    }
+
+    #[inline(always)]
     fn inter4(&self, in_r: u8, in_g: u8, in_b: u8) -> Vector4f {
         let v = self.interpolate(
             in_r,
@@ -188,21 +204,5 @@ impl<'a, const GRID_SIZE: usize> TetrhedralInterpolation<'a, GRID_SIZE>
             vst1q_f32(vector4.v.as_mut_ptr(), v.v);
         }
         vector4
-    }
-
-    #[inline(always)]
-    fn inter3(&self, in_r: u8, in_g: u8, in_b: u8) -> Vector3f {
-        let v = self.interpolate(
-            in_r,
-            in_g,
-            in_b,
-            TetrahedralNeonFetchVector3f::<GRID_SIZE> { cube: self.cube },
-        );
-        let mut vector3 = Vector3f { v: [0f32; 3] };
-        unsafe {
-            vst1_f32(vector3.v.as_mut_ptr(), vget_low_f32(v.v));
-            vst1q_lane_f32::<2>(vector3.v.as_mut_ptr().add(2), v.v);
-        }
-        vector3
     }
 }

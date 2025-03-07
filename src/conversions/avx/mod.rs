@@ -26,8 +26,10 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+mod cmyk;
 mod stages;
 mod tetrahedral;
 
+pub(crate) use cmyk::Vector3fLerpCmykAvx;
 pub(crate) use stages::TransformProfilePcsXYZRgbAvx;
 pub(crate) use tetrahedral::TetrahedralAvxFma;
