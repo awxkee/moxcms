@@ -27,5 +27,7 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 mod stages;
+mod tetrahedral;
 
 pub(crate) use stages::TransformProfilePcsXYZRgbSse;
+pub(crate) use tetrahedral::TetrahedralSse;

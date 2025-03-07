@@ -549,7 +549,7 @@ pub const fn atan2f(y: f32, x: f32) -> f32 {
     }
 }
 
-#[inline]
+#[inline(always)]
 pub const fn rounding_div_ceil(value: i32, div: i32) -> i32 {
     (value + div - 1) / div
 }

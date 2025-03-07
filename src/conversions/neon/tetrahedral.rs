@@ -27,6 +27,7 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 #![allow(dead_code)]
+use crate::conversions::tetrahedral::TetrhedralInterpolation;
 use crate::math::FusedMultiplyAdd;
 use crate::{Vector3f, Vector4f, rounding_div_ceil};
 use std::arch::aarch64::*;
@@ -83,12 +84,10 @@ impl<const GRID_SIZE: usize> Fetcher<NeonVector> for TetrahedralNeonFetchVector3
             + y as u32 * GRID_SIZE as u32
             + z as u32) as usize
             * 3;
-        let jx = unsafe { self.cube.get_unchecked(offset..offset + 3) };
-        let v0 = unsafe { vld1_f32(jx.as_ptr()) };
-        let v1 = unsafe { vld1_lane_f32::<0>(jx.get_unchecked(2..).as_ptr(), vdup_n_f32(0f32)) };
-        NeonVector {
-            v: unsafe { vcombine_f32(v0, v1) },
-        }
+        let jx = unsafe { self.cube.get_unchecked(offset..) };
+        let v0 = unsafe { vcombine_f32(vld1_f32(jx.as_ptr()), vdup_n_f32(0.0f32)) };
+        let v1 = unsafe { vld1q_lane_f32::<0>(jx.get_unchecked(2..).as_ptr(), v0) };
+        NeonVector { v: v1 }
     }
 }
 
@@ -103,7 +102,7 @@ impl<const GRID_SIZE: usize> Fetcher<NeonVector> for TetrahedralNeonFetchVector4
             + y as u32 * GRID_SIZE as u32
             + z as u32) as usize
             * 4;
-        let jx = unsafe { self.cube.get_unchecked(offset..offset + 4) };
+        let jx = unsafe { self.cube.get_unchecked(offset..) };
         NeonVector {
             v: unsafe { vld1q_f32(jx.as_ptr()) },
         }
@@ -111,11 +110,7 @@ impl<const GRID_SIZE: usize> Fetcher<NeonVector> for TetrahedralNeonFetchVector4
 }
 
 impl<'a, const GRID_SIZE: usize> TetrahedralNeon<'a, GRID_SIZE> {
-    pub(crate) fn new(table: &'a [f32]) -> Self {
-        Self { cube: table }
-    }
-
-    #[inline]
+    #[inline(always)]
     fn interpolate(&self, in_r: u8, in_g: u8, in_b: u8, r: impl Fetcher<NeonVector>) -> NeonVector {
         const SCALE: f32 = 1.0 / 255.0;
         let linear_r: f32 = in_r as i32 as f32 * SCALE;
@@ -171,9 +166,17 @@ impl<'a, const GRID_SIZE: usize> TetrahedralNeon<'a, GRID_SIZE> {
         let s1 = s0.mla(c2, NeonVector::from(ry));
         s1.mla(c3, NeonVector::from(rz))
     }
+}
+
+impl<'a, const GRID_SIZE: usize> TetrhedralInterpolation<'a, GRID_SIZE>
+    for TetrahedralNeon<'a, GRID_SIZE>
+{
+    fn new(table: &'a [f32]) -> Self {
+        Self { cube: table }
+    }
 
     #[inline(always)]
-    pub(crate) fn inter4(&self, in_r: u8, in_g: u8, in_b: u8) -> Vector4f {
+    fn inter4(&self, in_r: u8, in_g: u8, in_b: u8) -> Vector4f {
         let v = self.interpolate(
             in_r,
             in_g,
@@ -188,7 +191,7 @@ impl<'a, const GRID_SIZE: usize> TetrahedralNeon<'a, GRID_SIZE> {
     }
 
     #[inline(always)]
-    pub(crate) fn inter3(&self, in_r: u8, in_g: u8, in_b: u8) -> Vector3f {
+    fn inter3(&self, in_r: u8, in_g: u8, in_b: u8) -> Vector3f {
         let v = self.interpolate(
             in_r,
             in_g,

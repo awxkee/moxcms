@@ -29,7 +29,7 @@
 use crate::conversions::lut3::{create_lut3_samples, create_lut3x4};
 use crate::conversions::lut3_to_4::TransformLut3x4;
 use crate::conversions::lut4::create_lut4;
-use crate::conversions::tetrahedral::Tetrahedral;
+use crate::conversions::tetrahedral::TetrhedralInterpolation;
 use crate::lab::Lab;
 use crate::mlaf::mlaf;
 use crate::nd_array::lerp;
@@ -192,7 +192,11 @@ where
     u32: AsPrimitive<T>,
 {
     #[inline(always)]
-    fn transform_chunk(&self, src: &[T], dst: &mut [T]) {
+    fn transform_chunk<'k, V: TetrhedralInterpolation<'k, GRID_SIZE>>(
+        &'k self,
+        src: &[T],
+        dst: &mut [T],
+    ) {
         let cn = Layout::from(LAYOUT);
         let channels = cn.channels();
         let grid_size = GRID_SIZE as i32;
@@ -214,48 +218,8 @@ where
             let table1 = &self.lut[(w * grid_size3 * 3) as usize..];
             let table2 = &self.lut[(w_n * grid_size3 * 3) as usize..];
 
-            let tetrahedral1 = Tetrahedral::<GRID_SIZE>::new(table1);
-            let tetrahedral2 = Tetrahedral::<GRID_SIZE>::new(table2);
-            let r1 = tetrahedral1.inter3(c, m, y);
-            let r2 = tetrahedral2.inter3(c, m, y);
-            let r = lerp(r1, r2, Vector3f::from(t)) * value_scale + 0.5f32;
-            dst[cn.r_i()] = r.v[0].as_();
-            dst[cn.g_i()] = r.v[1].as_();
-            dst[cn.b_i()] = r.v[2].as_();
-            if channels == 4 {
-                dst[cn.a_i()] = max_value;
-            }
-        }
-    }
-
-    #[cfg(all(target_arch = "aarch64", target_feature = "neon"))]
-    #[inline(always)]
-    fn transform_chunk_neon(&self, src: &[T], dst: &mut [T]) {
-        let cn = Layout::from(LAYOUT);
-        let channels = cn.channels();
-        let grid_size = GRID_SIZE as i32;
-        let grid_size3 = grid_size * grid_size * grid_size;
-
-        let value_scale = ((1 << BIT_DEPTH) - 1) as f32;
-        let max_value = ((1 << BIT_DEPTH) - 1u32).as_();
-
-        for (src, dst) in src.chunks_exact(4).zip(dst.chunks_exact_mut(channels)) {
-            let c = src[0].compress_cmyk_lut::<BIT_DEPTH>();
-            let m = src[1].compress_cmyk_lut::<BIT_DEPTH>();
-            let y = src[2].compress_cmyk_lut::<BIT_DEPTH>();
-            let k = src[3].compress_cmyk_lut::<BIT_DEPTH>();
-            let linear_k: f32 = k as i32 as f32 / 255.0;
-            let w: i32 = k as i32 * (GRID_SIZE as i32 - 1) / 255;
-            let w_n: i32 = rounding_div_ceil(k as i32 * (GRID_SIZE as i32 - 1), 255);
-            let t: f32 = linear_k * (GRID_SIZE as i32 - 1) as f32 - w as f32;
-
-            let table1 = &self.lut[(w * grid_size3 * 3) as usize..];
-            let table2 = &self.lut[(w_n * grid_size3 * 3) as usize..];
-
-            use crate::conversions::neon::TetrahedralNeon;
-
-            let tetrahedral1 = TetrahedralNeon::<GRID_SIZE>::new(table1);
-            let tetrahedral2 = TetrahedralNeon::<GRID_SIZE>::new(table2);
+            let tetrahedral1 = V::new(table1);
+            let tetrahedral2 = V::new(table2);
             let r1 = tetrahedral1.inter3(c, m, y);
             let r2 = tetrahedral2.inter3(c, m, y);
             let r = lerp(r1, r2, Vector3f::from(t)) * value_scale + 0.5f32;
@@ -271,7 +235,15 @@ where
     #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
     #[target_feature(enable = "avx2", enable = "fma")]
     unsafe fn transform_avx2_fma(&self, src: &[T], dst: &mut [T]) {
-        self.transform_chunk(src, dst);
+        use crate::conversions::avx::TetrahedralAvxFma;
+        self.transform_chunk::<TetrahedralAvxFma<GRID_SIZE>>(src, dst);
+    }
+
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+    #[target_feature(enable = "avx2", enable = "fma")]
+    unsafe fn transform_sse41(&self, src: &[T], dst: &mut [T]) {
+        use crate::conversions::sse::TetrahedralSse;
+        self.transform_chunk::<TetrahedralSse<GRID_SIZE>>(src, dst);
     }
 }
 
@@ -306,17 +278,28 @@ where
                 unsafe {
                     self.transform_avx2_fma(src, dst);
                 }
+            } else if std::is_x86_feature_detected!("sse4.1") {
+                unsafe {
+                    self.transform_sse41(src, dst);
+                }
             } else {
-                self.transform_chunk(src, dst);
+                use crate::conversions::tetrahedral::Tetrahedral;
+                self.transform_chunk::<Tetrahedral<GRID_SIZE>>(src, dst);
             }
         }
         #[cfg(not(any(
             any(target_arch = "x86", target_arch = "x86_64"),
             all(target_arch = "aarch64", target_feature = "neon")
         )))]
-        self.transform_chunk(src, dst);
+        {
+            use crate::conversions::tetrahedral::Tetrahedral;
+            self.transform_chunk::<Tetrahedral<GRID_SIZE>>(src, dst);
+        }
         #[cfg(all(target_arch = "aarch64", target_feature = "neon"))]
-        self.transform_chunk_neon(src, dst);
+        {
+            use crate::conversions::neon::TetrahedralNeon;
+            self.transform_chunk::<TetrahedralNeon<GRID_SIZE>>(src, dst);
+        }
 
         Ok(())
     }

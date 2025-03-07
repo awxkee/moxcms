@@ -27,7 +27,7 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::conversions::CompressCmykLut;
-use crate::conversions::tetrahedral::Tetrahedral;
+use crate::conversions::tetrahedral::{Tetrahedral, TetrhedralInterpolation};
 use crate::{CmsError, Layout, TransformExecutor};
 use num_traits::AsPrimitive;
 use std::marker::PhantomData;
@@ -53,7 +53,11 @@ where
     u32: AsPrimitive<T>,
 {
     #[inline(always)]
-    fn transform_chunk(&self, src: &[T], dst: &mut [T]) {
+    fn transform_chunk<'b, V: TetrhedralInterpolation<'b, GRID_SIZE>>(
+        &'b self,
+        src: &[T],
+        dst: &mut [T],
+    ) {
         let cn = Layout::from(LAYOUT);
         let channels = cn.channels();
 
@@ -64,7 +68,7 @@ where
             let y = src[cn.g_i()].compress_cmyk_lut::<BIT_DEPTH>();
             let z = src[cn.b_i()].compress_cmyk_lut::<BIT_DEPTH>();
 
-            let tetrahedral = Tetrahedral::<GRID_SIZE>::new(&self.lut);
+            let tetrahedral = V::new(&self.lut);
             let v = tetrahedral.inter4(x, y, z);
             let r = v * value_scale + 0.5f32;
             dst[0] = r.v[0].as_();
@@ -100,7 +104,7 @@ where
             return Err(CmsError::LaneSizeMismatch);
         }
 
-        self.transform_chunk(src, dst);
+        self.transform_chunk::<Tetrahedral<GRID_SIZE>>(src, dst);
 
         Ok(())
     }
