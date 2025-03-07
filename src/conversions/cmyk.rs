@@ -167,14 +167,14 @@ pub(crate) trait CompressCmykLut {
 }
 
 impl CompressCmykLut for u8 {
-    #[inline]
+    #[inline(always)]
     fn compress_cmyk_lut<const BIT_DEPTH: usize>(self) -> u8 {
         self
     }
 }
 
 impl CompressCmykLut for u16 {
-    #[inline]
+    #[inline(always)]
     fn compress_cmyk_lut<const BIT_DEPTH: usize>(self) -> u8 {
         let scale = BIT_DEPTH - 8;
         (self >> scale).min(255) as u8
