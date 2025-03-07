@@ -52,7 +52,11 @@ impl Vector3fCmykLerp for DefaultVector3fLerp {
     #[inline(always)]
     fn interpolate(a: Vector3f, b: Vector3f, t: f32, scale: f32) -> Vector3f {
         let t = Vector3f::from(t);
-        (a * (Vector3f::from(1.0) - t)).mla(b, t) * scale + 0.5f32
+        let mut new_vec = (a * (Vector3f::from(1.0) - t)).mla(b, t) * scale + 0.5f32;
+        new_vec.v[0] = new_vec.v[0].min(scale);
+        new_vec.v[1] = new_vec.v[1].min(scale);
+        new_vec.v[2] = new_vec.v[2].min(scale);
+        new_vec
     }
 }
 
@@ -178,27 +182,27 @@ impl InPlaceStage for MatrixStage {
     }
 }
 
-pub(crate) trait CompressCmykLut {
-    fn compress_cmyk_lut<const BIT_DEPTH: usize>(self) -> u8;
+pub(crate) trait CompressLut {
+    fn compress_lut<const BIT_DEPTH: usize>(self) -> u8;
 }
 
-impl CompressCmykLut for u8 {
+impl CompressLut for u8 {
     #[inline(always)]
-    fn compress_cmyk_lut<const BIT_DEPTH: usize>(self) -> u8 {
+    fn compress_lut<const BIT_DEPTH: usize>(self) -> u8 {
         self
     }
 }
 
-impl CompressCmykLut for u16 {
+impl CompressLut for u16 {
     #[inline(always)]
-    fn compress_cmyk_lut<const BIT_DEPTH: usize>(self) -> u8 {
+    fn compress_lut<const BIT_DEPTH: usize>(self) -> u8 {
         let scale = BIT_DEPTH - 8;
         (self >> scale).min(255) as u8
     }
 }
 
 impl<
-    T: Copy + AsPrimitive<f32> + Default + CompressCmykLut,
+    T: Copy + AsPrimitive<f32> + Default + CompressLut,
     const LAYOUT: u8,
     const GRID_SIZE: usize,
     const BIT_DEPTH: usize,
@@ -226,10 +230,10 @@ where
         let max_value = ((1 << BIT_DEPTH) - 1u32).as_();
 
         for (src, dst) in src.chunks_exact(4).zip(dst.chunks_exact_mut(channels)) {
-            let c = src[0].compress_cmyk_lut::<BIT_DEPTH>();
-            let m = src[1].compress_cmyk_lut::<BIT_DEPTH>();
-            let y = src[2].compress_cmyk_lut::<BIT_DEPTH>();
-            let k = src[3].compress_cmyk_lut::<BIT_DEPTH>();
+            let c = src[0].compress_lut::<BIT_DEPTH>();
+            let m = src[1].compress_lut::<BIT_DEPTH>();
+            let y = src[2].compress_lut::<BIT_DEPTH>();
+            let k = src[3].compress_lut::<BIT_DEPTH>();
             let linear_k: f32 = k as i32 as f32 / 255.0;
             let w: i32 = k as i32 * (GRID_SIZE as i32 - 1) / 255;
             let w_n: i32 = rounding_div_ceil(k as i32 * (GRID_SIZE as i32 - 1), 255);
@@ -268,7 +272,7 @@ where
 }
 
 impl<
-    T: Copy + AsPrimitive<f32> + Default + CompressCmykLut,
+    T: Copy + AsPrimitive<f32> + Default + CompressLut,
     const LAYOUT: u8,
     const GRID_SIZE: usize,
     const BIT_DEPTH: usize,
@@ -367,7 +371,7 @@ impl<
 }
 
 pub(crate) fn make_cmyk_luts<
-    T: Copy + Default + AsPrimitive<f32> + Send + Sync + CompressCmykLut + AsPrimitive<usize>,
+    T: Copy + Default + AsPrimitive<f32> + Send + Sync + CompressLut + AsPrimitive<usize>,
     const BIT_DEPTH: usize,
     const LINEAR_CAP: usize,
     const GAMMA_LUT: usize,

@@ -59,6 +59,7 @@ impl Vector3fCmykLerp for Vector3fLerpCmykSse {
             let hp = _mm_mul_ps(a0, _mm_sub_ps(ones, t0));
             let mut v = _mm_add_ps(hp, _mm_mul_ps(b0, t0));
             v = _mm_add_ps(_mm_set1_ps(0.5f32), _mm_mul_ps(v, _mm_set1_ps(scale)));
+            v = _mm_min_ps(v, _mm_set1_ps(scale));
             let mut vector3 = Vector3f { v: [0f32; 3] };
             _mm_storeu_si64(vector3.v.as_mut_ptr() as *mut _, _mm_castps_si128(v));
             vector3.v[2] = f32::from_bits((_mm_extract_epi32::<2>(_mm_castps_si128(v))) as u32);

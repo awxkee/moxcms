@@ -50,6 +50,7 @@ impl Vector3fCmykLerp for Vector3fLerpCmykNeon {
             let hp = vmulq_f32(a0, vsubq_f32(ones, t0));
             let mut v = vfmaq_f32(hp, b0, t0);
             v = vfmaq_f32(vdupq_n_f32(0.5f32), v, vdupq_n_f32(scale));
+            v = vminq_f32(v, vdupq_n_f32(scale));
             let mut vector3 = Vector3f { v: [0f32; 3] };
             vst1_f32(vector3.v.as_mut_ptr(), vget_low_f32(v));
             vst1q_lane_f32::<2>(vector3.v.as_mut_ptr().add(2), v);

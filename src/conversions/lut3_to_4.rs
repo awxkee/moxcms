@@ -26,7 +26,7 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-use crate::conversions::CompressCmykLut;
+use crate::conversions::CompressLut;
 use crate::conversions::tetrahedral::TetrhedralInterpolation;
 use crate::{CmsError, Layout, TransformExecutor};
 use num_traits::AsPrimitive;
@@ -43,7 +43,7 @@ pub(crate) struct TransformLut3x4<
 }
 
 impl<
-    T: Copy + AsPrimitive<f32> + Default + CompressCmykLut,
+    T: Copy + AsPrimitive<f32> + Default + CompressLut,
     const LAYOUT: u8,
     const GRID_SIZE: usize,
     const BIT_DEPTH: usize,
@@ -64,17 +64,17 @@ where
         let value_scale = ((1 << BIT_DEPTH) - 1) as f32;
 
         for (src, dst) in src.chunks_exact(channels).zip(dst.chunks_exact_mut(4)) {
-            let x = src[cn.r_i()].compress_cmyk_lut::<BIT_DEPTH>();
-            let y = src[cn.g_i()].compress_cmyk_lut::<BIT_DEPTH>();
-            let z = src[cn.b_i()].compress_cmyk_lut::<BIT_DEPTH>();
+            let x = src[cn.r_i()].compress_lut::<BIT_DEPTH>();
+            let y = src[cn.g_i()].compress_lut::<BIT_DEPTH>();
+            let z = src[cn.b_i()].compress_lut::<BIT_DEPTH>();
 
             let tetrahedral = V::new(&self.lut);
             let v = tetrahedral.inter4(x, y, z);
             let r = v * value_scale + 0.5f32;
-            dst[0] = r.v[0].as_();
-            dst[1] = r.v[1].as_();
-            dst[2] = r.v[2].as_();
-            dst[3] = r.v[3].as_();
+            dst[0] = r.v[0].min(value_scale).as_();
+            dst[1] = r.v[1].min(value_scale).as_();
+            dst[2] = r.v[2].min(value_scale).as_();
+            dst[3] = r.v[3].min(value_scale).as_();
         }
     }
 
@@ -94,7 +94,7 @@ where
 }
 
 impl<
-    T: Copy + AsPrimitive<f32> + Default + CompressCmykLut,
+    T: Copy + AsPrimitive<f32> + Default + CompressLut,
     const LAYOUT: u8,
     const GRID_SIZE: usize,
     const BIT_DEPTH: usize,
