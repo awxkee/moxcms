@@ -26,6 +26,7 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+#![allow(dead_code)]
 use crate::math::FusedMultiplyAdd;
 use crate::{Vector3f, Vector4f, rounding_div_ceil};
 use std::ops::{Add, Mul, Sub};
