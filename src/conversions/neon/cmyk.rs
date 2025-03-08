@@ -27,7 +27,7 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::Vector3f;
-use crate::conversions::cmyk::Vector3fCmykLerp;
+use crate::conversions::lut_transforms::Vector3fCmykLerp;
 use std::arch::aarch64::*;
 
 #[derive(Copy, Clone, Default)]

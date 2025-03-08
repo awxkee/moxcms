@@ -32,7 +32,7 @@ use crate::conversions::{
 };
 use crate::err::CmsError;
 use crate::profile::LutDataType;
-use crate::{ColorProfile, DataColorSpace, RenderingIntent, Vector3f};
+use crate::{ColorProfile, DataColorSpace, LutWarehouse, RenderingIntent, Vector3f};
 use num_traits::AsPrimitive;
 
 /// Transformation executor itself
@@ -350,6 +350,15 @@ impl ColorProfile {
         }
     }
 
+    pub(crate) fn get_device_to_pcs(&self, intent: RenderingIntent) -> Option<&LutWarehouse> {
+        match intent {
+            RenderingIntent::AbsoluteColorimetric => self.lut_a_to_b_colorimetric.as_ref(),
+            RenderingIntent::Saturation => self.lut_a_to_b_saturation.as_ref(),
+            RenderingIntent::RelativeColorimetric => self.lut_a_to_b_colorimetric.as_ref(),
+            RenderingIntent::Perceptual => self.lut_a_to_b_perceptual.as_ref(),
+        }
+    }
+
     pub(crate) fn get_pcs_to_device_lut(&self, intent: RenderingIntent) -> Option<&LutDataType> {
         match intent {
             RenderingIntent::AbsoluteColorimetric => self
@@ -366,6 +375,15 @@ impl ColorProfile {
             RenderingIntent::Perceptual => {
                 self.lut_b_to_a_perceptual.as_ref().and_then(|x| x.as_lut())
             }
+        }
+    }
+
+    pub(crate) fn get_pcs_to_device(&self, intent: RenderingIntent) -> Option<&LutWarehouse> {
+        match intent {
+            RenderingIntent::AbsoluteColorimetric => self.lut_b_to_a_colorimetric.as_ref(),
+            RenderingIntent::Saturation => self.lut_b_to_a_saturation.as_ref(),
+            RenderingIntent::RelativeColorimetric => self.lut_b_to_a_colorimetric.as_ref(),
+            RenderingIntent::Perceptual => self.lut_b_to_a_perceptual.as_ref(),
         }
     }
 }

@@ -576,14 +576,14 @@ impl Trc {
     {
         match self {
             Trc::Parametric(params) => {
-                let mut gamma_table_uint: [u16; N] = [0; N];
+                let mut gamma_table_uint = Box::new([0; N]);
 
                 let inverted_size: usize = N;
                 let gamma_table = linear_curve_parametric_s::<N>(params)?;
                 for (&src, dst) in gamma_table.iter().zip(gamma_table_uint.iter_mut()) {
                     *dst = (src * 65535f32) as u16;
                 }
-                let inverted = invert_lut(&gamma_table_uint, inverted_size);
+                let inverted = invert_lut(gamma_table_uint.as_slice(), inverted_size);
                 Some(make_gamma_lut::<T, BUCKET, N, BIT_DEPTH>(&inverted))
             }
             Trc::Lut(data) => match data.len() {

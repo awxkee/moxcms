@@ -50,6 +50,7 @@ pub enum CmsError {
     UnknownTag(u32),
     UnknownTagTypeDefinition(u32),
     UnsupportedLutRenderingIntent(RenderingIntent),
+    InvalidAtoBLut,
 }
 
 impl Display for CmsError {
@@ -86,6 +87,7 @@ impl Display for CmsError {
                 "Can't find LUT for rendering intent: {:?}",
                 intent
             )),
+            CmsError::InvalidAtoBLut => f.write_str("Invalid A to B Lut"),
         }
     }
 }
