@@ -395,6 +395,9 @@ where
         if source.pcs != DataColorSpace::Xyz && source.pcs != DataColorSpace::Lab {
             return Err(CmsError::UnsupportedProfileConnection);
         }
+        if dest.pcs != DataColorSpace::Lab && dest.pcs != DataColorSpace::Xyz {
+            return Err(CmsError::UnsupportedProfileConnection);
+        }
 
         let src_lut_a_to_b = source
             .get_device_to_pcs_lut(options.rendering_intent)
@@ -421,7 +424,17 @@ where
         }
 
         if dest.color_space == DataColorSpace::Rgb {
-            prepare_inverse_lut_rgb_xyz::<T, BIT_DEPTH, GAMMA_LUT>(&dest, &mut lut)?;
+            if dest.pcs == DataColorSpace::Xyz {
+                prepare_inverse_lut_rgb_xyz::<T, BIT_DEPTH, GAMMA_LUT>(&dest, &mut lut)?;
+            } else if dest.pcs == DataColorSpace::Lab {
+                let pcs_to_device = dest
+                    .get_pcs_to_device(options.rendering_intent)
+                    .ok_or(CmsError::UnsupportedProfileConnection)?;
+                match pcs_to_device {
+                    LutWarehouse::Lut(_) => return Err(CmsError::UnsupportedProfileConnection),
+                    LutWarehouse::MCurves(mab) => prepare_mba_3x3(mab, &mut lut)?,
+                }
+            }
 
             return Ok(match dst_layout {
                 Layout::Rgb => Box::new(TransformLut4XyzToRgb::<
