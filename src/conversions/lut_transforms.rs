@@ -216,7 +216,7 @@ where
     #[inline(always)]
     fn transform_chunk<
         'k,
-        V: TetrhedralInterpolation<'k, GRID_SIZE>,
+        Tetrahedral: TetrhedralInterpolation<'k, GRID_SIZE>,
         Interpolation: Vector3fCmykLerp,
     >(
         &'k self,
@@ -244,8 +244,8 @@ where
             let table1 = &self.lut[(w * grid_size3 * 3) as usize..];
             let table2 = &self.lut[(w_n * grid_size3 * 3) as usize..];
 
-            let tetrahedral1 = V::new(table1);
-            let tetrahedral2 = V::new(table2);
+            let tetrahedral1 = Tetrahedral::new(table1);
+            let tetrahedral2 = Tetrahedral::new(table2);
             let r1 = tetrahedral1.inter3(c, m, y);
             let r2 = tetrahedral2.inter3(c, m, y);
             let r = Interpolation::interpolate(r1, r2, t, value_scale);
