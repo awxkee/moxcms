@@ -38,11 +38,11 @@ use zune_jpeg::zune_core::colorspace::ColorSpace;
 use zune_jpeg::zune_core::options::DecoderOptions;
 
 fn main() {
-    let funny_icc = fs::read("./assets/fogra39_coated.icc").unwrap();
-    let funny_profile = ColorProfile::new_from_slice(&funny_icc).unwrap();
+    // let funny_icc = fs::read("./assets/fogra39_coated.icc").unwrap();
+    // let funny_profile = ColorProfile::new_from_slice(&funny_icc).unwrap();
 
-    // let srgb_perceptual_icc = fs::read("./assets/srgb_perceptual.icc").unwrap();
-    // let srgb_perceptual_profile = ColorProfile::new_from_slice(&srgb_perceptual_icc).unwrap();
+    let srgb_perceptual_icc = fs::read("./assets/srgb_perceptual.icc").unwrap();
+    let srgb_perceptual_profile = ColorProfile::new_from_slice(&srgb_perceptual_icc).unwrap();
 
     // println!("{:?}", srgb_perceptual_profile);
 
@@ -64,13 +64,12 @@ fn main() {
     decoder.decode_headers().unwrap();
     let mut real_dst = vec![0u8; decoder.output_buffer_size().unwrap()];
 
-    // let custom_profile = Profile::new_icc(&funny_icc).unwrap();
-    //
-    // let srgb_profile = Profile::new_srgb();
+    let custom_profile = Profile::new_icc(&srgb_perceptual_icc).unwrap();
+
+    let srgb_profile = Profile::new_srgb();
 
     decoder.decode_into(&mut real_dst).unwrap();
 
-    // let t = Transform::new(&srgb_profile, PixelFormat::RGB_8, &custom_profile, PixelFormat::CMYK_8, Intent::Perceptual).unwrap();
     // let t1 = Transform::new(
     //     &custom_profile,
     //     PixelFormat::CMYK_8,
@@ -85,30 +84,32 @@ fn main() {
     // t.transform_pixels(&real_dst, &mut cmyk);
 
     let icc = decoder.icc_profile().unwrap();
-    let color_profile = ColorProfile::new_from_slice(&funny_icc).unwrap();
+    // let color_profile = ColorProfile::new_from_slice(&funny_icc).unwrap();
     // let color_profile = ColorProfile::new_gray_with_gamma(2.2);
     let mut dest_profile = ColorProfile::new_srgb();
 
-    let instant = Instant::now();
-    let rgb_to_cmyk = dest_profile
-        .create_transform_8bit(
-            Layout::Rgb,
-            &color_profile,
-            Layout::Rgba,
-            TransformOptions {
-                rendering_intent: RenderingIntent::Perceptual,
-            },
-        )
-        .unwrap();
+    // let instant = Instant::now();
+    // let rgb_to_cmyk = dest_profile
+    //     .create_transform_8bit(
+    //         Layout::Rgb,
+    //         &color_profile,
+    //         Layout::Rgba,
+    //         TransformOptions {
+    //             rendering_intent: RenderingIntent::Perceptual,
+    //         },
+    //     )
+    //     .unwrap();
+    //
+    // rgb_to_cmyk.transform(&real_dst, &mut cmyk).unwrap();
 
-    rgb_to_cmyk.transform(&real_dst, &mut cmyk).unwrap();
+    // println!("Execution time: {:?}", instant.elapsed());
 
-    println!("Execution time: {:?}", instant.elapsed());
+    // let t = Transform::new(&srgb_profile, PixelFormat::RGB_8, &custom_profile, PixelFormat::RGB_8, Intent::Perceptual).unwrap();
 
     dest_profile.rendering_intent = RenderingIntent::Perceptual;
-    let transform = color_profile
+    let transform = srgb_perceptual_profile
         .create_transform_8bit(
-            Layout::Rgba,
+            Layout::Rgb,
             &dest_profile,
             Layout::Rgb,
             TransformOptions {
@@ -117,6 +118,7 @@ fn main() {
         )
         .unwrap();
     let mut dst = vec![0u8; rgb.len()];
+    // t.transform_pixels(&real_dst)
 
     // let gray_image = rgb
     //     .chunks_exact(3)
@@ -127,13 +129,13 @@ fn main() {
     //     .collect::<Vec<u8>>();
     //
     let instant = Instant::now();
-    for (src, dst) in cmyk
-        .chunks_exact(img.width() as usize * 4)
+    for (src, dst) in real_dst
+        .chunks_exact(img.width() as usize * 3)
         .zip(dst.chunks_exact_mut(img.width() as usize * 3))
     {
         transform
             .transform(
-                &src[..img.width() as usize * 4],
+                &src[..img.width() as usize * 3],
                 &mut dst[..img.width() as usize * 3],
             )
             .unwrap();

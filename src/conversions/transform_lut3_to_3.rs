@@ -26,15 +26,16 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-use crate::conversions::CompressCmykLut;
+use crate::conversions::CompressLut;
 use crate::conversions::tetrahedral::TetrhedralInterpolation;
 use crate::{CmsError, Layout, TransformExecutor};
 use num_traits::AsPrimitive;
 use std::marker::PhantomData;
 
-pub(crate) struct TransformLut3x4<
+pub(crate) struct TransformLut3x3<
     T,
-    const LAYOUT: u8,
+    const SRC_LAYOUT: u8,
+    const DST_LAYOUT: u8,
     const GRID_SIZE: usize,
     const BIT_DEPTH: usize,
 > {
@@ -43,11 +44,12 @@ pub(crate) struct TransformLut3x4<
 }
 
 impl<
-    T: Copy + AsPrimitive<f32> + Default + CompressCmykLut,
-    const LAYOUT: u8,
+    T: Copy + AsPrimitive<f32> + Default + CompressLut,
+    const SRC_LAYOUT: u8,
+    const DST_LAYOUT: u8,
     const GRID_SIZE: usize,
     const BIT_DEPTH: usize,
-> TransformLut3x4<T, LAYOUT, GRID_SIZE, BIT_DEPTH>
+> TransformLut3x3<T, SRC_LAYOUT, DST_LAYOUT, GRID_SIZE, BIT_DEPTH>
 where
     f32: AsPrimitive<T>,
     u32: AsPrimitive<T>,
@@ -58,23 +60,38 @@ where
         src: &[T],
         dst: &mut [T],
     ) {
-        let cn = Layout::from(LAYOUT);
-        let channels = cn.channels();
+        let src_cn = Layout::from(SRC_LAYOUT);
+        let src_channels = src_cn.channels();
+
+        let dst_cn = Layout::from(DST_LAYOUT);
+        let dst_channels = dst_cn.channels();
 
         let value_scale = ((1 << BIT_DEPTH) - 1) as f32;
+        let max_value = ((1u32 << BIT_DEPTH) - 1).as_();
 
-        for (src, dst) in src.chunks_exact(channels).zip(dst.chunks_exact_mut(4)) {
-            let x = src[cn.r_i()].compress_cmyk_lut::<BIT_DEPTH>();
-            let y = src[cn.g_i()].compress_cmyk_lut::<BIT_DEPTH>();
-            let z = src[cn.b_i()].compress_cmyk_lut::<BIT_DEPTH>();
+        for (src, dst) in src
+            .chunks_exact(src_channels)
+            .zip(dst.chunks_exact_mut(dst_channels))
+        {
+            let x = src[src_cn.r_i()].compress_lut::<BIT_DEPTH>();
+            let y = src[src_cn.g_i()].compress_lut::<BIT_DEPTH>();
+            let z = src[src_cn.b_i()].compress_lut::<BIT_DEPTH>();
+
+            let a = if src_channels == 4 {
+                src[src_cn.a_i()]
+            } else {
+                max_value
+            };
 
             let tetrahedral = V::new(&self.lut);
-            let v = tetrahedral.inter4(x, y, z);
+            let v = tetrahedral.inter3(x, y, z);
             let r = v * value_scale + 0.5f32;
-            dst[0] = r.v[0].as_();
-            dst[1] = r.v[1].as_();
-            dst[2] = r.v[2].as_();
-            dst[3] = r.v[3].as_();
+            dst[dst_cn.r_i()] = r.v[0].min(value_scale).as_();
+            dst[dst_cn.g_i()] = r.v[1].min(value_scale).as_();
+            dst[dst_cn.b_i()] = r.v[2].min(value_scale).as_();
+            if dst_channels == 4 {
+                dst[dst_cn.a_i()] = a;
+            }
         }
     }
 
@@ -94,26 +111,30 @@ where
 }
 
 impl<
-    T: Copy + AsPrimitive<f32> + Default + CompressCmykLut,
-    const LAYOUT: u8,
+    T: Copy + AsPrimitive<f32> + Default + CompressLut,
+    const SRC_LAYOUT: u8,
+    const DST_LAYOUT: u8,
     const GRID_SIZE: usize,
     const BIT_DEPTH: usize,
-> TransformExecutor<T> for TransformLut3x4<T, LAYOUT, GRID_SIZE, BIT_DEPTH>
+> TransformExecutor<T> for TransformLut3x3<T, SRC_LAYOUT, DST_LAYOUT, GRID_SIZE, BIT_DEPTH>
 where
     f32: AsPrimitive<T>,
     u32: AsPrimitive<T>,
 {
     fn transform(&self, src: &[T], dst: &mut [T]) -> Result<(), CmsError> {
-        let cn = Layout::from(LAYOUT);
-        let channels = cn.channels();
-        if src.len() % channels != 0 {
+        let src_cn = Layout::from(SRC_LAYOUT);
+        let src_channels = src_cn.channels();
+
+        let dst_cn = Layout::from(DST_LAYOUT);
+        let dst_channels = dst_cn.channels();
+        if src.len() % src_channels != 0 {
             return Err(CmsError::LaneMultipleOfChannels);
         }
-        if dst.len() % 4 != 0 {
+        if dst.len() % dst_channels != 0 {
             return Err(CmsError::LaneMultipleOfChannels);
         }
-        let src_chunks = src.len() / channels;
-        let dst_chunks = dst.len() / 4;
+        let src_chunks = src.len() / src_channels;
+        let dst_chunks = dst.len() / dst_channels;
         if src_chunks != dst_chunks {
             return Err(CmsError::LaneSizeMismatch);
         }

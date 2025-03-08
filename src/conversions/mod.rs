@@ -28,11 +28,11 @@
  */
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 mod avx;
-mod cmyk;
 mod gray2rgb;
-mod lut3;
-mod lut3_to_4;
+mod lut3x4;
 mod lut4;
+mod lut_transforms;
+mod mab;
 #[cfg(all(target_arch = "aarch64", target_feature = "neon"))]
 mod neon;
 mod rgb2gray;
@@ -41,8 +41,10 @@ mod rgbxyz;
 mod sse;
 mod stages;
 mod tetrahedral;
+mod transform_lut3_to_3;
+mod transform_lut3_to_4;
 
-pub(crate) use cmyk::{CompressCmykLut, make_cmyk_luts};
 pub(crate) use gray2rgb::make_gray_to_x;
+pub(crate) use lut_transforms::{CompressLut, make_cmyk_luts};
 pub(crate) use rgb2gray::{ToneReproductionRgbToGray, make_rgb_to_gray};
 pub(crate) use rgbxyz::{TransformProfileRgb, make_rgb_xyz_rgb_transform};

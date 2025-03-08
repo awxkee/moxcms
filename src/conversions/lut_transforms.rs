@@ -26,16 +26,18 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-use crate::conversions::lut3::{create_lut3_samples, create_lut3x4};
-use crate::conversions::lut3_to_4::TransformLut3x4;
+use crate::conversions::lut3x4::{create_lut3_samples, create_lut3_samples_norm, create_lut3x4};
 use crate::conversions::lut4::create_lut4;
+use crate::conversions::mab::{prepare_mab_3x3, prepare_mba_3x3};
 use crate::conversions::tetrahedral::TetrhedralInterpolation;
+use crate::conversions::transform_lut3_to_3::TransformLut3x3;
+use crate::conversions::transform_lut3_to_4::TransformLut3x4;
 use crate::lab::Lab;
 use crate::math::FusedMultiplyAdd;
 use crate::mlaf::mlaf;
 use crate::{
-    CmsError, ColorProfile, DataColorSpace, InPlaceStage, Layout, Matrix3f, TransformExecutor,
-    TransformOptions, Vector3f, Xyz, rounding_div_ceil,
+    CmsError, ColorProfile, DataColorSpace, InPlaceStage, Layout, LutWarehouse, Matrix3f,
+    TransformExecutor, TransformOptions, Vector3f, Xyz, rounding_div_ceil,
 };
 use num_traits::AsPrimitive;
 use std::marker::PhantomData;
@@ -52,7 +54,11 @@ impl Vector3fCmykLerp for DefaultVector3fLerp {
     #[inline(always)]
     fn interpolate(a: Vector3f, b: Vector3f, t: f32, scale: f32) -> Vector3f {
         let t = Vector3f::from(t);
-        (a * (Vector3f::from(1.0) - t)).mla(b, t) * scale + 0.5f32
+        let mut new_vec = (a * (Vector3f::from(1.0) - t)).mla(b, t) * scale + 0.5f32;
+        new_vec.v[0] = new_vec.v[0].min(scale);
+        new_vec.v[1] = new_vec.v[1].min(scale);
+        new_vec.v[2] = new_vec.v[2].min(scale);
+        new_vec
     }
 }
 
@@ -178,27 +184,27 @@ impl InPlaceStage for MatrixStage {
     }
 }
 
-pub(crate) trait CompressCmykLut {
-    fn compress_cmyk_lut<const BIT_DEPTH: usize>(self) -> u8;
+pub(crate) trait CompressLut {
+    fn compress_lut<const BIT_DEPTH: usize>(self) -> u8;
 }
 
-impl CompressCmykLut for u8 {
+impl CompressLut for u8 {
     #[inline(always)]
-    fn compress_cmyk_lut<const BIT_DEPTH: usize>(self) -> u8 {
+    fn compress_lut<const BIT_DEPTH: usize>(self) -> u8 {
         self
     }
 }
 
-impl CompressCmykLut for u16 {
+impl CompressLut for u16 {
     #[inline(always)]
-    fn compress_cmyk_lut<const BIT_DEPTH: usize>(self) -> u8 {
+    fn compress_lut<const BIT_DEPTH: usize>(self) -> u8 {
         let scale = BIT_DEPTH - 8;
         (self >> scale).min(255) as u8
     }
 }
 
 impl<
-    T: Copy + AsPrimitive<f32> + Default + CompressCmykLut,
+    T: Copy + AsPrimitive<f32> + Default + CompressLut,
     const LAYOUT: u8,
     const GRID_SIZE: usize,
     const BIT_DEPTH: usize,
@@ -226,10 +232,10 @@ where
         let max_value = ((1 << BIT_DEPTH) - 1u32).as_();
 
         for (src, dst) in src.chunks_exact(4).zip(dst.chunks_exact_mut(channels)) {
-            let c = src[0].compress_cmyk_lut::<BIT_DEPTH>();
-            let m = src[1].compress_cmyk_lut::<BIT_DEPTH>();
-            let y = src[2].compress_cmyk_lut::<BIT_DEPTH>();
-            let k = src[3].compress_cmyk_lut::<BIT_DEPTH>();
+            let c = src[0].compress_lut::<BIT_DEPTH>();
+            let m = src[1].compress_lut::<BIT_DEPTH>();
+            let y = src[2].compress_lut::<BIT_DEPTH>();
+            let k = src[3].compress_lut::<BIT_DEPTH>();
             let linear_k: f32 = k as i32 as f32 / 255.0;
             let w: i32 = k as i32 * (GRID_SIZE as i32 - 1) / 255;
             let w_n: i32 = rounding_div_ceil(k as i32 * (GRID_SIZE as i32 - 1), 255);
@@ -268,7 +274,7 @@ where
 }
 
 impl<
-    T: Copy + AsPrimitive<f32> + Default + CompressCmykLut,
+    T: Copy + AsPrimitive<f32> + Default + CompressLut,
     const LAYOUT: u8,
     const GRID_SIZE: usize,
     const BIT_DEPTH: usize,
@@ -367,7 +373,7 @@ impl<
 }
 
 pub(crate) fn make_cmyk_luts<
-    T: Copy + Default + AsPrimitive<f32> + Send + Sync + CompressCmykLut + AsPrimitive<usize>,
+    T: Copy + Default + AsPrimitive<f32> + Send + Sync + CompressLut + AsPrimitive<usize>,
     const BIT_DEPTH: usize,
     const LINEAR_CAP: usize,
     const GAMMA_LUT: usize,
@@ -389,8 +395,11 @@ where
         if source.pcs != DataColorSpace::Xyz && source.pcs != DataColorSpace::Lab {
             return Err(CmsError::UnsupportedProfileConnection);
         }
+        if dest.pcs != DataColorSpace::Lab && dest.pcs != DataColorSpace::Xyz {
+            return Err(CmsError::UnsupportedProfileConnection);
+        }
 
-        let lut_a_to_b = source
+        let src_lut_a_to_b = source
             .get_device_to_pcs_lut(options.rendering_intent)
             .ok_or(CmsError::UnsupportedLutRenderingIntent(
                 source.rendering_intent,
@@ -402,7 +411,7 @@ where
 
         const GRID_SIZE: usize = 17;
 
-        let mut lut = create_lut4::<GRID_SIZE>(lut_a_to_b)?;
+        let mut lut = create_lut4::<GRID_SIZE>(src_lut_a_to_b)?;
 
         if source.pcs == DataColorSpace::Lab {
             let lab_to_xyz_stage = StageLabToXyz::default();
@@ -415,35 +424,17 @@ where
         }
 
         if dest.color_space == DataColorSpace::Rgb {
-            let gamma_map_r =
-                dest.build_gamma_table::<T, 65536, GAMMA_LUT, BIT_DEPTH>(&dest.red_trc)?;
-            let gamma_map_g =
-                dest.build_gamma_table::<T, 65536, GAMMA_LUT, BIT_DEPTH>(&dest.green_trc)?;
-            let gamma_map_b =
-                dest.build_gamma_table::<T, 65536, GAMMA_LUT, BIT_DEPTH>(&dest.blue_trc)?;
-
-            let xyz_to_rgb = dest
-                .rgb_to_xyz_matrix()
-                .ok_or(CmsError::UnsupportedProfileConnection)?
-                .inverse()
-                .ok_or(CmsError::UnsupportedProfileConnection)?;
-
-            let mut matrices = vec![Matrix3f {
-                v: [
-                    [65535.0 / 32768.0, 0.0, 0.0],
-                    [0.0, 65535.0 / 32768.0, 0.0],
-                    [0.0, 0.0, 65535.0 / 32768.0],
-                ],
-            }];
-
-            matrices.push(xyz_to_rgb);
-            let xyz_to_rgb_stage = XyzToRgbStage::<T, BIT_DEPTH, GAMMA_LUT> {
-                r_gamma: gamma_map_r,
-                g_gamma: gamma_map_g,
-                b_gamma: gamma_map_b,
-                matrices,
-            };
-            xyz_to_rgb_stage.transform(&mut lut)?;
+            if dest.pcs == DataColorSpace::Xyz {
+                prepare_inverse_lut_rgb_xyz::<T, BIT_DEPTH, GAMMA_LUT>(&dest, &mut lut)?;
+            } else if dest.pcs == DataColorSpace::Lab {
+                let pcs_to_device = dest
+                    .get_pcs_to_device(options.rendering_intent)
+                    .ok_or(CmsError::UnsupportedProfileConnection)?;
+                match pcs_to_device {
+                    LutWarehouse::Lut(_) => return Err(CmsError::UnsupportedProfileConnection),
+                    LutWarehouse::MCurves(mab) => prepare_mba_3x3(mab, &mut lut)?,
+                }
+            }
 
             return Ok(match dst_layout {
                 Layout::Rgb => Box::new(TransformLut4XyzToRgb::<
@@ -479,52 +470,37 @@ where
             return Err(CmsError::UnsupportedProfileConnection);
         }
 
-        let lut_b_to_a = dest.get_pcs_to_device_lut(options.rendering_intent).ok_or(
+        let dest_lut_b_to_a = dest.get_pcs_to_device_lut(options.rendering_intent).ok_or(
             CmsError::UnsupportedLutRenderingIntent(source.rendering_intent),
         )?;
 
         const GRID_SIZE: usize = 33;
 
-        let lut_origins = create_lut3_samples::<T, GRID_SIZE>();
+        let mut lut: Vec<f32>;
 
-        let lin_r = source.build_r_linearize_table::<LINEAR_CAP, BIT_DEPTH>()?;
-        let lin_g = source.build_g_linearize_table::<LINEAR_CAP, BIT_DEPTH>()?;
-        let lin_b = source.build_b_linearize_table::<LINEAR_CAP, BIT_DEPTH>()?;
+        if source.has_device_to_pcs_lut() {
+            let device_to_pcs = source
+                .get_device_to_pcs(options.rendering_intent)
+                .ok_or(CmsError::UnsupportedProfileConnection)?;
+            lut = create_lut3_samples_norm::<GRID_SIZE>();
 
-        let lin_stage = RgbLinearizationStage::<T, BIT_DEPTH, LINEAR_CAP, GRID_SIZE> {
-            r_lin: lin_r,
-            g_lin: lin_g,
-            b_lin: lin_b,
-            _phantom: PhantomData,
-        };
-
-        let mut lut = vec![0f32; lut_origins.len()];
-        lin_stage.transform(&lut_origins, &mut lut)?;
-
-        let xyz_to_rgb = source
-            .rgb_to_xyz_matrix()
-            .ok_or(CmsError::UnsupportedProfileConnection)?;
-
-        let matrices = vec![
-            xyz_to_rgb,
-            Matrix3f {
-                v: [
-                    [32768.0 / 65535.0, 0.0, 0.0],
-                    [0.0, 32768.0 / 65535.0, 0.0],
-                    [0.0, 0.0, 32768.0 / 65535.0],
-                ],
-            },
-        ];
-
-        let matrix_stage = MatrixStage { matrices };
-        matrix_stage.transform(&mut lut)?;
-
-        if dest.pcs == DataColorSpace::Lab {
-            let xyz_to_lab = StageXyzToLab::default();
-            xyz_to_lab.transform(&mut lut)?;
+            match device_to_pcs {
+                LutWarehouse::Lut(_) => return Err(CmsError::UnsupportedProfileConnection),
+                LutWarehouse::MCurves(mab) => prepare_mab_3x3(mab, &mut lut)?,
+            }
+        } else {
+            lut = create_rgb_lin_lut::<T, BIT_DEPTH, LINEAR_CAP, GRID_SIZE>(source)?;
         }
 
-        let lut = create_lut3x4::<GRID_SIZE>(lut_b_to_a, &lut)?;
+        if source.pcs == DataColorSpace::Xyz && dest.pcs == DataColorSpace::Lab {
+            let xyz_to_lab = StageXyzToLab::default();
+            xyz_to_lab.transform(&mut lut)?;
+        } else if source.pcs == DataColorSpace::Lab && dest.pcs == DataColorSpace::Xyz {
+            let lab_to_xyz_stage = StageLabToXyz::default();
+            lab_to_xyz_stage.transform(&mut lut)?;
+        }
+
+        let lut = create_lut3x4::<GRID_SIZE>(dest_lut_b_to_a, &lut)?;
 
         return Ok(match src_layout {
             Layout::Rgb => {
@@ -545,7 +521,191 @@ where
             }
             _ => unimplemented!(),
         });
+    } else if source.color_space == DataColorSpace::Rgb && dest.color_space == DataColorSpace::Rgb {
+        if src_layout != Layout::Rgba && src_layout != Layout::Rgb {
+            return Err(CmsError::InvalidLayout);
+        }
+        if dst_layout != Layout::Rgba && dst_layout != Layout::Rgb {
+            return Err(CmsError::InvalidLayout);
+        }
+
+        const GRID_SIZE: usize = 33;
+
+        let mut lut: Vec<f32>;
+
+        if source.has_device_to_pcs_lut() {
+            let device_to_pcs = source
+                .get_device_to_pcs(options.rendering_intent)
+                .ok_or(CmsError::UnsupportedProfileConnection)?;
+            lut = create_lut3_samples_norm::<GRID_SIZE>();
+
+            match device_to_pcs {
+                LutWarehouse::Lut(_) => return Err(CmsError::UnsupportedProfileConnection),
+                LutWarehouse::MCurves(mab) => prepare_mab_3x3(mab, &mut lut)?,
+            }
+        } else {
+            lut = create_rgb_lin_lut::<T, BIT_DEPTH, LINEAR_CAP, GRID_SIZE>(source)?;
+        }
+
+        if source.pcs == DataColorSpace::Xyz && dest.pcs == DataColorSpace::Lab {
+            let xyz_to_lab = StageXyzToLab::default();
+            xyz_to_lab.transform(&mut lut)?;
+        } else if source.pcs == DataColorSpace::Lab && dest.pcs == DataColorSpace::Xyz {
+            let lab_to_xyz_stage = StageLabToXyz::default();
+            lab_to_xyz_stage.transform(&mut lut)?;
+        }
+
+        if dest.has_pcs_to_device_lut() {
+            let pcs_to_device = dest
+                .get_pcs_to_device(options.rendering_intent)
+                .ok_or(CmsError::UnsupportedProfileConnection)?;
+            match pcs_to_device {
+                LutWarehouse::Lut(_) => return Err(CmsError::UnsupportedProfileConnection),
+                LutWarehouse::MCurves(mab) => prepare_mba_3x3(mab, &mut lut)?,
+            }
+        } else {
+            prepare_inverse_lut_rgb_xyz::<T, BIT_DEPTH, GAMMA_LUT>(&dest, &mut lut)?;
+        }
+
+        return Ok(match src_layout {
+            Layout::Rgb => match dst_layout {
+                Layout::Rgb => Box::new(TransformLut3x3::<
+                    T,
+                    { Layout::Rgb as u8 },
+                    { Layout::Rgb as u8 },
+                    GRID_SIZE,
+                    BIT_DEPTH,
+                > {
+                    lut,
+                    _phantom: PhantomData,
+                }),
+                Layout::Rgba => Box::new(TransformLut3x3::<
+                    T,
+                    { Layout::Rgb as u8 },
+                    { Layout::Rgba as u8 },
+                    GRID_SIZE,
+                    BIT_DEPTH,
+                > {
+                    lut,
+                    _phantom: PhantomData,
+                }),
+                _ => unimplemented!(),
+            },
+            Layout::Rgba => match dst_layout {
+                Layout::Rgb => Box::new(TransformLut3x3::<
+                    T,
+                    { Layout::Rgba as u8 },
+                    { Layout::Rgb as u8 },
+                    GRID_SIZE,
+                    BIT_DEPTH,
+                > {
+                    lut,
+                    _phantom: PhantomData,
+                }),
+                Layout::Rgba => Box::new(TransformLut3x3::<
+                    T,
+                    { Layout::Rgba as u8 },
+                    { Layout::Rgb as u8 },
+                    GRID_SIZE,
+                    BIT_DEPTH,
+                > {
+                    lut,
+                    _phantom: PhantomData,
+                }),
+                _ => unimplemented!(),
+            },
+            _ => unimplemented!(),
+        });
     }
 
     Err(CmsError::UnsupportedProfileConnection)
+}
+
+fn create_rgb_lin_lut<
+    T: Copy + Default + AsPrimitive<f32> + Send + Sync + CompressLut + AsPrimitive<usize>,
+    const BIT_DEPTH: usize,
+    const LINEAR_CAP: usize,
+    const GRID_SIZE: usize,
+>(
+    source: &ColorProfile,
+) -> Result<Vec<f32>, CmsError>
+where
+    u32: AsPrimitive<T>,
+    f32: AsPrimitive<T>,
+{
+    let lut_origins = create_lut3_samples::<T, GRID_SIZE>();
+
+    let lin_r = source.build_r_linearize_table::<LINEAR_CAP, BIT_DEPTH>()?;
+    let lin_g = source.build_g_linearize_table::<LINEAR_CAP, BIT_DEPTH>()?;
+    let lin_b = source.build_b_linearize_table::<LINEAR_CAP, BIT_DEPTH>()?;
+
+    let lin_stage = RgbLinearizationStage::<T, BIT_DEPTH, LINEAR_CAP, GRID_SIZE> {
+        r_lin: lin_r,
+        g_lin: lin_g,
+        b_lin: lin_b,
+        _phantom: PhantomData,
+    };
+
+    let mut lut = vec![0f32; lut_origins.len()];
+    lin_stage.transform(&lut_origins, &mut lut)?;
+
+    let xyz_to_rgb = source
+        .rgb_to_xyz_matrix()
+        .ok_or(CmsError::UnsupportedProfileConnection)?;
+
+    let matrices = vec![
+        xyz_to_rgb,
+        Matrix3f {
+            v: [
+                [32768.0 / 65535.0, 0.0, 0.0],
+                [0.0, 32768.0 / 65535.0, 0.0],
+                [0.0, 0.0, 32768.0 / 65535.0],
+            ],
+        },
+    ];
+
+    let matrix_stage = MatrixStage { matrices };
+    matrix_stage.transform(&mut lut)?;
+    Ok(lut)
+}
+
+fn prepare_inverse_lut_rgb_xyz<
+    T: Copy + Default + AsPrimitive<f32> + Send + Sync + CompressLut + AsPrimitive<usize>,
+    const BIT_DEPTH: usize,
+    const GAMMA_LUT: usize,
+>(
+    dest: &&ColorProfile,
+    lut: &mut [f32],
+) -> Result<(), CmsError>
+where
+    f32: AsPrimitive<T>,
+    u32: AsPrimitive<T>,
+{
+    let gamma_map_r = dest.build_gamma_table::<T, 65536, GAMMA_LUT, BIT_DEPTH>(&dest.red_trc)?;
+    let gamma_map_g = dest.build_gamma_table::<T, 65536, GAMMA_LUT, BIT_DEPTH>(&dest.green_trc)?;
+    let gamma_map_b = dest.build_gamma_table::<T, 65536, GAMMA_LUT, BIT_DEPTH>(&dest.blue_trc)?;
+
+    let xyz_to_rgb = dest
+        .rgb_to_xyz_matrix()
+        .ok_or(CmsError::UnsupportedProfileConnection)?
+        .inverse()
+        .ok_or(CmsError::UnsupportedProfileConnection)?;
+
+    let mut matrices = vec![Matrix3f {
+        v: [
+            [65535.0 / 32768.0, 0.0, 0.0],
+            [0.0, 65535.0 / 32768.0, 0.0],
+            [0.0, 0.0, 65535.0 / 32768.0],
+        ],
+    }];
+
+    matrices.push(xyz_to_rgb);
+    let xyz_to_rgb_stage = XyzToRgbStage::<T, BIT_DEPTH, GAMMA_LUT> {
+        r_gamma: gamma_map_r,
+        g_gamma: gamma_map_g,
+        b_gamma: gamma_map_b,
+        matrices,
+    };
+    xyz_to_rgb_stage.transform(lut)?;
+    Ok(())
 }

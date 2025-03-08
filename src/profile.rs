@@ -350,14 +350,14 @@ impl From<DataColorSpace> for u32 {
 #[derive(Debug, Clone)]
 pub enum LutWarehouse {
     Lut(LutDataType),
-    Abm(LutMType),
+    MCurves(LutMCurvesType),
 }
 
 impl LutWarehouse {
     pub(crate) fn as_lut(&self) -> Option<&LutDataType> {
         match self {
             LutWarehouse::Lut(lut) => Some(lut),
-            LutWarehouse::Abm(_) => None,
+            LutWarehouse::MCurves(_) => None,
         }
     }
 }
@@ -378,7 +378,7 @@ pub struct LutDataType {
 }
 
 #[derive(Debug, Clone)]
-pub struct LutMType {
+pub struct LutMCurvesType {
     pub num_input_channels: u8,
     pub num_output_channels: u8,
     pub grid_points: [u8; 16],
@@ -643,8 +643,8 @@ impl ColorProfile {
             let curve_sliced = &tag[12..12 + COUNT_TO_LENGTH[entry_count] * size_of::<u32>()];
             let mut params = vec![0f32; COUNT_TO_LENGTH[entry_count]];
             for (value, param_value) in curve_sliced.chunks_exact(4).zip(params.iter_mut()) {
-                let parametric_value = u32::from_be_bytes([value[0], value[1], value[2], value[3]]);
-                *param_value = uint16_number_to_float(parametric_value);
+                let parametric_value = i32::from_be_bytes([value[0], value[1], value[2], value[3]]);
+                *param_value = s15_fixed16_number_to_float(parametric_value);
             }
             if entry_count == 1 || entry_count == 2 {
                 /* we have a type 1 or type 2 function that has a division by 'a' */
@@ -975,7 +975,7 @@ impl ColorProfile {
         let b_curves = Self::read_nested_tone_curves(tag, b_curve_offset, out_channels as usize)?
             .ok_or(CmsError::InvalidIcc)?;
 
-        let wh = LutWarehouse::Abm(LutMType {
+        let wh = LutWarehouse::MCurves(LutMCurvesType {
             num_input_channels: in_channels,
             num_output_channels: out_channels,
             matrix: transform,
@@ -1495,6 +1495,18 @@ impl ColorProfile {
         };
         let det = tetrahedral_vertices.determinant()?;
         Some(det / 6.0f32)
+    }
+
+    pub(crate) fn has_device_to_pcs_lut(&self) -> bool {
+        self.lut_a_to_b_perceptual.is_some()
+            || self.lut_a_to_b_saturation.is_some()
+            || self.lut_a_to_b_colorimetric.is_some()
+    }
+
+    pub(crate) fn has_pcs_to_device_lut(&self) -> bool {
+        self.lut_b_to_a_perceptual.is_some()
+            || self.lut_b_to_a_saturation.is_some()
+            || self.lut_b_to_a_colorimetric.is_some()
     }
 }
 

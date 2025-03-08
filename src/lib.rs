@@ -69,7 +69,7 @@ pub use nd_array::{Array3D, Array4D};
 pub use oklab::Oklab;
 pub use oklch::Oklch;
 pub use profile::{
-    CicpProfile, ColorProfile, DataColorSpace, LutMType, LutType, LutWarehouse, ProfileClass,
+    CicpProfile, ColorProfile, DataColorSpace, LutMCurvesType, LutType, LutWarehouse, ProfileClass,
     RenderingIntent,
 };
 pub use rgb::Rgb;
