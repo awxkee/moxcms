@@ -55,7 +55,7 @@ where
     u32: AsPrimitive<T>,
 {
     #[inline(always)]
-    fn transform_chunk<'b, V: TetrhedralInterpolation<'b, GRID_SIZE>>(
+    fn transform_chunk<'b, Tetrahedral: TetrhedralInterpolation<'b, GRID_SIZE>>(
         &'b self,
         src: &[T],
         dst: &mut [T],
@@ -83,7 +83,7 @@ where
                 max_value
             };
 
-            let tetrahedral = V::new(&self.lut);
+            let tetrahedral = Tetrahedral::new(&self.lut);
             let v = tetrahedral.inter3(x, y, z);
             let r = v * value_scale + 0.5f32;
             dst[dst_cn.r_i()] = r.v[0].min(value_scale).as_();
