@@ -476,43 +476,28 @@ where
 
         const GRID_SIZE: usize = 33;
 
-        let lut_origins = create_lut3_samples::<T, GRID_SIZE>();
+        let mut lut: Vec<f32>;
 
-        let lin_r = source.build_r_linearize_table::<LINEAR_CAP, BIT_DEPTH>()?;
-        let lin_g = source.build_g_linearize_table::<LINEAR_CAP, BIT_DEPTH>()?;
-        let lin_b = source.build_b_linearize_table::<LINEAR_CAP, BIT_DEPTH>()?;
+        if source.has_device_to_pcs_lut() {
+            let device_to_pcs = source
+                .get_device_to_pcs(options.rendering_intent)
+                .ok_or(CmsError::UnsupportedProfileConnection)?;
+            lut = create_lut3_samples_norm::<GRID_SIZE>();
 
-        let lin_stage = RgbLinearizationStage::<T, BIT_DEPTH, LINEAR_CAP, GRID_SIZE> {
-            r_lin: lin_r,
-            g_lin: lin_g,
-            b_lin: lin_b,
-            _phantom: PhantomData,
-        };
+            match device_to_pcs {
+                LutWarehouse::Lut(_) => return Err(CmsError::UnsupportedProfileConnection),
+                LutWarehouse::MCurves(mab) => prepare_mab_3x3(mab, &mut lut)?,
+            }
+        } else {
+            lut = create_rgb_lin_lut::<T, BIT_DEPTH, LINEAR_CAP, GRID_SIZE>(source)?;
+        }
 
-        let mut lut = vec![0f32; lut_origins.len()];
-        lin_stage.transform(&lut_origins, &mut lut)?;
-
-        let xyz_to_rgb = source
-            .rgb_to_xyz_matrix()
-            .ok_or(CmsError::UnsupportedProfileConnection)?;
-
-        let matrices = vec![
-            xyz_to_rgb,
-            Matrix3f {
-                v: [
-                    [32768.0 / 65535.0, 0.0, 0.0],
-                    [0.0, 32768.0 / 65535.0, 0.0],
-                    [0.0, 0.0, 32768.0 / 65535.0],
-                ],
-            },
-        ];
-
-        let matrix_stage = MatrixStage { matrices };
-        matrix_stage.transform(&mut lut)?;
-
-        if dest.pcs == DataColorSpace::Lab {
+        if source.pcs == DataColorSpace::Xyz && dest.pcs == DataColorSpace::Lab {
             let xyz_to_lab = StageXyzToLab::default();
             xyz_to_lab.transform(&mut lut)?;
+        } else if source.pcs == DataColorSpace::Lab && dest.pcs == DataColorSpace::Xyz {
+            let lab_to_xyz_stage = StageLabToXyz::default();
+            lab_to_xyz_stage.transform(&mut lut)?;
         }
 
         let lut = create_lut3x4::<GRID_SIZE>(dest_lut_b_to_a, &lut)?;
@@ -559,41 +544,7 @@ where
                 LutWarehouse::MCurves(mab) => prepare_mab_3x3(mab, &mut lut)?,
             }
         } else {
-            let lin_r = source.build_r_linearize_table::<LINEAR_CAP, BIT_DEPTH>()?;
-            let lin_g = source.build_g_linearize_table::<LINEAR_CAP, BIT_DEPTH>()?;
-            let lin_b = source.build_b_linearize_table::<LINEAR_CAP, BIT_DEPTH>()?;
-
-            let lin_stage = RgbLinearizationStage::<T, BIT_DEPTH, LINEAR_CAP, GRID_SIZE> {
-                r_lin: lin_r,
-                g_lin: lin_g,
-                b_lin: lin_b,
-                _phantom: PhantomData,
-            };
-
-            let mut lut_origins = create_lut3_samples::<T, GRID_SIZE>();
-
-            lut = vec![0f32; lut_origins.len()];
-
-            lin_stage.transform(&lut_origins, &mut lut)?;
-            lut_origins.resize(0, T::default());
-
-            let rgb_to_xyz = source
-                .rgb_to_xyz_matrix()
-                .ok_or(CmsError::UnsupportedProfileConnection)?;
-
-            let matrices = vec![
-                rgb_to_xyz,
-                Matrix3f {
-                    v: [
-                        [32768.0 / 65535.0, 0.0, 0.0],
-                        [0.0, 32768.0 / 65535.0, 0.0],
-                        [0.0, 0.0, 32768.0 / 65535.0],
-                    ],
-                },
-            ];
-
-            let matrix_stage = MatrixStage { matrices };
-            matrix_stage.transform(&mut lut)?;
+            lut = create_rgb_lin_lut::<T, BIT_DEPTH, LINEAR_CAP, GRID_SIZE>(source)?;
         }
 
         if source.pcs == DataColorSpace::Xyz && dest.pcs == DataColorSpace::Lab {
@@ -668,6 +619,54 @@ where
     }
 
     Err(CmsError::UnsupportedProfileConnection)
+}
+
+fn create_rgb_lin_lut<
+    T: Copy + Default + AsPrimitive<f32> + Send + Sync + CompressLut + AsPrimitive<usize>,
+    const BIT_DEPTH: usize,
+    const LINEAR_CAP: usize,
+    const GRID_SIZE: usize,
+>(
+    source: &ColorProfile,
+) -> Result<Vec<f32>, CmsError>
+where
+    u32: AsPrimitive<T>,
+    f32: AsPrimitive<T>,
+{
+    let lut_origins = create_lut3_samples::<T, GRID_SIZE>();
+
+    let lin_r = source.build_r_linearize_table::<LINEAR_CAP, BIT_DEPTH>()?;
+    let lin_g = source.build_g_linearize_table::<LINEAR_CAP, BIT_DEPTH>()?;
+    let lin_b = source.build_b_linearize_table::<LINEAR_CAP, BIT_DEPTH>()?;
+
+    let lin_stage = RgbLinearizationStage::<T, BIT_DEPTH, LINEAR_CAP, GRID_SIZE> {
+        r_lin: lin_r,
+        g_lin: lin_g,
+        b_lin: lin_b,
+        _phantom: PhantomData,
+    };
+
+    let mut lut = vec![0f32; lut_origins.len()];
+    lin_stage.transform(&lut_origins, &mut lut)?;
+
+    let xyz_to_rgb = source
+        .rgb_to_xyz_matrix()
+        .ok_or(CmsError::UnsupportedProfileConnection)?;
+
+    let matrices = vec![
+        xyz_to_rgb,
+        Matrix3f {
+            v: [
+                [32768.0 / 65535.0, 0.0, 0.0],
+                [0.0, 32768.0 / 65535.0, 0.0],
+                [0.0, 0.0, 32768.0 / 65535.0],
+            ],
+        },
+    ];
+
+    let matrix_stage = MatrixStage { matrices };
+    matrix_stage.transform(&mut lut)?;
+    Ok(lut)
 }
 
 fn prepare_inverse_lut_rgb_xyz<
