@@ -815,7 +815,7 @@ impl ColorProfile {
         }
         let tag = &slice[entry..last_tag_offset];
         if tag.len() < 8 {
-            return Err(CmsError::InvalidIcc);
+            return Ok(None);
         }
         let tag_type =
             TagTypeDefinition::try_from(u32::from_be_bytes([tag[0], tag[1], tag[2], tag[3]])).ok();
@@ -846,7 +846,7 @@ impl ColorProfile {
                 u32::from_be_bytes([tag[24], tag[25], tag[26], tag[27]]) as usize;
 
             if tag.len() < first_record_offset + first_string_record_length {
-                return Err(CmsError::InvalidIcc);
+                return Ok(None);
             }
 
             let resliced =
@@ -876,7 +876,7 @@ impl ColorProfile {
                     u32::from_be_bytes([choked[8], choked[9], choked[10], choked[11]]) as usize;
 
                 if tag.len() < string_offset + record_length {
-                    return Err(CmsError::InvalidIcc);
+                    return Ok(None);
                 }
                 let resliced = &tag[string_offset..string_offset + record_length];
                 let cvt = utf16be_to_utf16(resliced);
@@ -905,7 +905,7 @@ impl ColorProfile {
             let unicode_code = u32::from_be_bytes([uc[0], uc[1], uc[2], uc[3]]);
             let unicode_length = u32::from_be_bytes([uc[4], uc[5], uc[6], uc[7]]) as usize * 2;
             if tag.len() < last_position + 8 + unicode_length {
-                return Err(CmsError::InvalidIcc);
+                return Ok(None);
             }
 
             last_position += 8;
