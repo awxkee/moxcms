@@ -565,7 +565,7 @@ pub struct ProfileDecsriptionString {
     pub ascii_string: String,
     pub unicode_language_code: u32,
     pub unicode_string: String,
-    pub script_code_code: u32,
+    pub script_code_code: i8,
     pub mac_string: String,
 }
 
@@ -913,30 +913,30 @@ impl ColorProfile {
             let wc = utf16be_to_utf16(uc);
             let unicode_string = String::from_utf16_lossy(&wc).to_string();
 
-            last_position += unicode_length;
+            // last_position += unicode_length;
+            //
+            // if tag.len() < last_position + 2 {
+            //     return Err(CmsError::InvalidIcc);
+            // }
 
-            if tag.len() < last_position + 8 {
-                return Err(CmsError::InvalidIcc);
-            }
-
-            let uc = &tag[last_position..last_position + 8];
-            let script_code = uc[0];
-            let mac_length = u16::from_be_bytes([uc[1], uc[2]]) as usize;
-            last_position += 3;
-            if tag.len() < last_position + mac_length {
-                return Err(CmsError::InvalidIcc);
-            }
-
-            let uc = &tag[last_position..last_position + unicode_length];
-            let wc = utf16be_to_utf16(uc);
-            let mac_string = String::from_utf16_lossy(&wc).to_string();
+            // let uc = &tag[last_position..last_position + 2];
+            // let script_code = uc[0];
+            // let mac_length = uc[1] as usize;
+            // last_position += 2;
+            // if tag.len() < last_position + mac_length {
+            //     return Err(CmsError::InvalidIcc);
+            // }
+            //
+            // let uc = &tag[last_position..last_position + unicode_length];
+            // let wc = utf16be_to_utf16(uc);
+            // let mac_string = String::from_utf16_lossy(&wc).to_string();
 
             return Ok(Some(ProfileText::Description(ProfileDecsriptionString {
                 ascii_string,
                 unicode_language_code: unicode_code,
                 unicode_string,
-                mac_string,
-                script_code_code: script_code as u32,
+                mac_string: "".to_string(),
+                script_code_code: -1,
             })));
         }
         Ok(None)
