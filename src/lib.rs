@@ -70,7 +70,7 @@ pub use oklab::Oklab;
 pub use oklch::Oklch;
 pub use profile::{
     CicpProfile, ColorProfile, DataColorSpace, LutMCurvesType, LutType, LutWarehouse, ProfileClass,
-    RenderingIntent,
+    ProfileDecsriptionString, ProfileLocalizableString, ProfileText, RenderingIntent,
 };
 pub use rgb::Rgb;
 pub use transform::{

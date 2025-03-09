@@ -38,10 +38,10 @@ use zune_jpeg::zune_core::colorspace::ColorSpace;
 use zune_jpeg::zune_core::options::DecoderOptions;
 
 fn main() {
-    // let funny_icc = fs::read("./assets/fogra39_coated.icc").unwrap();
-    // let funny_profile = ColorProfile::new_from_slice(&funny_icc).unwrap();
+    let funny_icc = fs::read("./assets/us_swop_coated.icc").unwrap();
+    let funny_profile = ColorProfile::new_from_slice(&funny_icc).unwrap();
 
-    let srgb_perceptual_icc = fs::read("./assets/srgb_perceptual.icc").unwrap();
+    let srgb_perceptual_icc = fs::read("./assets/245R.icc").unwrap();
     let srgb_perceptual_profile = ColorProfile::new_from_slice(&srgb_perceptual_icc).unwrap();
 
     // println!("{:?}", srgb_perceptual_profile);
@@ -64,9 +64,9 @@ fn main() {
     decoder.decode_headers().unwrap();
     let mut real_dst = vec![0u8; decoder.output_buffer_size().unwrap()];
 
-    let custom_profile = Profile::new_icc(&srgb_perceptual_icc).unwrap();
-
-    let srgb_profile = Profile::new_srgb();
+    // let custom_profile = Profile::new_icc(&srgb_perceptual_icc).unwrap();
+    //
+    // let srgb_profile = Profile::new_srgb();
 
     decoder.decode_into(&mut real_dst).unwrap();
 
@@ -84,7 +84,7 @@ fn main() {
     // t.transform_pixels(&real_dst, &mut cmyk);
 
     let icc = decoder.icc_profile().unwrap();
-    // let color_profile = ColorProfile::new_from_slice(&funny_icc).unwrap();
+    let color_profile = ColorProfile::new_from_slice(&icc).unwrap();
     // let color_profile = ColorProfile::new_gray_with_gamma(2.2);
     let mut dest_profile = ColorProfile::new_srgb();
 
@@ -107,7 +107,7 @@ fn main() {
     // let t = Transform::new(&srgb_profile, PixelFormat::RGB_8, &custom_profile, PixelFormat::RGB_8, Intent::Perceptual).unwrap();
 
     dest_profile.rendering_intent = RenderingIntent::Perceptual;
-    let transform = srgb_perceptual_profile
+    let transform = color_profile
         .create_transform_8bit(
             Layout::Rgb,
             &dest_profile,
