@@ -69,6 +69,9 @@ pub(crate) enum ProfileTags {
     ViewingConditions,
     DeviceManufacturer,
     DeviceModel,
+    Gamut,
+    Luminance,
+    Measurement,
 }
 
 impl TryFrom<u32> for ProfileTags {
@@ -119,6 +122,12 @@ impl TryFrom<u32> for ProfileTags {
             return Ok(Self::DeviceManufacturer);
         } else if value == u32::from_ne_bytes(*b"dmdd").to_be() {
             return Ok(Self::DeviceModel);
+        } else if value == u32::from_ne_bytes(*b"gamt").to_be() {
+            return Ok(Self::Gamut);
+        } else if value == u32::from_ne_bytes(*b"lumi").to_be() {
+            return Ok(Self::Luminance);
+        } else if value == u32::from_ne_bytes(*b"meas").to_be() {
+            return Ok(Self::Measurement);
         }
         Err(CmsError::UnknownTag(value))
     }
@@ -135,6 +144,7 @@ pub(crate) enum TagTypeDefinition {
     MbaLut,
     ParametricToneCurve,
     LutToneCurve,
+    Xyz,
 }
 
 impl TryFrom<u32> for TagTypeDefinition {
@@ -155,6 +165,8 @@ impl TryFrom<u32> for TagTypeDefinition {
             return Ok(TagTypeDefinition::ParametricToneCurve);
         } else if value == u32::from_ne_bytes(*b"curv").to_be() {
             return Ok(TagTypeDefinition::LutToneCurve);
+        } else if value == u32::from_ne_bytes(*b"XYZ ").to_be() {
+            return Ok(TagTypeDefinition::Xyz);
         }
         Err(CmsError::UnknownTagTypeDefinition(value))
     }
@@ -561,7 +573,7 @@ pub struct ProfileLocalizableString {
 }
 
 #[derive(Debug, Clone)]
-pub struct ProfileDecsriptionString {
+pub struct ProfileDescriptionString {
     pub ascii_string: String,
     pub unicode_language_code: u32,
     pub unicode_string: String,
@@ -573,7 +585,7 @@ pub struct ProfileDecsriptionString {
 pub enum ProfileText {
     PlainString(String),
     Localizable(Vec<ProfileLocalizableString>),
-    Description(ProfileDecsriptionString),
+    Description(ProfileDescriptionString),
 }
 
 /// ICC Profile representation
@@ -590,6 +602,8 @@ pub struct ColorProfile {
     pub white_point: Xyz,
     pub black_point: Option<Xyz>,
     pub media_white_point: Option<Xyz>,
+    pub luminance: Option<Xyz>,
+    pub measurement: Option<Xyz>,
     pub red_trc: Option<Trc>,
     pub green_trc: Option<Trc>,
     pub blue_trc: Option<Trc>,
@@ -602,6 +616,7 @@ pub struct ColorProfile {
     pub lut_b_to_a_perceptual: Option<LutWarehouse>,
     pub lut_b_to_a_colorimetric: Option<LutWarehouse>,
     pub lut_b_to_a_saturation: Option<LutWarehouse>,
+    pub gamut: Option<LutWarehouse>,
     pub copyright: Option<ProfileText>,
     pub description: Option<ProfileText>,
     pub viewing_conditions: Option<ProfileText>,
@@ -744,6 +759,16 @@ impl ColorProfile {
         if last_tag_offset > slice.len() {
             return Err(CmsError::InvalidIcc);
         }
+        let tag = &slice[entry..entry + 12];
+        let tag_type = u32::from_be_bytes([tag[0], tag[1], tag[2], tag[3]]);
+        let def = TagTypeDefinition::try_from(tag_type).ok();
+        if def.is_none() {
+            return Ok(Xyz::default());
+        }
+        if def.unwrap() != TagTypeDefinition::Xyz {
+            return Ok(Xyz::default());
+        }
+
         let tag = &slice[entry..last_tag_offset];
         if tag.len() < 20 {
             return Err(CmsError::InvalidIcc);
@@ -931,7 +956,7 @@ impl ColorProfile {
             // let wc = utf16be_to_utf16(uc);
             // let mac_string = String::from_utf16_lossy(&wc).to_string();
 
-            return Ok(Some(ProfileText::Description(ProfileDecsriptionString {
+            return Ok(Some(ProfileText::Description(ProfileDescriptionString {
                 ascii_string,
                 unicode_language_code: unicode_code,
                 unicode_string,
@@ -1298,6 +1323,21 @@ impl ColorProfile {
         Ok(Some(wh))
     }
 
+    fn read_lut_tag(
+        slice: &[u8],
+        tag_entry: u32,
+        tag_size: usize,
+    ) -> Result<Option<LutWarehouse>, CmsError> {
+        let lut_type = Self::read_lut_type(slice, tag_entry as usize, tag_size)?;
+        Ok(if lut_type == LutType::Lut8 || lut_type == LutType::Lut16 {
+            Self::read_lut_a_to_b_type(slice, tag_entry as usize, tag_size)?
+        } else if lut_type == LutType::LutMba {
+            Self::read_lut_abm_type(slice, tag_entry as usize, tag_size)?
+        } else {
+            None
+        })
+    }
+
     #[allow(clippy::field_reassign_with_default)]
     pub fn new_from_slice(slice: &[u8]) -> Result<Self, CmsError> {
         let header = IccHeader::new_from_slice(slice)?;
@@ -1401,6 +1441,18 @@ impl ColorProfile {
                                 Err(err) => return Err(err),
                             }
                         }
+                        ProfileTags::Luminance => {
+                            match Self::read_xyz_tag(slice, tag_entry as usize, tag_size) {
+                                Ok(wt) => profile.luminance = Some(wt),
+                                Err(err) => return Err(err),
+                            }
+                        }
+                        ProfileTags::Measurement => {
+                            match Self::read_xyz_tag(slice, tag_entry as usize, tag_size) {
+                                Ok(wt) => profile.measurement = Some(wt),
+                                Err(err) => return Err(err),
+                            }
+                        }
                         ProfileTags::CodeIndependentPoints => {
                             profile.cicp =
                                 Self::read_cicp_tag(slice, tag_entry as usize, tag_size)?;
@@ -1416,88 +1468,31 @@ impl ColorProfile {
                             }
                         }
                         ProfileTags::DeviceToPcsLutPerceptual => {
-                            let lut_type =
-                                Self::read_lut_type(slice, tag_entry as usize, tag_size)?;
-                            if lut_type == LutType::Lut8 || lut_type == LutType::Lut16 {
-                                profile.lut_a_to_b_perceptual = Self::read_lut_a_to_b_type(
-                                    slice,
-                                    tag_entry as usize,
-                                    tag_size,
-                                )?;
-                            } else if lut_type == LutType::LutMab {
-                                profile.lut_a_to_b_perceptual =
-                                    Self::read_lut_abm_type(slice, tag_entry as usize, tag_size)?;
-                            }
+                            profile.lut_a_to_b_perceptual =
+                                Self::read_lut_tag(slice, tag_entry, tag_size)?;
                         }
                         ProfileTags::DeviceToPcsLutColorimetric => {
-                            let lut_type =
-                                Self::read_lut_type(slice, tag_entry as usize, tag_size)?;
-                            if lut_type == LutType::Lut8 || lut_type == LutType::Lut16 {
-                                profile.lut_a_to_b_colorimetric = Self::read_lut_a_to_b_type(
-                                    slice,
-                                    tag_entry as usize,
-                                    tag_size,
-                                )?;
-                            } else if lut_type == LutType::LutMab {
-                                profile.lut_a_to_b_colorimetric =
-                                    Self::read_lut_abm_type(slice, tag_entry as usize, tag_size)?;
-                            }
+                            profile.lut_a_to_b_colorimetric =
+                                Self::read_lut_tag(slice, tag_entry, tag_size)?;
                         }
                         ProfileTags::DeviceToPcsLutSaturation => {
-                            let lut_type =
-                                Self::read_lut_type(slice, tag_entry as usize, tag_size)?;
-                            if lut_type == LutType::Lut8 || lut_type == LutType::Lut16 {
-                                profile.lut_a_to_b_saturation = Self::read_lut_a_to_b_type(
-                                    slice,
-                                    tag_entry as usize,
-                                    tag_size,
-                                )?;
-                            } else if lut_type == LutType::LutMab {
-                                profile.lut_a_to_b_saturation =
-                                    Self::read_lut_abm_type(slice, tag_entry as usize, tag_size)?;
-                            }
+                            profile.lut_a_to_b_saturation =
+                                Self::read_lut_tag(slice, tag_entry, tag_size)?;
                         }
                         ProfileTags::PcsToDeviceLutPerceptual => {
-                            let lut_type =
-                                Self::read_lut_type(slice, tag_entry as usize, tag_size)?;
-                            if lut_type == LutType::Lut8 || lut_type == LutType::Lut16 {
-                                profile.lut_b_to_a_perceptual = Self::read_lut_a_to_b_type(
-                                    slice,
-                                    tag_entry as usize,
-                                    tag_size,
-                                )?;
-                            } else if lut_type == LutType::LutMba {
-                                profile.lut_b_to_a_perceptual =
-                                    Self::read_lut_abm_type(slice, tag_entry as usize, tag_size)?;
-                            }
+                            profile.lut_b_to_a_perceptual =
+                                Self::read_lut_tag(slice, tag_entry, tag_size)?;
                         }
                         ProfileTags::PcsToDeviceLutColorimetric => {
-                            let lut_type =
-                                Self::read_lut_type(slice, tag_entry as usize, tag_size)?;
-                            if lut_type == LutType::Lut8 || lut_type == LutType::Lut16 {
-                                profile.lut_b_to_a_colorimetric = Self::read_lut_a_to_b_type(
-                                    slice,
-                                    tag_entry as usize,
-                                    tag_size,
-                                )?;
-                            } else if lut_type == LutType::LutMba {
-                                profile.lut_b_to_a_colorimetric =
-                                    Self::read_lut_abm_type(slice, tag_entry as usize, tag_size)?;
-                            }
+                            profile.lut_b_to_a_colorimetric =
+                                Self::read_lut_tag(slice, tag_entry, tag_size)?;
                         }
                         ProfileTags::PcsToDeviceLutSaturation => {
-                            let lut_type =
-                                Self::read_lut_type(slice, tag_entry as usize, tag_size)?;
-                            if lut_type == LutType::Lut8 || lut_type == LutType::Lut16 {
-                                profile.lut_b_to_a_saturation = Self::read_lut_a_to_b_type(
-                                    slice,
-                                    tag_entry as usize,
-                                    tag_size,
-                                )?;
-                            } else if lut_type == LutType::LutMba {
-                                profile.lut_b_to_a_saturation =
-                                    Self::read_lut_abm_type(slice, tag_entry as usize, tag_size)?;
-                            }
+                            profile.lut_b_to_a_saturation =
+                                Self::read_lut_tag(slice, tag_entry, tag_size)?;
+                        }
+                        ProfileTags::Gamut => {
+                            profile.gamut = Self::read_lut_tag(slice, tag_entry, tag_size)?;
                         }
                         ProfileTags::Copyright => {
                             profile.copyright =
