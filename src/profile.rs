@@ -74,6 +74,7 @@ pub(crate) enum Tag {
     Measurement,
     Chromaticity,
     TagViewingConditions,
+    CharTarget,
 }
 
 impl TryFrom<u32> for Tag {
@@ -134,6 +135,8 @@ impl TryFrom<u32> for Tag {
             return Ok(Self::Chromaticity);
         } else if value == u32::from_ne_bytes(*b"view").to_be() {
             return Ok(Self::TagViewingConditions);
+        } else if value == u32::from_ne_bytes(*b"targ").to_be() {
+            return Ok(Self::CharTarget);
         }
         Err(CmsError::UnknownTag(value))
     }
@@ -153,6 +156,7 @@ pub(crate) enum TagTypeDefinition {
     Xyz,
     MultiProcessElement,
     DefViewingConditions,
+    Signature,
 }
 
 impl TryFrom<u32> for TagTypeDefinition {
@@ -179,6 +183,8 @@ impl TryFrom<u32> for TagTypeDefinition {
             return Ok(TagTypeDefinition::MultiProcessElement);
         } else if value == u32::from_ne_bytes(*b"view").to_be() {
             return Ok(TagTypeDefinition::DefViewingConditions);
+        }else if value == u32::from_ne_bytes(*b"sig ").to_be() {
+            return Ok(TagTypeDefinition::Signature);
         }
         Err(CmsError::UnknownTagTypeDefinition(value))
     }
@@ -659,6 +665,7 @@ pub struct ColorProfile {
     pub description: Option<ProfileText>,
     pub device_manufacturer: Option<ProfileText>,
     pub device_model: Option<ProfileText>,
+    pub char_target: Option<ProfileText>,
     pub viewing_conditions: Option<ViewingConditions>,
     pub viewing_conditions_description: Option<ProfileText>,
 }
@@ -1605,6 +1612,10 @@ impl ColorProfile {
                         }
                         Tag::DeviceManufacturer => {
                             profile.device_manufacturer =
+                                Self::read_string_tag(slice, tag_entry as usize, tag_size)?;
+                        }
+                        Tag::CharTarget => {
+                            profile.char_target =
                                 Self::read_string_tag(slice, tag_entry as usize, tag_size)?;
                         }
                         Tag::Chromaticity => {}
