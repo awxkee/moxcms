@@ -66,6 +66,9 @@ pub(crate) enum ProfileTags {
     PcsToDeviceLutSaturation,
     ProfileDescription,
     Copyright,
+    ViewingConditions,
+    DeviceManufacturer,
+    DeviceModel,
 }
 
 impl TryFrom<u32> for ProfileTags {
@@ -110,6 +113,12 @@ impl TryFrom<u32> for ProfileTags {
             return Ok(Self::ProfileDescription);
         } else if value == u32::from_ne_bytes(*b"cprt").to_be() {
             return Ok(Self::Copyright);
+        } else if value == u32::from_ne_bytes(*b"vued").to_be() {
+            return Ok(Self::ViewingConditions);
+        } else if value == u32::from_ne_bytes(*b"dmnd").to_be() {
+            return Ok(Self::DeviceManufacturer);
+        } else if value == u32::from_ne_bytes(*b"dmdd").to_be() {
+            return Ok(Self::DeviceModel);
         }
         Err(CmsError::UnknownTag(value))
     }
@@ -121,6 +130,7 @@ const CHROMATIC_TYPE: u32 = u32::from_ne_bytes(*b"sf32").to_be();
 pub(crate) enum TagTypeDefinition {
     Text,
     MultiLocalizedUnicode,
+    Description,
     MabLut,
     MbaLut,
     ParametricToneCurve,
@@ -131,10 +141,10 @@ impl TryFrom<u32> for TagTypeDefinition {
     type Error = CmsError;
 
     fn try_from(value: u32) -> Result<Self, Self::Error> {
-        if value == u32::from_ne_bytes(*b"mluc").to_be()
-            || value == u32::from_ne_bytes(*b"desc").to_be()
-        {
+        if value == u32::from_ne_bytes(*b"mluc").to_be() {
             return Ok(TagTypeDefinition::MultiLocalizedUnicode);
+        } else if value == u32::from_ne_bytes(*b"desc").to_be() {
+            return Ok(TagTypeDefinition::Description);
         } else if value == u32::from_ne_bytes(*b"text").to_be() {
             return Ok(TagTypeDefinition::Text);
         } else if value == u32::from_ne_bytes(*b"mAB ").to_be() {
@@ -153,6 +163,14 @@ impl TryFrom<u32> for TagTypeDefinition {
 #[inline]
 fn uint8_number_to_float(a: u8) -> f32 {
     a as f32 / 255.0
+}
+
+fn utf16be_to_utf16(slice: &[u8]) -> Vec<u16> {
+    let mut vec = Vec::new();
+    for chunk in slice.chunks_exact(2) {
+        vec.push(u16::from_be_bytes([chunk[0], chunk[1]]));
+    }
+    vec
 }
 
 #[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Default, Hash)]
@@ -535,6 +553,29 @@ pub struct CicpProfile {
     pub matrix_coefficients: MatrixCoefficients,
 }
 
+#[derive(Debug, Clone)]
+pub struct ProfileLocalizableString {
+    pub language: u16,
+    pub country: u16,
+    pub value: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct ProfileDecsriptionString {
+    pub ascii_string: String,
+    pub unicode_language_code: u32,
+    pub unicode_string: String,
+    pub script_code_code: u32,
+    pub mac_string: String,
+}
+
+#[derive(Debug, Clone)]
+pub enum ProfileText {
+    PlainString(String),
+    Localizable(Vec<ProfileLocalizableString>),
+    Description(ProfileDecsriptionString),
+}
+
 /// ICC Profile representation
 #[repr(C)]
 #[derive(Debug, Clone, Default)]
@@ -561,7 +602,11 @@ pub struct ColorProfile {
     pub lut_b_to_a_perceptual: Option<LutWarehouse>,
     pub lut_b_to_a_colorimetric: Option<LutWarehouse>,
     pub lut_b_to_a_saturation: Option<LutWarehouse>,
-    pub copyright: Option<String>,
+    pub copyright: Option<ProfileText>,
+    pub description: Option<ProfileText>,
+    pub viewing_conditions: Option<ProfileText>,
+    pub device_manufacturer: Option<ProfileText>,
+    pub device_model: Option<ProfileText>,
 }
 
 /* produces the nearest float to 'a' with a maximum error
@@ -759,7 +804,7 @@ impl ColorProfile {
         slice: &[u8],
         entry: usize,
         tag_size: usize,
-    ) -> Result<Option<String>, CmsError> {
+    ) -> Result<Option<ProfileText>, CmsError> {
         let tag_size = if tag_size == 0 { TAG_SIZE } else { tag_size };
         if tag_size < 4 {
             return Ok(None);
@@ -782,7 +827,117 @@ impl ColorProfile {
         if tag_type == TagTypeDefinition::Text {
             let sliced_from_to_end = &tag[8..tag.len()];
             let str = String::from_utf8_lossy(sliced_from_to_end);
-            return Ok(Some(str.to_string()));
+            return Ok(Some(ProfileText::PlainString(str.to_string())));
+        } else if tag_type == TagTypeDefinition::MultiLocalizedUnicode {
+            if tag.len() < 28 {
+                return Err(CmsError::InvalidIcc);
+            }
+            // let record_size = u32::from_be_bytes([tag[12], tag[13], tag[14], tag[15]]) as usize;
+            // // Record size is reserved to be 12.
+            // if record_size != 12 {
+            //     return Err(CmsError::InvalidIcc);
+            // }
+            let records_count = u32::from_be_bytes([tag[8], tag[9], tag[10], tag[11]]) as usize;
+            let primary_language_code = u16::from_be_bytes([tag[16], tag[17]]);
+            let primary_country_code = u16::from_be_bytes([tag[18], tag[19]]);
+            let first_string_record_length =
+                u32::from_be_bytes([tag[20], tag[21], tag[22], tag[23]]) as usize;
+            let first_record_offset =
+                u32::from_be_bytes([tag[24], tag[25], tag[26], tag[27]]) as usize;
+
+            if tag.len() < first_record_offset + first_string_record_length {
+                return Err(CmsError::InvalidIcc);
+            }
+
+            let resliced =
+                &tag[first_record_offset..first_record_offset + first_string_record_length];
+            let cvt = utf16be_to_utf16(resliced);
+            let string_record = String::from_utf16_lossy(&cvt);
+
+            let mut records = vec![ProfileLocalizableString {
+                language: primary_language_code,
+                country: primary_country_code,
+                value: string_record,
+            }];
+
+            for record in 1..records_count.saturating_sub(1) {
+                // Localizable header must be at least 12 bytes
+                let localizable_header_offset = 28 + 12 * (record - 1) - 1;
+                if tag.len() < localizable_header_offset + 12 {
+                    return Err(CmsError::InvalidIcc);
+                }
+                let choked = &tag[localizable_header_offset..localizable_header_offset + 12];
+
+                let language_code = u16::from_be_bytes([choked[0], choked[1]]);
+                let country_code = u16::from_be_bytes([choked[2], choked[3]]);
+                let record_length =
+                    u32::from_be_bytes([choked[4], choked[5], choked[6], choked[7]]) as usize;
+                let string_offset =
+                    u32::from_be_bytes([choked[8], choked[9], choked[10], choked[11]]) as usize;
+
+                if tag.len() < string_offset + record_length {
+                    return Err(CmsError::InvalidIcc);
+                }
+                let resliced = &tag[string_offset..string_offset + record_length];
+                let cvt = utf16be_to_utf16(resliced);
+                let string_record = String::from_utf16_lossy(&cvt);
+                records.push(ProfileLocalizableString {
+                    country: country_code,
+                    language: language_code,
+                    value: string_record,
+                });
+            }
+
+            return Ok(Some(ProfileText::Localizable(records)));
+        } else if tag_type == TagTypeDefinition::Description {
+            let ascii_length = u32::from_be_bytes([tag[8], tag[9], tag[10], tag[11]]) as usize;
+            if tag.len() < 12 + ascii_length {
+                return Err(CmsError::InvalidIcc);
+            }
+            let sliced = &tag[12..12 + ascii_length];
+            let ascii_string = String::from_utf8_lossy(sliced).to_string();
+
+            let mut last_position = 12 + ascii_length;
+            if tag.len() < last_position + 8 {
+                return Err(CmsError::InvalidIcc);
+            }
+            let uc = &tag[last_position..last_position + 8];
+            let unicode_code = u32::from_be_bytes([uc[0], uc[1], uc[2], uc[3]]);
+            let unicode_length = u32::from_be_bytes([uc[4], uc[5], uc[6], uc[7]]) as usize * 2;
+            if tag.len() < last_position + 8 + unicode_length {
+                return Err(CmsError::InvalidIcc);
+            }
+
+            last_position += 8;
+            let uc = &tag[last_position..last_position + unicode_length];
+            let wc = utf16be_to_utf16(uc);
+            let unicode_string = String::from_utf16_lossy(&wc).to_string();
+
+            last_position += unicode_length;
+
+            if tag.len() < last_position + 8 {
+                return Err(CmsError::InvalidIcc);
+            }
+
+            let uc = &tag[last_position..last_position + 8];
+            let script_code = uc[0];
+            let mac_length = u16::from_be_bytes([uc[1], uc[2]]) as usize;
+            last_position += 3;
+            if tag.len() < last_position + mac_length {
+                return Err(CmsError::InvalidIcc);
+            }
+
+            let uc = &tag[last_position..last_position + unicode_length];
+            let wc = utf16be_to_utf16(uc);
+            let mac_string = String::from_utf16_lossy(&wc).to_string();
+
+            return Ok(Some(ProfileText::Description(ProfileDecsriptionString {
+                ascii_string,
+                unicode_language_code: unicode_code,
+                unicode_string,
+                mac_string,
+                script_code_code: script_code as u32,
+            })));
         }
         Ok(None)
     }
@@ -1348,7 +1503,22 @@ impl ColorProfile {
                             profile.copyright =
                                 Self::read_string_tag(slice, tag_entry as usize, tag_size)?;
                         }
-                        ProfileTags::ProfileDescription => { /* Do Nothing */ }
+                        ProfileTags::ProfileDescription => {
+                            profile.description =
+                                Self::read_string_tag(slice, tag_entry as usize, tag_size)?;
+                        }
+                        ProfileTags::ViewingConditions => {
+                            profile.viewing_conditions =
+                                Self::read_string_tag(slice, tag_entry as usize, tag_size)?;
+                        }
+                        ProfileTags::DeviceModel => {
+                            profile.device_model =
+                                Self::read_string_tag(slice, tag_entry as usize, tag_size)?;
+                        }
+                        ProfileTags::DeviceManufacturer => {
+                            profile.device_manufacturer =
+                                Self::read_string_tag(slice, tag_entry as usize, tag_size)?;
+                        }
                     }
                 }
             }
