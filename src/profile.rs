@@ -26,6 +26,7 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+use crate::TechnologySignatures::Unknown;
 use crate::chad::adapt_to_d50;
 use crate::cicp::{ChromacityTriple, ColorPrimaries, MatrixCoefficients, TransferCharacteristics};
 use crate::err::CmsError;
@@ -46,7 +47,7 @@ const MAX_PROFILE_SIZE: usize = 1024 * 1024 * 10; // 10 MB max, for Fogra39 etc
 const TAG_SIZE: usize = 12;
 
 #[derive(Debug, Copy, Clone, PartialEq, Ord, PartialOrd, Eq, Hash)]
-pub(crate) enum ProfileTags {
+pub(crate) enum Tag {
     RedXyz,
     GreenXyz,
     BlueXyz,
@@ -66,15 +67,19 @@ pub(crate) enum ProfileTags {
     PcsToDeviceLutSaturation,
     ProfileDescription,
     Copyright,
-    ViewingConditions,
+    ViewingConditionsDescription,
     DeviceManufacturer,
     DeviceModel,
     Gamut,
     Luminance,
     Measurement,
+    Chromaticity,
+    ObserverConditions,
+    CharTarget,
+    Technology,
 }
 
-impl TryFrom<u32> for ProfileTags {
+impl TryFrom<u32> for Tag {
     type Error = CmsError;
 
     fn try_from(value: u32) -> Result<Self, Self::Error> {
@@ -117,7 +122,7 @@ impl TryFrom<u32> for ProfileTags {
         } else if value == u32::from_ne_bytes(*b"cprt").to_be() {
             return Ok(Self::Copyright);
         } else if value == u32::from_ne_bytes(*b"vued").to_be() {
-            return Ok(Self::ViewingConditions);
+            return Ok(Self::ViewingConditionsDescription);
         } else if value == u32::from_ne_bytes(*b"dmnd").to_be() {
             return Ok(Self::DeviceManufacturer);
         } else if value == u32::from_ne_bytes(*b"dmdd").to_be() {
@@ -128,6 +133,14 @@ impl TryFrom<u32> for ProfileTags {
             return Ok(Self::Luminance);
         } else if value == u32::from_ne_bytes(*b"meas").to_be() {
             return Ok(Self::Measurement);
+        } else if value == u32::from_ne_bytes(*b"chrm").to_be() {
+            return Ok(Self::Chromaticity);
+        } else if value == u32::from_ne_bytes(*b"view").to_be() {
+            return Ok(Self::ObserverConditions);
+        } else if value == u32::from_ne_bytes(*b"targ").to_be() {
+            return Ok(Self::CharTarget);
+        } else if value == u32::from_ne_bytes(*b"tech").to_be() {
+            return Ok(Self::Technology);
         }
         Err(CmsError::UnknownTag(value))
     }
@@ -145,6 +158,9 @@ pub(crate) enum TagTypeDefinition {
     ParametricToneCurve,
     LutToneCurve,
     Xyz,
+    MultiProcessElement,
+    DefViewingConditions,
+    Signature,
 }
 
 impl TryFrom<u32> for TagTypeDefinition {
@@ -167,6 +183,12 @@ impl TryFrom<u32> for TagTypeDefinition {
             return Ok(TagTypeDefinition::LutToneCurve);
         } else if value == u32::from_ne_bytes(*b"XYZ ").to_be() {
             return Ok(TagTypeDefinition::Xyz);
+        } else if value == u32::from_ne_bytes(*b"mpet").to_be() {
+            return Ok(TagTypeDefinition::MultiProcessElement);
+        } else if value == u32::from_ne_bytes(*b"view").to_be() {
+            return Ok(TagTypeDefinition::DefViewingConditions);
+        } else if value == u32::from_ne_bytes(*b"sig ").to_be() {
+            return Ok(TagTypeDefinition::Signature);
         }
         Err(CmsError::UnknownTagTypeDefinition(value))
     }
@@ -377,6 +399,102 @@ impl From<DataColorSpace> for u32 {
     }
 }
 
+#[derive(Copy, Clone, Debug, Ord, PartialOrd, Eq, PartialEq)]
+pub enum TechnologySignatures {
+    FilmScanner,
+    DigitalCamera,
+    ReflectiveScanner,
+    InkJetPrinter,
+    ThermalWaxPrinter,
+    ElectrophotographicPrinter,
+    ElectrostaticPrinter,
+    DyeSublimationPrinter,
+    PhotographicPaperPrinter,
+    FilmWriter,
+    VideoMonitor,
+    VideoCamera,
+    ProjectionTelevision,
+    CathodeRayTubeDisplay,
+    PassiveMatrixDisplay,
+    ActiveMatrixDisplay,
+    LiquidCrystalDisplay,
+    OrganicLedDisplay,
+    PhotoCd,
+    PhotographicImageSetter,
+    Gravure,
+    OffsetLithography,
+    Silkscreen,
+    Flexography,
+    MotionPictureFilmScanner,
+    MotionPictureFilmRecorder,
+    DigitalMotionPictureCamera,
+    DigitalCinemaProjector,
+    Unknown(u32),
+}
+
+impl From<u32> for TechnologySignatures {
+    fn from(value: u32) -> Self {
+        if value == u32::from_ne_bytes(*b"fscn").to_be() {
+            return TechnologySignatures::FilmScanner;
+        } else if value == u32::from_ne_bytes(*b"dcam").to_be() {
+            return TechnologySignatures::DigitalCamera;
+        } else if value == u32::from_ne_bytes(*b"rscn").to_be() {
+            return TechnologySignatures::ReflectiveScanner;
+        } else if value == u32::from_ne_bytes(*b"ijet").to_be() {
+            return TechnologySignatures::InkJetPrinter;
+        } else if value == u32::from_ne_bytes(*b"twax").to_be() {
+            return TechnologySignatures::ThermalWaxPrinter;
+        } else if value == u32::from_ne_bytes(*b"epho").to_be() {
+            return TechnologySignatures::ElectrophotographicPrinter;
+        } else if value == u32::from_ne_bytes(*b"esta").to_be() {
+            return TechnologySignatures::ElectrostaticPrinter;
+        } else if value == u32::from_ne_bytes(*b"dsub").to_be() {
+            return TechnologySignatures::DyeSublimationPrinter;
+        } else if value == u32::from_ne_bytes(*b"rpho").to_be() {
+            return TechnologySignatures::PhotographicPaperPrinter;
+        } else if value == u32::from_ne_bytes(*b"fprn").to_be() {
+            return TechnologySignatures::FilmWriter;
+        } else if value == u32::from_ne_bytes(*b"vidm").to_be() {
+            return TechnologySignatures::VideoMonitor;
+        } else if value == u32::from_ne_bytes(*b"vidc").to_be() {
+            return TechnologySignatures::VideoCamera;
+        } else if value == u32::from_ne_bytes(*b"pjtv").to_be() {
+            return TechnologySignatures::ProjectionTelevision;
+        } else if value == u32::from_ne_bytes(*b"CRT ").to_be() {
+            return TechnologySignatures::CathodeRayTubeDisplay;
+        } else if value == u32::from_ne_bytes(*b"PMD ").to_be() {
+            return TechnologySignatures::PassiveMatrixDisplay;
+        } else if value == u32::from_ne_bytes(*b"AMD ").to_be() {
+            return TechnologySignatures::ActiveMatrixDisplay;
+        } else if value == u32::from_ne_bytes(*b"LCD ").to_be() {
+            return TechnologySignatures::LiquidCrystalDisplay;
+        } else if value == u32::from_ne_bytes(*b"OLED").to_be() {
+            return TechnologySignatures::OrganicLedDisplay;
+        } else if value == u32::from_ne_bytes(*b"KPCD").to_be() {
+            return TechnologySignatures::PhotoCd;
+        } else if value == u32::from_ne_bytes(*b"imgs").to_be() {
+            return TechnologySignatures::PhotographicImageSetter;
+        } else if value == u32::from_ne_bytes(*b"grav").to_be() {
+            return TechnologySignatures::Gravure;
+        } else if value == u32::from_ne_bytes(*b"offs").to_be() {
+            return TechnologySignatures::OffsetLithography;
+        } else if value == u32::from_ne_bytes(*b"silk").to_be() {
+            return TechnologySignatures::Silkscreen;
+        } else if value == u32::from_ne_bytes(*b"flex").to_be() {
+            return TechnologySignatures::Flexography;
+        } else if value == u32::from_ne_bytes(*b"mpfs").to_be() {
+            return TechnologySignatures::MotionPictureFilmScanner;
+        } else if value == u32::from_ne_bytes(*b"mpfr").to_be() {
+            return TechnologySignatures::MotionPictureFilmRecorder;
+        } else if value == u32::from_ne_bytes(*b"dmpc").to_be() {
+            return TechnologySignatures::DigitalMotionPictureCamera;
+        } else if value == u32::from_ne_bytes(*b"dcpj").to_be() {
+            return TechnologySignatures::DigitalCinemaProjector;
+        }
+        Unknown(value)
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum LutWarehouse {
     Lut(LutDataType),
@@ -563,17 +681,18 @@ pub struct CicpProfile {
     pub color_primaries: ColorPrimaries,
     pub transfer_characteristics: TransferCharacteristics,
     pub matrix_coefficients: MatrixCoefficients,
+    pub full_range: bool,
 }
 
 #[derive(Debug, Clone)]
-pub struct ProfileLocalizableString {
+pub struct LocalizableString {
     pub language: u16,
     pub country: u16,
     pub value: String,
 }
 
 #[derive(Debug, Clone)]
-pub struct ProfileDescriptionString {
+pub struct DescriptionString {
     pub ascii_string: String,
     pub unicode_language_code: u32,
     pub unicode_string: String,
@@ -584,8 +703,33 @@ pub struct ProfileDescriptionString {
 #[derive(Debug, Clone)]
 pub enum ProfileText {
     PlainString(String),
-    Localizable(Vec<ProfileLocalizableString>),
-    Description(ProfileDescriptionString),
+    Localizable(Vec<LocalizableString>),
+    Description(DescriptionString),
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum StandardObserver {
+    D50,
+    D65,
+    Unknown,
+}
+
+impl From<u32> for StandardObserver {
+    fn from(value: u32) -> Self {
+        if value == 1 {
+            return StandardObserver::D50;
+        } else if value == 2 {
+            return StandardObserver::D65;
+        }
+        StandardObserver::Unknown
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct ViewingConditions {
+    pub illuminant: Xyz,
+    pub surround: Xyz,
+    pub observer: StandardObserver,
 }
 
 /// ICC Profile representation
@@ -619,9 +763,12 @@ pub struct ColorProfile {
     pub gamut: Option<LutWarehouse>,
     pub copyright: Option<ProfileText>,
     pub description: Option<ProfileText>,
-    pub viewing_conditions: Option<ProfileText>,
     pub device_manufacturer: Option<ProfileText>,
     pub device_model: Option<ProfileText>,
+    pub char_target: Option<ProfileText>,
+    pub viewing_conditions: Option<ViewingConditions>,
+    pub viewing_conditions_description: Option<ProfileText>,
+    pub technology: Option<TechnologySignatures>,
 }
 
 /* produces the nearest float to 'a' with a maximum error
@@ -637,6 +784,16 @@ const fn uint16_number_to_float(a: u32) -> f32 {
 }
 
 impl ColorProfile {
+    #[inline]
+    fn read_trc_tag_s(
+        slice: &[u8],
+        entry: usize,
+        tag_size: usize,
+    ) -> Result<Option<Trc>, CmsError> {
+        let mut _empty = 0usize;
+        Self::read_trc_tag(slice, entry, tag_size, &mut _empty)
+    }
+
     #[inline]
     fn read_trc_tag(
         slice: &[u8],
@@ -751,6 +908,33 @@ impl ColorProfile {
     }
 
     #[inline]
+    fn read_tech_tag(
+        slice: &[u8],
+        entry: usize,
+        tag_size: usize,
+    ) -> Result<Option<TechnologySignatures>, CmsError> {
+        if tag_size < TAG_SIZE {
+            return Err(CmsError::InvalidIcc);
+        }
+        let last_tag_offset = tag_size + entry;
+        if last_tag_offset > slice.len() {
+            return Err(CmsError::InvalidIcc);
+        }
+        let tag = &slice[entry..entry + 12];
+        let tag_type = u32::from_be_bytes([tag[0], tag[1], tag[2], tag[3]]);
+        let def = TagTypeDefinition::try_from(tag_type).ok();
+        if def.is_none() {
+            return Ok(None);
+        }
+        if def.unwrap() == TagTypeDefinition::Signature {
+            let sig = u32::from_be_bytes([tag[8], tag[9], tag[10], tag[11]]);
+            let tech_sig = TechnologySignatures::from(sig);
+            return Ok(Some(tech_sig));
+        }
+        Ok(None)
+    }
+
+    #[inline]
     fn read_xyz_tag(slice: &[u8], entry: usize, tag_size: usize) -> Result<Xyz, CmsError> {
         if tag_size < TAG_SIZE {
             return Ok(Xyz::default());
@@ -802,10 +986,12 @@ impl ColorProfile {
         let primaries = ColorPrimaries::try_from(tag[8])?;
         let transfer_characteristics = TransferCharacteristics::try_from(tag[9])?;
         let matrix_coefficients = MatrixCoefficients::try_from(tag[10])?;
+        let full_range = tag[11] == 1;
         Ok(Some(CicpProfile {
             color_primaries: primaries,
             transfer_characteristics,
             matrix_coefficients,
+            full_range,
         }))
     }
 
@@ -822,6 +1008,56 @@ impl ColorProfile {
         }
         let tag_type = u32::from_be_bytes([tag[0], tag[1], tag[2], tag[3]]);
         LutType::try_from(tag_type)
+    }
+
+    #[inline]
+    fn read_viewing_conditions(
+        slice: &[u8],
+        entry: usize,
+        tag_size: usize,
+    ) -> Result<Option<ViewingConditions>, CmsError> {
+        if tag_size < 36 {
+            return Ok(None);
+        }
+        let tag = &slice[entry..entry + 36];
+        let tag_type =
+            TagTypeDefinition::try_from(u32::from_be_bytes([tag[0], tag[1], tag[2], tag[3]])).ok();
+        // Ignore unknown
+        if tag_type.is_none() {
+            return Ok(None);
+        }
+        if tag_type.unwrap() != TagTypeDefinition::DefViewingConditions {
+            return Ok(None);
+        }
+        let illuminant_x = i32::from_be_bytes([tag[8], tag[9], tag[10], tag[11]]);
+        let illuminant_y = i32::from_be_bytes([tag[12], tag[13], tag[14], tag[15]]);
+        let illuminant_z = i32::from_be_bytes([tag[16], tag[17], tag[18], tag[19]]);
+
+        let surround_x = i32::from_be_bytes([tag[20], tag[21], tag[22], tag[23]]);
+        let surround_y = i32::from_be_bytes([tag[24], tag[25], tag[26], tag[27]]);
+        let surround_z = i32::from_be_bytes([tag[28], tag[29], tag[30], tag[31]]);
+
+        let illuminant_type = u32::from_be_bytes([tag[32], tag[33], tag[34], tag[35]]);
+
+        let illuminant = Xyz::new(
+            s15_fixed16_number_to_float(illuminant_x),
+            s15_fixed16_number_to_float(illuminant_y),
+            s15_fixed16_number_to_float(illuminant_z),
+        );
+
+        let surround = Xyz::new(
+            s15_fixed16_number_to_float(surround_x),
+            s15_fixed16_number_to_float(surround_y),
+            s15_fixed16_number_to_float(surround_z),
+        );
+
+        let observer = StandardObserver::from(illuminant_type);
+
+        Ok(Some(ViewingConditions {
+            illuminant,
+            surround,
+            observer,
+        }))
     }
 
     #[inline]
@@ -879,7 +1115,7 @@ impl ColorProfile {
             let cvt = utf16be_to_utf16(resliced);
             let string_record = String::from_utf16_lossy(&cvt);
 
-            let mut records = vec![ProfileLocalizableString {
+            let mut records = vec![LocalizableString {
                 language: primary_language_code,
                 country: primary_country_code,
                 value: string_record,
@@ -906,7 +1142,7 @@ impl ColorProfile {
                 let resliced = &tag[string_offset..string_offset + record_length];
                 let cvt = utf16be_to_utf16(resliced);
                 let string_record = String::from_utf16_lossy(&cvt);
-                records.push(ProfileLocalizableString {
+                records.push(LocalizableString {
                     country: country_code,
                     language: language_code,
                     value: string_record,
@@ -956,7 +1192,7 @@ impl ColorProfile {
             // let wc = utf16be_to_utf16(uc);
             // let mac_string = String::from_utf16_lossy(&wc).to_string();
 
-            return Ok(Some(ProfileText::Description(ProfileDescriptionString {
+            return Ok(Some(ProfileText::Description(DescriptionString {
                 ascii_string,
                 unicode_language_code: unicode_code,
                 unicode_string,
@@ -1146,14 +1382,26 @@ impl ColorProfile {
             },
         );
 
-        let a_curves = Self::read_nested_tone_curves(tag, a_curve_offset, in_channels as usize)?
-            .ok_or(CmsError::InvalidIcc)?;
+        let a_curves = if a_curve_offset == 0 {
+            Vec::new()
+        } else {
+            Self::read_nested_tone_curves(tag, a_curve_offset, in_channels as usize)?
+                .ok_or(CmsError::InvalidIcc)?
+        };
 
-        let m_curves = Self::read_nested_tone_curves(tag, m_curve_offset, out_channels as usize)?
-            .ok_or(CmsError::InvalidIcc)?;
+        let m_curves = if m_curve_offset == 0 {
+            Vec::new()
+        } else {
+            Self::read_nested_tone_curves(tag, m_curve_offset, out_channels as usize)?
+                .ok_or(CmsError::InvalidIcc)?
+        };
 
-        let b_curves = Self::read_nested_tone_curves(tag, b_curve_offset, out_channels as usize)?
-            .ok_or(CmsError::InvalidIcc)?;
+        let b_curves = if b_curve_offset == 0 {
+            Vec::new()
+        } else {
+            Self::read_nested_tone_curves(tag, b_curve_offset, out_channels as usize)?
+                .ok_or(CmsError::InvalidIcc)?
+        };
 
         let wh = LutWarehouse::MCurves(LutMCurvesType {
             num_input_channels: in_channels,
@@ -1371,148 +1619,141 @@ impl ColorProfile {
                 let tag_entry = u32::from_be_bytes([tag[4], tag[5], tag[6], tag[7]]);
                 let tag_size = u32::from_be_bytes([tag[8], tag[9], tag[10], tag[11]]) as usize;
                 // Just ignore unknown tags
-                if let Ok(tag) = ProfileTags::try_from(tag_value) {
+                if let Ok(tag) = Tag::try_from(tag_value) {
                     match tag {
-                        ProfileTags::RedXyz => {
+                        Tag::RedXyz => {
                             if color_space == DataColorSpace::Rgb {
                                 profile.red_colorant =
                                     Self::read_xyz_tag(slice, tag_entry as usize, tag_size)?;
                             }
                         }
-                        ProfileTags::GreenXyz => {
+                        Tag::GreenXyz => {
                             if color_space == DataColorSpace::Rgb {
                                 profile.green_colorant =
                                     Self::read_xyz_tag(slice, tag_entry as usize, tag_size)?;
                             }
                         }
-                        ProfileTags::BlueXyz => {
+                        Tag::BlueXyz => {
                             if color_space == DataColorSpace::Rgb {
                                 profile.blue_colorant =
                                     Self::read_xyz_tag(slice, tag_entry as usize, tag_size)?;
                             }
                         }
-                        ProfileTags::RedToneReproduction => {
+                        Tag::RedToneReproduction => {
                             if color_space == DataColorSpace::Rgb {
-                                let mut _empty = 0usize;
-                                profile.red_trc = Self::read_trc_tag(
-                                    slice,
-                                    tag_entry as usize,
-                                    tag_size,
-                                    &mut _empty,
-                                )?;
+                                profile.red_trc =
+                                    Self::read_trc_tag_s(slice, tag_entry as usize, tag_size)?;
                             }
                         }
-                        ProfileTags::GreenToneReproduction => {
+                        Tag::GreenToneReproduction => {
                             if color_space == DataColorSpace::Rgb {
-                                let mut _empty = 0usize;
-                                profile.green_trc = Self::read_trc_tag(
-                                    slice,
-                                    tag_entry as usize,
-                                    tag_size,
-                                    &mut _empty,
-                                )?;
+                                profile.green_trc =
+                                    Self::read_trc_tag_s(slice, tag_entry as usize, tag_size)?;
                             }
                         }
-                        ProfileTags::BlueToneReproduction => {
+                        Tag::BlueToneReproduction => {
                             if color_space == DataColorSpace::Rgb {
-                                let mut _empty = 0usize;
-                                profile.blue_trc = Self::read_trc_tag(
-                                    slice,
-                                    tag_entry as usize,
-                                    tag_size,
-                                    &mut _empty,
-                                )?;
+                                profile.blue_trc =
+                                    Self::read_trc_tag_s(slice, tag_entry as usize, tag_size)?;
                             }
                         }
-                        ProfileTags::GreyToneReproduction => {
+                        Tag::GreyToneReproduction => {
                             if color_space == DataColorSpace::Rgb {
-                                let mut _empty = 0usize;
-                                profile.gray_trc = Self::read_trc_tag(
-                                    slice,
-                                    tag_entry as usize,
-                                    tag_size,
-                                    &mut _empty,
-                                )?;
+                                profile.gray_trc =
+                                    Self::read_trc_tag_s(slice, tag_entry as usize, tag_size)?;
                             }
                         }
-                        ProfileTags::MediaWhitePoint => {
+                        Tag::MediaWhitePoint => {
                             match Self::read_xyz_tag(slice, tag_entry as usize, tag_size) {
                                 Ok(wt) => profile.media_white_point = Some(wt),
                                 Err(err) => return Err(err),
                             }
                         }
-                        ProfileTags::Luminance => {
+                        Tag::Luminance => {
                             match Self::read_xyz_tag(slice, tag_entry as usize, tag_size) {
                                 Ok(wt) => profile.luminance = Some(wt),
                                 Err(err) => return Err(err),
                             }
                         }
-                        ProfileTags::Measurement => {
+                        Tag::Measurement => {
                             match Self::read_xyz_tag(slice, tag_entry as usize, tag_size) {
                                 Ok(wt) => profile.measurement = Some(wt),
                                 Err(err) => return Err(err),
                             }
                         }
-                        ProfileTags::CodeIndependentPoints => {
+                        Tag::CodeIndependentPoints => {
                             profile.cicp =
                                 Self::read_cicp_tag(slice, tag_entry as usize, tag_size)?;
                         }
-                        ProfileTags::ChromaticAdaptation => {
+                        Tag::ChromaticAdaptation => {
                             profile.chromatic_adaptation =
                                 Some(Self::read_chad_tag(slice, tag_entry as usize, tag_size)?);
                         }
-                        ProfileTags::BlackPoint => {
+                        Tag::BlackPoint => {
                             match Self::read_xyz_tag(slice, tag_entry as usize, tag_size) {
                                 Ok(wt) => profile.black_point = Some(wt),
                                 Err(err) => return Err(err),
                             }
                         }
-                        ProfileTags::DeviceToPcsLutPerceptual => {
+                        Tag::DeviceToPcsLutPerceptual => {
                             profile.lut_a_to_b_perceptual =
                                 Self::read_lut_tag(slice, tag_entry, tag_size)?;
                         }
-                        ProfileTags::DeviceToPcsLutColorimetric => {
+                        Tag::DeviceToPcsLutColorimetric => {
                             profile.lut_a_to_b_colorimetric =
                                 Self::read_lut_tag(slice, tag_entry, tag_size)?;
                         }
-                        ProfileTags::DeviceToPcsLutSaturation => {
+                        Tag::DeviceToPcsLutSaturation => {
                             profile.lut_a_to_b_saturation =
                                 Self::read_lut_tag(slice, tag_entry, tag_size)?;
                         }
-                        ProfileTags::PcsToDeviceLutPerceptual => {
+                        Tag::PcsToDeviceLutPerceptual => {
                             profile.lut_b_to_a_perceptual =
                                 Self::read_lut_tag(slice, tag_entry, tag_size)?;
                         }
-                        ProfileTags::PcsToDeviceLutColorimetric => {
+                        Tag::PcsToDeviceLutColorimetric => {
                             profile.lut_b_to_a_colorimetric =
                                 Self::read_lut_tag(slice, tag_entry, tag_size)?;
                         }
-                        ProfileTags::PcsToDeviceLutSaturation => {
+                        Tag::PcsToDeviceLutSaturation => {
                             profile.lut_b_to_a_saturation =
                                 Self::read_lut_tag(slice, tag_entry, tag_size)?;
                         }
-                        ProfileTags::Gamut => {
+                        Tag::Gamut => {
                             profile.gamut = Self::read_lut_tag(slice, tag_entry, tag_size)?;
                         }
-                        ProfileTags::Copyright => {
+                        Tag::Copyright => {
                             profile.copyright =
                                 Self::read_string_tag(slice, tag_entry as usize, tag_size)?;
                         }
-                        ProfileTags::ProfileDescription => {
+                        Tag::ProfileDescription => {
                             profile.description =
                                 Self::read_string_tag(slice, tag_entry as usize, tag_size)?;
                         }
-                        ProfileTags::ViewingConditions => {
-                            profile.viewing_conditions =
+                        Tag::ViewingConditionsDescription => {
+                            profile.viewing_conditions_description =
                                 Self::read_string_tag(slice, tag_entry as usize, tag_size)?;
                         }
-                        ProfileTags::DeviceModel => {
+                        Tag::DeviceModel => {
                             profile.device_model =
                                 Self::read_string_tag(slice, tag_entry as usize, tag_size)?;
                         }
-                        ProfileTags::DeviceManufacturer => {
+                        Tag::DeviceManufacturer => {
                             profile.device_manufacturer =
                                 Self::read_string_tag(slice, tag_entry as usize, tag_size)?;
+                        }
+                        Tag::CharTarget => {
+                            profile.char_target =
+                                Self::read_string_tag(slice, tag_entry as usize, tag_size)?;
+                        }
+                        Tag::Chromaticity => {}
+                        Tag::ObserverConditions => {
+                            profile.viewing_conditions =
+                                Self::read_viewing_conditions(slice, tag_entry as usize, tag_size)?;
+                        }
+                        Tag::Technology => {
+                            profile.technology =
+                                Self::read_tech_tag(slice, tag_entry as usize, tag_size)?;
                         }
                     }
                 }
