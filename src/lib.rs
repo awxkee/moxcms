@@ -71,7 +71,7 @@ pub use oklch::Oklch;
 pub use profile::{
     CicpProfile, ColorProfile, DataColorSpace, DescriptionString, LocalizableString,
     LutMCurvesType, LutType, LutWarehouse, ProfileClass, ProfileText, RenderingIntent,
-    StandardObserver, ViewingConditions,
+    StandardObserver, TechnologySignatures, ViewingConditions,
 };
 pub use rgb::Rgb;
 pub use transform::{

@@ -38,7 +38,7 @@ use zune_jpeg::zune_core::colorspace::ColorSpace;
 use zune_jpeg::zune_core::options::DecoderOptions;
 
 fn main() {
-    let funny_icc = fs::read("./assets/alltags.icc").unwrap();
+    let funny_icc = fs::read("./assets/CoatedGRACoL2006.icc").unwrap();
     let funny_profile = ColorProfile::new_from_slice(&funny_icc).unwrap();
 
     let srgb_perceptual_icc = fs::read("./assets/245R.icc").unwrap();

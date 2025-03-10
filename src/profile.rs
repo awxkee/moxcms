@@ -26,6 +26,7 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+use crate::TechnologySignatures::Unknown;
 use crate::chad::adapt_to_d50;
 use crate::cicp::{ChromacityTriple, ColorPrimaries, MatrixCoefficients, TransferCharacteristics};
 use crate::err::CmsError;
@@ -75,6 +76,7 @@ pub(crate) enum Tag {
     Chromaticity,
     TagViewingConditions,
     CharTarget,
+    Technology,
 }
 
 impl TryFrom<u32> for Tag {
@@ -137,6 +139,8 @@ impl TryFrom<u32> for Tag {
             return Ok(Self::TagViewingConditions);
         } else if value == u32::from_ne_bytes(*b"targ").to_be() {
             return Ok(Self::CharTarget);
+        } else if value == u32::from_ne_bytes(*b"tech").to_be() {
+            return Ok(Self::Technology);
         }
         Err(CmsError::UnknownTag(value))
     }
@@ -183,7 +187,7 @@ impl TryFrom<u32> for TagTypeDefinition {
             return Ok(TagTypeDefinition::MultiProcessElement);
         } else if value == u32::from_ne_bytes(*b"view").to_be() {
             return Ok(TagTypeDefinition::DefViewingConditions);
-        }else if value == u32::from_ne_bytes(*b"sig ").to_be() {
+        } else if value == u32::from_ne_bytes(*b"sig ").to_be() {
             return Ok(TagTypeDefinition::Signature);
         }
         Err(CmsError::UnknownTagTypeDefinition(value))
@@ -392,6 +396,102 @@ impl From<DataColorSpace> for u32 {
             DataColorSpace::Color14 => u32::from_ne_bytes(*b"ECLR").to_be(),
             DataColorSpace::Color15 => u32::from_ne_bytes(*b"FCLR").to_be(),
         }
+    }
+}
+
+#[derive(Copy, Clone, Debug, Ord, PartialOrd, Eq, PartialEq)]
+pub enum TechnologySignatures {
+    FilmScanner,
+    DigitalCamera,
+    ReflectiveScanner,
+    InkJetPrinter,
+    ThermalWaxPrinter,
+    ElectrophotographicPrinter,
+    ElectrostaticPrinter,
+    DyeSublimationPrinter,
+    PhotographicPaperPrinter,
+    FilmWriter,
+    VideoMonitor,
+    VideoCamera,
+    ProjectionTelevision,
+    CathodeRayTubeDisplay,
+    PassiveMatrixDisplay,
+    ActiveMatrixDisplay,
+    LiquidCrystalDisplay,
+    OrganicLedDisplay,
+    PhotoCd,
+    PhotographicImageSetter,
+    Gravure,
+    OffsetLithography,
+    Silkscreen,
+    Flexography,
+    MotionPictureFilmScanner,
+    MotionPictureFilmRecorder,
+    DigitalMotionPictureCamera,
+    DigitalCinemaProjector,
+    Unknown(u32),
+}
+
+impl From<u32> for TechnologySignatures {
+    fn from(value: u32) -> Self {
+        if value == u32::from_ne_bytes(*b"fscn").to_be() {
+            return TechnologySignatures::FilmScanner;
+        } else if value == u32::from_ne_bytes(*b"dcam").to_be() {
+            return TechnologySignatures::DigitalCamera;
+        } else if value == u32::from_ne_bytes(*b"rscn").to_be() {
+            return TechnologySignatures::ReflectiveScanner;
+        } else if value == u32::from_ne_bytes(*b"ijet").to_be() {
+            return TechnologySignatures::InkJetPrinter;
+        } else if value == u32::from_ne_bytes(*b"twax").to_be() {
+            return TechnologySignatures::ThermalWaxPrinter;
+        } else if value == u32::from_ne_bytes(*b"epho").to_be() {
+            return TechnologySignatures::ElectrophotographicPrinter;
+        } else if value == u32::from_ne_bytes(*b"esta").to_be() {
+            return TechnologySignatures::ElectrostaticPrinter;
+        } else if value == u32::from_ne_bytes(*b"dsub").to_be() {
+            return TechnologySignatures::DyeSublimationPrinter;
+        } else if value == u32::from_ne_bytes(*b"rpho").to_be() {
+            return TechnologySignatures::PhotographicPaperPrinter;
+        } else if value == u32::from_ne_bytes(*b"fprn").to_be() {
+            return TechnologySignatures::FilmWriter;
+        } else if value == u32::from_ne_bytes(*b"vidm").to_be() {
+            return TechnologySignatures::VideoMonitor;
+        } else if value == u32::from_ne_bytes(*b"vidc").to_be() {
+            return TechnologySignatures::VideoCamera;
+        } else if value == u32::from_ne_bytes(*b"pjtv").to_be() {
+            return TechnologySignatures::ProjectionTelevision;
+        } else if value == u32::from_ne_bytes(*b"CRT ").to_be() {
+            return TechnologySignatures::CathodeRayTubeDisplay;
+        } else if value == u32::from_ne_bytes(*b"PMD ").to_be() {
+            return TechnologySignatures::PassiveMatrixDisplay;
+        } else if value == u32::from_ne_bytes(*b"AMD ").to_be() {
+            return TechnologySignatures::ActiveMatrixDisplay;
+        } else if value == u32::from_ne_bytes(*b"LCD ").to_be() {
+            return TechnologySignatures::LiquidCrystalDisplay;
+        } else if value == u32::from_ne_bytes(*b"OLED").to_be() {
+            return TechnologySignatures::OrganicLedDisplay;
+        } else if value == u32::from_ne_bytes(*b"KPCD").to_be() {
+            return TechnologySignatures::PhotoCd;
+        } else if value == u32::from_ne_bytes(*b"imgs").to_be() {
+            return TechnologySignatures::PhotographicImageSetter;
+        } else if value == u32::from_ne_bytes(*b"grav").to_be() {
+            return TechnologySignatures::Gravure;
+        } else if value == u32::from_ne_bytes(*b"offs").to_be() {
+            return TechnologySignatures::OffsetLithography;
+        } else if value == u32::from_ne_bytes(*b"silk").to_be() {
+            return TechnologySignatures::Silkscreen;
+        } else if value == u32::from_ne_bytes(*b"flex").to_be() {
+            return TechnologySignatures::Flexography;
+        } else if value == u32::from_ne_bytes(*b"mpfs").to_be() {
+            return TechnologySignatures::MotionPictureFilmScanner;
+        } else if value == u32::from_ne_bytes(*b"mpfr").to_be() {
+            return TechnologySignatures::MotionPictureFilmRecorder;
+        } else if value == u32::from_ne_bytes(*b"dmpc").to_be() {
+            return TechnologySignatures::DigitalMotionPictureCamera;
+        } else if value == u32::from_ne_bytes(*b"dcpj").to_be() {
+            return TechnologySignatures::DigitalCinemaProjector;
+        }
+        Unknown(value)
     }
 }
 
@@ -668,6 +768,7 @@ pub struct ColorProfile {
     pub char_target: Option<ProfileText>,
     pub viewing_conditions: Option<ViewingConditions>,
     pub viewing_conditions_description: Option<ProfileText>,
+    pub technology: Option<TechnologySignatures>,
 }
 
 /* produces the nearest float to 'a' with a maximum error
@@ -804,6 +905,33 @@ impl ColorProfile {
             matrix.v[i / 3][i % 3] = s15_fixed16_number_to_float(q15_16_x);
         }
         Ok(matrix)
+    }
+
+    #[inline]
+    fn read_tech_tag(
+        slice: &[u8],
+        entry: usize,
+        tag_size: usize,
+    ) -> Result<Option<TechnologySignatures>, CmsError> {
+        if tag_size < TAG_SIZE {
+            return Err(CmsError::InvalidIcc);
+        }
+        let last_tag_offset = tag_size + entry;
+        if last_tag_offset > slice.len() {
+            return Err(CmsError::InvalidIcc);
+        }
+        let tag = &slice[entry..entry + 12];
+        let tag_type = u32::from_be_bytes([tag[0], tag[1], tag[2], tag[3]]);
+        let def = TagTypeDefinition::try_from(tag_type).ok();
+        if def.is_none() {
+            return Ok(None);
+        }
+        if def.unwrap() == TagTypeDefinition::Signature {
+            let sig = u32::from_be_bytes([tag[8], tag[9], tag[10], tag[11]]);
+            let tech_sig = TechnologySignatures::from(sig);
+            return Ok(Some(tech_sig));
+        }
+        Ok(None)
     }
 
     #[inline]
@@ -1622,6 +1750,10 @@ impl ColorProfile {
                         Tag::TagViewingConditions => {
                             profile.viewing_conditions =
                                 Self::read_viewing_conditions(slice, tag_entry as usize, tag_size)?;
+                        }
+                        Tag::Technology => {
+                            profile.technology =
+                                Self::read_tech_tag(slice, tag_entry as usize, tag_size)?;
                         }
                     }
                 }
