@@ -270,7 +270,7 @@ impl TryFrom<u32> for ProfileClass {
         } else if value == u32::from_ne_bytes(*b"nmcl").to_be() {
             return Ok(ProfileClass::Named);
         }
-        Err(CmsError::InvalidIcc)
+        Err(CmsError::InvalidProfile)
     }
 }
 
@@ -308,7 +308,7 @@ impl TryFrom<u32> for LutType {
         } else if value == u32::from_ne_bytes(*b"mBA ").to_be() {
             return Ok(LutType::LutMba);
         }
-        Err(CmsError::InvalidIcc)
+        Err(CmsError::InvalidProfile)
     }
 }
 
@@ -366,7 +366,7 @@ impl TryFrom<u32> for DataColorSpace {
         } else if value == u32::from_ne_bytes(*b"FCLR").to_be() {
             return Ok(DataColorSpace::Color15);
         }
-        Err(CmsError::InvalidIcc)
+        Err(CmsError::InvalidProfile)
     }
 }
 
@@ -638,13 +638,13 @@ impl IccHeader {
     /// Creates profile from the buffer
     pub(crate) fn new_from_slice(slice: &[u8]) -> Result<Self, CmsError> {
         if slice.len() < size_of::<IccHeader>() {
-            return Err(CmsError::InvalidIcc);
+            return Err(CmsError::InvalidProfile);
         }
         let mut cursor = std::io::Cursor::new(slice);
         let mut buffer = [0u8; size_of::<IccHeader>()];
         cursor
             .read_exact(&mut buffer)
-            .map_err(|_| CmsError::InvalidIcc)?;
+            .map_err(|_| CmsError::InvalidProfile)?;
 
         let header = Self {
             size: u32::from_be_bytes(buffer[0..4].try_into().unwrap()),
@@ -671,7 +671,7 @@ impl IccHeader {
         };
 
         if header.signature != ACSP_SIGNATURE {
-            return Err(CmsError::InvalidIcc);
+            return Err(CmsError::InvalidProfile);
         }
         Ok(header)
     }
@@ -824,11 +824,11 @@ impl ColorProfile {
             slice.len()
         };
         if last_tag_offset > slice.len() {
-            return Err(CmsError::InvalidIcc);
+            return Err(CmsError::InvalidProfile);
         }
         let tag = &slice[entry..last_tag_offset];
         if tag.len() < TAG_SIZE {
-            return Err(CmsError::InvalidIcc);
+            return Err(CmsError::InvalidProfile);
         }
         if curve_type == TagTypeDefinition::LutToneCurve {
             let entry_count = u32::from_be_bytes([tag[8], tag[9], tag[10], tag[11]]) as usize;
@@ -839,7 +839,7 @@ impl ColorProfile {
                 return Err(CmsError::CurveLutIsTooLarge);
             }
             if tag.len() < 12 + entry_count * size_of::<u16>() {
-                return Err(CmsError::InvalidIcc);
+                return Err(CmsError::InvalidProfile);
             }
             let curve_sliced = &tag[12..12 + entry_count * size_of::<u16>()];
             let mut curve_values = vec![0u16; entry_count];
@@ -852,13 +852,13 @@ impl ColorProfile {
         } else if curve_type == TagTypeDefinition::ParametricToneCurve {
             let entry_count = u16::from_be_bytes([tag[8], tag[9]]) as usize;
             if entry_count > 4 {
-                return Err(CmsError::InvalidIcc);
+                return Err(CmsError::InvalidProfile);
             }
 
             const COUNT_TO_LENGTH: [usize; 5] = [1, 3, 4, 5, 7]; //PARAMETRIC_CURVE_TYPE
 
             if tag.len() < 12 + COUNT_TO_LENGTH[entry_count] * size_of::<u32>() {
-                return Err(CmsError::InvalidIcc);
+                return Err(CmsError::InvalidProfile);
             }
             let curve_sliced = &tag[12..12 + COUNT_TO_LENGTH[entry_count] * size_of::<u32>()];
             let mut params = vec![0f32; COUNT_TO_LENGTH[entry_count]];
@@ -876,7 +876,7 @@ impl ColorProfile {
             *read_size = 12 + COUNT_TO_LENGTH[entry_count] * 4;
             return Ok(Some(Trc::Parametric(params)));
         } else {
-            return Err(CmsError::InvalidIcc);
+            return Err(CmsError::InvalidProfile);
         }
     }
 
@@ -885,22 +885,22 @@ impl ColorProfile {
         let tag_size = if tag_size == 0 { TAG_SIZE } else { tag_size };
         let last_tag_offset = tag_size + entry;
         if last_tag_offset > slice.len() {
-            return Err(CmsError::InvalidIcc);
+            return Err(CmsError::InvalidProfile);
         }
         if slice[entry..].len() < 8 {
-            return Err(CmsError::InvalidIcc);
+            return Err(CmsError::InvalidProfile);
         }
         let tag0 = &slice[entry..entry + 8];
         let c_type = u32::from_be_bytes([tag0[0], tag0[1], tag0[2], tag0[3]]);
         if c_type != CHROMATIC_TYPE {
-            return Err(CmsError::InvalidIcc);
+            return Err(CmsError::InvalidProfile);
         }
         if slice.len() < 9 * size_of::<u32>() + 8 {
-            return Err(CmsError::InvalidIcc);
+            return Err(CmsError::InvalidProfile);
         }
         let tag = &slice[entry + 8..last_tag_offset];
         if tag.len() != size_of::<Matrix3f>() {
-            return Err(CmsError::InvalidIcc);
+            return Err(CmsError::InvalidProfile);
         }
         let mut matrix = Matrix3f::default();
         for (i, chunk) in tag.chunks_exact(4).enumerate() {
@@ -917,11 +917,11 @@ impl ColorProfile {
         tag_size: usize,
     ) -> Result<Option<TechnologySignatures>, CmsError> {
         if tag_size < TAG_SIZE {
-            return Err(CmsError::InvalidIcc);
+            return Err(CmsError::InvalidProfile);
         }
         let last_tag_offset = tag_size + entry;
         if last_tag_offset > slice.len() {
-            return Err(CmsError::InvalidIcc);
+            return Err(CmsError::InvalidProfile);
         }
         let tag = &slice[entry..entry + 12];
         let tag_type = u32::from_be_bytes([tag[0], tag[1], tag[2], tag[3]]);
@@ -944,7 +944,7 @@ impl ColorProfile {
         }
         let last_tag_offset = tag_size + entry;
         if last_tag_offset > slice.len() {
-            return Err(CmsError::InvalidIcc);
+            return Err(CmsError::InvalidProfile);
         }
         let tag = &slice[entry..entry + 12];
         let tag_type = u32::from_be_bytes([tag[0], tag[1], tag[2], tag[3]]);
@@ -958,7 +958,7 @@ impl ColorProfile {
 
         let tag = &slice[entry..last_tag_offset];
         if tag.len() < 20 {
-            return Err(CmsError::InvalidIcc);
+            return Err(CmsError::InvalidProfile);
         }
         let q15_16_x = i32::from_be_bytes([tag[8], tag[9], tag[10], tag[11]]);
         let q15_16_y = i32::from_be_bytes([tag[12], tag[13], tag[14], tag[15]]);
@@ -980,11 +980,11 @@ impl ColorProfile {
         }
         let last_tag_offset = tag_size + entry;
         if last_tag_offset > slice.len() {
-            return Err(CmsError::InvalidIcc);
+            return Err(CmsError::InvalidProfile);
         }
         let tag = &slice[entry..last_tag_offset];
         if tag.len() < 12 {
-            return Err(CmsError::InvalidIcc);
+            return Err(CmsError::InvalidProfile);
         }
         let tag_type = u32::from_be_bytes([tag[0], tag[1], tag[2], tag[3]]);
         let def = TagTypeDefinition::try_from(tag_type).ok();
@@ -1011,11 +1011,11 @@ impl ColorProfile {
         let tag_size = if tag_size == 0 { TAG_SIZE } else { tag_size };
         let last_tag_offset = tag_size + entry;
         if last_tag_offset > slice.len() {
-            return Err(CmsError::InvalidIcc);
+            return Err(CmsError::InvalidProfile);
         }
         let tag = &slice[entry..last_tag_offset];
         if tag.len() < 48 {
-            return Err(CmsError::InvalidIcc);
+            return Err(CmsError::InvalidProfile);
         }
         let tag_type = u32::from_be_bytes([tag[0], tag[1], tag[2], tag[3]]);
         LutType::try_from(tag_type)
@@ -1083,7 +1083,7 @@ impl ColorProfile {
         }
         let last_tag_offset = tag_size + entry;
         if last_tag_offset > slice.len() {
-            return Err(CmsError::InvalidIcc);
+            return Err(CmsError::InvalidProfile);
         }
         let tag = &slice[entry..last_tag_offset];
         if tag.len() < 8 {
@@ -1102,7 +1102,7 @@ impl ColorProfile {
             return Ok(Some(ProfileText::PlainString(str.to_string())));
         } else if tag_type == TagTypeDefinition::MultiLocalizedUnicode {
             if tag.len() < 28 {
-                return Err(CmsError::InvalidIcc);
+                return Err(CmsError::InvalidProfile);
             }
             // let record_size = u32::from_be_bytes([tag[12], tag[13], tag[14], tag[15]]) as usize;
             // // Record size is reserved to be 12.
@@ -1136,7 +1136,7 @@ impl ColorProfile {
                 // Localizable header must be at least 12 bytes
                 let localizable_header_offset = 28 + 12 * (record - 1) - 1;
                 if tag.len() < localizable_header_offset + 12 {
-                    return Err(CmsError::InvalidIcc);
+                    return Err(CmsError::InvalidProfile);
                 }
                 let choked = &tag[localizable_header_offset..localizable_header_offset + 12];
 
@@ -1164,14 +1164,14 @@ impl ColorProfile {
         } else if tag_type == TagTypeDefinition::Description {
             let ascii_length = u32::from_be_bytes([tag[8], tag[9], tag[10], tag[11]]) as usize;
             if tag.len() < 12 + ascii_length {
-                return Err(CmsError::InvalidIcc);
+                return Err(CmsError::InvalidProfile);
             }
             let sliced = &tag[12..12 + ascii_length];
             let ascii_string = String::from_utf8_lossy(sliced).to_string();
 
             let mut last_position = 12 + ascii_length;
             if tag.len() < last_position + 8 {
-                return Err(CmsError::InvalidIcc);
+                return Err(CmsError::InvalidProfile);
             }
             let uc = &tag[last_position..last_position + 8];
             let unicode_code = u32::from_be_bytes([uc[0], uc[1], uc[2], uc[3]]);
@@ -1237,12 +1237,12 @@ impl ColorProfile {
         let mut curves = Vec::new();
         for _ in 0..length {
             if slice.len() < curve_offset + 12 {
-                return Err(CmsError::InvalidIcc);
+                return Err(CmsError::InvalidProfile);
             }
             let mut tag_size = 0usize;
             let new_curve = Self::read_trc_tag(slice, curve_offset, 0, &mut tag_size)?;
             match new_curve {
-                None => return Err(CmsError::InvalidIcc),
+                None => return Err(CmsError::InvalidProfile),
                 Some(curve) => curves.push(curve),
             }
             curve_offset += tag_size;
@@ -1265,11 +1265,11 @@ impl ColorProfile {
         }
         let last_tag_offset = tag_size + entry;
         if last_tag_offset > slice.len() {
-            return Err(CmsError::InvalidIcc);
+            return Err(CmsError::InvalidProfile);
         }
         let tag = &slice[entry..last_tag_offset];
         if tag.len() < 48 {
-            return Err(CmsError::InvalidIcc);
+            return Err(CmsError::InvalidProfile);
         }
         let tag_type = u32::from_be_bytes([tag[0], tag[1], tag[2], tag[3]]);
         let tag_type_definition = TagTypeDefinition::try_from(tag_type).ok();
@@ -1295,7 +1295,7 @@ impl ColorProfile {
 
         let matrix_end = matrix_offset + 12 * 4;
         if tag.len() < matrix_end {
-            return Err(CmsError::InvalidIcc);
+            return Err(CmsError::InvalidProfile);
         }
 
         let m_tag = &tag[matrix_offset..matrix_end];
@@ -1346,7 +1346,7 @@ impl ColorProfile {
 
         // Check if CLUT formed correctly
         if clut_offset + 20 > tag.len() {
-            return Err(CmsError::InvalidIcc);
+            return Err(CmsError::InvalidProfile);
         }
 
         let clut_sizes_slice = &tag[clut_offset..clut_offset + 16];
@@ -1362,21 +1362,21 @@ impl ColorProfile {
         clut_size *= out_channels as u32;
 
         if clut_size == 0 {
-            return Err(CmsError::InvalidIcc);
+            return Err(CmsError::InvalidProfile);
         }
 
         if clut_size > 10_000_000 {
-            return Err(CmsError::InvalidIcc);
+            return Err(CmsError::InvalidProfile);
         }
 
         let clut_header = &tag[clut_offset..clut_offset + 20];
         let entry_size = clut_header[16];
         if entry_size != 1 && entry_size != 2 {
-            return Err(CmsError::InvalidIcc);
+            return Err(CmsError::InvalidProfile);
         }
 
         if tag.len() < clut_offset + 20 + clut_size as usize * entry_size as usize {
-            return Err(CmsError::InvalidIcc);
+            return Err(CmsError::InvalidProfile);
         }
 
         let mut clut_table = vec![0f32; clut_size as usize];
@@ -1397,21 +1397,21 @@ impl ColorProfile {
             Vec::new()
         } else {
             Self::read_nested_tone_curves(tag, a_curve_offset, in_channels as usize)?
-                .ok_or(CmsError::InvalidIcc)?
+                .ok_or(CmsError::InvalidProfile)?
         };
 
         let m_curves = if m_curve_offset == 0 {
             Vec::new()
         } else {
             Self::read_nested_tone_curves(tag, m_curve_offset, out_channels as usize)?
-                .ok_or(CmsError::InvalidIcc)?
+                .ok_or(CmsError::InvalidProfile)?
         };
 
         let b_curves = if b_curve_offset == 0 {
             Vec::new()
         } else {
             Self::read_nested_tone_curves(tag, b_curve_offset, out_channels as usize)?
-                .ok_or(CmsError::InvalidIcc)?
+                .ok_or(CmsError::InvalidProfile)?
         };
 
         let wh = LutWarehouse::MCurves(LutMCurvesType {
@@ -1439,18 +1439,18 @@ impl ColorProfile {
         }
         let last_tag_offset = tag_size + entry;
         if last_tag_offset > slice.len() {
-            return Err(CmsError::InvalidIcc);
+            return Err(CmsError::InvalidProfile);
         }
         let tag = &slice[entry..last_tag_offset];
         if tag.len() < 48 {
-            return Err(CmsError::InvalidIcc);
+            return Err(CmsError::InvalidProfile);
         }
         let tag_type = u32::from_be_bytes([tag[0], tag[1], tag[2], tag[3]]);
         let lut_type = LutType::try_from(tag_type)?;
         assert!(lut_type == LutType::Lut8 || lut_type == LutType::Lut16);
 
         if lut_type == LutType::Lut16 && tag.len() < 52 {
-            return Err(CmsError::InvalidIcc);
+            return Err(CmsError::InvalidProfile);
         }
 
         let num_input_table_entries: u16 = match lut_type {
@@ -1467,7 +1467,7 @@ impl ColorProfile {
         if !(2..=4096).contains(&num_input_table_entries)
             || !(2..=4096).contains(&num_output_table_entries)
         {
-            return Err(CmsError::InvalidIcc);
+            return Err(CmsError::InvalidProfile);
         }
 
         let input_offset: usize = match lut_type {
@@ -1486,22 +1486,22 @@ impl ColorProfile {
         let is_3_to_4 = in_chan == 3 || out_chan == 4;
         let is_4_to_3 = in_chan == 4 || out_chan == 3;
         if !is_3_to_4 && !is_4_to_3 {
-            return Err(CmsError::InvalidIcc);
+            return Err(CmsError::InvalidProfile);
         }
         let grid_points = tag[10];
         let clut_size = match (grid_points as u32).checked_pow(in_chan as u32) {
             Some(clut_size) => clut_size as usize,
             _ => {
-                return Err(CmsError::InvalidIcc);
+                return Err(CmsError::InvalidProfile);
             }
         };
         match clut_size {
             1..=500_000 => {} // OK
             0 => {
-                return Err(CmsError::InvalidIcc);
+                return Err(CmsError::InvalidProfile);
             }
             _ => {
-                return Err(CmsError::InvalidIcc);
+                return Err(CmsError::InvalidProfile);
             }
         }
 
@@ -1541,7 +1541,7 @@ impl ColorProfile {
 
         let mut input_table = vec![0f32; lut_input_size];
         if tag.len() < input_offset + lut_input_size * entry_size {
-            return Err(CmsError::InvalidIcc);
+            return Err(CmsError::InvalidProfile);
         }
         let shaped_input_table = &tag[input_offset..input_offset + lut_input_size * entry_size];
         Self::read_lut_table_f32(shaped_input_table, &mut input_table, lut_type);
@@ -1551,7 +1551,7 @@ impl ColorProfile {
         let clut_data_size = (clut_size * out_chan as usize) * entry_size;
 
         if tag.len() < clut_offset + clut_data_size {
-            return Err(CmsError::InvalidIcc);
+            return Err(CmsError::InvalidProfile);
         }
 
         let mut clut_table = vec![0f32; clut_size * out_chan as usize];
@@ -1602,10 +1602,10 @@ impl ColorProfile {
         let header = IccHeader::new_from_slice(slice)?;
         let tags_count = header.tag_count as usize;
         if slice.len() >= MAX_PROFILE_SIZE {
-            return Err(CmsError::InvalidIcc);
+            return Err(CmsError::InvalidProfile);
         }
         if slice.len() < tags_count * TAG_SIZE + size_of::<IccHeader>() {
-            return Err(CmsError::InvalidIcc);
+            return Err(CmsError::InvalidProfile);
         }
         let tags_slice =
             &slice[size_of::<IccHeader>()..size_of::<IccHeader>() + tags_count * TAG_SIZE];
