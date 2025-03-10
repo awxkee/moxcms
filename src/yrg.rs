@@ -28,6 +28,7 @@
  */
 use crate::{Matrix3f, Vector3f, Xyz, atan2f, cosf, hypotf, sinf};
 
+#[repr(C)]
 #[derive(Default, Debug, PartialOrd, PartialEq, Copy, Clone)]
 pub struct Yrg {
     pub y: f32,
@@ -35,6 +36,7 @@ pub struct Yrg {
     pub g: f32,
 }
 
+#[repr(C)]
 #[derive(Default, Debug, PartialOrd, PartialEq, Copy, Clone)]
 pub struct Ych {
     pub y: f32,
