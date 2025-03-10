@@ -35,12 +35,6 @@ use crate::trc::{Trc, curve_from_gamma};
 use crate::{Chromacity, Vector3f};
 use std::io::Read;
 
-/// Constants representing the min and max values that fit in a signed 32-bit integer as a float
-const MAX_S32_FITS_IN_FLOAT: f32 = 2_147_483_647.0; // i32::MAX as f32
-const MIN_S32_FITS_IN_FLOAT: f32 = -2_147_483_648.0; // i32::MIN as f32
-
-/// Fixed-point scaling factor (assuming Fixed1 = 65536 like in ICC profiles)
-const FIXED1: f32 = 65536.0;
 const MAX_PROFILE_SIZE: usize = 1024 * 1024 * 10; // 10 MB max, for Fogra39 etc
 const TAG_SIZE: usize = 12;
 
@@ -630,22 +624,6 @@ pub struct LutMCurvesType {
     pub bias: Vector3f,
 }
 
-/// Clamps the float value within the range of an `i32`
-/// Returns `i32::MAX` for NaN values.
-#[inline]
-const fn float_saturate2int(x: f32) -> i32 {
-    if x.is_nan() {
-        return i32::MAX;
-    }
-    x.clamp(MIN_S32_FITS_IN_FLOAT, MAX_S32_FITS_IN_FLOAT) as i32
-}
-
-/// Converts a float to a fixed-point integer representation
-#[inline]
-const fn float_round_to_fixed(x: f32) -> i32 {
-    float_saturate2int((x as f64 * FIXED1 as f64 + 0.5) as f32)
-}
-
 #[repr(u32)]
 #[derive(Clone, Copy, Debug, Default, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub enum RenderingIntent {
@@ -672,14 +650,14 @@ impl TryFrom<u32> for RenderingIntent {
 /// ICC Header
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct IccHeader {
+pub(crate) struct ProfileHeader {
     pub size: u32,                         // Size of the profile (computed)
     pub cmm_type: u32,                     // Preferred CMM type (ignored)
     pub version: ProfileVersion,           // Version (4.3 or 4.4 if CICP is included)
     pub profile_class: ProfileClass,       // Display device profile
     pub data_color_space: DataColorSpace,  // RGB input color space
     pub pcs: DataColorSpace,               // Profile connection space
-    pub creation_date_time: ColorDateTime, // Date and time (ignored)
+    pub creation_date_time: ColorDateTime, // Date and time
     pub signature: ProfileSignature,       // Profile signature
     pub platform: u32,                     // Platform target (ignored)
     pub flags: u32,                        // Flags (not embedded, can be used independently)
@@ -687,16 +665,14 @@ pub(crate) struct IccHeader {
     pub device_model: u32,                 // Device model (ignored)
     pub device_attributes: [u8; 8],        // Device attributes (ignored)
     pub rendering_intent: RenderingIntent, // Relative colorimetric rendering intent
-    pub illuminant_x: i32,                 // D50 standard illuminant X
-    pub illuminant_y: i32,                 // D50 standard illuminant Y
-    pub illuminant_z: i32,                 // D50 standard illuminant Z
+    pub illuminant: Xyz,                   // D50 standard illuminant X
     pub creator: u32,                      // Profile creator (ignored)
     pub profile_id: [u8; 16],              // Profile id checksum (ignored)
     pub reserved: [u8; 28],                // Reserved (ignored)
     pub tag_count: u32,                    // Technically not part of header, but required
 }
 
-impl IccHeader {
+impl ProfileHeader {
     #[allow(dead_code)]
     pub(crate) fn new(size: u32) -> Self {
         Self {
@@ -714,9 +690,7 @@ impl IccHeader {
             device_model: 0,
             device_attributes: [0; 8],
             rendering_intent: RenderingIntent::Perceptual,
-            illuminant_x: float_round_to_fixed(Chromacity::D50.to_xyz().x).to_be(),
-            illuminant_y: float_round_to_fixed(Chromacity::D50.to_xyz().y).to_be(),
-            illuminant_z: float_round_to_fixed(Chromacity::D50.to_xyz().z).to_be(),
+            illuminant: Chromacity::D50.to_xyz(),
             creator: 0,
             profile_id: [0; 16],
             reserved: [0; 28],
@@ -726,11 +700,11 @@ impl IccHeader {
 
     /// Creates profile from the buffer
     pub(crate) fn new_from_slice(slice: &[u8]) -> Result<Self, CmsError> {
-        if slice.len() < size_of::<IccHeader>() {
+        if slice.len() < size_of::<ProfileHeader>() {
             return Err(CmsError::InvalidProfile);
         }
         let mut cursor = std::io::Cursor::new(slice);
-        let mut buffer = [0u8; size_of::<IccHeader>()];
+        let mut buffer = [0u8; size_of::<ProfileHeader>()];
         cursor
             .read_exact(&mut buffer)
             .map_err(|_| CmsError::InvalidProfile)?;
@@ -760,9 +734,11 @@ impl IccHeader {
             rendering_intent: RenderingIntent::try_from(u32::from_be_bytes(
                 buffer[64..68].try_into().unwrap(),
             ))?,
-            illuminant_x: i32::from_be_bytes(buffer[68..72].try_into().unwrap()),
-            illuminant_y: i32::from_be_bytes(buffer[72..76].try_into().unwrap()),
-            illuminant_z: i32::from_be_bytes(buffer[76..80].try_into().unwrap()),
+            illuminant: Xyz::new(
+                s15_fixed16_number_to_float(i32::from_be_bytes(buffer[68..72].try_into().unwrap())),
+                s15_fixed16_number_to_float(i32::from_be_bytes(buffer[72..76].try_into().unwrap())),
+                s15_fixed16_number_to_float(i32::from_be_bytes(buffer[76..80].try_into().unwrap())),
+            ),
             creator: u32::from_be_bytes(buffer[80..84].try_into().unwrap()),
             profile_id: buffer[84..100].try_into().unwrap(),
             reserved: buffer[100..128].try_into().unwrap(),
@@ -1697,27 +1673,24 @@ impl ColorProfile {
         })
     }
 
-    #[allow(clippy::field_reassign_with_default)]
     pub fn new_from_slice(slice: &[u8]) -> Result<Self, CmsError> {
-        let header = IccHeader::new_from_slice(slice)?;
+        let header = ProfileHeader::new_from_slice(slice)?;
         let tags_count = header.tag_count as usize;
         if slice.len() >= MAX_PROFILE_SIZE {
             return Err(CmsError::InvalidProfile);
         }
-        if slice.len() < tags_count * TAG_SIZE + size_of::<IccHeader>() {
+        if slice.len() < tags_count * TAG_SIZE + size_of::<ProfileHeader>() {
             return Err(CmsError::InvalidProfile);
         }
         let tags_slice =
-            &slice[size_of::<IccHeader>()..size_of::<IccHeader>() + tags_count * TAG_SIZE];
-        let mut profile = ColorProfile::default();
-        profile.rendering_intent = header.rendering_intent;
-        profile.pcs = header.pcs;
-        profile.profile_class = header.profile_class;
-        profile.color_space = header.data_color_space;
-        profile.white_point = Xyz {
-            x: s15_fixed16_number_to_float(header.illuminant_x),
-            y: s15_fixed16_number_to_float(header.illuminant_y),
-            z: s15_fixed16_number_to_float(header.illuminant_z),
+            &slice[size_of::<ProfileHeader>()..size_of::<ProfileHeader>() + tags_count * TAG_SIZE];
+        let mut profile = ColorProfile {
+            rendering_intent: header.rendering_intent,
+            pcs: header.pcs,
+            profile_class: header.profile_class,
+            color_space: header.data_color_space,
+            white_point: header.illuminant,
+            ..Default::default()
         };
         let color_space = profile.color_space;
         let known_profile_class = profile.profile_class == ProfileClass::DisplayDevice
