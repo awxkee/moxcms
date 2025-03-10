@@ -582,6 +582,7 @@ impl Matrix3f {
 }
 
 /// Holds CIE XYZ representation
+#[repr(C)]
 #[derive(Clone, Debug, Copy, Default)]
 pub struct Xyz {
     pub x: f32,

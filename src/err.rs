@@ -34,7 +34,7 @@ use std::fmt::Display;
 pub enum CmsError {
     LaneSizeMismatch,
     LaneMultipleOfChannels,
-    InvalidIcc,
+    InvalidProfile,
     InvalicTrcCurve,
     InvalidCicp,
     CurveLutIsTooLarge,
@@ -60,7 +60,7 @@ impl Display for CmsError {
             CmsError::LaneMultipleOfChannels => {
                 write!(f, "Lane length must not be multiple of channel count")
             }
-            CmsError::InvalidIcc => f.write_str("Invalid ICC profile"),
+            CmsError::InvalidProfile => f.write_str("Invalid ICC profile"),
             CmsError::InvalidCicp => f.write_str("Invalid CICP in ICC profile"),
             CmsError::InvalicTrcCurve => f.write_str("Invalid TRC curve"),
             CmsError::CurveLutIsTooLarge => f.write_str("Curve Lut is too large"),
