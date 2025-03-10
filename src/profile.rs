@@ -35,8 +35,6 @@ use crate::trc::{Trc, curve_from_gamma};
 use crate::{Chromacity, Vector3f};
 use std::io::Read;
 
-const ACSP_SIGNATURE: u32 = u32::from_ne_bytes(*b"acsp").to_be(); // 'acsp' signature for ICC
-
 /// Constants representing the min and max values that fit in a signed 32-bit integer as a float
 const MAX_S32_FITS_IN_FLOAT: f32 = 2_147_483_647.0; // i32::MAX as f32
 const MIN_S32_FITS_IN_FLOAT: f32 = -2_147_483_648.0; // i32::MIN as f32
@@ -166,43 +164,43 @@ pub(crate) enum TagTypeDefinition {
     Signature,
     Cicp,
     DateTime,
+    NotAllowed,
 }
 
-impl TryFrom<u32> for TagTypeDefinition {
-    type Error = CmsError;
-
-    fn try_from(value: u32) -> Result<Self, Self::Error> {
+impl From<u32> for TagTypeDefinition {
+    fn from(value: u32) -> Self {
         if value == u32::from_ne_bytes(*b"mluc").to_be() {
-            return Ok(TagTypeDefinition::MultiLocalizedUnicode);
+            return TagTypeDefinition::MultiLocalizedUnicode;
         } else if value == u32::from_ne_bytes(*b"desc").to_be() {
-            return Ok(TagTypeDefinition::Description);
+            return TagTypeDefinition::Description;
         } else if value == u32::from_ne_bytes(*b"text").to_be() {
-            return Ok(TagTypeDefinition::Text);
+            return TagTypeDefinition::Text;
         } else if value == u32::from_ne_bytes(*b"mAB ").to_be() {
-            return Ok(TagTypeDefinition::MabLut);
+            return TagTypeDefinition::MabLut;
         } else if value == u32::from_ne_bytes(*b"mBA ").to_be() {
-            return Ok(TagTypeDefinition::MbaLut);
+            return TagTypeDefinition::MbaLut;
         } else if value == u32::from_ne_bytes(*b"para").to_be() {
-            return Ok(TagTypeDefinition::ParametricToneCurve);
+            return TagTypeDefinition::ParametricToneCurve;
         } else if value == u32::from_ne_bytes(*b"curv").to_be() {
-            return Ok(TagTypeDefinition::LutToneCurve);
+            return TagTypeDefinition::LutToneCurve;
         } else if value == u32::from_ne_bytes(*b"XYZ ").to_be() {
-            return Ok(TagTypeDefinition::Xyz);
+            return TagTypeDefinition::Xyz;
         } else if value == u32::from_ne_bytes(*b"mpet").to_be() {
-            return Ok(TagTypeDefinition::MultiProcessElement);
+            return TagTypeDefinition::MultiProcessElement;
         } else if value == u32::from_ne_bytes(*b"view").to_be() {
-            return Ok(TagTypeDefinition::DefViewingConditions);
+            return TagTypeDefinition::DefViewingConditions;
         } else if value == u32::from_ne_bytes(*b"sig ").to_be() {
-            return Ok(TagTypeDefinition::Signature);
+            return TagTypeDefinition::Signature;
         } else if value == u32::from_ne_bytes(*b"cicp").to_be() {
-            return Ok(TagTypeDefinition::Cicp);
+            return TagTypeDefinition::Cicp;
         } else if value == u32::from_ne_bytes(*b"dtim").to_be() {
-            return Ok(TagTypeDefinition::DateTime);
+            return TagTypeDefinition::DateTime;
         }
-        Err(CmsError::UnknownTagTypeDefinition(value))
+        TagTypeDefinition::NotAllowed
     }
 }
 
+#[repr(C)]
 #[derive(Debug, Clone, Copy, Ord, PartialOrd, Eq, PartialEq, Default)]
 pub struct ColorDateTime {
     pub year: u16,
@@ -248,6 +246,58 @@ fn utf16be_to_utf16(slice: &[u8]) -> Vec<u16> {
     vec
 }
 
+#[repr(u32)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProfileSignature {
+    Acsp,
+}
+
+impl TryFrom<u32> for ProfileSignature {
+    type Error = CmsError;
+    fn try_from(value: u32) -> Result<Self, Self::Error> {
+        if value == u32::from_ne_bytes(*b"acsp").to_be() {
+            return Ok(ProfileSignature::Acsp);
+        }
+        Err(CmsError::InvalidProfile)
+    }
+}
+
+#[repr(u32)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProfileVersion {
+    V2_0 = 0x02000000,
+    V2_1 = 0x02100000,
+    V2_2 = 0x02200000,
+    V2_3 = 0x02300000,
+    V2_4 = 0x02400000,
+    V4_0 = 0x04000000,
+    V4_1 = 0x04100000,
+    V4_2 = 0x04200000,
+    V4_3 = 0x04300000,
+    V4_4 = 0x04400000,
+    Unknown,
+}
+
+impl TryFrom<u32> for ProfileVersion {
+    type Error = CmsError;
+    fn try_from(value: u32) -> Result<Self, Self::Error> {
+        match value {
+            0x02000000 => Ok(ProfileVersion::V2_0),
+            0x02100000 => Ok(ProfileVersion::V2_1),
+            0x02200000 => Ok(ProfileVersion::V2_2),
+            0x02300000 => Ok(ProfileVersion::V2_3),
+            0x02400000 => Ok(ProfileVersion::V2_4),
+            0x04000000 => Ok(ProfileVersion::V4_0),
+            0x04100000 => Ok(ProfileVersion::V4_1),
+            0x04200000 => Ok(ProfileVersion::V4_2),
+            0x04300000 => Ok(ProfileVersion::V4_3),
+            0x04400000 => Ok(ProfileVersion::V4_3),
+            _ => Err(CmsError::InvalidProfile),
+        }
+    }
+}
+
+#[repr(u32)]
 #[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Default, Hash)]
 pub enum DataColorSpace {
     #[default]
@@ -278,6 +328,7 @@ pub enum DataColorSpace {
     Color15,
 }
 
+#[repr(u32)]
 #[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Default)]
 pub enum ProfileClass {
     InputDevice,
@@ -595,7 +646,7 @@ const fn float_round_to_fixed(x: f32) -> i32 {
     float_saturate2int((x as f64 * FIXED1 as f64 + 0.5) as f32)
 }
 
-#[repr(C)]
+#[repr(u32)]
 #[derive(Clone, Copy, Debug, Default, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub enum RenderingIntent {
     AbsoluteColorimetric = 3,
@@ -624,18 +675,18 @@ impl TryFrom<u32> for RenderingIntent {
 pub(crate) struct IccHeader {
     pub size: u32,                         // Size of the profile (computed)
     pub cmm_type: u32,                     // Preferred CMM type (ignored)
-    pub version: u32,                      // Version (4.3 or 4.4 if CICP is included)
-    pub profile_class: u32,                // Display device profile
-    pub data_color_space: u32,             // RGB input color space
-    pub pcs: u32,                          // Profile connection space
+    pub version: ProfileVersion,           // Version (4.3 or 4.4 if CICP is included)
+    pub profile_class: ProfileClass,       // Display device profile
+    pub data_color_space: DataColorSpace,  // RGB input color space
+    pub pcs: DataColorSpace,               // Profile connection space
     pub creation_date_time: ColorDateTime, // Date and time (ignored)
-    pub signature: u32,                    // Profile signature
+    pub signature: ProfileSignature,       // Profile signature
     pub platform: u32,                     // Platform target (ignored)
     pub flags: u32,                        // Flags (not embedded, can be used independently)
     pub device_manufacturer: u32,          // Device manufacturer (ignored)
     pub device_model: u32,                 // Device model (ignored)
     pub device_attributes: [u8; 8],        // Device attributes (ignored)
-    pub rendering_intent: u32,             // Relative colorimetric rendering intent
+    pub rendering_intent: RenderingIntent, // Relative colorimetric rendering intent
     pub illuminant_x: i32,                 // D50 standard illuminant X
     pub illuminant_y: i32,                 // D50 standard illuminant Y
     pub illuminant_z: i32,                 // D50 standard illuminant Z
@@ -651,18 +702,18 @@ impl IccHeader {
         Self {
             size,
             cmm_type: 0,
-            version: 0x04300000u32.to_be(),
-            profile_class: ProfileClass::DisplayDevice.into(),
-            data_color_space: DataColorSpace::Rgb.into(),
-            pcs: DataColorSpace::Xyz.into(),
+            version: ProfileVersion::V4_4,
+            profile_class: ProfileClass::DisplayDevice,
+            data_color_space: DataColorSpace::Rgb,
+            pcs: DataColorSpace::Xyz,
             creation_date_time: ColorDateTime::default(),
-            signature: ACSP_SIGNATURE.to_be(),
+            signature: ProfileSignature::Acsp,
             platform: 0,
             flags: 0x00000000,
             device_manufacturer: 0,
             device_model: 0,
             device_attributes: [0; 8],
-            rendering_intent: 1u32.to_be(),
+            rendering_intent: RenderingIntent::Perceptual,
             illuminant_x: float_round_to_fixed(Chromacity::D50.to_xyz().x).to_be(),
             illuminant_y: float_round_to_fixed(Chromacity::D50.to_xyz().y).to_be(),
             illuminant_z: float_round_to_fixed(Chromacity::D50.to_xyz().z).to_be(),
@@ -687,18 +738,28 @@ impl IccHeader {
         let header = Self {
             size: u32::from_be_bytes(buffer[0..4].try_into().unwrap()),
             cmm_type: u32::from_be_bytes(buffer[4..8].try_into().unwrap()),
-            version: u32::from_be_bytes(buffer[8..12].try_into().unwrap()),
-            profile_class: u32::from_be_bytes(buffer[12..16].try_into().unwrap()),
-            data_color_space: u32::from_be_bytes(buffer[16..20].try_into().unwrap()),
-            pcs: u32::from_be_bytes(buffer[20..24].try_into().unwrap()),
+            version: ProfileVersion::try_from(u32::from_be_bytes(
+                buffer[8..12].try_into().unwrap(),
+            ))?,
+            profile_class: ProfileClass::try_from(u32::from_be_bytes(
+                buffer[12..16].try_into().unwrap(),
+            ))?,
+            data_color_space: DataColorSpace::try_from(u32::from_be_bytes(
+                buffer[16..20].try_into().unwrap(),
+            ))?,
+            pcs: DataColorSpace::try_from(u32::from_be_bytes(buffer[20..24].try_into().unwrap()))?,
             creation_date_time: ColorDateTime::new_from_slice(buffer[24..36].try_into().unwrap())?,
-            signature: u32::from_be_bytes(buffer[36..40].try_into().unwrap()),
+            signature: ProfileSignature::try_from(u32::from_be_bytes(
+                buffer[36..40].try_into().unwrap(),
+            ))?,
             platform: u32::from_be_bytes(buffer[40..44].try_into().unwrap()),
             flags: u32::from_be_bytes(buffer[44..48].try_into().unwrap()),
             device_manufacturer: u32::from_be_bytes(buffer[48..52].try_into().unwrap()),
             device_model: u32::from_be_bytes(buffer[52..56].try_into().unwrap()),
             device_attributes: buffer[56..64].try_into().unwrap(),
-            rendering_intent: u32::from_be_bytes(buffer[64..68].try_into().unwrap()),
+            rendering_intent: RenderingIntent::try_from(u32::from_be_bytes(
+                buffer[64..68].try_into().unwrap(),
+            ))?,
             illuminant_x: i32::from_be_bytes(buffer[68..72].try_into().unwrap()),
             illuminant_y: i32::from_be_bytes(buffer[72..76].try_into().unwrap()),
             illuminant_z: i32::from_be_bytes(buffer[76..80].try_into().unwrap()),
@@ -707,10 +768,6 @@ impl IccHeader {
             reserved: buffer[100..128].try_into().unwrap(),
             tag_count: u32::from_be_bytes(buffer[128..132].try_into().unwrap()),
         };
-
-        if header.signature != ACSP_SIGNATURE {
-            return Err(CmsError::InvalidProfile);
-        }
         Ok(header)
     }
 }
@@ -848,12 +905,12 @@ impl ColorProfile {
         }
         let small_tag = &slice[entry..entry + 4];
         // We require always recognize tone curves.
-        let curve_type = TagTypeDefinition::try_from(u32::from_be_bytes([
+        let curve_type = TagTypeDefinition::from(u32::from_be_bytes([
             small_tag[0],
             small_tag[1],
             small_tag[2],
             small_tag[3],
-        ]))?;
+        ]));
         if tag_size != 0 && tag_size < TAG_SIZE {
             return Ok(None);
         }
@@ -964,11 +1021,8 @@ impl ColorProfile {
         }
         let tag = &slice[entry..entry + 12];
         let tag_type = u32::from_be_bytes([tag[0], tag[1], tag[2], tag[3]]);
-        let def = TagTypeDefinition::try_from(tag_type).ok();
-        if def.is_none() {
-            return Ok(None);
-        }
-        if def.unwrap() == TagTypeDefinition::Signature {
+        let def = TagTypeDefinition::from(tag_type);
+        if def == TagTypeDefinition::Signature {
             let sig = u32::from_be_bytes([tag[8], tag[9], tag[10], tag[11]]);
             let tech_sig = TechnologySignatures::from(sig);
             return Ok(Some(tech_sig));
@@ -991,11 +1045,8 @@ impl ColorProfile {
         }
         let tag = &slice[entry..entry + 20];
         let tag_type = u32::from_be_bytes([tag[0], tag[1], tag[2], tag[3]]);
-        let def = TagTypeDefinition::try_from(tag_type).ok();
-        if def.is_none() {
-            return Ok(None);
-        }
-        if def.unwrap() == TagTypeDefinition::DateTime {
+        let def = TagTypeDefinition::from(tag_type);
+        if def == TagTypeDefinition::DateTime {
             let tag_value = &slice[8..20];
             let time = ColorDateTime::new_from_slice(tag_value)?;
             return Ok(Some(time));
@@ -1014,11 +1065,8 @@ impl ColorProfile {
         }
         let tag = &slice[entry..entry + 12];
         let tag_type = u32::from_be_bytes([tag[0], tag[1], tag[2], tag[3]]);
-        let def = TagTypeDefinition::try_from(tag_type).ok();
-        if def.is_none() {
-            return Ok(Xyz::default());
-        }
-        if def.unwrap() != TagTypeDefinition::Xyz {
+        let def = TagTypeDefinition::from(tag_type);
+        if def != TagTypeDefinition::Xyz {
             return Ok(Xyz::default());
         }
 
@@ -1053,11 +1101,8 @@ impl ColorProfile {
             return Err(CmsError::InvalidProfile);
         }
         let tag_type = u32::from_be_bytes([tag[0], tag[1], tag[2], tag[3]]);
-        let def = TagTypeDefinition::try_from(tag_type).ok();
-        if def.is_none() {
-            return Ok(None);
-        }
-        if def.unwrap() != TagTypeDefinition::Cicp {
+        let def = TagTypeDefinition::from(tag_type);
+        if def != TagTypeDefinition::Cicp {
             return Ok(None);
         }
         let primaries = ColorPrimaries::try_from(tag[8])?;
@@ -1098,12 +1143,9 @@ impl ColorProfile {
         }
         let tag = &slice[entry..entry + 36];
         let tag_type =
-            TagTypeDefinition::try_from(u32::from_be_bytes([tag[0], tag[1], tag[2], tag[3]])).ok();
+            TagTypeDefinition::from(u32::from_be_bytes([tag[0], tag[1], tag[2], tag[3]]));
         // Ignore unknown
-        if tag_type.is_none() {
-            return Ok(None);
-        }
-        if tag_type.unwrap() != TagTypeDefinition::DefViewingConditions {
+        if tag_type != TagTypeDefinition::DefViewingConditions {
             return Ok(None);
         }
         let illuminant_x = i32::from_be_bytes([tag[8], tag[9], tag[10], tag[11]]);
@@ -1156,12 +1198,8 @@ impl ColorProfile {
             return Ok(None);
         }
         let tag_type =
-            TagTypeDefinition::try_from(u32::from_be_bytes([tag[0], tag[1], tag[2], tag[3]])).ok();
+            TagTypeDefinition::from(u32::from_be_bytes([tag[0], tag[1], tag[2], tag[3]]));
         // Ignore unknown
-        if tag_type.is_none() {
-            return Ok(None);
-        }
-        let tag_type = tag_type.unwrap();
         if tag_type == TagTypeDefinition::Text {
             let sliced_from_to_end = &tag[8..tag.len()];
             let str = String::from_utf8_lossy(sliced_from_to_end);
@@ -1338,11 +1376,7 @@ impl ColorProfile {
             return Err(CmsError::InvalidProfile);
         }
         let tag_type = u32::from_be_bytes([tag[0], tag[1], tag[2], tag[3]]);
-        let tag_type_definition = TagTypeDefinition::try_from(tag_type).ok();
-        if tag_type_definition.is_none() {
-            return Ok(None);
-        }
-        let tag_type_definition = tag_type_definition.unwrap();
+        let tag_type_definition = TagTypeDefinition::from(tag_type);
         if tag_type_definition != TagTypeDefinition::MabLut
             && tag_type_definition != TagTypeDefinition::MbaLut
         {
@@ -1676,10 +1710,10 @@ impl ColorProfile {
         let tags_slice =
             &slice[size_of::<IccHeader>()..size_of::<IccHeader>() + tags_count * TAG_SIZE];
         let mut profile = ColorProfile::default();
-        profile.rendering_intent = RenderingIntent::try_from(header.rendering_intent)?;
-        profile.pcs = DataColorSpace::try_from(header.pcs)?;
-        profile.profile_class = ProfileClass::try_from(header.profile_class)?;
-        profile.color_space = DataColorSpace::try_from(header.data_color_space)?;
+        profile.rendering_intent = header.rendering_intent;
+        profile.pcs = header.pcs;
+        profile.profile_class = header.profile_class;
+        profile.color_space = header.data_color_space;
         profile.white_point = Xyz {
             x: s15_fixed16_number_to_float(header.illuminant_x),
             y: s15_fixed16_number_to_float(header.illuminant_y),
