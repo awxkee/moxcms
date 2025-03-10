@@ -74,7 +74,7 @@ pub(crate) enum Tag {
     Luminance,
     Measurement,
     Chromaticity,
-    TagViewingConditions,
+    ObserverConditions,
     CharTarget,
     Technology,
 }
@@ -136,7 +136,7 @@ impl TryFrom<u32> for Tag {
         } else if value == u32::from_ne_bytes(*b"chrm").to_be() {
             return Ok(Self::Chromaticity);
         } else if value == u32::from_ne_bytes(*b"view").to_be() {
-            return Ok(Self::TagViewingConditions);
+            return Ok(Self::ObserverConditions);
         } else if value == u32::from_ne_bytes(*b"targ").to_be() {
             return Ok(Self::CharTarget);
         } else if value == u32::from_ne_bytes(*b"tech").to_be() {
@@ -1747,7 +1747,7 @@ impl ColorProfile {
                                 Self::read_string_tag(slice, tag_entry as usize, tag_size)?;
                         }
                         Tag::Chromaticity => {}
-                        Tag::TagViewingConditions => {
+                        Tag::ObserverConditions => {
                             profile.viewing_conditions =
                                 Self::read_viewing_conditions(slice, tag_entry as usize, tag_size)?;
                         }
