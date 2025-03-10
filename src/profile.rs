@@ -161,6 +161,7 @@ pub(crate) enum TagTypeDefinition {
     MultiProcessElement,
     DefViewingConditions,
     Signature,
+    Cicp,
 }
 
 impl TryFrom<u32> for TagTypeDefinition {
@@ -189,6 +190,8 @@ impl TryFrom<u32> for TagTypeDefinition {
             return Ok(TagTypeDefinition::DefViewingConditions);
         } else if value == u32::from_ne_bytes(*b"sig ").to_be() {
             return Ok(TagTypeDefinition::Signature);
+        } else if value == u32::from_ne_bytes(*b"cicp").to_be() {
+            return Ok(TagTypeDefinition::Cicp);
         }
         Err(CmsError::UnknownTagTypeDefinition(value))
     }
@@ -982,6 +985,14 @@ impl ColorProfile {
         let tag = &slice[entry..last_tag_offset];
         if tag.len() < 12 {
             return Err(CmsError::InvalidIcc);
+        }
+        let tag_type = u32::from_be_bytes([tag[0], tag[1], tag[2], tag[3]]);
+        let def = TagTypeDefinition::try_from(tag_type).ok();
+        if def.is_none() {
+            return Ok(None);
+        }
+        if def.unwrap() != TagTypeDefinition::Cicp {
+            return Ok(None);
         }
         let primaries = ColorPrimaries::try_from(tag[8])?;
         let transfer_characteristics = TransferCharacteristics::try_from(tag[9])?;
