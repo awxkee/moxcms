@@ -77,6 +77,7 @@ pub(crate) enum Tag {
     ObserverConditions,
     CharTarget,
     Technology,
+    CalibrationDateTime,
 }
 
 impl TryFrom<u32> for Tag {
@@ -141,6 +142,8 @@ impl TryFrom<u32> for Tag {
             return Ok(Self::CharTarget);
         } else if value == u32::from_ne_bytes(*b"tech").to_be() {
             return Ok(Self::Technology);
+        } else if value == u32::from_ne_bytes(*b"calt").to_be() {
+            return Ok(Self::CalibrationDateTime);
         }
         Err(CmsError::UnknownTag(value))
     }
@@ -162,6 +165,7 @@ pub(crate) enum TagTypeDefinition {
     DefViewingConditions,
     Signature,
     Cicp,
+    DateTime,
 }
 
 impl TryFrom<u32> for TagTypeDefinition {
@@ -192,8 +196,42 @@ impl TryFrom<u32> for TagTypeDefinition {
             return Ok(TagTypeDefinition::Signature);
         } else if value == u32::from_ne_bytes(*b"cicp").to_be() {
             return Ok(TagTypeDefinition::Cicp);
+        } else if value == u32::from_ne_bytes(*b"dtim").to_be() {
+            return Ok(TagTypeDefinition::DateTime);
         }
         Err(CmsError::UnknownTagTypeDefinition(value))
+    }
+}
+
+#[derive(Debug, Clone, Copy, Ord, PartialOrd, Eq, PartialEq, Default)]
+pub struct ColorDateTime {
+    pub year: u16,
+    pub month: u16,
+    pub day_of_the_month: u16,
+    pub hours: u16,
+    pub minutes: u16,
+    pub seconds: u16,
+}
+
+impl ColorDateTime {
+    pub fn new_from_slice(slice: &[u8]) -> Result<ColorDateTime, CmsError> {
+        if slice.len() != 12 {
+            return Err(CmsError::InvalidProfile);
+        }
+        let year = u16::from_be_bytes([slice[0], slice[1]]);
+        let month = u16::from_be_bytes([slice[2], slice[3]]);
+        let day_of_the_month = u16::from_be_bytes([slice[4], slice[5]]);
+        let hours = u16::from_be_bytes([slice[6], slice[7]]);
+        let minutes = u16::from_be_bytes([slice[8], slice[9]]);
+        let seconds = u16::from_be_bytes([slice[10], slice[11]]);
+        Ok(ColorDateTime {
+            year,
+            month,
+            day_of_the_month,
+            hours,
+            minutes,
+            seconds,
+        })
     }
 }
 
@@ -584,27 +622,27 @@ impl TryFrom<u32> for RenderingIntent {
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct IccHeader {
-    pub size: u32,                    // Size of the profile (computed)
-    pub cmm_type: u32,                // Preferred CMM type (ignored)
-    pub version: u32,                 // Version (4.3 or 4.4 if CICP is included)
-    pub profile_class: u32,           // Display device profile
-    pub data_color_space: u32,        // RGB input color space
-    pub pcs: u32,                     // Profile connection space
-    pub creation_date_time: [u8; 12], // Date and time (ignored)
-    pub signature: u32,               // Profile signature
-    pub platform: u32,                // Platform target (ignored)
-    pub flags: u32,                   // Flags (not embedded, can be used independently)
-    pub device_manufacturer: u32,     // Device manufacturer (ignored)
-    pub device_model: u32,            // Device model (ignored)
-    pub device_attributes: [u8; 8],   // Device attributes (ignored)
-    pub rendering_intent: u32,        // Relative colorimetric rendering intent
-    pub illuminant_x: i32,            // D50 standard illuminant X
-    pub illuminant_y: i32,            // D50 standard illuminant Y
-    pub illuminant_z: i32,            // D50 standard illuminant Z
-    pub creator: u32,                 // Profile creator (ignored)
-    pub profile_id: [u8; 16],         // Profile id checksum (ignored)
-    pub reserved: [u8; 28],           // Reserved (ignored)
-    pub tag_count: u32,               // Technically not part of header, but required
+    pub size: u32,                         // Size of the profile (computed)
+    pub cmm_type: u32,                     // Preferred CMM type (ignored)
+    pub version: u32,                      // Version (4.3 or 4.4 if CICP is included)
+    pub profile_class: u32,                // Display device profile
+    pub data_color_space: u32,             // RGB input color space
+    pub pcs: u32,                          // Profile connection space
+    pub creation_date_time: ColorDateTime, // Date and time (ignored)
+    pub signature: u32,                    // Profile signature
+    pub platform: u32,                     // Platform target (ignored)
+    pub flags: u32,                        // Flags (not embedded, can be used independently)
+    pub device_manufacturer: u32,          // Device manufacturer (ignored)
+    pub device_model: u32,                 // Device model (ignored)
+    pub device_attributes: [u8; 8],        // Device attributes (ignored)
+    pub rendering_intent: u32,             // Relative colorimetric rendering intent
+    pub illuminant_x: i32,                 // D50 standard illuminant X
+    pub illuminant_y: i32,                 // D50 standard illuminant Y
+    pub illuminant_z: i32,                 // D50 standard illuminant Z
+    pub creator: u32,                      // Profile creator (ignored)
+    pub profile_id: [u8; 16],              // Profile id checksum (ignored)
+    pub reserved: [u8; 28],                // Reserved (ignored)
+    pub tag_count: u32,                    // Technically not part of header, but required
 }
 
 impl IccHeader {
@@ -617,7 +655,7 @@ impl IccHeader {
             profile_class: ProfileClass::DisplayDevice.into(),
             data_color_space: DataColorSpace::Rgb.into(),
             pcs: DataColorSpace::Xyz.into(),
-            creation_date_time: [0; 12],
+            creation_date_time: ColorDateTime::default(),
             signature: ACSP_SIGNATURE.to_be(),
             platform: 0,
             flags: 0x00000000,
@@ -653,7 +691,7 @@ impl IccHeader {
             profile_class: u32::from_be_bytes(buffer[12..16].try_into().unwrap()),
             data_color_space: u32::from_be_bytes(buffer[16..20].try_into().unwrap()),
             pcs: u32::from_be_bytes(buffer[20..24].try_into().unwrap()),
-            creation_date_time: buffer[24..36].try_into().unwrap(),
+            creation_date_time: ColorDateTime::new_from_slice(buffer[24..36].try_into().unwrap())?,
             signature: u32::from_be_bytes(buffer[36..40].try_into().unwrap()),
             platform: u32::from_be_bytes(buffer[40..44].try_into().unwrap()),
             flags: u32::from_be_bytes(buffer[44..48].try_into().unwrap()),
@@ -772,6 +810,7 @@ pub struct ColorProfile {
     pub viewing_conditions: Option<ViewingConditions>,
     pub viewing_conditions_description: Option<ProfileText>,
     pub technology: Option<TechnologySignatures>,
+    pub calibration_date: Option<ColorDateTime>,
 }
 
 /* produces the nearest float to 'a' with a maximum error
@@ -933,6 +972,33 @@ impl ColorProfile {
             let sig = u32::from_be_bytes([tag[8], tag[9], tag[10], tag[11]]);
             let tech_sig = TechnologySignatures::from(sig);
             return Ok(Some(tech_sig));
+        }
+        Ok(None)
+    }
+
+    #[inline]
+    fn read_date_time_tag(
+        slice: &[u8],
+        entry: usize,
+        tag_size: usize,
+    ) -> Result<Option<ColorDateTime>, CmsError> {
+        if tag_size < 20 {
+            return Ok(None);
+        }
+        let last_tag_offset = tag_size + entry;
+        if last_tag_offset > slice.len() {
+            return Err(CmsError::InvalidProfile);
+        }
+        let tag = &slice[entry..entry + 20];
+        let tag_type = u32::from_be_bytes([tag[0], tag[1], tag[2], tag[3]]);
+        let def = TagTypeDefinition::try_from(tag_type).ok();
+        if def.is_none() {
+            return Ok(None);
+        }
+        if def.unwrap() == TagTypeDefinition::DateTime {
+            let tag_value = &slice[8..20];
+            let time = ColorDateTime::new_from_slice(tag_value)?;
+            return Ok(Some(time));
         }
         Ok(None)
     }
@@ -1765,6 +1831,10 @@ impl ColorProfile {
                         Tag::Technology => {
                             profile.technology =
                                 Self::read_tech_tag(slice, tag_entry as usize, tag_size)?;
+                        }
+                        Tag::CalibrationDateTime => {
+                            profile.calibration_date =
+                                Self::read_date_time_tag(slice, tag_entry as usize, tag_size)?;
                         }
                     }
                 }
