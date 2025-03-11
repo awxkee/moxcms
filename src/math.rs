@@ -549,6 +549,35 @@ pub const fn atan2f(y: f32, x: f32) -> f32 {
     }
 }
 
+#[inline]
+pub(crate) fn hypot3f(x: f32, y: f32, z: f32) -> f32 {
+    let x = x.abs();
+    let y = y.abs();
+    let z = z.abs();
+
+    let max = x.max(y).max(z);
+
+    if max == 0.0 {
+        return 0.0;
+    }
+
+    let recip_max = 1. / max;
+
+    let norm_x = x * recip_max;
+    let norm_y = y * recip_max;
+    let norm_z = z * recip_max;
+
+    let ret = max * (norm_x * norm_x + norm_y * norm_y + norm_z * norm_z).sqrt();
+
+    if x == f32::INFINITY || y == f32::INFINITY || z == f32::INFINITY {
+        f32::INFINITY
+    } else if x.is_nan() || y.is_nan() || z.is_nan() || ret.is_nan() {
+        f32::NAN
+    } else {
+        ret
+    }
+}
+
 #[inline(always)]
 pub const fn rounding_div_ceil(value: i32, div: i32) -> i32 {
     (value + div - 1) / div

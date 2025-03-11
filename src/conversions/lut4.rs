@@ -107,7 +107,7 @@ pub(crate) fn create_lut4<const SAMPLES: usize>(lut: &LutDataType) -> Result<Vec
     let lut_size: u32 = (4 * SAMPLES * SAMPLES * SAMPLES * SAMPLES) as u32;
 
     let mut src = Vec::with_capacity(lut_size as usize);
-    let mut dest = vec![0.; lut_size as usize];
+    let mut dest = vec![0.; (lut_size as usize) / 4 * 3];
     /* Prepare a list of points we want to sample */
     let recpeq = 1f32 / (SAMPLES - 1) as f32;
     for k in 0..SAMPLES {

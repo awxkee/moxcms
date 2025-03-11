@@ -2,7 +2,7 @@
 
 Fast and safe converting between ICC profiles in pure Rust.
 
-Supports CMYK -> RGBX and RGBX -> RGBX, Gray -> RGBX, RGBX -> GRAY, RGBX -> CMYK
+Supports CMYK <-> RGBX and RGBX <-> RGBX, RGBX <-> GRAY, LAB <-> RGBX, CMYK <-> LAB
 
 # Example
 

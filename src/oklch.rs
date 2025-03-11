@@ -238,6 +238,7 @@ impl DivAssign<Oklch> for Oklch {
 impl Neg for Oklch {
     type Output = Oklch;
 
+    #[inline]
     fn neg(self) -> Self::Output {
         Oklch::new(-self.l, -self.c, -self.h)
     }

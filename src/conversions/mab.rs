@@ -30,9 +30,9 @@ use crate::mlaf::mlaf;
 use crate::{Array3D, CmsError, InPlaceStage, LutMCurvesType, Matrix3f, Vector3f};
 
 struct ACurves3<'a, const DEPTH: usize> {
-    curve0: Box<[f32; 256]>,
-    curve1: Box<[f32; 256]>,
-    curve2: Box<[f32; 256]>,
+    curve0: Box<[f32; DEPTH]>,
+    curve1: Box<[f32; DEPTH]>,
+    curve2: Box<[f32; DEPTH]>,
     clut: &'a [f32],
     grid_size: usize,
 }
@@ -60,9 +60,9 @@ impl<const DEPTH: usize> InPlaceStage for ACurves3<'_, DEPTH> {
 }
 
 struct ACurves3Inverse<'a, const DEPTH: usize> {
-    curve0: Box<[f32; 256]>,
-    curve1: Box<[f32; 256]>,
-    curve2: Box<[f32; 256]>,
+    curve0: Box<[f32; DEPTH]>,
+    curve1: Box<[f32; DEPTH]>,
+    curve2: Box<[f32; DEPTH]>,
     clut: &'a [f32],
     grid_size: usize,
 }
@@ -90,9 +90,9 @@ impl<const DEPTH: usize> InPlaceStage for ACurves3Inverse<'_, DEPTH> {
 }
 
 struct MCurves3<const DEPTH: usize> {
-    curve0: Box<[f32; 256]>,
-    curve1: Box<[f32; 256]>,
-    curve2: Box<[f32; 256]>,
+    curve0: Box<[f32; DEPTH]>,
+    curve1: Box<[f32; DEPTH]>,
+    curve2: Box<[f32; DEPTH]>,
     matrix: Matrix3f,
     bias: Vector3f,
     inverse: bool,
@@ -159,9 +159,9 @@ impl<const DEPTH: usize> InPlaceStage for MCurves3<DEPTH> {
 }
 
 struct BCurves<const DEPTH: usize> {
-    curve0: Box<[f32; 256]>,
-    curve1: Box<[f32; 256]>,
-    curve2: Box<[f32; 256]>,
+    curve0: Box<[f32; DEPTH]>,
+    curve1: Box<[f32; DEPTH]>,
+    curve2: Box<[f32; DEPTH]>,
 }
 
 impl<const DEPTH: usize> InPlaceStage for BCurves<DEPTH> {
@@ -186,6 +186,7 @@ impl<const DEPTH: usize> InPlaceStage for BCurves<DEPTH> {
 
 pub(crate) fn prepare_mab_3x3(mab: &LutMCurvesType, lut: &mut [f32]) -> Result<(), CmsError> {
     const LERP_DEPTH: usize = 256;
+    const BP: usize = 8;
     if mab.num_input_channels != 3 && mab.num_output_channels != 3 {
         return Err(CmsError::UnsupportedProfileConnection);
     }
@@ -194,13 +195,13 @@ pub(crate) fn prepare_mab_3x3(mab: &LutMCurvesType, lut: &mut [f32]) -> Result<(
     }
     if mab.a_curves.len() == 3 {
         let curve0 = mab.a_curves[0]
-            .build_linearize_table::<LERP_DEPTH, 8>()
+            .build_linearize_table::<LERP_DEPTH, BP>()
             .ok_or(CmsError::InvalicTrcCurve)?;
         let curve1 = mab.a_curves[1]
-            .build_linearize_table::<LERP_DEPTH, 8>()
+            .build_linearize_table::<LERP_DEPTH, BP>()
             .ok_or(CmsError::InvalicTrcCurve)?;
         let curve2 = mab.a_curves[2]
-            .build_linearize_table::<LERP_DEPTH, 8>()
+            .build_linearize_table::<LERP_DEPTH, BP>()
             .ok_or(CmsError::InvalicTrcCurve)?;
         let clut = &mab.clut;
         let a_curves = ACurves3::<LERP_DEPTH> {
@@ -215,13 +216,13 @@ pub(crate) fn prepare_mab_3x3(mab: &LutMCurvesType, lut: &mut [f32]) -> Result<(
 
     if mab.m_curves.len() == 3 {
         let curve0 = mab.m_curves[0]
-            .build_linearize_table::<LERP_DEPTH, 8>()
+            .build_linearize_table::<LERP_DEPTH, BP>()
             .ok_or(CmsError::InvalicTrcCurve)?;
         let curve1 = mab.m_curves[1]
-            .build_linearize_table::<LERP_DEPTH, 8>()
+            .build_linearize_table::<LERP_DEPTH, BP>()
             .ok_or(CmsError::InvalicTrcCurve)?;
         let curve2 = mab.m_curves[2]
-            .build_linearize_table::<LERP_DEPTH, 8>()
+            .build_linearize_table::<LERP_DEPTH, BP>()
             .ok_or(CmsError::InvalicTrcCurve)?;
         let matrix = mab.matrix;
         let bias = mab.bias;
@@ -238,13 +239,13 @@ pub(crate) fn prepare_mab_3x3(mab: &LutMCurvesType, lut: &mut [f32]) -> Result<(
 
     if mab.b_curves.len() == 3 {
         let curve0 = mab.b_curves[0]
-            .build_linearize_table::<LERP_DEPTH, 8>()
+            .build_linearize_table::<LERP_DEPTH, BP>()
             .ok_or(CmsError::InvalicTrcCurve)?;
         let curve1 = mab.b_curves[1]
-            .build_linearize_table::<LERP_DEPTH, 8>()
+            .build_linearize_table::<LERP_DEPTH, BP>()
             .ok_or(CmsError::InvalicTrcCurve)?;
         let curve2 = mab.b_curves[2]
-            .build_linearize_table::<LERP_DEPTH, 8>()
+            .build_linearize_table::<LERP_DEPTH, BP>()
             .ok_or(CmsError::InvalicTrcCurve)?;
         let b_curves = BCurves::<LERP_DEPTH> {
             curve0,
@@ -268,16 +269,17 @@ pub(crate) fn prepare_mba_3x3(mab: &LutMCurvesType, lut: &mut [f32]) -> Result<(
     }
 
     const LERP_DEPTH: usize = 256;
+    const BP: usize = 8;
 
     if mab.b_curves.len() == 3 {
         let curve0 = mab.b_curves[0]
-            .build_linearize_table::<LERP_DEPTH, 8>()
+            .build_linearize_table::<LERP_DEPTH, BP>()
             .ok_or(CmsError::InvalicTrcCurve)?;
         let curve1 = mab.b_curves[1]
-            .build_linearize_table::<LERP_DEPTH, 8>()
+            .build_linearize_table::<LERP_DEPTH, BP>()
             .ok_or(CmsError::InvalicTrcCurve)?;
         let curve2 = mab.b_curves[2]
-            .build_linearize_table::<LERP_DEPTH, 8>()
+            .build_linearize_table::<LERP_DEPTH, BP>()
             .ok_or(CmsError::InvalicTrcCurve)?;
         let b_curves = BCurves::<LERP_DEPTH> {
             curve0,
@@ -291,13 +293,13 @@ pub(crate) fn prepare_mba_3x3(mab: &LutMCurvesType, lut: &mut [f32]) -> Result<(
 
     if mab.m_curves.len() == 3 {
         let curve0 = mab.m_curves[0]
-            .build_linearize_table::<LERP_DEPTH, 8>()
+            .build_linearize_table::<LERP_DEPTH, BP>()
             .ok_or(CmsError::InvalicTrcCurve)?;
         let curve1 = mab.m_curves[1]
-            .build_linearize_table::<LERP_DEPTH, 8>()
+            .build_linearize_table::<LERP_DEPTH, BP>()
             .ok_or(CmsError::InvalicTrcCurve)?;
         let curve2 = mab.m_curves[2]
-            .build_linearize_table::<LERP_DEPTH, 8>()
+            .build_linearize_table::<LERP_DEPTH, BP>()
             .ok_or(CmsError::InvalicTrcCurve)?;
         let matrix = mab.matrix;
         let bias = mab.bias;
@@ -314,13 +316,13 @@ pub(crate) fn prepare_mba_3x3(mab: &LutMCurvesType, lut: &mut [f32]) -> Result<(
 
     if mab.a_curves.len() == 3 {
         let curve0 = mab.a_curves[0]
-            .build_linearize_table::<LERP_DEPTH, 8>()
+            .build_linearize_table::<LERP_DEPTH, BP>()
             .ok_or(CmsError::InvalicTrcCurve)?;
         let curve1 = mab.a_curves[1]
-            .build_linearize_table::<LERP_DEPTH, 8>()
+            .build_linearize_table::<LERP_DEPTH, BP>()
             .ok_or(CmsError::InvalicTrcCurve)?;
         let curve2 = mab.a_curves[2]
-            .build_linearize_table::<LERP_DEPTH, 8>()
+            .build_linearize_table::<LERP_DEPTH, BP>()
             .ok_or(CmsError::InvalicTrcCurve)?;
         let clut = &mab.clut;
         let a_curves = ACurves3Inverse::<LERP_DEPTH> {

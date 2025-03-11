@@ -28,6 +28,7 @@
  */
 use crate::{Matrix3f, Vector3f, Xyz, atan2f, cosf, hypotf, sinf};
 
+/// Structure for Yrg colorspace
 #[repr(C)]
 #[derive(Default, Debug, PartialOrd, PartialEq, Copy, Clone)]
 pub struct Yrg {
@@ -36,6 +37,7 @@ pub struct Yrg {
     pub g: f32,
 }
 
+/// Structure for cone form of Yrg colorspace
 #[repr(C)]
 #[derive(Default, Debug, PartialOrd, PartialEq, Copy, Clone)]
 pub struct Ych {

@@ -56,12 +56,14 @@ pub enum CmsError {
 impl Display for CmsError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            CmsError::LaneSizeMismatch => write!(f, "Lanes length must match"),
+            CmsError::LaneSizeMismatch => f.write_str("Lanes length must match"),
             CmsError::LaneMultipleOfChannels => {
-                write!(f, "Lane length must not be multiple of channel count")
+                f.write_str("Lane length must not be multiple of channel count")
             }
             CmsError::InvalidProfile => f.write_str("Invalid ICC profile"),
-            CmsError::InvalidCicp => f.write_str("Invalid CICP in ICC profile"),
+            CmsError::InvalidCicp => {
+                f.write_str("Invalid Code Independent point (CICP) in ICC profile")
+            }
             CmsError::InvalicTrcCurve => f.write_str("Invalid TRC curve"),
             CmsError::CurveLutIsTooLarge => f.write_str("Curve Lut is too large"),
             CmsError::ParametricCurveZeroDivision => {
@@ -72,7 +74,9 @@ impl Display for CmsError {
             CmsError::UnsupportedColorPrimaries(value) => {
                 f.write_fmt(format_args!("Unsupported color primaries, {}", value))
             }
-            CmsError::UnsupportedTrc(value) => write!(f, "Unsupported TRC {}", value),
+            CmsError::UnsupportedTrc(value) => {
+                f.write_fmt(format_args!("Unsupported TRC {}", value))
+            }
             CmsError::InvalidLayout => f.write_str("Invalid layout"),
             CmsError::UnsupportedProfileConnection => f.write_str("Unsupported profile connection"),
             CmsError::BuildTransferFunction => f.write_str("Can't reconstruct transfer function"),
