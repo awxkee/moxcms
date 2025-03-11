@@ -26,6 +26,7 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+use crate::conversions::lut3x3::create_lut3x3;
 use crate::conversions::lut3x4::{create_lut3_samples, create_lut3_samples_norm, create_lut3x4};
 use crate::conversions::lut4::create_lut4;
 use crate::conversions::mab::{prepare_mab_3x3, prepare_mba_3x3};
@@ -37,7 +38,7 @@ use crate::math::FusedMultiplyAdd;
 use crate::mlaf::mlaf;
 use crate::{
     CmsError, ColorProfile, DataColorSpace, InPlaceStage, Layout, LutWarehouse, Matrix3f,
-    TransformExecutor, TransformOptions, Vector3f, Xyz, rounding_div_ceil,
+    ProfileVersion, TransformExecutor, TransformOptions, Vector3f, Xyz, rounding_div_ceil,
 };
 use num_traits::AsPrimitive;
 use std::marker::PhantomData;
@@ -372,7 +373,51 @@ impl<
     }
 }
 
-pub(crate) fn make_cmyk_luts<
+fn pcs_lab_v4_to_v2(profile: &ColorProfile, lut: &mut [f32]) {
+    if profile.pcs == DataColorSpace::Lab && profile.version_internal <= ProfileVersion::V4_0 {
+        if lut.len() % 3 != 0 {
+            assert_eq!(
+                lut.len() % 3,
+                0,
+                "Lut {:?} is not a multiple of 3, this should not happen for lab",
+                lut.len()
+            );
+            let v_mat = vec![Matrix3f {
+                v: [
+                    [65280.0 / 65535.0, 0f32, 0f32],
+                    [0f32, 65280.0 / 65535.0, 0f32],
+                    [0f32, 0f32, 65280.0 / 65535.0f32],
+                ],
+            }];
+            let stage = MatrixStage { matrices: v_mat };
+            stage.transform(lut).unwrap();
+        }
+    }
+}
+
+fn pcs_lab_v2_to_v4(profile: &ColorProfile, lut: &mut [f32]) {
+    if profile.pcs == DataColorSpace::Lab && profile.version_internal <= ProfileVersion::V4_0 {
+        if lut.len() % 3 != 0 {
+            assert_eq!(
+                lut.len() % 3,
+                0,
+                "Lut {:?} is not a multiple of 3, this should not happen for lab",
+                lut.len()
+            );
+            let v_mat = vec![Matrix3f {
+                v: [
+                    [65535.0 / 65280.0f32, 0f32, 0f32],
+                    [0f32, 65535.0f32 / 65280.0f32, 0f32],
+                    [0f32, 0f32, 65535.0f32 / 65280.0f32],
+                ],
+            }];
+            let stage = MatrixStage { matrices: v_mat };
+            stage.transform(lut).unwrap();
+        }
+    }
+}
+
+pub(crate) fn make_lut_transform<
     T: Copy + Default + AsPrimitive<f32> + Send + Sync + CompressLut + AsPrimitive<usize>,
     const BIT_DEPTH: usize,
     const LINEAR_CAP: usize,
@@ -388,7 +433,9 @@ where
     f32: AsPrimitive<T>,
     u32: AsPrimitive<T>,
 {
-    if source.color_space == DataColorSpace::Cmyk && dest.color_space == DataColorSpace::Rgb {
+    if source.color_space == DataColorSpace::Cmyk
+        && (dest.color_space == DataColorSpace::Rgb || dest.color_space == DataColorSpace::Lab)
+    {
         if src_layout != Layout::Rgba {
             return Err(CmsError::InvalidLayout);
         }
@@ -405,13 +452,23 @@ where
                 source.rendering_intent,
             ))?;
 
-        if dst_layout != Layout::Rgb && dst_layout != Layout::Rgba {
-            return Err(CmsError::UnsupportedProfileConnection);
+        if dest.color_space == DataColorSpace::Rgb {
+            if dst_layout != Layout::Rgb && dst_layout != Layout::Rgba {
+                return Err(CmsError::UnsupportedProfileConnection);
+            }
+        } else if dest.color_space == DataColorSpace::Lab {
+            if dst_layout != Layout::Rgb {
+                return Err(CmsError::UnsupportedProfileConnection);
+            }
+        } else {
+            unreachable!();
         }
 
         const GRID_SIZE: usize = 17;
 
         let mut lut = create_lut4::<GRID_SIZE>(src_lut_a_to_b)?;
+
+        pcs_lab_v2_to_v4(source, &mut lut);
 
         if source.pcs == DataColorSpace::Lab {
             let lab_to_xyz_stage = StageLabToXyz::default();
@@ -423,7 +480,9 @@ where
             lab_to_xyz_stage.transform(&mut lut)?;
         }
 
-        if dest.color_space == DataColorSpace::Rgb {
+        pcs_lab_v4_to_v2(dest, &mut lut);
+
+        if dest.color_space == DataColorSpace::Rgb || dest.color_space == DataColorSpace::Lab {
             if dest.pcs == DataColorSpace::Xyz {
                 prepare_inverse_lut_rgb_xyz::<T, BIT_DEPTH, GAMMA_LUT>(&dest, &mut lut)?;
             } else if dest.pcs == DataColorSpace::Lab {
@@ -431,7 +490,7 @@ where
                     .get_pcs_to_device(options.rendering_intent)
                     .ok_or(CmsError::UnsupportedProfileConnection)?;
                 match pcs_to_device {
-                    LutWarehouse::Lut(_) => return Err(CmsError::UnsupportedProfileConnection),
+                    LutWarehouse::Lut(lut_data_type) => lut = create_lut3x3(lut_data_type, &lut)?,
                     LutWarehouse::MCurves(mab) => prepare_mba_3x3(mab, &mut lut)?,
                 }
             }
@@ -458,10 +517,18 @@ where
                 _ => unimplemented!(),
             });
         }
-    } else if source.color_space == DataColorSpace::Rgb && dest.color_space == DataColorSpace::Cmyk
+    } else if (source.color_space == DataColorSpace::Rgb
+        || source.color_space == DataColorSpace::Lab)
+        && dest.color_space == DataColorSpace::Cmyk
     {
-        if src_layout != Layout::Rgba && src_layout != Layout::Rgb {
-            return Err(CmsError::InvalidLayout);
+        if source.color_space == DataColorSpace::Rgb {
+            if src_layout != Layout::Rgba && src_layout != Layout::Rgb {
+                return Err(CmsError::InvalidLayout);
+            }
+        } else if source.color_space == DataColorSpace::Lab {
+            if src_layout != Layout::Rgb {
+                return Err(CmsError::InvalidLayout);
+            }
         }
         if dst_layout != Layout::Rgba {
             return Err(CmsError::InvalidLayout);
@@ -485,12 +552,16 @@ where
             lut = create_lut3_samples_norm::<GRID_SIZE>();
 
             match device_to_pcs {
-                LutWarehouse::Lut(_) => return Err(CmsError::UnsupportedProfileConnection),
+                LutWarehouse::Lut(lut_data_type) => {
+                    lut = create_lut3x3(lut_data_type, &lut)?;
+                }
                 LutWarehouse::MCurves(mab) => prepare_mab_3x3(mab, &mut lut)?,
             }
         } else {
             lut = create_rgb_lin_lut::<T, BIT_DEPTH, LINEAR_CAP, GRID_SIZE>(source)?;
         }
+
+        pcs_lab_v2_to_v4(source, &mut lut);
 
         if source.pcs == DataColorSpace::Xyz && dest.pcs == DataColorSpace::Lab {
             let xyz_to_lab = StageXyzToLab::default();
@@ -500,7 +571,9 @@ where
             lab_to_xyz_stage.transform(&mut lut)?;
         }
 
-        let lut = create_lut3x4::<GRID_SIZE>(dest_lut_b_to_a, &lut)?;
+        pcs_lab_v4_to_v2(dest, &mut lut);
+
+        let lut = create_lut3x4(dest_lut_b_to_a, &lut)?;
 
         return Ok(match src_layout {
             Layout::Rgb => {
@@ -521,12 +594,32 @@ where
             }
             _ => unimplemented!(),
         });
-    } else if source.color_space == DataColorSpace::Rgb && dest.color_space == DataColorSpace::Rgb {
-        if src_layout != Layout::Rgba && src_layout != Layout::Rgb {
-            return Err(CmsError::InvalidLayout);
+    } else if (source.color_space == DataColorSpace::Rgb
+        || source.color_space == DataColorSpace::Lab)
+        && (dest.color_space == DataColorSpace::Rgb || dest.color_space == DataColorSpace::Lab)
+    {
+        if source.color_space == DataColorSpace::Rgb {
+            if src_layout != Layout::Rgba && src_layout != Layout::Rgb {
+                return Err(CmsError::InvalidLayout);
+            }
+        } else if source.color_space == DataColorSpace::Lab {
+            if src_layout != Layout::Rgb {
+                return Err(CmsError::InvalidLayout);
+            }
+        } else {
+            unreachable!();
         }
-        if dst_layout != Layout::Rgba && dst_layout != Layout::Rgb {
-            return Err(CmsError::InvalidLayout);
+
+        if dest.color_space == DataColorSpace::Rgb {
+            if dst_layout != Layout::Rgba && dst_layout != Layout::Rgb {
+                return Err(CmsError::InvalidLayout);
+            }
+        } else if dest.color_space == DataColorSpace::Lab {
+            if dst_layout != Layout::Rgb {
+                return Err(CmsError::InvalidLayout);
+            }
+        } else {
+            unreachable!();
         }
 
         const GRID_SIZE: usize = 33;
@@ -540,12 +633,16 @@ where
             lut = create_lut3_samples_norm::<GRID_SIZE>();
 
             match device_to_pcs {
-                LutWarehouse::Lut(_) => return Err(CmsError::UnsupportedProfileConnection),
+                LutWarehouse::Lut(lut_data_type) => {
+                    lut = create_lut3x3(lut_data_type, &lut)?;
+                }
                 LutWarehouse::MCurves(mab) => prepare_mab_3x3(mab, &mut lut)?,
             }
         } else {
             lut = create_rgb_lin_lut::<T, BIT_DEPTH, LINEAR_CAP, GRID_SIZE>(source)?;
         }
+
+        pcs_lab_v2_to_v4(source, &mut lut);
 
         if source.pcs == DataColorSpace::Xyz && dest.pcs == DataColorSpace::Lab {
             let xyz_to_lab = StageXyzToLab::default();
@@ -555,12 +652,14 @@ where
             lab_to_xyz_stage.transform(&mut lut)?;
         }
 
+        pcs_lab_v4_to_v2(dest, &mut lut);
+
         if dest.has_pcs_to_device_lut() {
             let pcs_to_device = dest
                 .get_pcs_to_device(options.rendering_intent)
                 .ok_or(CmsError::UnsupportedProfileConnection)?;
             match pcs_to_device {
-                LutWarehouse::Lut(_) => return Err(CmsError::UnsupportedProfileConnection),
+                LutWarehouse::Lut(lut_data_type) => lut = create_lut3x3(lut_data_type, &lut)?,
                 LutWarehouse::MCurves(mab) => prepare_mba_3x3(mab, &mut lut)?,
             }
         } else {

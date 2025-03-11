@@ -30,9 +30,9 @@ use crate::mlaf::mlaf;
 use crate::{Array3D, CmsError, InPlaceStage, LutMCurvesType, Matrix3f, Vector3f};
 
 struct ACurves3<'a, const DEPTH: usize> {
-    curve0: Box<[f32; 256]>,
-    curve1: Box<[f32; 256]>,
-    curve2: Box<[f32; 256]>,
+    curve0: Box<[f32; DEPTH]>,
+    curve1: Box<[f32; DEPTH]>,
+    curve2: Box<[f32; DEPTH]>,
     clut: &'a [f32],
     grid_size: usize,
 }
@@ -90,9 +90,9 @@ impl<const DEPTH: usize> InPlaceStage for ACurves3Inverse<'_, DEPTH> {
 }
 
 struct MCurves3<const DEPTH: usize> {
-    curve0: Box<[f32; 256]>,
-    curve1: Box<[f32; 256]>,
-    curve2: Box<[f32; 256]>,
+    curve0: Box<[f32; DEPTH]>,
+    curve1: Box<[f32; DEPTH]>,
+    curve2: Box<[f32; DEPTH]>,
     matrix: Matrix3f,
     bias: Vector3f,
     inverse: bool,
@@ -159,9 +159,9 @@ impl<const DEPTH: usize> InPlaceStage for MCurves3<DEPTH> {
 }
 
 struct BCurves<const DEPTH: usize> {
-    curve0: Box<[f32; 256]>,
-    curve1: Box<[f32; 256]>,
-    curve2: Box<[f32; 256]>,
+    curve0: Box<[f32; DEPTH]>,
+    curve1: Box<[f32; DEPTH]>,
+    curve2: Box<[f32; DEPTH]>,
 }
 
 impl<const DEPTH: usize> InPlaceStage for BCurves<DEPTH> {

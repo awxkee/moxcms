@@ -29,6 +29,7 @@
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 mod avx;
 mod gray2rgb;
+mod lut3x3;
 mod lut3x4;
 mod lut4;
 mod lut_transforms;
@@ -45,6 +46,6 @@ mod transform_lut3_to_3;
 mod transform_lut3_to_4;
 
 pub(crate) use gray2rgb::make_gray_to_x;
-pub(crate) use lut_transforms::{CompressLut, make_cmyk_luts};
+pub(crate) use lut_transforms::{CompressLut, make_lut_transform};
 pub(crate) use rgb2gray::{ToneReproductionRgbToGray, make_rgb_to_gray};
 pub(crate) use rgbxyz::{TransformProfileRgb, make_rgb_xyz_rgb_transform};

@@ -27,8 +27,8 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::conversions::{
-    CompressLut, ToneReproductionRgbToGray, TransformProfileRgb, make_cmyk_luts, make_gray_to_x,
-    make_rgb_to_gray, make_rgb_xyz_rgb_transform,
+    CompressLut, ToneReproductionRgbToGray, TransformProfileRgb, make_gray_to_x,
+    make_lut_transform, make_rgb_to_gray, make_rgb_xyz_rgb_transform,
 };
 use crate::err::CmsError;
 use crate::profile::LutDataType;
@@ -63,7 +63,6 @@ pub type Transform16BitExecutor = dyn TransformExecutor<u16> + Send + Sync;
 
 /// Layout declares a data layout.
 /// For RGB it shows also the channel order.
-/// 8, and 16 bits it is storage size, not a data size.
 /// To handle different data bit-depth appropriate executor must be used.
 /// Cmyk8 uses the same layout as Rgba8.
 #[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq)]
@@ -299,9 +298,11 @@ impl ColorProfile {
                 src_layout, dst_layout, trc_box, vector,
             ));
         } else if (self.color_space == DataColorSpace::Cmyk
-            || self.color_space == DataColorSpace::Rgb)
+            || self.color_space == DataColorSpace::Rgb
+            || self.color_space == DataColorSpace::Lab)
             && (dst_pr.color_space == DataColorSpace::Rgb
-                || dst_pr.color_space == DataColorSpace::Cmyk)
+                || dst_pr.color_space == DataColorSpace::Cmyk
+                || dst_pr.color_space == DataColorSpace::Lab)
             && (dst_pr.pcs == DataColorSpace::Xyz || dst_pr.pcs == DataColorSpace::Lab)
             && (self.pcs == DataColorSpace::Xyz || self.pcs == DataColorSpace::Lab)
         {
@@ -311,7 +312,7 @@ impl ColorProfile {
             if dst_layout == Layout::Gray || dst_layout == Layout::GrayAlpha {
                 return Err(CmsError::InvalidLayout);
             }
-            return make_cmyk_luts::<T, BIT_DEPTH, LINEAR_CAP, GAMMA_CAP>(
+            return make_lut_transform::<T, BIT_DEPTH, LINEAR_CAP, GAMMA_CAP>(
                 src_layout, self, dst_layout, dst_pr, options,
             );
         }

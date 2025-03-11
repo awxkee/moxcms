@@ -140,7 +140,7 @@ struct ArrayFetchVector3f<'a> {
 }
 
 impl ArrayFetch<Vector3f> for ArrayFetchVector3f<'_> {
-    #[inline]
+    #[inline(always)]
     fn fetch(&self, x: i32, y: i32, z: i32) -> Vector3f {
         let start = (x as u32 * self.x_stride + y as u32 * self.y_stride + z as u32) as usize * 3;
         let k = &self.array[start..start + 3];
@@ -157,7 +157,7 @@ struct ArrayFetchVector4f<'a> {
 }
 
 impl ArrayFetch<Vector4f> for ArrayFetchVector4f<'_> {
-    #[inline]
+    #[inline(always)]
     fn fetch(&self, x: i32, y: i32, z: i32) -> Vector4f {
         let start = (x as u32 * self.x_stride + y as u32 * self.y_stride + z as u32) as usize * 4;
         let k = &self.array[start..start + 4];
@@ -176,24 +176,6 @@ impl Array3D<'_> {
             x_stride: x_stride as u32,
             y_stride: y_stride as u32,
             grid_size,
-        }
-    }
-
-    #[inline]
-    pub fn vec3(&self, x: i32, y: i32, z: i32) -> Vector3f {
-        let start = (x as u32 * self.x_stride + y as u32 * self.y_stride + z as u32) as usize * 3;
-        let k = &self.array[start..start + 3];
-        Vector3f {
-            v: [k[0], k[1], k[2]],
-        }
-    }
-
-    #[inline]
-    pub fn vec4(&self, x: i32, y: i32, z: i32) -> Vector4f {
-        let start = (x as u32 * self.x_stride + y as u32 * self.y_stride + z as u32) as usize * 4;
-        let k = &self.array[start..start + 4];
-        Vector4f {
-            v: [k[0], k[1], k[2], k[3]],
         }
     }
 

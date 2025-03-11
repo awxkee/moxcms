@@ -86,9 +86,9 @@ where
             let tetrahedral = Tetrahedral::new(&self.lut);
             let v = tetrahedral.inter3(x, y, z);
             let r = v * value_scale + 0.5f32;
-            dst[dst_cn.r_i()] = r.v[0].min(value_scale).as_();
-            dst[dst_cn.g_i()] = r.v[1].min(value_scale).as_();
-            dst[dst_cn.b_i()] = r.v[2].min(value_scale).as_();
+            dst[dst_cn.r_i()] = r.v[0].min(value_scale).max(0f32).as_();
+            dst[dst_cn.g_i()] = r.v[1].min(value_scale).max(0f32).as_();
+            dst[dst_cn.b_i()] = r.v[2].min(value_scale).max(0f32).as_();
             if dst_channels == 4 {
                 dst[dst_cn.a_i()] = a;
             }

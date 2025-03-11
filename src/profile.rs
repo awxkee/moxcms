@@ -257,7 +257,7 @@ impl TryFrom<u32> for ProfileSignature {
 }
 
 #[repr(u32)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Ord, PartialOrd)]
 pub enum ProfileVersion {
     V2_0 = 0x02000000,
     V2_1 = 0x02100000,
@@ -268,6 +268,7 @@ pub enum ProfileVersion {
     V4_1 = 0x04100000,
     V4_2 = 0x04200000,
     V4_3 = 0x04300000,
+    #[default]
     V4_4 = 0x04400000,
     Unknown,
 }
@@ -844,6 +845,9 @@ pub struct ColorProfile {
     pub viewing_conditions_description: Option<ProfileText>,
     pub technology: Option<TechnologySignatures>,
     pub calibration_date: Option<ColorDateTime>,
+    /// Version for internal and viewing purposes only.
+    /// When encoding will be added profile will always be encoded as V4.
+    pub(crate) version_internal: ProfileVersion,
 }
 
 /* produces the nearest float to 'a' with a maximum error
@@ -859,6 +863,11 @@ const fn uint16_number_to_float(a: u32) -> f32 {
 }
 
 impl ColorProfile {
+    /// Returns profile version
+    pub fn version(&self) -> ProfileVersion {
+        self.version_internal
+    }
+
     #[inline]
     fn read_trc_tag_s(
         slice: &[u8],
@@ -1666,7 +1675,7 @@ impl ColorProfile {
         let lut_type = Self::read_lut_type(slice, tag_entry as usize, tag_size)?;
         Ok(if lut_type == LutType::Lut8 || lut_type == LutType::Lut16 {
             Self::read_lut_a_to_b_type(slice, tag_entry as usize, tag_size)?
-        } else if lut_type == LutType::LutMba {
+        } else if lut_type == LutType::LutMba || lut_type == LutType::LutMab {
             Self::read_lut_abm_type(slice, tag_entry as usize, tag_size)?
         } else {
             None
@@ -1690,6 +1699,7 @@ impl ColorProfile {
             profile_class: header.profile_class,
             color_space: header.data_color_space,
             white_point: header.illuminant,
+            version_internal: header.version,
             ..Default::default()
         };
         let color_space = profile.color_space;

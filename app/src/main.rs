@@ -38,7 +38,7 @@ use zune_jpeg::zune_core::colorspace::ColorSpace;
 use zune_jpeg::zune_core::options::DecoderOptions;
 
 fn main() {
-    let funny_icc = fs::read("./assets/alltags.icc").unwrap();
+    let funny_icc = fs::read("./assets/srgb_perceptual.icc").unwrap();
     let funny_profile = ColorProfile::new_from_slice(&funny_icc).unwrap();
 
     let srgb_perceptual_icc = fs::read("./assets/245R.icc").unwrap();
@@ -64,27 +64,36 @@ fn main() {
     decoder.decode_headers().unwrap();
     let mut real_dst = vec![0u8; decoder.output_buffer_size().unwrap()];
 
-    // let custom_profile = Profile::new_icc(&srgb_perceptual_icc).unwrap();
+    let custom_profile = Profile::new_icc(&funny_icc).unwrap();
     //
-    // let srgb_profile = Profile::new_srgb();
+    let srgb_profile = Profile::new_srgb();
 
     decoder.decode_into(&mut real_dst).unwrap();
 
     // let t1 = Transform::new(
-    //     &custom_profile,
-    //     PixelFormat::CMYK_8,
     //     &srgb_profile,
-    //     PixelFormat::RGBA_8,
+    //     PixelFormat::RGB_8,
+    //     &custom_profile,
+    //     PixelFormat::RGB_8,
     //     Intent::Perceptual,
     // )
     // .unwrap();
 
-    let mut cmyk = vec![0u8; decoder.output_buffer_size().unwrap() / 3 * 4];
+    // let t2 = Transform::new(
+    //     &custom_profile,
+    //     PixelFormat::Lab_8,
+    //     &srgb_profile,
+    //     PixelFormat::RGB_8,
+    //     Intent::Perceptual,
+    // )
+    //     .unwrap();
 
-    // t.transform_pixels(&real_dst, &mut cmyk);
+    let mut cmyk = vec![0u8; decoder.output_buffer_size().unwrap()];
+
+    // t1.transform_pixels(&real_dst, &mut cmyk);
 
     let icc = decoder.icc_profile().unwrap();
-    let color_profile = ColorProfile::new_from_slice(&icc).unwrap();
+    let color_profile = ColorProfile::new_from_slice(&funny_icc).unwrap();
     // let color_profile = ColorProfile::new_gray_with_gamma(2.2);
     let mut dest_profile = ColorProfile::new_srgb();
 
@@ -140,6 +149,9 @@ fn main() {
             )
             .unwrap();
     }
+
+    // t2.transform_pixels(&cmyk, &mut dst);
+
     println!("Estimated time: {:?}", instant.elapsed());
 
     // let image = JxlImage::builder()
