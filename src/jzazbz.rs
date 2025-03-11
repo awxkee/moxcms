@@ -361,11 +361,7 @@ impl Neg for Jzazbz {
 impl Jzazbz {
     #[inline]
     pub fn sqrt(&self) -> Jzazbz {
-        Jzazbz::new(
-            if self.jz < 0. { 0. } else { self.jz.sqrt() },
-            if self.az < 0. { 0. } else { self.az.sqrt() },
-            if self.bz < 0. { 0. } else { self.bz.sqrt() },
-        )
+        Jzazbz::new(self.jz.sqrt(), self.az.sqrt(), self.bz.sqrt())
     }
 
     #[inline]

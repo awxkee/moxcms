@@ -117,10 +117,10 @@ fn main() {
     // let t = Transform::new(&srgb_profile, PixelFormat::RGB_8, &custom_profile, PixelFormat::RGB_8, Intent::Perceptual).unwrap();
 
     dest_profile.rendering_intent = RenderingIntent::Perceptual;
-    let transform = color_profile
+    let transform = dest_profile
         .create_transform_8bit(
             Layout::Rgb,
-            &dest_profile,
+            &color_profile,
             Layout::Rgb,
             TransformOptions {
                 rendering_intent: RenderingIntent::Perceptual,
