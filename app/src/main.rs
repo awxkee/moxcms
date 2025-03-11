@@ -38,10 +38,10 @@ use zune_jpeg::zune_core::colorspace::ColorSpace;
 use zune_jpeg::zune_core::options::DecoderOptions;
 
 fn main() {
-    let funny_icc = fs::read("./assets/srgb_perceptual.icc").unwrap();
+    let funny_icc = fs::read("./assets/fogra39_coated.icc").unwrap();
     let funny_profile = ColorProfile::new_from_slice(&funny_icc).unwrap();
 
-    let srgb_perceptual_icc = fs::read("./assets/245R.icc").unwrap();
+    let srgb_perceptual_icc = fs::read("./assets/srgb_perceptual.icc").unwrap();
     let srgb_perceptual_profile = ColorProfile::new_from_slice(&srgb_perceptual_icc).unwrap();
 
     // println!("{:?}", srgb_perceptual_profile);
@@ -64,16 +64,16 @@ fn main() {
     decoder.decode_headers().unwrap();
     let mut real_dst = vec![0u8; decoder.output_buffer_size().unwrap()];
 
-    let custom_profile = Profile::new_icc(&funny_icc).unwrap();
+    let custom_profile = Profile::new_icc(&srgb_perceptual_icc).unwrap();
     //
     let srgb_profile = Profile::new_srgb();
 
     decoder.decode_into(&mut real_dst).unwrap();
 
     // let t1 = Transform::new(
-    //     &srgb_profile,
-    //     PixelFormat::RGB_8,
     //     &custom_profile,
+    //     PixelFormat::RGB_8,
+    //     &srgb_profile,
     //     PixelFormat::RGB_8,
     //     Intent::Perceptual,
     // )
@@ -93,15 +93,16 @@ fn main() {
     // t1.transform_pixels(&real_dst, &mut cmyk);
 
     let icc = decoder.icc_profile().unwrap();
-    let color_profile = ColorProfile::new_from_slice(&funny_icc).unwrap();
+    let color_profile = ColorProfile::new_from_slice(&srgb_perceptual_icc).unwrap();
+    let cmyk_profile = ColorProfile::new_from_slice(&funny_icc).unwrap();
     // let color_profile = ColorProfile::new_gray_with_gamma(2.2);
     let mut dest_profile = ColorProfile::new_srgb();
 
-    // let instant = Instant::now();
+    // // let instant = Instant::now();
     // let rgb_to_cmyk = dest_profile
     //     .create_transform_8bit(
     //         Layout::Rgb,
-    //         &color_profile,
+    //         &cmyk_profile,
     //         Layout::Rgba,
     //         TransformOptions {
     //             rendering_intent: RenderingIntent::Perceptual,

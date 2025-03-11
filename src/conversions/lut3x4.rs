@@ -107,6 +107,8 @@ where
 {
     let lut_size: u32 = (3 * SAMPLES * SAMPLES * SAMPLES) as u32;
 
+    assert!(SAMPLES >= 1);
+
     let mut src = Vec::with_capacity(lut_size as usize);
     for x in 0..SAMPLES as u32 {
         for y in 0..SAMPLES as u32 {
@@ -122,6 +124,8 @@ where
 
 pub(crate) fn create_lut3_samples_norm<const SAMPLES: usize>() -> Vec<f32> {
     let lut_size: u32 = (3 * SAMPLES * SAMPLES * SAMPLES) as u32;
+
+    assert!(SAMPLES >= 1);
 
     let scale = 1. / (SAMPLES as f32 - 1.0);
 

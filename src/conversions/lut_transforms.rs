@@ -359,7 +359,7 @@ impl<
             return Err(CmsError::LaneMultipleOfChannels);
         }
 
-        let scale = ((1 << BIT_DEPTH) - 1) as f32 / SAMPLES as f32;
+        let scale = ((1 << BIT_DEPTH) - 1) as f32 / (SAMPLES as f32 - 1f32);
 
         for (src, dst) in src.chunks_exact(3).zip(dst.chunks_exact_mut(3)) {
             let j_r = src[0].as_() as f32 * scale;
@@ -374,46 +374,48 @@ impl<
 }
 
 fn pcs_lab_v4_to_v2(profile: &ColorProfile, lut: &mut [f32]) {
-    if profile.pcs == DataColorSpace::Lab && profile.version_internal <= ProfileVersion::V4_0 {
-        if lut.len() % 3 != 0 {
-            assert_eq!(
-                lut.len() % 3,
-                0,
-                "Lut {:?} is not a multiple of 3, this should not happen for lab",
-                lut.len()
-            );
-            let v_mat = vec![Matrix3f {
-                v: [
-                    [65280.0 / 65535.0, 0f32, 0f32],
-                    [0f32, 65280.0 / 65535.0, 0f32],
-                    [0f32, 0f32, 65280.0 / 65535.0f32],
-                ],
-            }];
-            let stage = MatrixStage { matrices: v_mat };
-            stage.transform(lut).unwrap();
-        }
+    if profile.pcs == DataColorSpace::Lab
+        && profile.version_internal <= ProfileVersion::V4_0
+        && lut.len() % 3 != 0
+    {
+        assert_eq!(
+            lut.len() % 3,
+            0,
+            "Lut {:?} is not a multiple of 3, this should not happen for lab",
+            lut.len()
+        );
+        let v_mat = vec![Matrix3f {
+            v: [
+                [65280.0 / 65535.0, 0f32, 0f32],
+                [0f32, 65280.0 / 65535.0, 0f32],
+                [0f32, 0f32, 65280.0 / 65535.0f32],
+            ],
+        }];
+        let stage = MatrixStage { matrices: v_mat };
+        stage.transform(lut).unwrap();
     }
 }
 
 fn pcs_lab_v2_to_v4(profile: &ColorProfile, lut: &mut [f32]) {
-    if profile.pcs == DataColorSpace::Lab && profile.version_internal <= ProfileVersion::V4_0 {
-        if lut.len() % 3 != 0 {
-            assert_eq!(
-                lut.len() % 3,
-                0,
-                "Lut {:?} is not a multiple of 3, this should not happen for lab",
-                lut.len()
-            );
-            let v_mat = vec![Matrix3f {
-                v: [
-                    [65535.0 / 65280.0f32, 0f32, 0f32],
-                    [0f32, 65535.0f32 / 65280.0f32, 0f32],
-                    [0f32, 0f32, 65535.0f32 / 65280.0f32],
-                ],
-            }];
-            let stage = MatrixStage { matrices: v_mat };
-            stage.transform(lut).unwrap();
-        }
+    if profile.pcs == DataColorSpace::Lab
+        && profile.version_internal <= ProfileVersion::V4_0
+        && lut.len() % 3 != 0
+    {
+        assert_eq!(
+            lut.len() % 3,
+            0,
+            "Lut {:?} is not a multiple of 3, this should not happen for lab",
+            lut.len()
+        );
+        let v_mat = vec![Matrix3f {
+            v: [
+                [65535.0 / 65280.0f32, 0f32, 0f32],
+                [0f32, 65535.0f32 / 65280.0f32, 0f32],
+                [0f32, 0f32, 65535.0f32 / 65280.0f32],
+            ],
+        }];
+        let stage = MatrixStage { matrices: v_mat };
+        stage.transform(lut).unwrap();
     }
 }
 
@@ -525,10 +527,8 @@ where
             if src_layout != Layout::Rgba && src_layout != Layout::Rgb {
                 return Err(CmsError::InvalidLayout);
             }
-        } else if source.color_space == DataColorSpace::Lab {
-            if src_layout != Layout::Rgb {
-                return Err(CmsError::InvalidLayout);
-            }
+        } else if source.color_space == DataColorSpace::Lab && src_layout != Layout::Rgb {
+            return Err(CmsError::InvalidLayout);
         }
         if dst_layout != Layout::Rgba {
             return Err(CmsError::InvalidLayout);
