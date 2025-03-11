@@ -73,9 +73,6 @@ pub(crate) fn build_parametric_table(
     )
 }
 
-/// eotf: electro-optical transfer characteristic function, maps from [0, 1]
-/// in non-linear (voltage) space to [0, 1] in linear (optical) space. Should
-/// generally be a concave up function.
 pub(crate) fn build_trc_table(num_entries: i32, eotf: impl Fn(f64) -> f64) -> Vec<u16> {
     let mut table = vec![0u16; num_entries as usize];
 
@@ -428,7 +425,6 @@ pub(crate) fn lut_interp_linear16(input_value: u16, table: &[u16]) -> u16 {
     value as u16
 }
 
-#[allow(clippy::needless_range_loop)]
 fn make_gamma_pow_table<
     T: Default + Copy + 'static,
     const BUCKET: usize,

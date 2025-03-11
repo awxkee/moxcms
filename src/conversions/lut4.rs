@@ -70,9 +70,7 @@ impl Stage for Lut4 {
 fn stage_lut_4x3(lut: &LutDataType) -> Box<dyn Stage> {
     let clut_length: usize = (lut.num_clut_grid_points as usize).pow(lut.num_input_channels as u32)
         * lut.num_output_channels as usize;
-    // the matrix of lutType is only used when the input color space is XYZ.
 
-    // Prepare input curves
     let mut transform = Lut4::default();
     transform.linearization[0] = lut.input_table[0..lut.num_input_table_entries as usize].to_vec();
     transform.linearization[1] = lut.input_table
@@ -108,7 +106,7 @@ pub(crate) fn create_lut4<const SAMPLES: usize>(lut: &LutDataType) -> Result<Vec
 
     let mut src = Vec::with_capacity(lut_size as usize);
     let mut dest = vec![0.; (lut_size as usize) / 4 * 3];
-    /* Prepare a list of points we want to sample */
+
     let recpeq = 1f32 / (SAMPLES - 1) as f32;
     for k in 0..SAMPLES {
         for c in 0..SAMPLES {
