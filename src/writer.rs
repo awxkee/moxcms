@@ -30,8 +30,8 @@ use crate::profile::{LutDataType, ProfileHeader};
 use crate::tag::{TAG_SIZE, Tag, TagTypeDefinition};
 use crate::trc::Trc;
 use crate::{
-    CicpProfile, CmsError, ColorDateTime, ColorProfile, LutMCurvesType, LutType, LutWarehouse,
-    Matrix3f, ProfileSignature, ProfileVersion, Vector3f, Xyz,
+    CicpProfile, CmsError, ColorDateTime, ColorProfile, LocalizableString, LutMCurvesType, LutType,
+    LutWarehouse, Matrix3f, ProfileSignature, ProfileText, ProfileVersion, Vector3f, Xyz,
 };
 
 pub(crate) trait FloatToFixedS15Fixed16 {
@@ -83,12 +83,99 @@ pub(crate) fn write_u16_be(into: &mut Vec<u8>, value: u16) {
 }
 
 #[inline]
+pub(crate) fn write_fixed_array<const N: usize>(into: &mut Vec<u8>, value: &[u8; N]) {
+    for &i in value.iter() {
+        into.push(i);
+    }
+}
+
+#[inline]
 fn write_i32_be(into: &mut Vec<u8>, value: i32) {
     let bytes = value.to_be_bytes();
     into.push(bytes[0]);
     into.push(bytes[1]);
     into.push(bytes[2]);
     into.push(bytes[3]);
+}
+
+fn first_two_ascii_bytes(s: &String) -> [u8; 2] {
+    let bytes = s.as_bytes();
+    if bytes.len() >= 2 {
+        bytes[0..2].try_into().unwrap()
+    } else if bytes.len() == 1 {
+        let vec = vec![bytes[0], 0u8];
+        vec.try_into().unwrap()
+    } else {
+        let vec = vec![0u8, 0u8];
+        vec.try_into().unwrap()
+    }
+}
+
+/// Writes Multi Localized Unicode
+#[inline]
+fn write_mluc(into: &mut Vec<u8>, strings: &[LocalizableString]) -> usize {
+    assert!(!strings.is_empty());
+    let start = into.len();
+    let tag_def: u32 = TagTypeDefinition::MultiLocalizedUnicode.into();
+    write_u32_be(into, tag_def);
+    write_u32_be(into, 0);
+    let number_of_records = strings.len();
+    write_u32_be(into, number_of_records as u32);
+    write_u32_be(into, 12); // Record size, must be 12
+    let lang = first_two_ascii_bytes(&strings[0].language);
+    write_fixed_array(into, &lang);
+    let country = first_two_ascii_bytes(&strings[0].country);
+    write_fixed_array(into, &country);
+    let first_string_len = strings[0].value.len() * 2;
+    write_u32_be(into, first_string_len as u32);
+    let mut first_string_offset = 16 + 12 * strings.len();
+    write_u32_be(into, first_string_offset as u32);
+    first_string_offset += first_string_len;
+    for record in strings.iter().skip(1) {
+        let lang = first_two_ascii_bytes(&record.language);
+        write_fixed_array(into, &lang);
+        let country = first_two_ascii_bytes(&record.country);
+        write_fixed_array(into, &country);
+        let first_string_len = record.value.len() * 2;
+        write_u32_be(into, first_string_len as u32);
+        write_u32_be(into, first_string_offset as u32);
+        first_string_offset += first_string_len;
+    }
+    for record in strings.iter() {
+        for chunk in record.value.encode_utf16() {
+            write_u16_be(into, chunk);
+        }
+    }
+    let end = into.len();
+    end - start
+}
+
+#[inline]
+fn write_string_value(into: &mut Vec<u8>, text: &ProfileText) -> usize {
+    match text {
+        ProfileText::PlainString(text) => {
+            let vec = vec![LocalizableString {
+                language: "en".to_string(),
+                country: "US".to_string(),
+                value: text.clone(),
+            }];
+            write_mluc(into, &vec)
+        }
+        ProfileText::Localizable(localizable) => {
+            if localizable.is_empty() {
+                return 0;
+            }
+            write_mluc(into, &localizable)
+        }
+        ProfileText::Description(description) => {
+            let vec = vec![LocalizableString {
+                language: "en".to_string(),
+                country: "US".to_string(),
+                value: description.unicode_string.clone(),
+            }];
+            write_mluc(into, &vec)
+        }
+    }
 }
 
 #[inline]
@@ -414,6 +501,21 @@ impl ColorProfile {
         if self.luminance.is_some() {
             tags_count += 1;
         }
+        if let Some(description) = &self.description {
+            if description.has_values() {
+                tags_count += 1;
+            }
+        }
+        if let Some(copyright) = &self.copyright {
+            if copyright.has_values() {
+                tags_count += 1;
+            }
+        }
+        if let Some(vd) = &self.viewing_conditions_description {
+            if vd.has_values() {
+                tags_count += 1;
+            }
+        }
         tags_count
     }
 
@@ -567,7 +669,36 @@ impl ColorProfile {
         if let Some(luminance) = self.luminance {
             write_tag_entry(&mut tags, Tag::Luminance, base_offset, 20);
             write_xyz_tag_value(&mut entries, luminance);
-            // base_offset += 20;
+            base_offset += 20;
+        }
+
+        if let Some(description) = &self.description {
+            if description.has_values() {
+                let entry_size = write_string_value(&mut entries, description);
+                write_tag_entry(&mut tags, Tag::ProfileDescription, base_offset, entry_size);
+                base_offset += entry_size;
+            }
+        }
+
+        if let Some(copyright) = &self.copyright {
+            if copyright.has_values() {
+                let entry_size = write_string_value(&mut entries, copyright);
+                write_tag_entry(&mut tags, Tag::Copyright, base_offset, entry_size);
+                base_offset += entry_size;
+            }
+        }
+
+        if let Some(vd) = &self.viewing_conditions_description {
+            if vd.has_values() {
+                let entry_size = write_string_value(&mut entries, vd);
+                write_tag_entry(
+                    &mut tags,
+                    Tag::ViewingConditionsDescription,
+                    base_offset,
+                    entry_size,
+                );
+                base_offset += entry_size;
+            }
         }
 
         tags.extend(entries);
@@ -606,7 +737,13 @@ impl ColorProfile {
 impl FloatToFixedU8Fixed8 for f32 {
     #[inline]
     fn to_u8_fixed8(self) -> u16 {
-        (256f32 * self + 0.5).floor().clamp(0f32, u16::MAX as f32) as u16
+        if self > 255.0 + 255.0 / 256f32 {
+            0xffffu16
+        } else if self < 0.0 {
+            0u16
+        } else {
+            (self * 256.0 + 0.5).floor() as u16
+        }
     }
 }
 

@@ -627,8 +627,10 @@ pub struct CicpProfile {
 
 #[derive(Debug, Clone)]
 pub struct LocalizableString {
-    pub language: u16,
-    pub country: u16,
+    /// an ISO 639-1 value is expected, any text more than 2 symbols will be truncated
+    pub language: String,
+    /// an ISO 3166-1 value is expected, any text more than 2 symbols will be truncated
+    pub country: String,
     pub value: String,
 }
 
@@ -646,6 +648,16 @@ pub enum ProfileText {
     PlainString(String),
     Localizable(Vec<LocalizableString>),
     Description(DescriptionString),
+}
+
+impl ProfileText {
+    pub(crate) fn has_values(&self) -> bool {
+        match self {
+            ProfileText::PlainString(_) => true,
+            ProfileText::Localizable(lc) => lc.len() > 0,
+            ProfileText::Description(_) => true,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -1073,8 +1085,8 @@ impl ColorProfile {
             //     return Err(CmsError::InvalidIcc);
             // }
             let records_count = u32::from_be_bytes([tag[8], tag[9], tag[10], tag[11]]) as usize;
-            let primary_language_code = u16::from_be_bytes([tag[16], tag[17]]);
-            let primary_country_code = u16::from_be_bytes([tag[18], tag[19]]);
+            let primary_language_code = String::from_utf8_lossy(&[tag[16], tag[17]]).to_string();
+            let primary_country_code = String::from_utf8_lossy(&[tag[18], tag[19]]).to_string();
             let first_string_record_length =
                 u32::from_be_bytes([tag[20], tag[21], tag[22], tag[23]]) as usize;
             let first_record_offset =
@@ -1095,16 +1107,20 @@ impl ColorProfile {
                 value: string_record,
             }];
 
-            for record in 1..records_count.saturating_sub(1) {
+            for record in 1..records_count {
                 // Localizable header must be at least 12 bytes
-                let localizable_header_offset = 28 + 12 * (record - 1) - 1;
+                let localizable_header_offset = if record == 1 {
+                    28
+                } else {
+                    28 + 12 * (record - 1)
+                };
                 if tag.len() < localizable_header_offset + 12 {
                     return Err(CmsError::InvalidProfile);
                 }
                 let choked = &tag[localizable_header_offset..localizable_header_offset + 12];
 
-                let language_code = u16::from_be_bytes([choked[0], choked[1]]);
-                let country_code = u16::from_be_bytes([choked[2], choked[3]]);
+                let language_code = String::from_utf8_lossy(&[choked[0], choked[1]]).to_string();
+                let country_code = String::from_utf8_lossy(&[choked[2], choked[3]]).to_string();
                 let record_length =
                     u32::from_be_bytes([choked[4], choked[5], choked[6], choked[7]]) as usize;
                 let string_offset =

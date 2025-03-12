@@ -27,7 +27,6 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::trc::{Trc, curve_from_gamma};
-use crate::writer::FloatToFixedU8Fixed8;
 use crate::{
     Chromacity, ChromacityTriple, ColorPrimaries, ColorProfile, DataColorSpace, ProfileClass,
     RenderingIntent, XyY,
@@ -114,7 +113,7 @@ impl ColorProfile {
         let mut profile = ColorProfile::default();
         profile.update_rgb_colorimetry(WHITE_POINT, triplet);
 
-        let curve = Trc::Lut(vec![2.19921875f32.to_u8_fixed8()]);
+        let curve = curve_from_gamma(2.19921875f32);
         profile.red_trc = Some(curve.clone());
         profile.blue_trc = Some(curve.clone());
         profile.green_trc = Some(curve);
@@ -158,7 +157,7 @@ impl ColorProfile {
         let mut profile = ColorProfile::default();
         profile.update_rgb_colorimetry(WHITE_POINT, triplet);
 
-        let curve = Trc::Lut(vec![2.6f32.to_u8_fixed8()]);
+        let curve = curve_from_gamma(2.6f32);
         profile.red_trc = Some(curve.clone());
         profile.blue_trc = Some(curve.clone());
         profile.green_trc = Some(curve);
@@ -182,7 +181,7 @@ impl ColorProfile {
         let mut profile = ColorProfile::default();
         profile.update_rgb_colorimetry(WHITE_POINT, triplet);
 
-        let curve = Trc::Lut(vec![1.8f32.to_u8_fixed8()]);
+        let curve = curve_from_gamma(1.8f32);
         profile.red_trc = Some(curve.clone());
         profile.blue_trc = Some(curve.clone());
         profile.green_trc = Some(curve);
@@ -198,9 +197,9 @@ impl ColorProfile {
     /// Creates new Bt.2020 profile
     pub fn new_bt2020() -> ColorProfile {
         let primaries = ChromacityTriple::try_from(ColorPrimaries::Bt2020).unwrap();
-        let white_point = white_point_srgb();
+        const WHITE_POINT: XyY = white_point_srgb();
         let mut profile = ColorProfile::default();
-        profile.update_rgb_colorimetry(white_point, primaries);
+        profile.update_rgb_colorimetry(WHITE_POINT, primaries);
 
         let curve = Trc::Parametric(vec![2.4, 1. / 1.055, 0.055 / 1.055, 1. / 12.92, 0.04045]);
         profile.red_trc = Some(curve.clone());
