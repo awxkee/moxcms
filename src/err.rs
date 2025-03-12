@@ -51,6 +51,7 @@ pub enum CmsError {
     UnknownTagTypeDefinition(u32),
     UnsupportedLutRenderingIntent(RenderingIntent),
     InvalidAtoBLut,
+    OverflowingError,
 }
 
 impl Display for CmsError {
@@ -92,6 +93,9 @@ impl Display for CmsError {
                 intent
             )),
             CmsError::InvalidAtoBLut => f.write_str("Invalid A to B Lut"),
+            CmsError::OverflowingError => {
+                f.write_str("Overflowing was happen, that is not allowed")
+            }
         }
     }
 }

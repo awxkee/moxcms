@@ -704,7 +704,7 @@ where
                 Layout::Rgba => Box::new(TransformLut3x3::<
                     T,
                     { Layout::Rgba as u8 },
-                    { Layout::Rgb as u8 },
+                    { Layout::Rgba as u8 },
                     GRID_SIZE,
                     BIT_DEPTH,
                 > {

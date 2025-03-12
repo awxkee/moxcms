@@ -32,7 +32,7 @@ use crate::conversions::{
 };
 use crate::err::CmsError;
 use crate::profile::LutDataType;
-use crate::{ColorProfile, DataColorSpace, LutWarehouse, RenderingIntent, Vector3f};
+use crate::{ColorProfile, DataColorSpace, LutWarehouse, RenderingIntent, Vector3f, Xyz};
 use num_traits::AsPrimitive;
 
 /// Transformation executor itself
@@ -151,6 +151,15 @@ impl From<u8> for Layout {
 }
 
 impl ColorProfile {
+    fn has_full_colors_triplet(&self) -> bool {
+        self.red_colorant != Xyz::default()
+            && self.green_colorant != Xyz::default()
+            && self.blue_colorant != Xyz::default()
+            && self.red_trc.is_some()
+            && self.green_trc.is_some()
+            && self.blue_trc.is_some()
+    }
+
     /// Creates transform between source and destination profile
     /// Use for 16 bit-depth data bit-depth only.
     pub fn create_transform_16bit(
@@ -207,6 +216,8 @@ impl ColorProfile {
             && dst_pr.pcs == DataColorSpace::Xyz
             && dst_pr.color_space == DataColorSpace::Rgb
             && self.pcs == DataColorSpace::Xyz
+            && self.has_full_colors_triplet()
+            && dst_pr.has_full_colors_triplet()
         {
             if src_layout == Layout::Gray || src_layout == Layout::GrayAlpha {
                 return Err(CmsError::InvalidLayout);
