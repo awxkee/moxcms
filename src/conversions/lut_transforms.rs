@@ -496,6 +496,11 @@ use crate::conversions::transform_lut3_to_3::TransformLut3x3;
 #[cfg(not(all(target_arch = "aarch64", target_feature = "neon")))]
 make_transform_3x3_fn!(make_transformer_3x3, TransformLut3x3);
 
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+use crate::conversions::avx::TransformLut3x3AvxFma;
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+make_transform_3x3_fn!(make_transformer_3x3_avx_fma, TransformLut3x3AvxFma);
+
 pub(crate) fn make_lut_transform<
     T: Copy + Default + AsPrimitive<f32> + Send + Sync + CompressLut + AsPrimitive<usize>,
     const BIT_DEPTH: usize,
@@ -741,6 +746,15 @@ where
             }
         } else {
             prepare_inverse_lut_rgb_xyz::<T, BIT_DEPTH, GAMMA_LUT>(&dest, &mut lut)?;
+        }
+
+        #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+        {
+            if std::arch::is_x86_feature_detected!("avx2") && std::is_x86_feature_detected!("fma") {
+                return Ok(make_transformer_3x3_avx_fma::<T, GRID_SIZE, BIT_DEPTH>(
+                    src_layout, dst_layout, lut,
+                ));
+            }
         }
 
         return Ok(make_transformer_3x3::<T, GRID_SIZE, BIT_DEPTH>(
