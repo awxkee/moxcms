@@ -26,14 +26,21 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-#![cfg(not(all(target_arch = "aarch64", target_feature = "neon")))]
 use crate::conversions::CompressLut;
+use crate::conversions::sse::TetrahedralSse;
 use crate::conversions::tetrahedral::TetrhedralInterpolation;
 use crate::{CmsError, Layout, TransformExecutor};
 use num_traits::AsPrimitive;
+#[cfg(target_arch = "x86")]
+use std::arch::x86::*;
+#[cfg(target_arch = "x86_64")]
+use std::arch::x86_64::*;
 use std::marker::PhantomData;
 
-pub(crate) struct TransformLut3x3<
+#[repr(align(16), C)]
+pub(crate) struct SseAlignedU32(pub(crate) [u32; 4]);
+
+pub(crate) struct TransformLut3x3Sse<
     T,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
@@ -50,25 +57,24 @@ impl<
     const DST_LAYOUT: u8,
     const GRID_SIZE: usize,
     const BIT_DEPTH: usize,
-> TransformLut3x3<T, SRC_LAYOUT, DST_LAYOUT, GRID_SIZE, BIT_DEPTH>
+> TransformLut3x3Sse<T, SRC_LAYOUT, DST_LAYOUT, GRID_SIZE, BIT_DEPTH>
 where
     f32: AsPrimitive<T>,
     u32: AsPrimitive<T>,
 {
-    #[inline(always)]
-    fn transform_chunk<'b, Tetrahedral: TetrhedralInterpolation<'b, GRID_SIZE>>(
-        &'b self,
-        src: &[T],
-        dst: &mut [T],
-    ) {
+    #[allow(unused_unsafe)]
+    #[target_feature(enable = "sse4.1")]
+    fn transform_chunk(&self, src: &[T], dst: &mut [T]) {
         let src_cn = Layout::from(SRC_LAYOUT);
         let src_channels = src_cn.channels();
 
         let dst_cn = Layout::from(DST_LAYOUT);
         let dst_channels = dst_cn.channels();
 
-        let value_scale = ((1 << BIT_DEPTH) - 1) as f32;
+        let value_scale = unsafe { _mm_set1_ps(((1 << BIT_DEPTH) - 1) as f32) };
         let max_value = ((1u32 << BIT_DEPTH) - 1).as_();
+
+        let mut temporary0 = SseAlignedU32([0; 4]);
 
         for (src, dst) in src
             .chunks_exact(src_channels)
@@ -84,12 +90,17 @@ where
                 max_value
             };
 
-            let tetrahedral = Tetrahedral::new(&self.lut);
-            let v = tetrahedral.inter3(x, y, z);
-            let r = v * value_scale + 0.5f32;
-            dst[dst_cn.r_i()] = r.v[0].min(value_scale).max(0f32).as_();
-            dst[dst_cn.g_i()] = r.v[1].min(value_scale).max(0f32).as_();
-            dst[dst_cn.b_i()] = r.v[2].min(value_scale).max(0f32).as_();
+            let tetrahedral = TetrahedralSse::<GRID_SIZE>::new(&self.lut);
+            let v = tetrahedral.inter3_sse(x, y, z);
+            unsafe {
+                let mut r = _mm_add_ps(_mm_mul_ps(v.v, value_scale), _mm_set1_ps(0.5f32));
+                r = _mm_max_ps(r, _mm_setzero_ps());
+                r = _mm_min_ps(r, value_scale);
+                _mm_store_si128(temporary0.0.as_mut_ptr() as *mut _, _mm_cvtps_epi32(r));
+            }
+            dst[dst_cn.r_i()] = temporary0.0[0].as_();
+            dst[dst_cn.g_i()] = temporary0.0[1].as_();
+            dst[dst_cn.b_i()] = temporary0.0[2].as_();
             if dst_channels == 4 {
                 dst[dst_cn.a_i()] = a;
             }
@@ -103,7 +114,7 @@ impl<
     const DST_LAYOUT: u8,
     const GRID_SIZE: usize,
     const BIT_DEPTH: usize,
-> TransformExecutor<T> for TransformLut3x3<T, SRC_LAYOUT, DST_LAYOUT, GRID_SIZE, BIT_DEPTH>
+> TransformExecutor<T> for TransformLut3x3Sse<T, SRC_LAYOUT, DST_LAYOUT, GRID_SIZE, BIT_DEPTH>
 where
     f32: AsPrimitive<T>,
     u32: AsPrimitive<T>,
@@ -126,9 +137,9 @@ where
             return Err(CmsError::LaneSizeMismatch);
         }
 
-        use crate::conversions::tetrahedral::Tetrahedral;
-        self.transform_chunk::<Tetrahedral<GRID_SIZE>>(src, dst);
-
+        unsafe {
+            self.transform_chunk(src, dst);
+        }
         Ok(())
     }
 }

@@ -501,6 +501,11 @@ use crate::conversions::avx::TransformLut3x3AvxFma;
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 make_transform_3x3_fn!(make_transformer_3x3_avx_fma, TransformLut3x3AvxFma);
 
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+use crate::conversions::sse::TransformLut3x3Sse;
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+make_transform_3x3_fn!(make_transformer_3x3_sse41, TransformLut3x3Sse);
+
 pub(crate) fn make_lut_transform<
     T: Copy + Default + AsPrimitive<f32> + Send + Sync + CompressLut + AsPrimitive<usize>,
     const BIT_DEPTH: usize,
@@ -752,6 +757,10 @@ where
         {
             if std::arch::is_x86_feature_detected!("avx2") && std::is_x86_feature_detected!("fma") {
                 return Ok(make_transformer_3x3_avx_fma::<T, GRID_SIZE, BIT_DEPTH>(
+                    src_layout, dst_layout, lut,
+                ));
+            } else if std::arch::is_x86_feature_detected!("sse4.1") {
+                return Ok(make_transformer_3x3_sse41::<T, GRID_SIZE, BIT_DEPTH>(
                     src_layout, dst_layout, lut,
                 ));
             }
