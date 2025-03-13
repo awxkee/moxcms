@@ -102,28 +102,16 @@ where
                 .chunks_exact(src_channels * 2)
                 .zip(dst.chunks_exact_mut(dst_channels * 2))
             {
-                let r0 =
-                    vld1q_dup_f32(self.profile.r_linear.get_unchecked(src[src_cn.r_i()].as_()));
-                let g0 =
-                    vld1q_dup_f32(self.profile.g_linear.get_unchecked(src[src_cn.g_i()].as_()));
-                let b0 =
-                    vld1q_dup_f32(self.profile.b_linear.get_unchecked(src[src_cn.b_i()].as_()));
+                let r0 = vld1q_dup_f32(&self.profile.r_linear[src[src_cn.r_i()].as_()]);
+                let g0 = vld1q_dup_f32(&self.profile.g_linear[src[src_cn.g_i()].as_()]);
+                let b0 = vld1q_dup_f32(&self.profile.b_linear[src[src_cn.b_i()].as_()]);
 
-                let r1 = vld1q_dup_f32(
-                    self.profile
-                        .r_linear
-                        .get_unchecked(src[src_cn.r_i() + src_channels].as_()),
-                );
-                let g1 = vld1q_dup_f32(
-                    self.profile
-                        .g_linear
-                        .get_unchecked(src[src_cn.g_i() + src_channels].as_()),
-                );
-                let b1 = vld1q_dup_f32(
-                    self.profile
-                        .b_linear
-                        .get_unchecked(src[src_cn.b_i() + src_channels].as_()),
-                );
+                let r1 =
+                    vld1q_dup_f32(&self.profile.r_linear[src[src_cn.r_i() + src_channels].as_()]);
+                let g1 =
+                    vld1q_dup_f32(&self.profile.g_linear[src[src_cn.g_i() + src_channels].as_()]);
+                let b1 =
+                    vld1q_dup_f32(&self.profile.b_linear[src[src_cn.b_i() + src_channels].as_()]);
 
                 let a0 = if src_channels == 4 {
                     src[src_cn.a_i()]
@@ -181,9 +169,9 @@ where
                 .chunks_exact(src_channels)
                 .zip(dst.chunks_exact_mut(dst_channels))
             {
-                let r = vld1q_dup_f32(self.profile.r_linear.get_unchecked(src[src_cn.r_i()].as_()));
-                let g = vld1q_dup_f32(self.profile.g_linear.get_unchecked(src[src_cn.g_i()].as_()));
-                let b = vld1q_dup_f32(self.profile.b_linear.get_unchecked(src[src_cn.b_i()].as_()));
+                let r = vld1q_dup_f32(&self.profile.r_linear[src[src_cn.r_i()].as_()]);
+                let g = vld1q_dup_f32(&self.profile.g_linear[src[src_cn.g_i()].as_()]);
+                let b = vld1q_dup_f32(&self.profile.b_linear[src[src_cn.b_i()].as_()]);
                 let a = if src_channels == 4 {
                     src[src_cn.a_i()]
                 } else {

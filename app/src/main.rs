@@ -55,7 +55,7 @@ fn main() {
     let srgb_perceptual_icc = fs::read("./assets/srgb_perceptual.icc").unwrap();
     let srgb_perceptual_profile = ColorProfile::new_from_slice(&srgb_perceptual_icc).unwrap();
 
-    let f_str = "./assets/pq_test.jpg";
+    let f_str = "./assets/bench.jpg";
     let file = File::open(f_str).expect("Failed to open file");
 
     let img = image::ImageReader::open(f_str).unwrap().decode().unwrap();
