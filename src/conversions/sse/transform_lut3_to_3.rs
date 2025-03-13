@@ -96,7 +96,7 @@ where
                 let mut r = _mm_add_ps(_mm_mul_ps(v.v, value_scale), _mm_set1_ps(0.5f32));
                 r = _mm_max_ps(r, _mm_setzero_ps());
                 r = _mm_min_ps(r, value_scale);
-                _mm_store_si128(temporary0.0.as_mut_ptr() as *mut _, _mm_cvtps_epi32(r));
+                _mm_store_si128(temporary0.0.as_mut_ptr() as *mut _, _mm_cvttps_epi32(r));
             }
             dst[dst_cn.r_i()] = temporary0.0[0].as_();
             dst[dst_cn.g_i()] = temporary0.0[1].as_();
