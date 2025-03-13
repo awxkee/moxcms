@@ -82,7 +82,7 @@ where
             .unwrap_or(Matrix3f::IDENTITY)
             .transpose();
         let scale = (GAMMA_LUT - 1) as f32;
-        let max_colors = (1 << BIT_DEPTH) - 1;
+        let max_colors: T = ((1 << BIT_DEPTH) - 1).as_();
 
         unsafe {
             let m0 = vld1q_f32([t.v[0][0], t.v[0][1], t.v[0][2], 0f32].as_ptr());
@@ -123,15 +123,15 @@ where
                 );
 
                 let a0 = if src_channels == 4 {
-                    f32::from_bits(src[src_cn.a_i()].as_() as u32)
+                    src[src_cn.a_i()]
                 } else {
-                    f32::from_bits(max_colors)
+                    max_colors
                 };
 
                 let a1 = if src_channels == 4 {
-                    f32::from_bits(src[src_cn.a_i() + src_channels].as_() as u32)
+                    src[src_cn.a_i() + src_channels]
                 } else {
-                    f32::from_bits(max_colors)
+                    max_colors
                 };
 
                 let v0_0 = vmulq_f32(r0, m0);
@@ -160,14 +160,14 @@ where
                 dst[dst_cn.g_i()] = self.profile.g_gamma[temporary0.0[2] as usize];
                 dst[dst_cn.b_i()] = self.profile.b_gamma[temporary0.0[4] as usize];
                 if dst_channels == 4 {
-                    dst[dst_cn.a_i()] = a0.to_bits().as_();
+                    dst[dst_cn.a_i()] = a0;
                 }
 
                 dst[dst_cn.r_i() + dst_channels] = self.profile.r_gamma[temporary1.0[0] as usize];
                 dst[dst_cn.g_i() + dst_channels] = self.profile.g_gamma[temporary1.0[2] as usize];
                 dst[dst_cn.b_i() + dst_channels] = self.profile.b_gamma[temporary1.0[4] as usize];
                 if dst_channels == 4 {
-                    dst[dst_cn.a_i() + dst_channels] = a1.to_bits().as_();
+                    dst[dst_cn.a_i() + dst_channels] = a1;
                 }
             }
 
@@ -182,9 +182,9 @@ where
                 let g = vld1q_dup_f32(self.profile.g_linear.get_unchecked(src[src_cn.g_i()].as_()));
                 let b = vld1q_dup_f32(self.profile.b_linear.get_unchecked(src[src_cn.b_i()].as_()));
                 let a = if src_channels == 4 {
-                    f32::from_bits(src[src_cn.a_i()].as_() as u32)
+                    src[src_cn.a_i()]
                 } else {
-                    f32::from_bits(max_colors)
+                    max_colors
                 };
 
                 let v0 = vmulq_f32(r, m0);
@@ -203,7 +203,7 @@ where
                 dst[dst_cn.g_i()] = self.profile.g_gamma[temporary0.0[2] as usize];
                 dst[dst_cn.b_i()] = self.profile.b_gamma[temporary0.0[4] as usize];
                 if dst_channels == 4 {
-                    dst[dst_cn.a_i()] = a.to_bits().as_();
+                    dst[dst_cn.a_i()] = a;
                 }
             }
         }

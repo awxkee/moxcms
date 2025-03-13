@@ -387,7 +387,7 @@ impl ColorProfile {
         profile
     }
 
-    /// Creates new Bt.2020 PQ profile
+    /// Creates new Bt.2020 HLG profile
     pub fn new_bt2020_hlg() -> ColorProfile {
         let primaries = ChromacityTriple::try_from(ColorPrimaries::Bt2020).unwrap();
         const WHITE_POINT: XyY = white_point_srgb();
