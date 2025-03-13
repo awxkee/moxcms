@@ -59,7 +59,7 @@ Test made on the image 1997x1331 size
 | lcms2 CMYK->RGBA  |  39.71ms   |  79.40ms   |
 | qcms RGB->RGB     |   6.47ms   |   4.59ms   |
 | qcms RGBA->RGBA   |   6.83ms   |   4.99ms   |
-| qcms CMYK->RGBA   |  25.97ms   |  49.81ms   |
+| qcms CMYK->RGBA   |  25.97ms   |  61.54ms   |
 
 This project is licensed under either of
 

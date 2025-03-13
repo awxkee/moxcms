@@ -32,7 +32,10 @@ use num_traits::AsPrimitive;
 use std::arch::aarch64::*;
 
 #[repr(align(16), C)]
-struct NeonAlignedU16([u16; 8]);
+pub(crate) struct NeonAlignedU16([u16; 8]);
+
+#[repr(align(16), C)]
+pub(crate) struct NeonAlignedU32(pub(crate) [u32; 4]);
 
 pub(crate) struct TransformProfilePcsXYZRgbNeon<
     T: Clone + AsPrimitive<usize> + Default,

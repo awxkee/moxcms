@@ -108,7 +108,7 @@ fn main() {
     // t1.transform_pixels(&real_dst, &mut cmyk);
 
     let icc = decoder.icc_profile().unwrap();
-    let color_profile = ColorProfile::new_from_slice(&funny_icc).unwrap();
+    let color_profile = ColorProfile::new_from_slice(&srgb_perceptual_icc).unwrap();
     let cmyk_profile = ColorProfile::new_from_slice(&funny_icc).unwrap();
     // let color_profile = ColorProfile::new_gray_with_gamma(2.2);
     let mut dest_profile = ColorProfile::new_srgb();

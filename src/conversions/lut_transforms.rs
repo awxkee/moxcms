@@ -31,7 +31,6 @@ use crate::conversions::lut3x4::{create_lut3_samples, create_lut3_samples_norm, 
 use crate::conversions::lut4::create_lut4;
 use crate::conversions::mab::{prepare_mab_3x3, prepare_mba_3x3};
 use crate::conversions::tetrahedral::TetrhedralInterpolation;
-use crate::conversions::transform_lut3_to_3::TransformLut3x3;
 use crate::conversions::transform_lut3_to_4::TransformLut3x4;
 use crate::lab::Lab;
 use crate::math::FusedMultiplyAdd;
@@ -419,6 +418,84 @@ fn pcs_lab_v2_to_v4(profile: &ColorProfile, lut: &mut [f32]) {
     }
 }
 
+macro_rules! make_transform_3x3_fn {
+    ($method_name: ident, $exec_impl: ident) => {
+        fn $method_name<
+            T: Copy + Default + AsPrimitive<f32> + Send + Sync + CompressLut + AsPrimitive<usize>,
+            const GRID_SIZE: usize,
+            const BIT_DEPTH: usize,
+        >(
+            src_layout: Layout,
+            dst_layout: Layout,
+            lut: Vec<f32>,
+        ) -> Box<dyn TransformExecutor<T> + Send + Sync>
+        where
+            f32: AsPrimitive<T>,
+            u32: AsPrimitive<T>,
+        {
+            match src_layout {
+                Layout::Rgb => match dst_layout {
+                    Layout::Rgb => Box::new($exec_impl::<
+                        T,
+                        { Layout::Rgb as u8 },
+                        { Layout::Rgb as u8 },
+                        GRID_SIZE,
+                        BIT_DEPTH,
+                    > {
+                        lut,
+                        _phantom: PhantomData,
+                    }),
+                    Layout::Rgba => Box::new($exec_impl::<
+                        T,
+                        { Layout::Rgb as u8 },
+                        { Layout::Rgba as u8 },
+                        GRID_SIZE,
+                        BIT_DEPTH,
+                    > {
+                        lut,
+                        _phantom: PhantomData,
+                    }),
+                    _ => unimplemented!(),
+                },
+                Layout::Rgba => match dst_layout {
+                    Layout::Rgb => Box::new($exec_impl::<
+                        T,
+                        { Layout::Rgba as u8 },
+                        { Layout::Rgb as u8 },
+                        GRID_SIZE,
+                        BIT_DEPTH,
+                    > {
+                        lut,
+                        _phantom: PhantomData,
+                    }),
+                    Layout::Rgba => Box::new($exec_impl::<
+                        T,
+                        { Layout::Rgba as u8 },
+                        { Layout::Rgba as u8 },
+                        GRID_SIZE,
+                        BIT_DEPTH,
+                    > {
+                        lut,
+                        _phantom: PhantomData,
+                    }),
+                    _ => unimplemented!(),
+                },
+                _ => unimplemented!(),
+            }
+        }
+    };
+}
+
+#[cfg(all(target_arch = "aarch64", target_feature = "neon"))]
+use crate::conversions::neon::TransformLut3x3Neon;
+#[cfg(all(target_arch = "aarch64", target_feature = "neon"))]
+make_transform_3x3_fn!(make_transformer_3x3, TransformLut3x3Neon);
+
+#[cfg(not(all(target_arch = "aarch64", target_feature = "neon")))]
+use crate::conversions::transform_lut3_to_3::TransformLut3x3;
+#[cfg(not(all(target_arch = "aarch64", target_feature = "neon")))]
+make_transform_3x3_fn!(make_transformer_3x3, TransformLut3x3);
+
 pub(crate) fn make_lut_transform<
     T: Copy + Default + AsPrimitive<f32> + Send + Sync + CompressLut + AsPrimitive<usize>,
     const BIT_DEPTH: usize,
@@ -666,55 +743,9 @@ where
             prepare_inverse_lut_rgb_xyz::<T, BIT_DEPTH, GAMMA_LUT>(&dest, &mut lut)?;
         }
 
-        return Ok(match src_layout {
-            Layout::Rgb => match dst_layout {
-                Layout::Rgb => Box::new(TransformLut3x3::<
-                    T,
-                    { Layout::Rgb as u8 },
-                    { Layout::Rgb as u8 },
-                    GRID_SIZE,
-                    BIT_DEPTH,
-                > {
-                    lut,
-                    _phantom: PhantomData,
-                }),
-                Layout::Rgba => Box::new(TransformLut3x3::<
-                    T,
-                    { Layout::Rgb as u8 },
-                    { Layout::Rgba as u8 },
-                    GRID_SIZE,
-                    BIT_DEPTH,
-                > {
-                    lut,
-                    _phantom: PhantomData,
-                }),
-                _ => unimplemented!(),
-            },
-            Layout::Rgba => match dst_layout {
-                Layout::Rgb => Box::new(TransformLut3x3::<
-                    T,
-                    { Layout::Rgba as u8 },
-                    { Layout::Rgb as u8 },
-                    GRID_SIZE,
-                    BIT_DEPTH,
-                > {
-                    lut,
-                    _phantom: PhantomData,
-                }),
-                Layout::Rgba => Box::new(TransformLut3x3::<
-                    T,
-                    { Layout::Rgba as u8 },
-                    { Layout::Rgba as u8 },
-                    GRID_SIZE,
-                    BIT_DEPTH,
-                > {
-                    lut,
-                    _phantom: PhantomData,
-                }),
-                _ => unimplemented!(),
-            },
-            _ => unimplemented!(),
-        });
+        return Ok(make_transformer_3x3::<T, GRID_SIZE, BIT_DEPTH>(
+            src_layout, dst_layout, lut,
+        ));
     }
 
     Err(CmsError::UnsupportedProfileConnection)
