@@ -28,6 +28,12 @@ fuzz_target!(|data: (u8, u8, u16, u8, u8,)| {
         (data.2 >> 8) as u8,
         dst_layout,
     );
+    fuzz_lut_rgb_8_bit(
+        data.0 as usize,
+        data.1 as usize,
+        (data.2 >> 8) as u8,
+        dst_layout,
+    );
     fuzz_16_bit(
         data.0 as usize,
         data.1 as usize,
@@ -94,6 +100,32 @@ fn fuzz_cmyk_8_bit(width: usize, height: usize, px: u8, dst_layout: Layout) {
     let src_image_rgb = vec![px; width * height * 4];
     let mut dst_image_rgb = vec![px; width * height * dst_layout.channels()];
     let dst_profile = ColorProfile::new_srgb();
+    let transform = cmyk_profile
+        .create_transform_8bit(
+            Layout::Rgba,
+            &dst_profile,
+            dst_layout,
+            TransformOptions {
+                rendering_intent: RenderingIntent::Perceptual,
+            },
+        )
+        .unwrap();
+    transform
+        .transform(&src_image_rgb, &mut dst_image_rgb)
+        .unwrap();
+}
+
+fn fuzz_lut_rgb_8_bit(width: usize, height: usize, px: u8, dst_layout: Layout) {
+    if width == 0 || height == 0 {
+        return;
+    }
+
+    let cmyk_icc = fs::read("./assets/srgb_perceptual.icc").unwrap();
+    let cmyk_profile = ColorProfile::new_from_slice(&cmyk_icc).unwrap();
+
+    let src_image_rgb = vec![px; width * height * 4];
+    let mut dst_image_rgb = vec![px; width * height * dst_layout.channels()];
+    let dst_profile = ColorProfile::new_display_p3();
     let transform = cmyk_profile
         .create_transform_8bit(
             Layout::Rgba,

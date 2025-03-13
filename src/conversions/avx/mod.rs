@@ -29,7 +29,9 @@
 mod cmyk;
 mod stages;
 mod tetrahedral;
+mod transform_lut3_to_3;
 
 pub(crate) use cmyk::Vector3fLerpCmykAvx;
 pub(crate) use stages::TransformProfilePcsXYZRgbAvx;
 pub(crate) use tetrahedral::TetrahedralAvxFma;
+pub(crate) use transform_lut3_to_3::TransformLut3x3AvxFma;

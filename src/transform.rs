@@ -150,6 +150,18 @@ impl From<u8> for Layout {
     }
 }
 
+impl Layout {
+    pub const fn resolve(value: u8) -> Self {
+        match value {
+            0 => Layout::Rgb,
+            1 => Layout::Rgba,
+            2 => Layout::Gray,
+            3 => Layout::GrayAlpha,
+            _ => unimplemented!(),
+        }
+    }
+}
+
 impl ColorProfile {
     fn has_full_colors_triplet(&self) -> bool {
         self.red_colorant != Xyz::default()

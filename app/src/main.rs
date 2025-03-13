@@ -38,7 +38,7 @@ use zune_jpeg::zune_core::colorspace::ColorSpace;
 use zune_jpeg::zune_core::options::DecoderOptions;
 
 fn main() {
-    let funny_icc = fs::read("./assets/alltags.icc").unwrap();
+    let funny_icc = fs::read("./assets/bt_2020.icc").unwrap();
     let funny_profile = ColorProfile::new_from_slice(&funny_icc).unwrap();
 
     let encoded = funny_profile.encode().unwrap();
@@ -47,7 +47,7 @@ fn main() {
 
     // println!("{:?}", decoded);
 
-    let decoded = ColorProfile::new_bt2020_hlg();
+    let decoded = ColorProfile::new_bt2020_pq();
     let encoded = decoded.encode().unwrap();
 
     fs::write("./bt2020.icc", encoded).unwrap();
@@ -108,7 +108,7 @@ fn main() {
     // t1.transform_pixels(&real_dst, &mut cmyk);
 
     let icc = decoder.icc_profile().unwrap();
-    let color_profile = ColorProfile::new_from_slice(&funny_icc).unwrap();
+    let color_profile = ColorProfile::new_from_slice(&srgb_perceptual_icc).unwrap();
     let cmyk_profile = ColorProfile::new_from_slice(&funny_icc).unwrap();
     // let color_profile = ColorProfile::new_gray_with_gamma(2.2);
     let mut dest_profile = ColorProfile::new_srgb();

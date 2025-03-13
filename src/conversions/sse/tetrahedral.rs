@@ -49,8 +49,9 @@ struct TetrahedralSseFetchVector3f<'a, const GRID_SIZE: usize> {
 }
 
 #[derive(Copy, Clone)]
-struct SseVector {
-    v: __m128,
+#[repr(transparent)]
+pub(crate) struct SseVector {
+    pub(crate) v: __m128,
 }
 
 impl From<f32> for SseVector {
@@ -175,6 +176,18 @@ impl<const GRID_SIZE: usize> TetrahedralSse<'_, GRID_SIZE> {
         let s0 = c0.mla(c1, SseVector::from(rx));
         let s1 = s0.mla(c2, SseVector::from(ry));
         s1.mla(c3, SseVector::from(rz))
+    }
+}
+
+impl<const GRID_SIZE: usize> TetrahedralSse<'_, GRID_SIZE> {
+    #[inline(always)]
+    pub(crate) fn inter3_sse(&self, in_r: u8, in_g: u8, in_b: u8) -> SseVector {
+        self.interpolate(
+            in_r,
+            in_g,
+            in_b,
+            TetrahedralSseFetchVector3f::<GRID_SIZE> { cube: self.cube },
+        )
     }
 }
 

@@ -1925,7 +1925,8 @@ impl ColorProfile {
         }
     }
 
-    pub(crate) fn update_rgb_colorimetry(
+    /// Updates RGB triple colorimetry from 3 [Chromacity] and white point
+    pub fn update_rgb_colorimetry(
         &mut self,
         white_point: XyY,
         primaries: ChromacityTriple,
@@ -1937,7 +1938,8 @@ impl ColorProfile {
         self.update_rgb_colorimetry_triplet(white_point, red_xyz, green_xyz, blue_xyz)
     }
 
-    pub(crate) fn update_rgb_colorimetry_triplet(
+    /// Updates RGB triple colorimetry from 3 [Xyz] and white point
+    pub fn update_rgb_colorimetry_triplet(
         &mut self,
         white_point: XyY,
         red_xyz: Xyz,
@@ -1973,6 +1975,7 @@ impl ColorProfile {
         true
     }
 
+    /// Updates RGB triple colorimetry from CICP
     pub fn update_rgb_colorimetry_from_cicp(&mut self, cicp: CicpProfile) -> bool {
         self.cicp = Some(cicp);
         if !cicp.color_primaries.has_chromacity()

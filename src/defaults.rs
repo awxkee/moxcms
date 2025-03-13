@@ -27,10 +27,10 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::math::copysign;
-use crate::trc::{Trc, build_trc_table, curve_from_gamma};
+use crate::trc::{Trc, curve_from_gamma};
 use crate::{
     Chromacity, ChromacityTriple, ColorPrimaries, ColorProfile, DataColorSpace, LocalizableString,
-    ProfileClass, ProfileText, RenderingIntent, XyY, exp, pow,
+    ProfileClass, ProfileText, RenderingIntent, XyY, Xyz, exp, floor, pow,
 };
 /* from lcms: cmsWhitePointFromTemp */
 /* tempK must be >= 4000. and <= 25000.
@@ -73,12 +73,16 @@ const fn white_point_from_temperature(temp_k: i32) -> XyY {
     white_point
 }
 
-pub(crate) const fn white_point_srgb() -> XyY {
+pub const fn white_point_srgb() -> XyY {
     white_point_from_temperature(6504)
 }
 
-pub(crate) const fn white_point_d50() -> XyY {
+pub const fn white_point_d50() -> XyY {
     white_point_from_temperature(5003)
+}
+
+pub const fn white_point_d60() -> XyY {
+    white_point_from_temperature(6000)
 }
 
 // https://www.itu.int/dms_pubrec/itu-r/rec/bt/R-REC-BT.2100-2-201807-I!!PDF-F.pdf
@@ -105,6 +109,50 @@ const fn pq_curve(x: f64) -> f64 {
     copysign(res, sign)
 }
 
+pub(crate) const fn build_trc_table_pq() -> [u16; 4096] {
+    let mut table = [0u16; 4096];
+
+    const NUM_ENTRIES: usize = 4096;
+    let mut i = 0usize;
+    while i < NUM_ENTRIES {
+        let x: f64 = i as f64 / (NUM_ENTRIES - 1) as f64;
+        let y: f64 = pq_curve(x);
+        let mut output: f64;
+        output = y * 65535.0 + 0.5;
+        if output > 65535.0 {
+            output = 65535.0
+        }
+        if output < 0.0 {
+            output = 0.0
+        }
+        table[i] = floor(output) as u16;
+        i += 1;
+    }
+    table
+}
+
+pub(crate) const fn build_trc_table_hlg() -> [u16; 4096] {
+    let mut table = [0u16; 4096];
+
+    const NUM_ENTRIES: usize = 4096;
+    let mut i = 0usize;
+    while i < NUM_ENTRIES {
+        let x: f64 = i as f64 / (NUM_ENTRIES - 1) as f64;
+        let y: f64 = hlg_curve(x);
+        let mut output: f64;
+        output = y * 65535.0 + 0.5;
+        if output > 65535.0 {
+            output = 65535.0
+        }
+        if output < 0.0 {
+            output = 0.0
+        }
+        table[i] = floor(output) as u16;
+        i += 1;
+    }
+    table
+}
+
 // https://www.itu.int/dms_pubrec/itu-r/rec/bt/R-REC-BT.2100-2-201807-I!!PDF-F.pdf
 // Hybrid Log-Gamma
 const fn hlg_curve(x: f64) -> f64 {
@@ -129,6 +177,11 @@ const fn hlg_curve(x: f64) -> f64 {
 
     copysign(res, sign)
 }
+
+/// Perceptual Quantizer Lookup table
+pub const PQ_LUT_TABLE: [u16; 4096] = build_trc_table_pq();
+/// Hybrid Log Gamma Lookup table
+pub const HLG_LUT_TABLE: [u16; 4096] = build_trc_table_hlg();
 
 impl ColorProfile {
     /// Creates new sRGB profile
@@ -232,8 +285,7 @@ impl ColorProfile {
         let mut profile = ColorProfile::default();
         profile.update_rgb_colorimetry(WHITE_POINT, primaries);
 
-        let table = build_trc_table(4096, pq_curve);
-        let curve = Trc::Lut(table);
+        let curve = Trc::Lut(PQ_LUT_TABLE.to_vec());
 
         profile.red_trc = Some(curve.clone());
         profile.blue_trc = Some(curve.clone());
@@ -362,8 +414,7 @@ impl ColorProfile {
         let mut profile = ColorProfile::default();
         profile.update_rgb_colorimetry(WHITE_POINT, primaries);
 
-        let table = build_trc_table(4096, pq_curve);
-        let curve = Trc::Lut(table);
+        let curve = Trc::Lut(PQ_LUT_TABLE.to_vec());
 
         profile.red_trc = Some(curve.clone());
         profile.blue_trc = Some(curve.clone());
@@ -387,15 +438,14 @@ impl ColorProfile {
         profile
     }
 
-    /// Creates new Bt.2020 PQ profile
+    /// Creates new Bt.2020 HLG profile
     pub fn new_bt2020_hlg() -> ColorProfile {
         let primaries = ChromacityTriple::try_from(ColorPrimaries::Bt2020).unwrap();
         const WHITE_POINT: XyY = white_point_srgb();
         let mut profile = ColorProfile::default();
         profile.update_rgb_colorimetry(WHITE_POINT, primaries);
 
-        let table = build_trc_table(4096, hlg_curve);
-        let curve = Trc::Lut(table);
+        let curve = Trc::Lut(HLG_LUT_TABLE.to_vec());
 
         profile.red_trc = Some(curve.clone());
         profile.blue_trc = Some(curve.clone());
@@ -435,5 +485,75 @@ impl ColorProfile {
             )])),
             ..Default::default()
         }
+    }
+
+    /// Creates new ACES 2065-1/AP0 profile
+    pub fn new_aces_ap0_linear() -> ColorProfile {
+        let triplet = ChromacityTriple {
+            red: Chromacity::new(0.7347, 0.2653),
+            green: Chromacity::new(0.0000, 1.0000),
+            blue: Chromacity::new(0.0001, -0.0770),
+        };
+        const WHITE_POINT: XyY = white_point_d60();
+        const WHITE_POINT_XYZ: Xyz = WHITE_POINT.to_xyz();
+        let mut profile = ColorProfile::default();
+        profile.update_rgb_colorimetry(WHITE_POINT, triplet);
+
+        let curve = Trc::Lut(vec![]);
+        profile.red_trc = Some(curve.clone());
+        profile.blue_trc = Some(curve.clone());
+        profile.green_trc = Some(curve);
+        profile.profile_class = ProfileClass::DisplayDevice;
+        profile.rendering_intent = RenderingIntent::Perceptual;
+        profile.color_space = DataColorSpace::Rgb;
+        profile.pcs = DataColorSpace::Xyz;
+        profile.media_white_point = Some(WHITE_POINT_XYZ);
+        profile.white_point = Chromacity::D50.to_xyz();
+        profile.description = Some(ProfileText::Localizable(vec![LocalizableString::new(
+            "en".to_string(),
+            "US".to_string(),
+            "ACES 2065-1/AP0".to_string(),
+        )]));
+        profile.copyright = Some(ProfileText::Localizable(vec![LocalizableString::new(
+            "en".to_string(),
+            "US".to_string(),
+            "Public Domain".to_string(),
+        )]));
+        profile
+    }
+
+    /// Creates new ACEScg profile
+    pub fn new_aces_cg_linear() -> ColorProfile {
+        let triplet = ChromacityTriple {
+            red: Chromacity::new(0.713, 0.293),
+            green: Chromacity::new(0.165, 0.830),
+            blue: Chromacity::new(0.128, 0.044),
+        };
+        const WHITE_POINT: XyY = white_point_d60();
+        const WHITE_POINT_XYZ: Xyz = WHITE_POINT.to_xyz();
+        let mut profile = ColorProfile::default();
+        profile.update_rgb_colorimetry(WHITE_POINT, triplet);
+
+        let curve = Trc::Lut(vec![]);
+        profile.red_trc = Some(curve.clone());
+        profile.blue_trc = Some(curve.clone());
+        profile.green_trc = Some(curve);
+        profile.profile_class = ProfileClass::DisplayDevice;
+        profile.rendering_intent = RenderingIntent::Perceptual;
+        profile.color_space = DataColorSpace::Rgb;
+        profile.pcs = DataColorSpace::Xyz;
+        profile.media_white_point = Some(WHITE_POINT_XYZ);
+        profile.white_point = Chromacity::D50.to_xyz();
+        profile.description = Some(ProfileText::Localizable(vec![LocalizableString::new(
+            "en".to_string(),
+            "US".to_string(),
+            "ACEScg/AP1".to_string(),
+        )]));
+        profile.copyright = Some(ProfileText::Localizable(vec![LocalizableString::new(
+            "en".to_string(),
+            "US".to_string(),
+            "Public Domain".to_string(),
+        )]));
+        profile
     }
 }

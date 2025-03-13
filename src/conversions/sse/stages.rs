@@ -85,7 +85,7 @@ where
             .transpose();
 
         let scale = (GAMMA_LUT - 1) as f32;
-        let max_colors = (1 << BIT_DEPTH) - 1;
+        let max_colors: T = ((1 << BIT_DEPTH) - 1).as_();
 
         unsafe {
             let m0 = _mm_setr_ps(t.v[0][0], t.v[0][1], t.v[0][2], 0f32);
@@ -109,9 +109,9 @@ where
                 let mut b =
                     _mm_load_ss(self.profile.b_linear.get_unchecked(src[src_cn.b_i()].as_()));
                 let a = if src_channels == 4 {
-                    f32::from_bits(src[src_cn.a_i()].as_() as u32)
+                    src[src_cn.a_i()]
                 } else {
-                    f32::from_bits(max_colors)
+                    max_colors
                 };
 
                 r = _mm_shuffle_ps::<0>(r, r);
@@ -134,7 +134,7 @@ where
                 dst[dst_cn.g_i()] = self.profile.g_gamma[temporary.0[2] as usize];
                 dst[dst_cn.b_i()] = self.profile.b_gamma[temporary.0[4] as usize];
                 if dst_channels == 4 {
-                    dst[dst_cn.a_i()] = a.to_bits().as_();
+                    dst[dst_cn.a_i()] = a;
                 }
             }
         }

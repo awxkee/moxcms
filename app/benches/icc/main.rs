@@ -21,6 +21,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     let src_icc_profile = jpeg_reader.icc_profile().unwrap();
 
     let us_swop_icc = fs::read("../assets/us_swop_coated.icc").unwrap();
+    let srgb_perceptual_icc = fs::read("../assets/srgb_perceptual.icc").unwrap();
 
     let cmyk_profile = Profile::new_icc(&us_swop_icc).unwrap();
     let srgb_profile = Profile::new_srgb();
@@ -42,6 +43,23 @@ pub fn criterion_benchmark(c: &mut Criterion) {
 
     c.bench_function("moxcms: RGB -> RGB", |b| {
         let color_profile = ColorProfile::new_from_slice(&src_icc_profile).unwrap();
+        let dest_profile = ColorProfile::new_srgb();
+        let mut dst = vec![0u8; rgb.len()];
+        let transform = color_profile
+            .create_transform_8bit(
+                Layout::Rgb,
+                &dest_profile,
+                Layout::Rgb,
+                TransformOptions::default(),
+            )
+            .unwrap();
+        b.iter(|| {
+            transform.transform(&rgb, &mut dst).unwrap();
+        })
+    });
+
+    c.bench_function("moxcms: LUT RGB -> RGB", |b| {
+        let color_profile = ColorProfile::new_from_slice(&srgb_perceptual_icc).unwrap();
         let dest_profile = ColorProfile::new_srgb();
         let mut dst = vec![0u8; rgb.len()];
         let transform = color_profile
@@ -114,6 +132,25 @@ pub fn criterion_benchmark(c: &mut Criterion) {
 
     c.bench_function("qcms: RGB -> RGB", |b| {
         let custom_profile = qcms::Profile::new_from_slice(&src_icc_profile, false).unwrap();
+        let profile_bytes = fs::read("../assets/bt_2020.icc").unwrap();
+        let mut srgb_profile = qcms::Profile::new_from_slice(&profile_bytes, false).unwrap();
+        let mut dst = vec![0u8; rgb.len()];
+        srgb_profile.precache_output_transform();
+        let xfm = qcms::Transform::new(
+            &custom_profile,
+            &srgb_profile,
+            qcms::DataType::RGB8,
+            qcms::Intent::default(),
+        )
+        .unwrap();
+
+        b.iter(|| {
+            xfm.convert(&rgb, &mut dst);
+        })
+    });
+
+    c.bench_function("qcms: LUT RGB -> RGB", |b| {
+        let custom_profile = qcms::Profile::new_from_slice(&srgb_perceptual_icc, false).unwrap();
         let profile_bytes = fs::read("../assets/bt_2020.icc").unwrap();
         let mut srgb_profile = qcms::Profile::new_from_slice(&profile_bytes, false).unwrap();
         let mut dst = vec![0u8; rgb.len()];

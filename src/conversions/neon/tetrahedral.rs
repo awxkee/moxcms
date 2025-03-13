@@ -46,8 +46,8 @@ struct TetrahedralNeonFetchVector3f<'a, const GRID_SIZE: usize> {
 }
 
 #[derive(Copy, Clone)]
-struct NeonVector {
-    v: float32x4_t,
+pub(crate) struct NeonVector {
+    pub(crate) v: float32x4_t,
 }
 
 impl From<f32> for NeonVector {
@@ -165,6 +165,18 @@ impl<const GRID_SIZE: usize> TetrahedralNeon<'_, GRID_SIZE> {
         let s0 = c0.mla(c1, NeonVector::from(rx));
         let s1 = s0.mla(c2, NeonVector::from(ry));
         s1.mla(c3, NeonVector::from(rz))
+    }
+}
+
+impl<const GRID_SIZE: usize> TetrahedralNeon<'_, GRID_SIZE> {
+    #[inline(always)]
+    pub(crate) fn inter3_neon(&self, in_r: u8, in_g: u8, in_b: u8) -> NeonVector {
+        self.interpolate(
+            in_r,
+            in_g,
+            in_b,
+            TetrahedralNeonFetchVector3f::<GRID_SIZE> { cube: self.cube },
+        )
     }
 }
 
