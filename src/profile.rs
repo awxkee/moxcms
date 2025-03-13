@@ -634,6 +634,24 @@ pub struct LocalizableString {
     pub value: String,
 }
 
+impl LocalizableString {
+    /// Creates new localizable string
+    ///
+    /// # Arguments
+    ///
+    /// * `language`: an ISO 639-1 value is expected, any text more than 2 symbols will be truncated
+    /// * `country`: an ISO 3166-1 value is expected, any text more than 2 symbols will be truncated
+    /// * `value`: String value
+    ///
+    pub fn new(language: String, country: String, value: String) -> Self {
+        Self {
+            language,
+            country,
+            value,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct DescriptionString {
     pub ascii_string: String,
@@ -654,7 +672,7 @@ impl ProfileText {
     pub(crate) fn has_values(&self) -> bool {
         match self {
             ProfileText::PlainString(_) => true,
-            ProfileText::Localizable(lc) => lc.len() > 0,
+            ProfileText::Localizable(lc) => !lc.is_empty(),
             ProfileText::Description(_) => true,
         }
     }
@@ -685,6 +703,81 @@ pub struct ViewingConditions {
     pub observer: StandardObserver,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub enum MeasurementGeometry {
+    Unknown,
+    /// 0°:45° or 45°:0°
+    D45to45,
+    /// 0°:d or d:0°
+    D0to0,
+}
+
+impl From<u32> for MeasurementGeometry {
+    fn from(value: u32) -> Self {
+        if value == 1 {
+            Self::D45to45
+        } else if value == 2 {
+            Self::D0to0
+        } else {
+            Self::Unknown
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum StandardIlluminant {
+    Unknown,
+    D50,
+    D65,
+    D93,
+    F2,
+    D55,
+    A,
+    EquiPower,
+    F8,
+}
+
+impl From<u32> for StandardIlluminant {
+    fn from(value: u32) -> Self {
+        match value {
+            1 => StandardIlluminant::D50,
+            2 => StandardIlluminant::D65,
+            3 => StandardIlluminant::D93,
+            4 => StandardIlluminant::F2,
+            5 => StandardIlluminant::D55,
+            6 => StandardIlluminant::A,
+            7 => StandardIlluminant::EquiPower,
+            8 => StandardIlluminant::F8,
+            _ => Self::Unknown,
+        }
+    }
+}
+
+impl From<StandardIlluminant> for u32 {
+    fn from(value: StandardIlluminant) -> Self {
+        match value {
+            StandardIlluminant::Unknown => 0u32,
+            StandardIlluminant::D50 => 1u32,
+            StandardIlluminant::D65 => 2u32,
+            StandardIlluminant::D93 => 3,
+            StandardIlluminant::F2 => 4,
+            StandardIlluminant::D55 => 5,
+            StandardIlluminant::A => 6,
+            StandardIlluminant::EquiPower => 7,
+            StandardIlluminant::F8 => 8,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct Measurement {
+    pub observer: StandardObserver,
+    pub backing: Xyz,
+    pub geometry: MeasurementGeometry,
+    pub flare: f32,
+    pub illuminant: StandardIlluminant,
+}
+
 /// ICC Profile representation
 #[repr(C)]
 #[derive(Debug, Clone, Default)]
@@ -700,7 +793,7 @@ pub struct ColorProfile {
     pub black_point: Option<Xyz>,
     pub media_white_point: Option<Xyz>,
     pub luminance: Option<Xyz>,
-    pub measurement: Option<Xyz>,
+    pub measurement: Option<Measurement>,
     pub red_trc: Option<Trc>,
     pub green_trc: Option<Trc>,
     pub blue_trc: Option<Trc>,
@@ -923,6 +1016,53 @@ impl ColorProfile {
             return Ok(Some(time));
         }
         Ok(None)
+    }
+
+    #[inline]
+    fn read_meas_tag(
+        slice: &[u8],
+        entry: usize,
+        tag_size: usize,
+    ) -> Result<Option<Measurement>, CmsError> {
+        if tag_size < TAG_SIZE {
+            return Ok(None);
+        }
+        let last_tag_offset = tag_size.safe_add(entry)?;
+        if last_tag_offset > slice.len() {
+            return Err(CmsError::InvalidProfile);
+        }
+        let tag = &slice[entry..entry + 12];
+        let tag_type = u32::from_be_bytes([tag[0], tag[1], tag[2], tag[3]]);
+        let def = TagTypeDefinition::from(tag_type);
+        if def != TagTypeDefinition::Measurement {
+            return Ok(None);
+        }
+        if 36 > slice.len() {
+            return Err(CmsError::InvalidProfile);
+        }
+        let tag = &slice[entry..entry + 36];
+        let observer =
+            StandardObserver::from(u32::from_be_bytes([tag[8], tag[9], tag[10], tag[11]]));
+        let q15_16_x = i32::from_be_bytes([tag[12], tag[13], tag[14], tag[15]]);
+        let q15_16_y = i32::from_be_bytes([tag[16], tag[17], tag[18], tag[19]]);
+        let q15_16_z = i32::from_be_bytes([tag[20], tag[21], tag[22], tag[23]]);
+        let x = s15_fixed16_number_to_float(q15_16_x);
+        let y = s15_fixed16_number_to_float(q15_16_y);
+        let z = s15_fixed16_number_to_float(q15_16_z);
+        let xyz = Xyz::new(x, y, z);
+        let geometry =
+            MeasurementGeometry::from(u32::from_be_bytes([tag[24], tag[25], tag[26], tag[27]]));
+        let flare =
+            uint16_number_to_float(u32::from_be_bytes([tag[28], tag[29], tag[30], tag[31]]));
+        let illuminant =
+            StandardIlluminant::from(u32::from_be_bytes([tag[32], tag[33], tag[34], tag[35]]));
+        Ok(Some(Measurement {
+            flare,
+            illuminant,
+            geometry,
+            observer,
+            backing: xyz,
+        }))
     }
 
     #[inline]
@@ -1664,10 +1804,8 @@ impl ColorProfile {
                         }
                     }
                     Tag::Measurement => {
-                        match Self::read_xyz_tag(slice, tag_entry as usize, tag_size) {
-                            Ok(wt) => profile.measurement = Some(wt),
-                            Err(err) => return Err(err),
-                        }
+                        profile.measurement =
+                            Self::read_meas_tag(slice, tag_entry as usize, tag_size)?;
                     }
                     Tag::CodeIndependentPoints => {
                         profile.cicp = Self::read_cicp_tag(slice, tag_entry as usize, tag_size)?;

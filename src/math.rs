@@ -224,8 +224,14 @@ pub const fn logf(d: f32) -> f32 {
 
 /// Copies sign from `y` to `x`
 #[inline]
-const fn copysignfk(x: f32, y: f32) -> f32 {
+pub(crate) const fn copysignfk(x: f32, y: f32) -> f32 {
     f32::from_bits((x.to_bits() & !(1 << 31)) ^ (y.to_bits() & (1 << 31)))
+}
+
+/// Copies sign from `y` to `x`
+#[inline]
+pub(crate) const fn copysign(x: f64, y: f64) -> f64 {
+    f64::from_bits((x.to_bits() & !(1 << 63)) ^ (y.to_bits() & (1 << 63)))
 }
 
 /// Round to integer towards minus infinity

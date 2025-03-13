@@ -38,7 +38,7 @@ use zune_jpeg::zune_core::colorspace::ColorSpace;
 use zune_jpeg::zune_core::options::DecoderOptions;
 
 fn main() {
-    let funny_icc = fs::read("./assets/srgb_perceptual.icc").unwrap();
+    let funny_icc = fs::read("./assets/alltags.icc").unwrap();
     let funny_profile = ColorProfile::new_from_slice(&funny_icc).unwrap();
 
     let encoded = funny_profile.encode().unwrap();
@@ -46,6 +46,9 @@ fn main() {
     let decoded = ColorProfile::new_from_slice(&encoded).unwrap();
 
     // println!("{:?}", decoded);
+
+    let decoded = ColorProfile::new_bt2020_pq();
+    let encoded = decoded.encode().unwrap();
 
     fs::write("./bt2020.icc", encoded).unwrap();
 

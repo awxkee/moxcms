@@ -26,12 +26,12 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-use crate::trc::{Trc, curve_from_gamma};
+use crate::math::copysign;
+use crate::trc::{Trc, build_trc_table, curve_from_gamma};
 use crate::{
-    Chromacity, ChromacityTriple, ColorPrimaries, ColorProfile, DataColorSpace, ProfileClass,
-    RenderingIntent, XyY,
+    Chromacity, ChromacityTriple, ColorPrimaries, ColorProfile, DataColorSpace, LocalizableString,
+    ProfileClass, ProfileText, RenderingIntent, XyY, pow,
 };
-
 /* from lcms: cmsWhitePointFromTemp */
 /* tempK must be >= 4000. and <= 25000.
  * Invalid values of tempK will return
@@ -81,6 +81,30 @@ pub(crate) const fn white_point_d50() -> XyY {
     white_point_from_temperature(5003)
 }
 
+// https://www.itu.int/dms_pubrec/itu-r/rec/bt/R-REC-BT.2100-2-201807-I!!PDF-F.pdf
+// Perceptual Quantization / SMPTE standard ST.2084
+#[inline]
+const fn pq_curve(x: f64) -> f64 {
+    const M1: f64 = 2610.0 / 16384.0;
+    const M2: f64 = (2523.0 / 4096.0) * 128.0;
+    const C1: f64 = 3424.0 / 4096.0;
+    const C2: f64 = (2413.0 / 4096.0) * 32.0;
+    const C3: f64 = (2392.0 / 4096.0) * 32.0;
+
+    if x == 0.0 {
+        return 0.0;
+    }
+    let sign = x;
+    let x = x.abs();
+
+    let xpo = pow(x, 1.0 / M2);
+    let num = (xpo - C1).max(0.0);
+    let den = C2 - C3 * xpo;
+    let res = pow(num / den, 1.0 / M1);
+
+    copysign(res, sign)
+}
+
 impl ColorProfile {
     /// Creates new sRGB profile
     pub fn new_srgb() -> ColorProfile {
@@ -99,6 +123,16 @@ impl ColorProfile {
         profile.pcs = DataColorSpace::Xyz;
         profile.media_white_point = Some(Chromacity::D65.to_xyz());
         profile.white_point = Chromacity::D50.to_xyz();
+        profile.description = Some(ProfileText::Localizable(vec![LocalizableString::new(
+            "en".to_string(),
+            "US".to_string(),
+            "sRGB IEC61966-2.1".to_string(),
+        )]));
+        profile.copyright = Some(ProfileText::Localizable(vec![LocalizableString::new(
+            "en".to_string(),
+            "US".to_string(),
+            "Public Domain".to_string(),
+        )]));
         profile
     }
 
@@ -123,6 +157,16 @@ impl ColorProfile {
         profile.pcs = DataColorSpace::Xyz;
         profile.media_white_point = Some(Chromacity::D65.to_xyz());
         profile.white_point = Chromacity::D50.to_xyz();
+        profile.description = Some(ProfileText::Localizable(vec![LocalizableString::new(
+            "en".to_string(),
+            "US".to_string(),
+            "Adobe RGB 1998".to_string(),
+        )]));
+        profile.copyright = Some(ProfileText::Localizable(vec![LocalizableString::new(
+            "en".to_string(),
+            "US".to_string(),
+            "Public Domain".to_string(),
+        )]));
         profile
     }
 
@@ -143,6 +187,48 @@ impl ColorProfile {
         profile.pcs = DataColorSpace::Xyz;
         profile.media_white_point = Some(Chromacity::D65.to_xyz());
         profile.white_point = Chromacity::D50.to_xyz();
+        profile.description = Some(ProfileText::Localizable(vec![LocalizableString::new(
+            "en".to_string(),
+            "US".to_string(),
+            "Display P3".to_string(),
+        )]));
+        profile.copyright = Some(ProfileText::Localizable(vec![LocalizableString::new(
+            "en".to_string(),
+            "US".to_string(),
+            "Public Domain".to_string(),
+        )]));
+        profile
+    }
+
+    /// Creates new Display P3 PQ profile
+    pub fn new_display_p3_pq() -> ColorProfile {
+        let primaries = ChromacityTriple::try_from(ColorPrimaries::Smpte432).unwrap();
+        const WHITE_POINT: XyY = white_point_srgb();
+        let mut profile = ColorProfile::default();
+        profile.update_rgb_colorimetry(WHITE_POINT, primaries);
+
+        let table = build_trc_table(4096, pq_curve);
+        let curve = Trc::Lut(table);
+
+        profile.red_trc = Some(curve.clone());
+        profile.blue_trc = Some(curve.clone());
+        profile.green_trc = Some(curve);
+        profile.profile_class = ProfileClass::DisplayDevice;
+        profile.rendering_intent = RenderingIntent::Perceptual;
+        profile.color_space = DataColorSpace::Rgb;
+        profile.pcs = DataColorSpace::Xyz;
+        profile.media_white_point = Some(Chromacity::D65.to_xyz());
+        profile.white_point = Chromacity::D50.to_xyz();
+        profile.description = Some(ProfileText::Localizable(vec![LocalizableString::new(
+            "en".to_string(),
+            "US".to_string(),
+            "Display P3 PQ".to_string(),
+        )]));
+        profile.copyright = Some(ProfileText::Localizable(vec![LocalizableString::new(
+            "en".to_string(),
+            "US".to_string(),
+            "Public Domain".to_string(),
+        )]));
         profile
     }
 
@@ -167,6 +253,16 @@ impl ColorProfile {
         profile.pcs = DataColorSpace::Xyz;
         profile.media_white_point = Some(Chromacity::D65.to_xyz());
         profile.white_point = Chromacity::D50.to_xyz();
+        profile.description = Some(ProfileText::Localizable(vec![LocalizableString::new(
+            "en".to_string(),
+            "US".to_string(),
+            "DCI P3".to_string(),
+        )]));
+        profile.copyright = Some(ProfileText::Localizable(vec![LocalizableString::new(
+            "en".to_string(),
+            "US".to_string(),
+            "Public Domain".to_string(),
+        )]));
         profile
     }
 
@@ -191,6 +287,16 @@ impl ColorProfile {
         profile.pcs = DataColorSpace::Xyz;
         profile.media_white_point = Some(Chromacity::D50.to_xyz());
         profile.white_point = Chromacity::D50.to_xyz();
+        profile.description = Some(ProfileText::Localizable(vec![LocalizableString::new(
+            "en".to_string(),
+            "US".to_string(),
+            "ProPhoto RGB".to_string(),
+        )]));
+        profile.copyright = Some(ProfileText::Localizable(vec![LocalizableString::new(
+            "en".to_string(),
+            "US".to_string(),
+            "Public Domain".to_string(),
+        )]));
         profile
     }
 
@@ -211,6 +317,48 @@ impl ColorProfile {
         profile.pcs = DataColorSpace::Xyz;
         profile.media_white_point = Some(Chromacity::D65.to_xyz());
         profile.white_point = Chromacity::D50.to_xyz();
+        profile.description = Some(ProfileText::Localizable(vec![LocalizableString::new(
+            "en".to_string(),
+            "US".to_string(),
+            "Rec.2020".to_string(),
+        )]));
+        profile.copyright = Some(ProfileText::Localizable(vec![LocalizableString::new(
+            "en".to_string(),
+            "US".to_string(),
+            "Public Domain".to_string(),
+        )]));
+        profile
+    }
+
+    /// Creates new Bt.2020 PQ profile
+    pub fn new_bt2020_pq() -> ColorProfile {
+        let primaries = ChromacityTriple::try_from(ColorPrimaries::Bt2020).unwrap();
+        const WHITE_POINT: XyY = white_point_srgb();
+        let mut profile = ColorProfile::default();
+        profile.update_rgb_colorimetry(WHITE_POINT, primaries);
+
+        let table = build_trc_table(4096, pq_curve);
+        let curve = Trc::Lut(table);
+
+        profile.red_trc = Some(curve.clone());
+        profile.blue_trc = Some(curve.clone());
+        profile.green_trc = Some(curve);
+        profile.profile_class = ProfileClass::DisplayDevice;
+        profile.rendering_intent = RenderingIntent::Perceptual;
+        profile.color_space = DataColorSpace::Rgb;
+        profile.pcs = DataColorSpace::Xyz;
+        profile.media_white_point = Some(Chromacity::D65.to_xyz());
+        profile.white_point = Chromacity::D50.to_xyz();
+        profile.description = Some(ProfileText::Localizable(vec![LocalizableString::new(
+            "en".to_string(),
+            "US".to_string(),
+            "Rec.2020 PQ".to_string(),
+        )]));
+        profile.copyright = Some(ProfileText::Localizable(vec![LocalizableString::new(
+            "en".to_string(),
+            "US".to_string(),
+            "Public Domain".to_string(),
+        )]));
         profile
     }
 
@@ -223,6 +371,11 @@ impl ColorProfile {
             color_space: DataColorSpace::Gray,
             media_white_point: Some(Chromacity::D65.to_xyz()),
             white_point: Chromacity::D50.to_xyz(),
+            copyright: Some(ProfileText::Localizable(vec![LocalizableString::new(
+                "en".to_string(),
+                "US".to_string(),
+                "Public Domain".to_string(),
+            )])),
             ..Default::default()
         }
     }

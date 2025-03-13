@@ -80,8 +80,9 @@ pub use oklab::Oklab;
 pub use oklch::Oklch;
 pub use profile::{
     CicpProfile, ColorProfile, DataColorSpace, DescriptionString, LocalizableString,
-    LutMCurvesType, LutType, LutWarehouse, ProfileClass, ProfileSignature, ProfileText,
-    ProfileVersion, RenderingIntent, StandardObserver, TechnologySignatures, ViewingConditions,
+    LutMCurvesType, LutType, LutWarehouse, Measurement, MeasurementGeometry, ProfileClass,
+    ProfileSignature, ProfileText, ProfileVersion, RenderingIntent, StandardIlluminant,
+    StandardObserver, TechnologySignatures, ViewingConditions,
 };
 pub use rgb::Rgb;
 pub use transform::{

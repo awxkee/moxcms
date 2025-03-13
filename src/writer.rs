@@ -165,7 +165,7 @@ fn write_string_value(into: &mut Vec<u8>, text: &ProfileText) -> usize {
             if localizable.is_empty() {
                 return 0;
             }
-            write_mluc(into, &localizable)
+            write_mluc(into, localizable)
         }
         ProfileText::Description(description) => {
             let vec = vec![LocalizableString {
@@ -516,6 +516,16 @@ impl ColorProfile {
                 tags_count += 1;
             }
         }
+        if let Some(vd) = &self.device_model {
+            if vd.has_values() {
+                tags_count += 1;
+            }
+        }
+        if let Some(vd) = &self.device_manufacturer {
+            if vd.has_values() {
+                tags_count += 1;
+            }
+        }
         tags_count
     }
 
@@ -698,6 +708,22 @@ impl ColorProfile {
                     entry_size,
                 );
                 base_offset += entry_size;
+            }
+        }
+
+        if let Some(vd) = &self.device_model {
+            if vd.has_values() {
+                let entry_size = write_string_value(&mut entries, vd);
+                write_tag_entry(&mut tags, Tag::DeviceModel, base_offset, entry_size);
+                base_offset += entry_size;
+            }
+        }
+
+        if let Some(vd) = &self.device_manufacturer {
+            if vd.has_values() {
+                let entry_size = write_string_value(&mut entries, vd);
+                write_tag_entry(&mut tags, Tag::DeviceManufacturer, base_offset, entry_size);
+                // base_offset += entry_size;
             }
         }
 

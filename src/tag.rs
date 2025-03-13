@@ -186,6 +186,7 @@ pub(crate) enum TagTypeDefinition {
     Cicp,
     DateTime,
     S15Fixed16Array,
+    Measurement,
     NotAllowed,
 }
 
@@ -219,6 +220,8 @@ impl From<u32> for TagTypeDefinition {
             return TagTypeDefinition::DateTime;
         } else if value == u32::from_ne_bytes(*b"sf32").to_be() {
             return TagTypeDefinition::S15Fixed16Array;
+        } else if value == u32::from_ne_bytes(*b"meas").to_be() {
+            return TagTypeDefinition::Measurement;
         }
         TagTypeDefinition::NotAllowed
     }
@@ -241,6 +244,7 @@ impl From<TagTypeDefinition> for u32 {
             TagTypeDefinition::Cicp => u32::from_ne_bytes(*b"cicp").to_be(),
             TagTypeDefinition::DateTime => u32::from_ne_bytes(*b"dtim").to_be(),
             TagTypeDefinition::S15Fixed16Array => u32::from_ne_bytes(*b"sf32").to_be(),
+            TagTypeDefinition::Measurement => u32::from_ne_bytes(*b"meas").to_be(),
             TagTypeDefinition::NotAllowed => 0,
         }
     }
