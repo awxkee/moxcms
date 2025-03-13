@@ -64,7 +64,7 @@ where
 {
     #[allow(unused_unsafe)]
     #[target_feature(enable = "sse4.1")]
-    fn transform_chunk(&self, src: &[T], dst: &mut [T]) {
+    unsafe fn transform_chunk(&self, src: &[T], dst: &mut [T]) {
         let src_cn = Layout::from(SRC_LAYOUT);
         let src_channels = src_cn.channels();
 
