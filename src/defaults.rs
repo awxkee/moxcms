@@ -499,7 +499,7 @@ impl ColorProfile {
         let mut profile = ColorProfile::default();
         profile.update_rgb_colorimetry(WHITE_POINT, triplet);
 
-        let curve = curve_from_gamma(1.0f32);
+        let curve = Trc::Lut(vec![]);
         profile.red_trc = Some(curve.clone());
         profile.blue_trc = Some(curve.clone());
         profile.green_trc = Some(curve);
@@ -534,7 +534,7 @@ impl ColorProfile {
         let mut profile = ColorProfile::default();
         profile.update_rgb_colorimetry(WHITE_POINT, triplet);
 
-        let curve = curve_from_gamma(1.0f32);
+        let curve = Trc::Lut(vec![]);
         profile.red_trc = Some(curve.clone());
         profile.blue_trc = Some(curve.clone());
         profile.green_trc = Some(curve);
