@@ -47,7 +47,7 @@ fn main() {
 
     // println!("{:?}", decoded);
 
-    let decoded = ColorProfile::new_bt2020_pq();
+    let decoded = ColorProfile::new_bt2020_hlg();
     let encoded = decoded.encode().unwrap();
 
     fs::write("./bt2020.icc", encoded).unwrap();

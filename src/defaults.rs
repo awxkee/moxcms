@@ -30,7 +30,7 @@ use crate::math::copysign;
 use crate::trc::{Trc, build_trc_table, curve_from_gamma};
 use crate::{
     Chromacity, ChromacityTriple, ColorPrimaries, ColorProfile, DataColorSpace, LocalizableString,
-    ProfileClass, ProfileText, RenderingIntent, XyY, pow,
+    ProfileClass, ProfileText, RenderingIntent, XyY, exp, pow,
 };
 /* from lcms: cmsWhitePointFromTemp */
 /* tempK must be >= 4000. and <= 25000.
@@ -101,6 +101,31 @@ const fn pq_curve(x: f64) -> f64 {
     let num = (xpo - C1).max(0.0);
     let den = C2 - C3 * xpo;
     let res = pow(num / den, 1.0 / M1);
+
+    copysign(res, sign)
+}
+
+// https://www.itu.int/dms_pubrec/itu-r/rec/bt/R-REC-BT.2100-2-201807-I!!PDF-F.pdf
+// Hybrid Log-Gamma
+const fn hlg_curve(x: f64) -> f64 {
+    const BETA: f64 = 0.04;
+    const RA: f64 = 5.591816309728916; // 1.0 / A where A = 0.17883277
+    const B: f64 = 0.28466892; // 1.0 - 4.0 * A
+    const C: f64 = 0.5599107295; // 0,5 –aln(4a)
+
+    let e = (x * (1.0 - BETA) + BETA).max(0.0);
+
+    if e == 0.0 {
+        return 0.0;
+    }
+
+    let sign = e.abs();
+
+    let res = if e <= 0.5 {
+        e * e / 3.0
+    } else {
+        (exp((e - C) * RA) + B) / 12.0
+    };
 
     copysign(res, sign)
 }
@@ -353,6 +378,38 @@ impl ColorProfile {
             "en".to_string(),
             "US".to_string(),
             "Rec.2020 PQ".to_string(),
+        )]));
+        profile.copyright = Some(ProfileText::Localizable(vec![LocalizableString::new(
+            "en".to_string(),
+            "US".to_string(),
+            "Public Domain".to_string(),
+        )]));
+        profile
+    }
+
+    /// Creates new Bt.2020 PQ profile
+    pub fn new_bt2020_hlg() -> ColorProfile {
+        let primaries = ChromacityTriple::try_from(ColorPrimaries::Bt2020).unwrap();
+        const WHITE_POINT: XyY = white_point_srgb();
+        let mut profile = ColorProfile::default();
+        profile.update_rgb_colorimetry(WHITE_POINT, primaries);
+
+        let table = build_trc_table(4096, hlg_curve);
+        let curve = Trc::Lut(table);
+
+        profile.red_trc = Some(curve.clone());
+        profile.blue_trc = Some(curve.clone());
+        profile.green_trc = Some(curve);
+        profile.profile_class = ProfileClass::DisplayDevice;
+        profile.rendering_intent = RenderingIntent::Perceptual;
+        profile.color_space = DataColorSpace::Rgb;
+        profile.pcs = DataColorSpace::Xyz;
+        profile.media_white_point = Some(Chromacity::D65.to_xyz());
+        profile.white_point = Chromacity::D50.to_xyz();
+        profile.description = Some(ProfileText::Localizable(vec![LocalizableString::new(
+            "en".to_string(),
+            "US".to_string(),
+            "Rec.2020 HLG".to_string(),
         )]));
         profile.copyright = Some(ProfileText::Localizable(vec![LocalizableString::new(
             "en".to_string(),
