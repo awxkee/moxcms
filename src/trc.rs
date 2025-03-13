@@ -28,6 +28,7 @@
  */
 use crate::math::m_clamp;
 use crate::mlaf::mlaf;
+use crate::writer::FloatToFixedU8Fixed8;
 use crate::{CmsError, ColorProfile, pow, powf};
 use num_traits::AsPrimitive;
 
@@ -92,18 +93,8 @@ pub(crate) fn build_trc_table(num_entries: i32, eotf: impl Fn(f64) -> f64) -> Ve
     table
 }
 
-pub(crate) fn float_to_u8_fixed_8_number(a: f32) -> u16 {
-    if a > 255.0 + 255.0 / 256f32 {
-        0xffffu16
-    } else if a < 0.0 {
-        0u16
-    } else {
-        (a * 256.0 + 0.5).floor() as u16
-    }
-}
-
 pub(crate) fn curve_from_gamma(gamma: f32) -> Trc {
-    Trc::Lut(vec![float_to_u8_fixed_8_number(gamma)])
+    Trc::Lut(vec![gamma.to_u8_fixed8()])
 }
 
 #[derive(Debug)]

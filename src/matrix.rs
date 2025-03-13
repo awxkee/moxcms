@@ -751,6 +751,11 @@ pub struct Chromacity {
 
 impl Chromacity {
     #[inline]
+    pub const fn new(x: f32, y: f32) -> Self {
+        Self { x, y }
+    }
+
+    #[inline]
     pub const fn to_xyz(&self) -> Xyz {
         Xyz {
             x: self.x / self.y,

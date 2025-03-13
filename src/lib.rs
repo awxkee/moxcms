@@ -31,6 +31,8 @@
 mod chad;
 mod cicp;
 mod conversions;
+mod dat;
+mod defaults;
 mod err;
 mod gamut;
 mod jzazbz;
@@ -47,11 +49,15 @@ mod oklab;
 mod oklch;
 mod profile;
 mod rgb;
+mod safe_reader;
+mod tag;
 mod transform;
 mod trc;
+mod writer;
 mod yrg;
 
 pub use cicp::{ChromacityTriple, ColorPrimaries, MatrixCoefficients, TransferCharacteristics};
+pub use dat::ColorDateTime;
 pub use err::CmsError;
 pub use gamut::{
     gamut_clip_adaptive_l0_0_5, gamut_clip_adaptive_l0_l_cusp, gamut_clip_preserve_chroma,
@@ -73,9 +79,10 @@ pub use nd_array::{Array3D, Array4D};
 pub use oklab::Oklab;
 pub use oklch::Oklch;
 pub use profile::{
-    CicpProfile, ColorDateTime, ColorProfile, DataColorSpace, DescriptionString, LocalizableString,
-    LutMCurvesType, LutType, LutWarehouse, ProfileClass, ProfileSignature, ProfileText,
-    ProfileVersion, RenderingIntent, StandardObserver, TechnologySignatures, ViewingConditions,
+    CicpProfile, ColorProfile, DataColorSpace, DescriptionString, LocalizableString,
+    LutMCurvesType, LutType, LutWarehouse, Measurement, MeasurementGeometry, ProfileClass,
+    ProfileSignature, ProfileText, ProfileVersion, RenderingIntent, StandardIlluminant,
+    StandardObserver, TechnologySignatures, ViewingConditions,
 };
 pub use rgb::Rgb;
 pub use transform::{
