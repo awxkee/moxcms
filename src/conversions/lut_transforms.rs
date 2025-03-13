@@ -266,7 +266,7 @@ where
     }
 
     #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-    #[target_feature(enable = "avx2", enable = "fma")]
+    #[target_feature(enable = "sse4.1")]
     unsafe fn transform_sse41(&self, src: &[T], dst: &mut [T]) {
         use crate::conversions::sse::{TetrahedralSse, Vector3fLerpCmykSse};
         self.transform_chunk::<TetrahedralSse<GRID_SIZE>, Vector3fLerpCmykSse>(src, dst);

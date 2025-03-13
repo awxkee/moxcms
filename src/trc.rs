@@ -93,7 +93,7 @@ pub(crate) fn build_trc_table(num_entries: i32, eotf: impl Fn(f64) -> f64) -> Ve
     table
 }
 
-pub(crate) fn curve_from_gamma(gamma: f32) -> Trc {
+pub fn curve_from_gamma(gamma: f32) -> Trc {
     Trc::Lut(vec![gamma.to_u8_fixed8()])
 }
 

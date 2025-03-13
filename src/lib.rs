@@ -58,6 +58,9 @@ mod yrg;
 
 pub use cicp::{ChromacityTriple, ColorPrimaries, MatrixCoefficients, TransferCharacteristics};
 pub use dat::ColorDateTime;
+pub use defaults::{
+    HLG_LUT_TABLE, PQ_LUT_TABLE, white_point_d50, white_point_d60, white_point_srgb,
+};
 pub use err::CmsError;
 pub use gamut::{
     gamut_clip_adaptive_l0_0_5, gamut_clip_adaptive_l0_l_cusp, gamut_clip_preserve_chroma,
@@ -89,4 +92,5 @@ pub use transform::{
     InPlaceStage, Layout, Stage, Transform8BitExecutor, Transform16BitExecutor, TransformExecutor,
     TransformOptions,
 };
+pub use trc::{Trc, curve_from_gamma};
 pub use yrg::{Ych, Yrg, cie_y_1931_to_cie_y_2006};

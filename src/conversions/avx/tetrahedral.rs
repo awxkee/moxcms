@@ -189,7 +189,7 @@ impl<const GRID_SIZE: usize> TetrahedralAvxFma<'_, GRID_SIZE> {
     }
 }
 
-impl<'a, const GRID_SIZE: usize> TetrahedralAvxFma<'a, GRID_SIZE> {
+impl<const GRID_SIZE: usize> TetrahedralAvxFma<'_, GRID_SIZE> {
     #[inline(always)]
     pub(crate) fn inter3_sse(&self, in_r: u8, in_g: u8, in_b: u8) -> AvxVectorSse {
         self.interpolate(
