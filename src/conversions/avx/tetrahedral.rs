@@ -49,8 +49,9 @@ struct TetrahedralAvxFmaFetchVector3f<'a, const GRID_SIZE: usize> {
 }
 
 #[derive(Copy, Clone)]
-struct AvxVectorSse {
-    v: __m128,
+#[repr(transparent)]
+pub(crate) struct AvxVectorSse {
+    pub(crate) v: __m128,
 }
 
 impl From<f32> for AvxVectorSse {
@@ -185,6 +186,18 @@ impl<const GRID_SIZE: usize> TetrahedralAvxFma<'_, GRID_SIZE> {
         let s0 = c0.mla(c1, AvxVectorSse::from(rx));
         let s1 = s0.mla(c2, AvxVectorSse::from(ry));
         s1.mla(c3, AvxVectorSse::from(rz))
+    }
+}
+
+impl<'a, const GRID_SIZE: usize> TetrahedralAvxFma<'a, GRID_SIZE> {
+    #[inline(always)]
+    fn inter3_sse(&self, in_r: u8, in_g: u8, in_b: u8) -> AvxVectorSse {
+        self.interpolate(
+            in_r,
+            in_g,
+            in_b,
+            TetrahedralAvxFmaFetchVector3f::<GRID_SIZE> { cube: self.cube },
+        )
     }
 }
 
