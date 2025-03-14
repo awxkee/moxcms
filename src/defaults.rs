@@ -29,8 +29,9 @@
 use crate::math::copysign;
 use crate::trc::{ToneReprCurve, curve_from_gamma};
 use crate::{
-    Chromaticity, ColorPrimaries, ColorProfile, DataColorSpace, LocalizableString, ProfileClass,
-    ProfileText, RenderingIntent, XyY, exp, floor, pow,
+    Chromaticity, CicpColorPrimaries, CicpProfile, ColorPrimaries, ColorProfile, DataColorSpace,
+    LocalizableString, MatrixCoefficients, ProfileClass, ProfileText, RenderingIntent,
+    TransferCharacteristics, XyY, exp, floor, pow,
 };
 
 /// From lcms: `cmsWhitePointFromTemp`
@@ -193,6 +194,12 @@ impl ColorProfile {
         profile.pcs = DataColorSpace::Xyz;
         profile.media_white_point = Some(Chromaticity::D65.to_xyz());
         profile.white_point = Chromaticity::D50.to_xyz();
+        profile.cicp = Some(CicpProfile {
+            color_primaries: CicpColorPrimaries::Bt709,
+            transfer_characteristics: TransferCharacteristics::Srgb,
+            matrix_coefficients: MatrixCoefficients::Bt709,
+            full_range: false,
+        });
         profile.description = Some(ProfileText::Localizable(vec![LocalizableString::new(
             "en".to_string(),
             "US".to_string(),
@@ -250,6 +257,12 @@ impl ColorProfile {
         profile.pcs = DataColorSpace::Xyz;
         profile.media_white_point = Some(Chromaticity::D65.to_xyz());
         profile.white_point = Chromaticity::D50.to_xyz();
+        profile.cicp = Some(CicpProfile {
+            color_primaries: CicpColorPrimaries::Smpte431,
+            transfer_characteristics: TransferCharacteristics::Srgb,
+            matrix_coefficients: MatrixCoefficients::Bt709,
+            full_range: false,
+        });
         profile.description = Some(ProfileText::Localizable(vec![LocalizableString::new(
             "en".to_string(),
             "US".to_string(),
@@ -279,6 +292,12 @@ impl ColorProfile {
         profile.pcs = DataColorSpace::Xyz;
         profile.media_white_point = Some(Chromaticity::D65.to_xyz());
         profile.white_point = Chromaticity::D50.to_xyz();
+        profile.cicp = Some(CicpProfile {
+            color_primaries: CicpColorPrimaries::Smpte431,
+            transfer_characteristics: TransferCharacteristics::Smpte2084,
+            matrix_coefficients: MatrixCoefficients::Bt709,
+            full_range: false,
+        });
         profile.description = Some(ProfileText::Localizable(vec![LocalizableString::new(
             "en".to_string(),
             "US".to_string(),
@@ -307,6 +326,12 @@ impl ColorProfile {
         profile.pcs = DataColorSpace::Xyz;
         profile.media_white_point = Some(Chromaticity::D65.to_xyz());
         profile.white_point = Chromaticity::D50.to_xyz();
+        profile.cicp = Some(CicpProfile {
+            color_primaries: CicpColorPrimaries::Smpte432,
+            transfer_characteristics: TransferCharacteristics::Srgb,
+            matrix_coefficients: MatrixCoefficients::Bt709,
+            full_range: false,
+        });
         profile.description = Some(ProfileText::Localizable(vec![LocalizableString::new(
             "en".to_string(),
             "US".to_string(),
@@ -393,6 +418,12 @@ impl ColorProfile {
         profile.pcs = DataColorSpace::Xyz;
         profile.media_white_point = Some(Chromaticity::D65.to_xyz());
         profile.white_point = Chromaticity::D50.to_xyz();
+        profile.cicp = Some(CicpProfile {
+            color_primaries: CicpColorPrimaries::Bt2020,
+            transfer_characteristics: TransferCharacteristics::Smpte2084,
+            matrix_coefficients: MatrixCoefficients::Bt709,
+            full_range: false,
+        });
         profile.description = Some(ProfileText::Localizable(vec![LocalizableString::new(
             "en".to_string(),
             "US".to_string(),
@@ -422,6 +453,12 @@ impl ColorProfile {
         profile.pcs = DataColorSpace::Xyz;
         profile.media_white_point = Some(Chromaticity::D65.to_xyz());
         profile.white_point = Chromaticity::D50.to_xyz();
+        profile.cicp = Some(CicpProfile {
+            color_primaries: CicpColorPrimaries::Bt2020,
+            transfer_characteristics: TransferCharacteristics::Hlg,
+            matrix_coefficients: MatrixCoefficients::Bt709,
+            full_range: false,
+        });
         profile.description = Some(ProfileText::Localizable(vec![LocalizableString::new(
             "en".to_string(),
             "US".to_string(),
