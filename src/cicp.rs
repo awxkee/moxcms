@@ -35,6 +35,14 @@ use crate::{
 use bytemuck::{ByteEq, NoUninit};
 use std::convert::TryFrom;
 
+#[derive(Clone, Copy, Debug, NoUninit, ByteEq)]
+#[repr(C)]
+pub struct ColorPrimaries {
+    pub red: Chromaticity,
+    pub green: Chromaticity,
+    pub blue: Chromaticity,
+}
+
 impl TryFrom<u8> for ColorPrimaries {
     type Error = CmsError;
 
@@ -91,14 +99,6 @@ impl From<ColorPrimaries> for u8 {
             0
         }
     }
-}
-
-#[derive(Clone, Copy, Debug, NoUninit, ByteEq)]
-#[repr(C)]
-pub struct ColorPrimaries {
-    pub red: Chromaticity,
-    pub green: Chromaticity,
-    pub blue: Chromaticity,
 }
 
 /// See [Rec. ITU-T H.273 (12/2016)](https://www.itu.int/rec/T-REC-H.273-201612-I/en) Table 2.
