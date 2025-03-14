@@ -518,7 +518,6 @@ impl Matrix3f {
     #[inline]
     pub const fn inverse_const(&self) -> Self {
         let v = self.v;
-        #[allow(clippy::redundant_match)]
         let m_det = match self.determinant() {
             None => 0f32,
             Some(v) => v,
