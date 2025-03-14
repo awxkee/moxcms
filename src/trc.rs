@@ -33,7 +33,7 @@ use crate::{CmsError, ColorProfile, pow, powf};
 use num_traits::AsPrimitive;
 
 #[derive(Clone, Debug)]
-pub enum Trc {
+pub enum ToneReprCurve {
     Lut(Vec<u16>),
     Parametric(Vec<f32>),
 }
@@ -93,8 +93,8 @@ pub(crate) fn build_trc_table(num_entries: i32, eotf: impl Fn(f64) -> f64) -> Ve
     table
 }
 
-pub fn curve_from_gamma(gamma: f32) -> Trc {
-    Trc::Lut(vec![gamma.to_u8_fixed8()])
+pub fn curve_from_gamma(gamma: f32) -> ToneReprCurve {
+    ToneReprCurve::Lut(vec![gamma.to_u8_fixed8()])
 }
 
 #[derive(Debug)]
@@ -296,7 +296,7 @@ pub(crate) fn lut_interp_linear(input_value: f64, table: &[u16]) -> f32 {
         * (1. - (upper as f64 - input_value))
         + (table[(lower as usize).min(table.len() - 1)] as f64 * (upper as f64 - input_value)))
         as f32;
-    /* scale the value */
+    // scale the value
     value * (1.0 / 65535.0)
 }
 
@@ -362,22 +362,22 @@ fn lut_interp_linear_gamma<T: Default + Copy + 'static, const N: usize, const BI
 where
     u32: AsPrimitive<T>,
 {
-    /* Start scaling input_value to the length of the array: PRECACHE_OUTPUT_MAX*(length-1).
-     * We'll divide out the PRECACHE_OUTPUT_MAX next */
+    // Start scaling input_value to the length of the array: PRECACHE_OUTPUT_MAX*(length-1).
+    // We'll divide out the PRECACHE_OUTPUT_MAX next
     let mut value: u32 = input_value * (table.len() - 1) as u32;
     let cap_value = N - 1;
-    /* equivalent to ceil(value/PRECACHE_OUTPUT_MAX) */
+    // equivalent to ceil(value/PRECACHE_OUTPUT_MAX)
     let upper: u32 = value.div_ceil(cap_value as u32);
-    /* equivalent to floor(value/PRECACHE_OUTPUT_MAX) */
+    // equivalent to floor(value/PRECACHE_OUTPUT_MAX)
     let lower: u32 = value / cap_value as u32;
-    /* interp is the distance from upper to value scaled to 0..PRECACHE_OUTPUT_MAX */
+    // interp is the distance from upper to value scaled to 0..PRECACHE_OUTPUT_MAX
     let interp: u32 = value % cap_value as u32;
     let lw_value = table[lower as usize];
     let hw_value = table[upper as usize];
-    /* the table values range from 0..65535 */
+    // the table values range from 0..65535
     value = hw_value as u32 * interp + lw_value as u32 * ((N - 1) as u32 - interp); // 0..(65535*PRECACHE_OUTPUT_MAX)
 
-    /* round and scale */
+    // round and scale
     let max_colors = (1 << BIT_DEPTH) - 1;
     value += (cap_value * 65535 / max_colors / 2) as u32; // scale to 0..255
     value /= (cap_value * 65535 / max_colors) as u32;
@@ -403,12 +403,12 @@ where
 }
 
 pub(crate) fn lut_interp_linear16(input_value: u16, table: &[u16]) -> u16 {
-    /* Start scaling input_value to the length of the array: 65535*(length-1).
-     * We'll divide out the 65535 next */
-    let mut value: u32 = input_value as u32 * (table.len() as u32 - 1); /* equivalent to ceil(value/65535) */
-    let upper: u32 = value.div_ceil(65535); /* equivalent to floor(value/65535) */
+    // Start scaling input_value to the length of the array: 65535*(length-1).
+    // We'll divide out the 65535 next
+    let mut value: u32 = input_value as u32 * (table.len() as u32 - 1); // equivalent to ceil(value/65535)
+    let upper: u32 = value.div_ceil(65535); // equivalent to floor(value/65535)
     let lower: u32 = value / 65535;
-    /* interp is the distance from upper to value scaled to 0..65535 */
+    // interp is the distance from upper to value scaled to 0..65535
     let interp: u32 = value % 65535; // 0..65535*65535
     value = (table[upper as usize] as u32 * interp
         + table[lower as usize] as u32 * (65535 - interp))
@@ -527,8 +527,8 @@ fn lut_inverse_interp16(value: u16, lut_table: &[u16]) -> u16 {
 }
 
 fn invert_lut(table: &[u16], out_length: usize) -> Vec<u16> {
-    /* for now we invert the lut by creating a lut of size out_length
-     * and attempting to lookup a value for each entry using lut_inverse_interp16 */
+    // For now we invert the lut by creating a lut of size out_length
+    // and attempting to lookup a value for each entry using lut_inverse_interp16
     let mut output = vec![0u16; out_length];
     let scale_value = 65535f64 / (out_length - 1) as f64;
     for (i, out) in output.iter_mut().enumerate() {
@@ -539,14 +539,14 @@ fn invert_lut(table: &[u16], out_length: usize) -> Vec<u16> {
     output
 }
 
-impl Trc {
+impl ToneReprCurve {
     #[inline(always)]
     pub(crate) fn build_linearize_table<const N: usize, const BIT_DEPTH: usize>(
         &self,
     ) -> Option<Box<[f32; N]>> {
         match self {
-            Trc::Parametric(params) => linear_curve_parametric::<N, BIT_DEPTH>(params),
-            Trc::Lut(data) => match data.len() {
+            ToneReprCurve::Parametric(params) => linear_curve_parametric::<N, BIT_DEPTH>(params),
+            ToneReprCurve::Lut(data) => match data.len() {
                 0 => Some(passthrough_table::<N, BIT_DEPTH>()),
                 1 => Some(linear_forward_table::<N, BIT_DEPTH>(data[0])),
                 _ => Some(linear_lut_interpolate::<N, BIT_DEPTH>(data)),
@@ -568,7 +568,7 @@ impl Trc {
         u32: AsPrimitive<T>,
     {
         match self {
-            Trc::Parametric(params) => {
+            ToneReprCurve::Parametric(params) => {
                 let mut gamma_table_uint = Box::new([0; N]);
 
                 let inverted_size: usize = N;
@@ -579,7 +579,7 @@ impl Trc {
                 let inverted = invert_lut(gamma_table_uint.as_slice(), inverted_size);
                 Some(make_gamma_lut::<T, BUCKET, N, BIT_DEPTH>(&inverted))
             }
-            Trc::Lut(data) => match data.len() {
+            ToneReprCurve::Lut(data) => match data.len() {
                 0 => Some(make_gamma_linear_table::<T, BUCKET, N, BIT_DEPTH>()),
                 1 => Some(make_gamma_pow_table::<T, BUCKET, N, BIT_DEPTH>(
                     1. / u8_fixed_8number_to_float(data[0]),
@@ -599,7 +599,10 @@ impl Trc {
 
 impl ColorProfile {
     /// Produces LUT for 8 bit tone linearization
-    pub fn build_8bit_lin_table(&self, trc: &Option<Trc>) -> Result<Box<[f32; 256]>, CmsError> {
+    pub fn build_8bit_lin_table(
+        &self,
+        trc: &Option<ToneReprCurve>,
+    ) -> Result<Box<[f32; 256]>, CmsError> {
         trc.as_ref()
             .and_then(|trc| trc.build_linearize_table::<256, 8>())
             .ok_or(CmsError::BuildTransferFunction)
@@ -647,7 +650,10 @@ impl ColorProfile {
 
     /// Build gamma table for 8 bit depth
     /// Only 4092 first bins are used and values scaled in 0..255
-    pub fn build_8bit_gamma_table(&self, trc: &Option<Trc>) -> Result<Box<[u16; 65536]>, CmsError> {
+    pub fn build_8bit_gamma_table(
+        &self,
+        trc: &Option<ToneReprCurve>,
+    ) -> Result<Box<[u16; 65536]>, CmsError> {
         self.build_gamma_table::<u16, 65536, 4092, 8>(trc)
     }
 
@@ -655,7 +661,7 @@ impl ColorProfile {
     /// Only 8192 first bins are used and values scaled in 0..1023
     pub fn build_10bit_gamma_table(
         &self,
-        trc: &Option<Trc>,
+        trc: &Option<ToneReprCurve>,
     ) -> Result<Box<[u16; 65536]>, CmsError> {
         self.build_gamma_table::<u16, 65536, 8192, 10>(trc)
     }
@@ -664,7 +670,7 @@ impl ColorProfile {
     /// Only 16384 first bins are used and values scaled in 0..4095
     pub fn build_12bit_gamma_table(
         &self,
-        trc: &Option<Trc>,
+        trc: &Option<ToneReprCurve>,
     ) -> Result<Box<[u16; 65536]>, CmsError> {
         self.build_gamma_table::<u16, 65536, 16384, 12>(trc)
     }
@@ -673,7 +679,7 @@ impl ColorProfile {
     /// Only 16384 first bins are used and values scaled in 0..65535
     pub fn build_16bit_gamma_table(
         &self,
-        trc: &Option<Trc>,
+        trc: &Option<ToneReprCurve>,
     ) -> Result<Box<[u16; 65536]>, CmsError> {
         self.build_gamma_table::<u16, 65536, 65536, 16>(trc)
     }
@@ -686,7 +692,7 @@ impl ColorProfile {
         const BIT_DEPTH: usize,
     >(
         &self,
-        trc: &Option<Trc>,
+        trc: &Option<ToneReprCurve>,
     ) -> Result<Box<[T; BUCKET]>, CmsError>
     where
         f32: AsPrimitive<T>,

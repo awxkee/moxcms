@@ -30,6 +30,7 @@ use crate::err::CmsError;
 use crate::math::FusedMultiplyAdd;
 use crate::mlaf::mlaf;
 use crate::profile::s15_fixed16_number_to_float;
+use bytemuck::NoUninit;
 use num_traits::{AsPrimitive, MulAdd};
 use std::ops::{Add, Div, Mul, Sub};
 
@@ -743,13 +744,14 @@ impl XyY {
     }
 }
 
-#[derive(Clone, Debug, Copy)]
-pub struct Chromacity {
+#[derive(Clone, Debug, Copy, NoUninit)]
+#[repr(C)]
+pub struct Chromaticity {
     pub x: f32,
     pub y: f32,
 }
 
-impl Chromacity {
+impl Chromaticity {
     #[inline]
     pub const fn new(x: f32, y: f32) -> Self {
         Self { x, y }
@@ -773,18 +775,18 @@ impl Chromacity {
         }
     }
 
-    pub const D65: Chromacity = Chromacity {
+    pub const D65: Chromaticity = Chromaticity {
         x: 0.31272,
         y: 0.32903,
     };
 
-    pub const D50: Chromacity = Chromacity {
+    pub const D50: Chromaticity = Chromaticity {
         x: 0.34567,
         y: 0.35850,
     };
 }
 
-impl TryFrom<Xyz> for Chromacity {
+impl TryFrom<Xyz> for Chromaticity {
     type Error = CmsError;
 
     #[inline]
@@ -797,12 +799,12 @@ impl TryFrom<Xyz> for Chromacity {
         }
         let rec = 1f32 / (xyz.x + xyz.y + xyz.z);
 
-        let chromacity_x = xyz.x * rec;
-        let chromacity_y = xyz.y * rec;
+        let chromaticity_x = xyz.x * rec;
+        let chromaticity_y = xyz.y * rec;
 
-        Ok(Chromacity {
-            x: chromacity_x,
-            y: chromacity_y,
+        Ok(Chromaticity {
+            x: chromaticity_x,
+            y: chromaticity_y,
         })
     }
 }

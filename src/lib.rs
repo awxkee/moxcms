@@ -60,10 +60,10 @@ mod trc;
 mod writer;
 mod yrg;
 
-pub use cicp::{ChromacityTriple, ColorPrimaries, MatrixCoefficients, TransferCharacteristics};
+pub use cicp::{ColorPrimaries, MatrixCoefficients, TransferCharacteristics};
 pub use dat::ColorDateTime;
 pub use defaults::{
-    HLG_LUT_TABLE, PQ_LUT_TABLE, white_point_d50, white_point_d60, white_point_srgb,
+    HLG_LUT_TABLE, PQ_LUT_TABLE, WHITE_POINT_D50, WHITE_POINT_D60, WHITE_POINT_D65,
 };
 pub use err::CmsError;
 pub use gamut::{
@@ -79,7 +79,7 @@ pub use math::{
     powf, rounding_div_ceil, sinf, sqrtf,
 };
 pub use matrix::{
-    BT2020_MATRIX, Chromacity, DISPLAY_P3_MATRIX, Matrix3f, Matrix4f, SRGB_MATRIX, Vector3,
+    BT2020_MATRIX, Chromaticity, DISPLAY_P3_MATRIX, Matrix3f, Matrix4f, SRGB_MATRIX, Vector3,
     Vector3f, Vector3i, Vector3u, Vector4, Vector4f, XyY, Xyz,
 };
 pub use nd_array::{Array3D, Array4D};
@@ -96,5 +96,5 @@ pub use transform::{
     InPlaceStage, Layout, Stage, Transform8BitExecutor, Transform16BitExecutor, TransformExecutor,
     TransformOptions,
 };
-pub use trc::{Trc, curve_from_gamma};
+pub use trc::{ToneReprCurve, curve_from_gamma};
 pub use yrg::{Ych, Yrg, cie_y_1931_to_cie_y_2006};

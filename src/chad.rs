@@ -26,7 +26,7 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-use crate::Chromacity;
+use crate::Chromaticity;
 use crate::matrix::{Matrix3f, Vector3f, XyY, Xyz};
 
 #[inline]
@@ -77,7 +77,7 @@ fn adaption_matrix(source_illumination: Xyz, target_illumination: Xyz) -> Option
 }
 
 pub(crate) fn adapt_to_d50(r: Option<Matrix3f>, source_white_pt: XyY) -> Option<Matrix3f> {
-    adapt_to_illuminant(r, source_white_pt, Chromacity::D50.to_xyz())
+    adapt_to_illuminant(r, source_white_pt, Chromaticity::D50.to_xyz())
 }
 
 #[inline]
