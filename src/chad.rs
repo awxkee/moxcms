@@ -29,39 +29,39 @@
 use crate::Chromaticity;
 use crate::matrix::{Matrix3f, Vector3f, XyY, Xyz};
 
-#[inline]
-fn compute_chromatic_adaption(
-    source_white_point: Xyz,
-    dest_white_point: Xyz,
-    chad: Matrix3f,
-) -> Option<Matrix3f> {
-    let cone_source_xyz = Vector3f {
-        v: [
-            source_white_point.x,
-            source_white_point.y,
-            source_white_point.z,
-        ],
-    };
-    let cone_source_rgb = chad.mul_vector(cone_source_xyz);
-
-    let cone_dest_xyz = Vector3f {
-        v: [dest_white_point.x, dest_white_point.y, dest_white_point.z],
-    };
-    let cone_dest_rgb = chad.mul_vector(cone_dest_xyz);
-
-    let cone = Matrix3f {
-        v: [
-            [cone_dest_rgb.v[0] / cone_source_rgb.v[0], 0., 0.],
-            [0., cone_dest_rgb.v[1] / cone_source_rgb.v[1], 0.],
-            [0., 0., cone_dest_rgb.v[2] / cone_source_rgb.v[2]],
-        ],
-    };
-
-    let chad_inv = chad.inverse()?;
-
-    let p0 = cone.mat_mul(chad);
-    Some(chad_inv.mat_mul(p0))
-}
+// #[inline]
+// fn compute_chromatic_adaption(
+//     source_white_point: Xyz,
+//     dest_white_point: Xyz,
+//     chad: Matrix3f,
+// ) -> Option<Matrix3f> {
+//     let cone_source_xyz = Vector3f {
+//         v: [
+//             source_white_point.x,
+//             source_white_point.y,
+//             source_white_point.z,
+//         ],
+//     };
+//     let cone_source_rgb = chad.mul_vector(cone_source_xyz);
+// 
+//     let cone_dest_xyz = Vector3f {
+//         v: [dest_white_point.x, dest_white_point.y, dest_white_point.z],
+//     };
+//     let cone_dest_rgb = chad.mul_vector(cone_dest_xyz);
+// 
+//     let cone = Matrix3f {
+//         v: [
+//             [cone_dest_rgb.v[0] / cone_source_rgb.v[0], 0., 0.],
+//             [0., cone_dest_rgb.v[1] / cone_source_rgb.v[1], 0.],
+//             [0., 0., cone_dest_rgb.v[2] / cone_source_rgb.v[2]],
+//         ],
+//     };
+// 
+//     let chad_inv = chad.inverse()?;
+// 
+//     let p0 = cone.mat_mul(chad);
+//     Some(chad_inv.mat_mul(p0))
+// }
 
 #[inline]
 const fn compute_chromatic_adaption_const(
@@ -97,18 +97,18 @@ const fn compute_chromatic_adaption_const(
     chad_inv.mat_mul_const(p0)
 }
 
-fn adaption_matrix(source_illumination: Xyz, target_illumination: Xyz) -> Option<Matrix3f> {
-    let lam_rigg = {
-        Matrix3f {
-            v: [
-                [0.8951, 0.2664, -0.1614],
-                [-0.7502, 1.7135, 0.0367],
-                [0.0389, -0.0685, 1.0296],
-            ],
-        }
-    };
-    compute_chromatic_adaption(source_illumination, target_illumination, lam_rigg)
-}
+// fn adaption_matrix(source_illumination: Xyz, target_illumination: Xyz) -> Option<Matrix3f> {
+//     let lam_rigg = {
+//         Matrix3f {
+//             v: [
+//                 [0.8951, 0.2664, -0.1614],
+//                 [-0.7502, 1.7135, 0.0367],
+//                 [0.0389, -0.0685, 1.0296],
+//             ],
+//         }
+//     };
+//     compute_chromatic_adaption(source_illumination, target_illumination, lam_rigg)
+// }
 
 const fn adaption_matrix_const(source_illumination: Xyz, target_illumination: Xyz) -> Matrix3f {
     let lam_rigg = {
@@ -123,9 +123,9 @@ const fn adaption_matrix_const(source_illumination: Xyz, target_illumination: Xy
     compute_chromatic_adaption_const(source_illumination, target_illumination, lam_rigg)
 }
 
-pub(crate) fn adapt_to_d50(r: Option<Matrix3f>, source_white_pt: XyY) -> Option<Matrix3f> {
-    adapt_to_illuminant(r, source_white_pt, Chromaticity::D50.to_xyz())
-}
+// pub(crate) fn adapt_to_d50(r: Option<Matrix3f>, source_white_pt: XyY) -> Option<Matrix3f> {
+//     adapt_to_illuminant(r, source_white_pt, Chromaticity::D50.to_xyz())
+// }
 
 pub(crate) const fn adapt_to_d50_const(r: Matrix3f, source_white_pt: XyY) -> Matrix3f {
     adapt_to_illuminant_const(r, source_white_pt, Chromaticity::D50.to_xyz())
@@ -141,30 +141,30 @@ pub(crate) const fn adapt_to_illuminant_const(
     bradford.mat_mul_const(r)
 }
 
-#[inline]
-pub(crate) fn adapt_to_illuminant(
-    r: Option<Matrix3f>,
-    source_white_pt: XyY,
-    illuminant_xyz: Xyz,
-) -> Option<Matrix3f> {
-    if source_white_pt.y == 0.0 {
-        return None;
-    }
-
-    let xyz_wp = source_white_pt.to_xyz();
-    adapt_to_illuminant_xyz(r, xyz_wp, illuminant_xyz)
-}
-
-#[inline]
-pub(crate) fn adapt_to_illuminant_xyz(
-    r: Option<Matrix3f>,
-    source_white_pt: Xyz,
-    illuminant_xyz: Xyz,
-) -> Option<Matrix3f> {
-    if source_white_pt.y == 0.0 {
-        return None;
-    }
-
-    let bradford = adaption_matrix(source_white_pt, illuminant_xyz)?;
-    Some(bradford.mat_mul(r?))
-}
+// #[inline]
+// pub(crate) fn adapt_to_illuminant(
+//     r: Option<Matrix3f>,
+//     source_white_pt: XyY,
+//     illuminant_xyz: Xyz,
+// ) -> Option<Matrix3f> {
+//     if source_white_pt.y == 0.0 {
+//         return None;
+//     }
+// 
+//     let xyz_wp = source_white_pt.to_xyz();
+//     adapt_to_illuminant_xyz(r, xyz_wp, illuminant_xyz)
+// }
+// 
+// #[inline]
+// pub(crate) fn adapt_to_illuminant_xyz(
+//     r: Option<Matrix3f>,
+//     source_white_pt: Xyz,
+//     illuminant_xyz: Xyz,
+// ) -> Option<Matrix3f> {
+//     if source_white_pt.y == 0.0 {
+//         return None;
+//     }
+// 
+//     let bradford = adaption_matrix(source_white_pt, illuminant_xyz)?;
+//     Some(bradford.mat_mul(r?))
+// }
