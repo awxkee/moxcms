@@ -63,6 +63,40 @@ fn compute_chromatic_adaption(
     Some(chad_inv.mat_mul(p0))
 }
 
+#[inline]
+const fn compute_chromatic_adaption_const(
+    source_white_point: Xyz,
+    dest_white_point: Xyz,
+    chad: Matrix3f,
+) -> Matrix3f {
+    let cone_source_xyz = Vector3f {
+        v: [
+            source_white_point.x,
+            source_white_point.y,
+            source_white_point.z,
+        ],
+    };
+    let cone_source_rgb = chad.mul_vector(cone_source_xyz);
+
+    let cone_dest_xyz = Vector3f {
+        v: [dest_white_point.x, dest_white_point.y, dest_white_point.z],
+    };
+    let cone_dest_rgb = chad.mul_vector(cone_dest_xyz);
+
+    let cone = Matrix3f {
+        v: [
+            [cone_dest_rgb.v[0] / cone_source_rgb.v[0], 0., 0.],
+            [0., cone_dest_rgb.v[1] / cone_source_rgb.v[1], 0.],
+            [0., 0., cone_dest_rgb.v[2] / cone_source_rgb.v[2]],
+        ],
+    };
+
+    let chad_inv = chad.inverse_const();
+
+    let p0 = cone.mat_mul_const(chad);
+    chad_inv.mat_mul_const(p0)
+}
+
 fn adaption_matrix(source_illumination: Xyz, target_illumination: Xyz) -> Option<Matrix3f> {
     let lam_rigg = {
         Matrix3f {
@@ -76,8 +110,35 @@ fn adaption_matrix(source_illumination: Xyz, target_illumination: Xyz) -> Option
     compute_chromatic_adaption(source_illumination, target_illumination, lam_rigg)
 }
 
+const fn adaption_matrix_const(source_illumination: Xyz, target_illumination: Xyz) -> Matrix3f {
+    let lam_rigg = {
+        Matrix3f {
+            v: [
+                [0.8951, 0.2664, -0.1614],
+                [-0.7502, 1.7135, 0.0367],
+                [0.0389, -0.0685, 1.0296],
+            ],
+        }
+    };
+    compute_chromatic_adaption_const(source_illumination, target_illumination, lam_rigg)
+}
+
 pub(crate) fn adapt_to_d50(r: Option<Matrix3f>, source_white_pt: XyY) -> Option<Matrix3f> {
     adapt_to_illuminant(r, source_white_pt, Chromaticity::D50.to_xyz())
+}
+
+pub(crate) const fn adapt_to_d50_const(r: Matrix3f, source_white_pt: XyY) -> Matrix3f {
+    adapt_to_illuminant_const(r, source_white_pt, Chromaticity::D50.to_xyz())
+}
+
+#[inline]
+pub(crate) const fn adapt_to_illuminant_const(
+    r: Matrix3f,
+    source_white_pt: XyY,
+    illuminant_xyz: Xyz,
+) -> Matrix3f {
+    let bradford = adaption_matrix_const(source_white_pt.to_xyz(), illuminant_xyz);
+    bradford.mat_mul_const(r)
 }
 
 #[inline]

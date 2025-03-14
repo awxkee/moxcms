@@ -35,70 +35,83 @@ use crate::{
 use bytemuck::{ByteEq, NoUninit};
 use std::convert::TryFrom;
 
+/// See [Rec. ITU-T H.273 (12/2016)](https://www.itu.int/rec/T-REC-H.273-201612-I/en) Table 2
+/// Values 0, 3, 13–21, 23–255 are all reserved so all map to the same variant
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum CicpColorPrimaries {
+    /// For future use by ITU-T | ISO/IEC
+    Reserved,
+    /// Rec. ITU-R BT.709-6<br />
+    /// Rec. ITU-R BT.1361-0 conventional colour gamut system and extended colour gamut system (historical)<br />
+    /// IEC 61966-2-1 sRGB or sYCC IEC 61966-2-4<br />
+    /// Society of Motion Picture and Television Engineers (MPTE) RP 177 (1993) Annex B<br />
+    Bt709 = 1,
+    /// Unspecified<br />
+    /// Image characteristics are unknown or are determined by the application.
+    Unspecified = 2,
+    /// Rec. ITU-R BT.470-6 System M (historical)<br />
+    /// United States National Television System Committee 1953 Recommendation for transmission standards for color television<br />
+    /// United States Federal Communications Commission (2003) Title 47 Code of Federal Regulations 73.682 (a) (20)<br />
+    Bt470M = 4,
+    /// Rec. ITU-R BT.470-6 System B, G (historical) Rec. ITU-R BT.601-7 625<br />
+    /// Rec. ITU-R BT.1358-0 625 (historical)<br />
+    /// Rec. ITU-R BT.1700-0 625 PAL and 625 SECAM<br />
+    Bt470Bg = 5,
+    /// Rec. ITU-R BT.601-7 525<br />
+    /// Rec. ITU-R BT.1358-1 525 or 625 (historical) Rec. ITU-R BT.1700-0 NTSC<br />
+    /// SMPTE 170M (2004)<br />
+    /// (functionally the same as the value 7)<br />
+    Bt601 = 6,
+    /// SMPTE 240M (1999) (historical) (functionally the same as the value 6)<br />
+    Smpte240 = 7,
+    /// Generic film (colour filters using Illuminant C)<br />
+    GenericFilm = 8,
+    /// Rec. ITU-R BT.2020-2<br />
+    /// Rec. ITU-R BT.2100-0<br />
+    Bt2020 = 9,
+    /// SMPTE ST 428-1<br />
+    /// (CIE 1931 XYZ as in ISO 11664-1)<br />
+    Xyz = 10,
+    /// SMPTE RP 431-2 (2011)<br />
+    Smpte431 = 11,
+    /// SMPTE EG 432-1 (2010)<br />
+    Smpte432 = 12,
+    /// EBU Tech. 3213-E (1975)<br />
+    Ebu3213 = 22,
+}
+
+impl TryFrom<u8> for CicpColorPrimaries {
+    type Error = CmsError;
+
+    #[allow(unreachable_patterns)]
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        match value {
+            // Values 0, 3, 13–21, 23–255 are all reserved so all map to the
+            // same variant.
+            0 | 3 | 13..=21 | 23..=255 => Ok(Self::Reserved),
+            1 => Ok(Self::Bt709),
+            2 => Ok(Self::Unspecified),
+            4 => Ok(Self::Bt470M),
+            5 => Ok(Self::Bt470Bg),
+            6 => Ok(Self::Bt601),
+            7 => Ok(Self::Smpte240),
+            8 => Ok(Self::GenericFilm),
+            9 => Ok(Self::Bt2020),
+            10 => Ok(Self::Xyz),
+            11 => Ok(Self::Smpte431),
+            12 => Ok(Self::Smpte432),
+            22 => Ok(Self::Ebu3213),
+            _ => Err(CmsError::InvalidCicp),
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, NoUninit, ByteEq)]
 #[repr(C)]
 pub struct ColorPrimaries {
     pub red: Chromaticity,
     pub green: Chromaticity,
     pub blue: Chromaticity,
-}
-
-impl TryFrom<u8> for ColorPrimaries {
-    type Error = CmsError;
-
-    #[allow(unreachable_patterns)]
-    fn try_from(value: u8) -> Result<Self, Self::Error> {
-        match value {
-            0 | 3 | 13..=21 | 23..=255 => Err(CmsError::UnsupportedColorPrimaries(value)),
-            1 => Ok(Self::BT_709),
-            2 => Err(CmsError::UnsupportedColorPrimaries(value)),
-            4 => Ok(Self::BT_470M),
-            5 => Ok(Self::BT_470BG),
-            6 => Ok(Self::BT_601),
-            7 => Ok(Self::SMPTE_240),
-            8 => Ok(Self::GENERIC_FILM),
-            9 => Ok(Self::BT_2020),
-            10 => Ok(Self::XYZ),
-            11 => Ok(Self::SMPTE_431),
-            12 => Ok(Self::SMPTE_432),
-            22 => Ok(Self::EBU_3213),
-            _ => Err(CmsError::InvalidCicp),
-        }
-    }
-}
-
-impl From<ColorPrimaries> for u8 {
-    fn from(value: ColorPrimaries) -> Self {
-        // TODO: this can be made into a match block once
-        // https://github.com/rust-lang/rust/issues/76560 is stabilized.
-        if ColorPrimaries::BT_709 == value {
-            1
-        } else if ColorPrimaries::BT_470M == value {
-            4
-        } else if ColorPrimaries::BT_470BG == value {
-            5
-        } else if ColorPrimaries::BT_601 == value {
-            6
-        } else if ColorPrimaries::SMPTE_240 == value {
-            7
-        } else if ColorPrimaries::GENERIC_FILM == value {
-            8
-        } else if ColorPrimaries::BT_2020 == value {
-            9
-        } else if ColorPrimaries::XYZ == value {
-            10
-        } else if ColorPrimaries::SMPTE_431 == value {
-            11
-        } else if ColorPrimaries::SMPTE_432 == value {
-            12
-        } else if ColorPrimaries::EBU_3213 == value {
-            22
-        } else {
-            // Values 0, 3, 13–21, 23–255 are all reserved so all map to the
-            // same variant.
-            0
-        }
-    }
 }
 
 /// See [Rec. ITU-T H.273 (12/2016)](https://www.itu.int/rec/T-REC-H.273-201612-I/en) Table 2.
@@ -339,6 +352,69 @@ impl TryFrom<u8> for TransferCharacteristics {
             18 => Ok(Self::Hlg),
             _ => Err(CmsError::InvalidCicp),
         }
+    }
+}
+
+impl CicpColorPrimaries {
+    pub(crate) const fn has_chromacity(self) -> bool {
+        self as u8 != Self::Reserved as u8 && self as u8 != Self::Unspecified as u8
+    }
+
+    pub(crate) const fn white_point(self) -> Result<Chromaticity, CmsError> {
+        Ok(match self {
+            Self::Reserved => return Err(CmsError::UnsupportedColorPrimaries(self as u8)),
+            Self::Bt709
+            | Self::Bt470Bg
+            | Self::Bt601
+            | Self::Smpte240
+            | Self::Bt2020
+            | Self::Smpte432
+            | Self::Ebu3213 => Chromaticity::D65,
+            Self::Unspecified => return Err(CmsError::UnsupportedColorPrimaries(self as u8)),
+            Self::Bt470M => Chromaticity { x: 0.310, y: 0.316 },
+            Self::GenericFilm => Chromaticity { x: 0.310, y: 0.316 },
+            Self::Xyz => Chromaticity {
+                x: 1. / 3.,
+                y: 1. / 3.,
+            },
+            Self::Smpte431 => Chromaticity { x: 0.314, y: 0.351 },
+        })
+    }
+}
+
+impl TryFrom<CicpColorPrimaries> for ColorPrimaries {
+    type Error = CmsError;
+
+    fn try_from(value: CicpColorPrimaries) -> Result<Self, Self::Error> {
+        match value {
+            CicpColorPrimaries::Reserved => Err(CmsError::UnsupportedColorPrimaries(value as u8)),
+            CicpColorPrimaries::Bt709 => Ok(ColorPrimaries::BT_709),
+            CicpColorPrimaries::Unspecified => {
+                Err(CmsError::UnsupportedColorPrimaries(value as u8))
+            }
+            CicpColorPrimaries::Bt470M => Ok(ColorPrimaries::BT_470M),
+            CicpColorPrimaries::Bt470Bg => Ok(ColorPrimaries::BT_470BG),
+            CicpColorPrimaries::Bt601 | CicpColorPrimaries::Smpte240 => Ok(ColorPrimaries::BT_601),
+            CicpColorPrimaries::GenericFilm => Ok(ColorPrimaries::GENERIC_FILM),
+            CicpColorPrimaries::Bt2020 => Ok(ColorPrimaries::BT_2020),
+            CicpColorPrimaries::Xyz => Ok(ColorPrimaries::XYZ),
+            // These two share primaries, but have distinct white points
+            CicpColorPrimaries::Smpte431 | CicpColorPrimaries::Smpte432 => {
+                Ok(ColorPrimaries::SMPTE_431)
+            }
+            CicpColorPrimaries::Ebu3213 => Ok(ColorPrimaries::EBU_3213),
+        }
+    }
+}
+
+impl TransferCharacteristics {
+    pub(crate) fn has_transfer_curve(self) -> bool {
+        self != Self::Reserved
+            && self != Self::Unspecified
+            && self != Self::Smpte240
+            && self != Self::Iec61966
+            && self != Self::Bt1361
+            && self != Self::Smpte428
     }
 }
 

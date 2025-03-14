@@ -27,8 +27,10 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::TechnologySignatures::Unknown;
-use crate::chad::adapt_to_d50;
-use crate::cicp::{ColorPrimaries, MatrixCoefficients, TransferCharacteristics};
+use crate::chad::adapt_to_d50_const;
+use crate::cicp::{
+    CicpColorPrimaries, ColorPrimaries, MatrixCoefficients, TransferCharacteristics,
+};
 use crate::dat::ColorDateTime;
 use crate::err::CmsError;
 use crate::matrix::{BT2020_MATRIX, DISPLAY_P3_MATRIX, Matrix3f, SRGB_MATRIX, XyY, Xyz};
@@ -619,7 +621,7 @@ impl ProfileHeader {
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
 pub struct CicpProfile {
-    pub color_primaries: ColorPrimaries,
+    pub color_primaries: CicpColorPrimaries,
     pub transfer_characteristics: TransferCharacteristics,
     pub matrix_coefficients: MatrixCoefficients,
     pub full_range: bool,
@@ -1119,7 +1121,7 @@ impl ColorProfile {
         if def != TagTypeDefinition::Cicp {
             return Ok(None);
         }
-        let primaries = ColorPrimaries::try_from(tag[8])?;
+        let primaries = CicpColorPrimaries::try_from(tag[8])?;
         let transfer_characteristics = TransferCharacteristics::try_from(tag[9])?;
         let matrix_coefficients = MatrixCoefficients::try_from(tag[10])?;
         let full_range = tag[11] == 1;
@@ -1905,11 +1907,11 @@ impl ColorProfile {
     #[inline]
     pub fn colorant_matrix(&self) -> Matrix3f {
         if let Some(cicp) = self.cicp {
-            if ColorPrimaries::BT_709 == cicp.color_primaries {
+            if CicpColorPrimaries::Bt709 == cicp.color_primaries {
                 return SRGB_MATRIX;
-            } else if ColorPrimaries::BT_2020 == cicp.color_primaries {
+            } else if CicpColorPrimaries::Bt2020 == cicp.color_primaries {
                 return BT2020_MATRIX;
-            } else if ColorPrimaries::SMPTE_240 == cicp.color_primaries {
+            } else if CicpColorPrimaries::Smpte240 == cicp.color_primaries {
                 return DISPLAY_P3_MATRIX;
             }
         }
@@ -1936,7 +1938,7 @@ impl ColorProfile {
     }
 
     /// Updates RGB triple colorimetry from 3 [Chromaticity] and white point
-    pub fn update_rgb_colorimetry(&mut self, white_point: XyY, primaries: ColorPrimaries) -> bool {
+    pub const fn update_rgb_colorimetry(&mut self, white_point: XyY, primaries: ColorPrimaries) {
         let red_xyz = primaries.red.to_xyz();
         let green_xyz = primaries.green.to_xyz();
         let blue_xyz = primaries.blue.to_xyz();
@@ -1945,13 +1947,16 @@ impl ColorProfile {
     }
 
     /// Updates RGB triple colorimetry from 3 [Xyz] and white point
-    pub fn update_rgb_colorimetry_triplet(
+    ///
+    /// To work on `const` context this method does have restrictions.
+    /// If invalid values were provided it may return invalid matrix or NaNs.
+    pub const fn update_rgb_colorimetry_triplet(
         &mut self,
         white_point: XyY,
         red_xyz: Xyz,
         green_xyz: Xyz,
         blue_xyz: Xyz,
-    ) -> bool {
+    ) {
         let xyz_matrix = Matrix3f {
             v: [
                 [red_xyz.x, green_xyz.x, blue_xyz.x],
@@ -1959,14 +1964,8 @@ impl ColorProfile {
                 [red_xyz.z, green_xyz.z, blue_xyz.z],
             ],
         };
-        let colorants = match self.rgb_to_xyz(xyz_matrix, white_point.to_xyz()) {
-            None => return false,
-            Some(v) => v,
-        };
-        let colorants = match adapt_to_d50(Some(colorants), white_point) {
-            Some(colorants) => colorants,
-            None => return false,
-        };
+        let colorants = self.rgb_to_xyz_const(xyz_matrix, white_point.to_xyz());
+        let colorants = adapt_to_d50_const(colorants, white_point);
 
         // note: there's a transpose type of operation going on here
         self.red_colorant.x = colorants.v[0][0];
@@ -1978,7 +1977,34 @@ impl ColorProfile {
         self.blue_colorant.x = colorants.v[0][2];
         self.blue_colorant.y = colorants.v[1][2];
         self.blue_colorant.z = colorants.v[2][2];
-        true
+    }
+
+    /// Updates RGB triple colorimetry from CICP
+    pub fn update_rgb_colorimetry_from_cicp(&mut self, cicp: CicpProfile) -> bool {
+        self.cicp = Some(cicp);
+        if !cicp.color_primaries.has_chromacity()
+            || !cicp.transfer_characteristics.has_transfer_curve()
+        {
+            return false;
+        }
+        let primaries_xy: ColorPrimaries = match cicp.color_primaries.try_into() {
+            Ok(primaries) => primaries,
+            Err(_) => return false,
+        };
+        let white_point: Chromaticity = match cicp.color_primaries.white_point() {
+            Ok(v) => v,
+            Err(_) => return false,
+        };
+        self.update_rgb_colorimetry(white_point.to_xyyb(), primaries_xy);
+
+        let red_trc: ToneReprCurve = match cicp.transfer_characteristics.try_into() {
+            Ok(trc) => trc,
+            Err(_) => return false,
+        };
+        self.green_trc = Some(red_trc.clone());
+        self.blue_trc = Some(red_trc.clone());
+        self.red_trc = Some(red_trc);
+        false
     }
 
     pub fn rgb_to_xyz(&self, xyz_matrix: Matrix3f, wp: Xyz) -> Option<Matrix3f> {
@@ -1988,6 +2014,16 @@ impl ColorProfile {
         v = v.mul_row_vector::<1>(s);
         v = v.mul_row_vector::<2>(s);
         Some(v)
+    }
+
+    /// If Primaries is invalid will return invalid matrix on const context
+    pub const fn rgb_to_xyz_const(&self, xyz_matrix: Matrix3f, wp: Xyz) -> Matrix3f {
+        let xyz_inverse = xyz_matrix.inverse_const();
+        let s = xyz_inverse.mul_vector(wp.to_vector());
+        let mut v = xyz_matrix.mul_row_vector::<0>(s);
+        v = v.mul_row_vector::<1>(s);
+        v = v.mul_row_vector::<2>(s);
+        v
     }
 
     pub fn rgb_to_xyz_matrix(&self) -> Option<Matrix3f> {

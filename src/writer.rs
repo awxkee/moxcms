@@ -246,7 +246,7 @@ fn write_cicp_entry(into: &mut Vec<u8>, cicp: &CicpProfile) {
     let cicp_tag: u32 = TagTypeDefinition::Cicp.into();
     write_u32_be(into, cicp_tag);
     write_u32_be(into, 0);
-    into.push(cicp.color_primaries.into());
+    into.push(cicp.color_primaries as u8);
     into.push(cicp.transfer_characteristics as u8);
     into.push(cicp.matrix_coefficients as u8);
     into.push(if cicp.full_range { 1 } else { 0 });

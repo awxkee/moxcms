@@ -131,6 +131,15 @@ where
     }
 }
 
+impl Vector3<f32> {
+    #[inline]
+    const fn const_mul_vector(self, v: Vector3f) -> Vector3f {
+        Vector3f {
+            v: [self.v[0] * v.v[0], self.v[1] * v.v[1], self.v[2] * v.v[2]],
+        }
+    }
+}
+
 impl<T> Mul<T> for Vector4<T>
 where
     T: Mul<Output = T> + Copy,
@@ -507,6 +516,46 @@ impl Matrix3f {
     }
 
     #[inline]
+    pub const fn inverse_const(&self) -> Self {
+        let v = self.v;
+        #[allow(clippy::redundant_match)]
+        let m_det = match self.determinant() {
+            None => 0f32,
+            Some(v) => v,
+        };
+        let det = 1. / m_det;
+        let a = v[0][0];
+        let b = v[0][1];
+        let c = v[0][2];
+        let d = v[1][0];
+        let e = v[1][1];
+        let f = v[1][2];
+        let g = v[2][0];
+        let h = v[2][1];
+        let i = v[2][2];
+
+        Matrix3f {
+            v: [
+                [
+                    (e * i - f * h) * det,
+                    (c * h - b * i) * det,
+                    (b * f - c * e) * det,
+                ],
+                [
+                    (f * g - d * i) * det,
+                    (a * i - c * g) * det,
+                    (c * d - a * f) * det,
+                ],
+                [
+                    (d * h - e * g) * det,
+                    (b * g - a * h) * det,
+                    (a * e - b * d) * det,
+                ],
+            ],
+        }
+    }
+
+    #[inline]
     pub fn mul_row<const R: usize>(&self, rhs: f32) -> Self {
         if R == 0 {
             Self {
@@ -526,18 +575,30 @@ impl Matrix3f {
     }
 
     #[inline]
-    pub fn mul_row_vector<const R: usize>(&self, rhs: Vector3f) -> Self {
+    pub const fn mul_row_vector<const R: usize>(&self, rhs: Vector3f) -> Self {
         if R == 0 {
             Self {
-                v: [(Vector3f { v: self.v[0] } * rhs).v, self.v[1], self.v[2]],
+                v: [
+                    (Vector3f { v: self.v[0] }.const_mul_vector(rhs)).v,
+                    self.v[1],
+                    self.v[2],
+                ],
             }
         } else if R == 1 {
             Self {
-                v: [self.v[0], (Vector3f { v: self.v[1] } * rhs).v, self.v[2]],
+                v: [
+                    self.v[0],
+                    (Vector3f { v: self.v[1] }.const_mul_vector(rhs)).v,
+                    self.v[2],
+                ],
             }
         } else if R == 2 {
             Self {
-                v: [self.v[0], self.v[1], (Vector3f { v: self.v[2] } * rhs).v],
+                v: [
+                    self.v[0],
+                    self.v[1],
+                    (Vector3f { v: self.v[2] }.const_mul_vector(rhs)).v,
+                ],
             }
         } else {
             unimplemented!()
@@ -545,22 +606,10 @@ impl Matrix3f {
     }
 
     #[inline]
-    pub fn mul_vector(&self, other: Vector3f) -> Vector3f {
-        let x = mlaf(
-            mlaf(self.v[0][1] * other.v[1], self.v[0][2], other.v[2]),
-            self.v[0][0],
-            other.v[0],
-        );
-        let y = mlaf(
-            mlaf(self.v[1][0] * other.v[0], self.v[1][1], other.v[1]),
-            self.v[1][2],
-            other.v[2],
-        );
-        let z = mlaf(
-            mlaf(self.v[2][0] * other.v[0], self.v[2][1], other.v[1]),
-            self.v[2][2],
-            other.v[2],
-        );
+    pub const fn mul_vector(&self, other: Vector3f) -> Vector3f {
+        let x = self.v[0][1] * other.v[1] + self.v[0][2] * other.v[2] + self.v[0][0] * other.v[0];
+        let y = self.v[1][0] * other.v[0] + self.v[1][1] * other.v[1] + self.v[1][2] * other.v[2];
+        let z = self.v[2][0] * other.v[0] + self.v[2][1] * other.v[1] + self.v[2][2] * other.v[2];
         Vector3f { v: [x, y, z] }
     }
 
@@ -576,6 +625,24 @@ impl Matrix3f {
                     other.v[2][j],
                 );
             }
+        }
+
+        result
+    }
+
+    #[inline]
+    pub const fn mat_mul_const(&self, other: Matrix3f) -> Self {
+        let mut result = Matrix3f { v: [[0f32; 3]; 3] };
+        let mut i = 0usize;
+        while i < 3 {
+            let mut j = 0usize;
+            while j < 3 {
+                result.v[i][j] = self.v[i][0] * other.v[0][j]
+                    + self.v[i][1] * other.v[1][j]
+                    + self.v[i][2] * other.v[2][j];
+                j += 1;
+            }
+            i += 1;
         }
 
         result
