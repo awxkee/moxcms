@@ -38,11 +38,11 @@ use std::ops::{
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialOrd, PartialEq)]
 pub struct Jzczhz {
-    /// Jz(lightness) generally expects to be between [0;1]
+    /// Jz(lightness) generally expects to be between `0.0..1.0`.
     pub jz: f32,
-    /// Cz generally expects to be between [-1;1]
+    /// Cz generally expects to be between `-1.0..1.0`.
     pub cz: f32,
-    /// Hz generally expects to be between [-1;1]
+    /// Hz generally expects to be between `-1.0..1.0`.
     pub hz: f32,
 }
 

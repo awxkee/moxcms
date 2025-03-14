@@ -197,14 +197,14 @@ impl ColorPrimaries {
     ///
     /// Rec. ITU-R BT.1358-1 525 or 625 (historical) Rec. ITU-R BT.1700-0 NTSC.
     ///
-    /// SMPTE 170M (2004) (functionally the same as the [`BT_240M`]).
+    /// SMPTE 170M (2004) (functionally the same as the [`SMPTE_240`](Self::SMPTE_240)).
     pub const BT_601: ColorPrimaries = ColorPrimaries {
         red: Chromaticity { x: 0.630, y: 0.340 },
         green: Chromaticity { x: 0.310, y: 0.595 },
         blue: Chromaticity { x: 0.155, y: 0.070 },
     };
 
-    /// SMPTE 240M (1999) (historical) (functionally the same as [`BT_601`]).
+    /// SMPTE 240M (1999) (historical) (functionally the same as [`BT_601`](Self::BT_601)).
     pub const SMPTE_240: ColorPrimaries = Self::BT_601;
 
     /// Generic film (colour filters using Illuminant C).
