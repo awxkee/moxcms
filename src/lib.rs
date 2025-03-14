@@ -28,6 +28,10 @@
  */
 #![allow(clippy::manual_clamp, clippy::excessive_precision)]
 #![deny(unreachable_pub)]
+#![cfg_attr(
+    not(any(feature = "avx", feature = "sse", feature = "neon")),
+    forbid(unsafe_code)
+)]
 mod chad;
 mod cicp;
 mod conversions;

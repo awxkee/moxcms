@@ -25,3 +25,10 @@ path = "unsafe/unsafe.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "safe_read"
+path = "safe_read/safe_read.rs"
+test = false
+doc = false
+bench = false

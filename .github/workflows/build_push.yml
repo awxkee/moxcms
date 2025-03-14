@@ -68,7 +68,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo clippy -- -D warnings
 
-  fuz_arm:
+  fuzz_arm:
     name: Fuzzing ARM
     runs-on: macos-latest
     strategy:
@@ -91,3 +91,12 @@ jobs:
       - uses: dtolnay/rust-toolchain@nightly
       - run: cargo install cargo-fuzz
       - run: cargo fuzz run unsafe --no-default-features --features ${{ matrix.feature }} -- -max_total_time=12
+
+  fuzz_reader:
+    name: Fuzzing Reader
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+      - run: cargo install cargo-fuzz
+      - run: cargo fuzz run safe_read --no-default-features -- -max_total_time=20 -max_len=512000
