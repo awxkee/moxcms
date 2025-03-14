@@ -41,7 +41,6 @@ use crate::{
 };
 use num_traits::AsPrimitive;
 use std::marker::PhantomData;
-use std::time::Instant;
 
 pub(crate) trait Vector3fCmykLerp {
     fn interpolate(a: Vector3f, b: Vector3f, t: f32, scale: f32) -> Vector3f;

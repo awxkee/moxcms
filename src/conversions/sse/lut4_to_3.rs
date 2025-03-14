@@ -60,7 +60,7 @@ where
 {
     #[allow(unused_unsafe)]
     #[target_feature(enable = "sse4.1")]
-    fn transform_chunk(&self, src: &[T], dst: &mut [T]) {
+    unsafe fn transform_chunk(&self, src: &[T], dst: &mut [T]) {
         let cn = Layout::from(LAYOUT);
         let channels = cn.channels();
         let grid_size = GRID_SIZE as i32;
