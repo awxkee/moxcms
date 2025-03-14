@@ -23,6 +23,15 @@ num-traits = "0.2"
 [dev-dependencies]
 rand = "0.9.0"
 
+[features]
+default = ["avx", "sse", "neon"]
+# Enables AVX2 acceleration where possible
+avx = []
+# Enables SSE4.1 acceleration where possible
+sse = []
+# Enables NEON intrinsics where possible
+neon = []
+
 [package.metadata.docs.rs]
 # To build locally:
 # RUSTDOCFLAGS="--cfg docsrs" cargo +nightly doc --all-features --no-deps --open --manifest-path ./Cargo.toml

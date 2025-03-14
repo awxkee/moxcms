@@ -60,7 +60,7 @@ where
     u32: AsPrimitive<T>,
 {
     #[allow(unused_unsafe)]
-    fn transform_chunk<'k>(&'k self, src: &[T], dst: &mut [T]) {
+    fn transform_chunk(&self, src: &[T], dst: &mut [T]) {
         let cn = Layout::from(LAYOUT);
         let channels = cn.channels();
         let grid_size = GRID_SIZE as i32;
