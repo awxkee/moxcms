@@ -96,18 +96,13 @@ where
 
             let v_scale = _mm_set1_ps(scale);
 
-            let rnd = _mm_set1_ps(0.5f32);
-
             for (src, dst) in src
                 .chunks_exact(src_channels)
                 .zip(dst.chunks_exact_mut(dst_channels))
             {
-                let mut r =
-                    _mm_load_ss(self.profile.r_linear.get_unchecked(src[src_cn.r_i()].as_()));
-                let mut g =
-                    _mm_load_ss(self.profile.g_linear.get_unchecked(src[src_cn.g_i()].as_()));
-                let mut b =
-                    _mm_load_ss(self.profile.b_linear.get_unchecked(src[src_cn.b_i()].as_()));
+                let mut r = _mm_load_ss(&self.profile.r_linear[src[src_cn.r_i()].as_()]);
+                let mut g = _mm_load_ss(&self.profile.g_linear[src[src_cn.g_i()].as_()]);
+                let mut b = _mm_load_ss(&self.profile.b_linear[src[src_cn.b_i()].as_()]);
                 let a = if src_channels == 4 {
                     src[src_cn.a_i()]
                 } else {
@@ -124,7 +119,7 @@ where
 
                 let mut v = _mm_add_ps(_mm_add_ps(v0, v1), v2);
                 v = _mm_max_ps(v, zeros);
-                v = _mm_add_ps(rnd, _mm_mul_ps(v, v_scale));
+                v = _mm_mul_ps(v, v_scale);
                 v = _mm_min_ps(v, v_scale);
 
                 let zx = _mm_cvtps_epi32(v);

@@ -26,12 +26,12 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-mod cmyk;
+mod lut4_to_3;
 mod stages;
 mod tetrahedral;
 mod transform_lut3_to_3;
 
-pub(crate) use cmyk::Vector3fLerpCmykNeon;
+pub(crate) use lut4_to_3::TransformLut4XyzToRgbNeon;
 pub(crate) use stages::TransformProfilePcsXYZRgbNeon;
 pub(crate) use tetrahedral::TetrahedralNeon;
 pub(crate) use transform_lut3_to_3::TransformLut3x3Neon;

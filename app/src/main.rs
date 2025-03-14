@@ -38,7 +38,7 @@ use zune_jpeg::zune_core::colorspace::ColorSpace;
 use zune_jpeg::zune_core::options::DecoderOptions;
 
 fn main() {
-    let funny_icc = fs::read("./assets/bt_2020.icc").unwrap();
+    let funny_icc = fs::read("./assets/us_swop_coated.icc").unwrap();
     let funny_profile = ColorProfile::new_from_slice(&funny_icc).unwrap();
 
     let encoded = funny_profile.encode().unwrap();
@@ -55,7 +55,7 @@ fn main() {
     let srgb_perceptual_icc = fs::read("./assets/srgb_perceptual.icc").unwrap();
     let srgb_perceptual_profile = ColorProfile::new_from_slice(&srgb_perceptual_icc).unwrap();
 
-    let f_str = "./assets/pq_test.jpg";
+    let f_str = "./assets/bench.jpg";
     let file = File::open(f_str).expect("Failed to open file");
 
     let img = image::ImageReader::open(f_str).unwrap().decode().unwrap();
@@ -82,7 +82,6 @@ fn main() {
     let real_dst = real_dst
         .chunks_exact(3)
         .flat_map(|x| [x[0], x[1], x[2], 255u8])
-        .map(|x| (x as u16) << 8 | (x as u16))
         .collect::<Vec<_>>();
 
     // let t1 = Transform::new(
@@ -103,7 +102,7 @@ fn main() {
     // )
     //     .unwrap();
 
-    let mut cmyk = vec![0u8; decoder.output_buffer_size().unwrap()];
+    let mut cmyk = vec![0u8; (decoder.output_buffer_size().unwrap() / 3) * 4];
 
     // t1.transform_pixels(&real_dst, &mut cmyk);
 
@@ -112,6 +111,19 @@ fn main() {
     let cmyk_profile = ColorProfile::new_from_slice(&funny_icc).unwrap();
     // let color_profile = ColorProfile::new_gray_with_gamma(2.2);
     let mut dest_profile = ColorProfile::new_srgb();
+
+    let transform = dest_profile
+        .create_transform_8bit(
+            Layout::Rgba,
+            &funny_profile,
+            Layout::Rgba,
+            TransformOptions {
+                rendering_intent: RenderingIntent::Perceptual,
+            },
+        )
+        .unwrap();
+
+    transform.transform(&real_dst, &mut cmyk).unwrap();
 
     // // let instant = Instant::now();
     // let rgb_to_cmyk = dest_profile
@@ -132,8 +144,8 @@ fn main() {
     // let t = Transform::new(&srgb_profile, PixelFormat::RGB_8, &custom_profile, PixelFormat::RGB_8, Intent::Perceptual).unwrap();
 
     dest_profile.rendering_intent = RenderingIntent::Perceptual;
-    let transform = color_profile
-        .create_transform_16bit(
+    let transform = funny_profile
+        .create_transform_8bit(
             Layout::Rgba,
             &dest_profile,
             Layout::Rgba,
@@ -142,7 +154,7 @@ fn main() {
             },
         )
         .unwrap();
-    let mut dst = vec![0u16; real_dst.len()];
+    let mut dst = vec![0u8; real_dst.len()];
     // t.transform_pixels(&real_dst)
 
     // let gray_image = rgb
@@ -154,7 +166,7 @@ fn main() {
     //     .collect::<Vec<u8>>();
     //
     let instant = Instant::now();
-    for (src, dst) in real_dst
+    for (src, dst) in cmyk
         .chunks_exact(img.width() as usize * 4)
         .zip(dst.chunks_exact_mut(img.width() as usize * 4))
     {
@@ -218,8 +230,6 @@ fn main() {
     //     image::ExtendedColorType::Rgb8,
     // )
     // .unwrap();
-
-    let dst = dst.iter().map(|&x| (x >> 8) as u8).collect::<Vec<_>>();
 
     image::save_buffer(
         "v_new_sat.png",

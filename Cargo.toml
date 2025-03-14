@@ -2,7 +2,7 @@ workspace = { members = ["app", "fuzz"] }
 
 [package]
 name = "moxcms"
-version = "0.3.2"
+version = "0.3.3"
 edition = "2024"
 description = "Simple Color Management in Rust"
 readme = "./README.md"
@@ -22,6 +22,15 @@ num-traits = "0.2"
 
 [dev-dependencies]
 rand = "0.9.0"
+
+[features]
+default = ["avx", "sse", "neon"]
+# Enables AVX2 acceleration where possible
+avx = []
+# Enables SSE4.1 acceleration where possible
+sse = []
+# Enables NEON intrinsics where possible
+neon = []
 
 [package.metadata.docs.rs]
 # To build locally:

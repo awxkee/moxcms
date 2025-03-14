@@ -30,7 +30,7 @@ use crate::conversions::lut3x3::create_lut3x3;
 use crate::conversions::lut3x4::{create_lut3_samples, create_lut3_samples_norm, create_lut3x4};
 use crate::conversions::lut4::create_lut4;
 use crate::conversions::mab::{prepare_mab_3x3, prepare_mba_3x3};
-use crate::conversions::tetrahedral::TetrhedralInterpolation;
+use crate::conversions::tetrahedral::{Tetrahedral, TetrhedralInterpolation};
 use crate::conversions::transform_lut3_to_4::TransformLut3x4;
 use crate::lab::Lab;
 use crate::math::FusedMultiplyAdd;
@@ -94,6 +94,7 @@ impl InPlaceStage for StageXyzToLab {
     }
 }
 
+#[allow(unused)]
 struct TransformLut4XyzToRgb<T, const LAYOUT: u8, const GRID_SIZE: usize, const BIT_DEPTH: usize> {
     lut: Vec<f32>,
     _phantom: PhantomData<T>,
@@ -203,6 +204,7 @@ impl CompressLut for u16 {
     }
 }
 
+#[allow(unused)]
 impl<
     T: Copy + AsPrimitive<f32> + Default + CompressLut,
     const LAYOUT: u8,
@@ -257,22 +259,9 @@ where
             }
         }
     }
-
-    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-    #[target_feature(enable = "avx2", enable = "fma")]
-    unsafe fn transform_avx2_fma(&self, src: &[T], dst: &mut [T]) {
-        use crate::conversions::avx::{TetrahedralAvxFma, Vector3fLerpCmykAvx};
-        self.transform_chunk::<TetrahedralAvxFma<GRID_SIZE>, Vector3fLerpCmykAvx>(src, dst);
-    }
-
-    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-    #[target_feature(enable = "sse4.1")]
-    unsafe fn transform_sse41(&self, src: &[T], dst: &mut [T]) {
-        use crate::conversions::sse::{TetrahedralSse, Vector3fLerpCmykSse};
-        self.transform_chunk::<TetrahedralSse<GRID_SIZE>, Vector3fLerpCmykSse>(src, dst);
-    }
 }
 
+#[allow(unused)]
 impl<
     T: Copy + AsPrimitive<f32> + Default + CompressLut,
     const LAYOUT: u8,
@@ -298,34 +287,7 @@ where
             return Err(CmsError::LaneSizeMismatch);
         }
 
-        #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-        {
-            if std::is_x86_feature_detected!("avx2") && std::is_x86_feature_detected!("fma") {
-                unsafe {
-                    self.transform_avx2_fma(src, dst);
-                }
-            } else if std::is_x86_feature_detected!("sse4.1") {
-                unsafe {
-                    self.transform_sse41(src, dst);
-                }
-            } else {
-                use crate::conversions::tetrahedral::Tetrahedral;
-                self.transform_chunk::<Tetrahedral<GRID_SIZE>, DefaultVector3fLerp>(src, dst);
-            }
-        }
-        #[cfg(not(any(
-            any(target_arch = "x86", target_arch = "x86_64"),
-            all(target_arch = "aarch64", target_feature = "neon")
-        )))]
-        {
-            use crate::conversions::tetrahedral::Tetrahedral;
-            self.transform_chunk::<Tetrahedral<GRID_SIZE>, DefaultVector3fLerp>(src, dst);
-        }
-        #[cfg(all(target_arch = "aarch64", target_feature = "neon"))]
-        {
-            use crate::conversions::neon::{TetrahedralNeon, Vector3fLerpCmykNeon};
-            self.transform_chunk::<TetrahedralNeon<GRID_SIZE>, Vector3fLerpCmykNeon>(src, dst);
-        }
+        self.transform_chunk::<Tetrahedral<GRID_SIZE>, DefaultVector3fLerp>(src, dst);
 
         Ok(())
     }
@@ -486,25 +448,80 @@ macro_rules! make_transform_3x3_fn {
     };
 }
 
-#[cfg(all(target_arch = "aarch64", target_feature = "neon"))]
+macro_rules! make_transform_4x3_fn {
+    ($method_name: ident, $exec_name: ident) => {
+        fn $method_name<
+            T: Copy + Default + AsPrimitive<f32> + Send + Sync + CompressLut + AsPrimitive<usize>,
+            const GRID_SIZE: usize,
+            const BIT_DEPTH: usize,
+        >(
+            dst_layout: Layout,
+            lut: Vec<f32>,
+        ) -> Box<dyn TransformExecutor<T> + Send + Sync>
+        where
+            f32: AsPrimitive<T>,
+            u32: AsPrimitive<T>,
+        {
+            match dst_layout {
+                Layout::Rgb => {
+                    Box::new(
+                        $exec_name::<T, { Layout::Rgb as u8 }, GRID_SIZE, BIT_DEPTH> {
+                            lut,
+                            _phantom: PhantomData,
+                        },
+                    )
+                }
+                Layout::Rgba => {
+                    Box::new(
+                        $exec_name::<T, { Layout::Rgba as u8 }, GRID_SIZE, BIT_DEPTH> {
+                            lut,
+                            _phantom: PhantomData,
+                        },
+                    )
+                }
+                _ => unimplemented!(),
+            }
+        }
+    };
+}
+
+#[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
 use crate::conversions::neon::TransformLut3x3Neon;
-#[cfg(all(target_arch = "aarch64", target_feature = "neon"))]
+#[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
 make_transform_3x3_fn!(make_transformer_3x3, TransformLut3x3Neon);
 
-#[cfg(not(all(target_arch = "aarch64", target_feature = "neon")))]
+#[cfg(not(all(target_arch = "aarch64", target_feature = "neon", feature = "neon")))]
 use crate::conversions::transform_lut3_to_3::TransformLut3x3;
-#[cfg(not(all(target_arch = "aarch64", target_feature = "neon")))]
+#[cfg(not(all(target_arch = "aarch64", target_feature = "neon", feature = "neon")))]
 make_transform_3x3_fn!(make_transformer_3x3, TransformLut3x3);
 
-#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+#[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "avx"))]
 use crate::conversions::avx::TransformLut3x3AvxFma;
-#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+#[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "avx"))]
 make_transform_3x3_fn!(make_transformer_3x3_avx_fma, TransformLut3x3AvxFma);
 
-#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+#[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"))]
 use crate::conversions::sse::TransformLut3x3Sse;
-#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+#[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"))]
 make_transform_3x3_fn!(make_transformer_3x3_sse41, TransformLut3x3Sse);
+
+#[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "avx"))]
+use crate::conversions::avx::TransformLut4XyzToRgbAvx;
+#[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "avx"))]
+make_transform_4x3_fn!(make_transformer_4x3_avx_fma, TransformLut4XyzToRgbAvx);
+
+#[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"))]
+use crate::conversions::sse::TransformLut4XyzToRgbSse;
+#[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"))]
+make_transform_4x3_fn!(make_transformer_4x3_sse41, TransformLut4XyzToRgbSse);
+
+#[cfg(not(all(target_arch = "aarch64", target_feature = "neon", feature = "neon")))]
+make_transform_4x3_fn!(make_transformer_4x3, TransformLut4XyzToRgb);
+
+#[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
+use crate::conversions::neon::TransformLut4XyzToRgbNeon;
+#[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
+make_transform_4x3_fn!(make_transformer_4x3, TransformLut4XyzToRgbNeon);
 
 pub(crate) fn make_lut_transform<
     T: Copy + Default + AsPrimitive<f32> + Send + Sync + CompressLut + AsPrimitive<usize>,
@@ -584,27 +601,27 @@ where
                 }
             }
 
-            return Ok(match dst_layout {
-                Layout::Rgb => Box::new(TransformLut4XyzToRgb::<
-                    T,
-                    { Layout::Rgb as u8 },
-                    GRID_SIZE,
-                    BIT_DEPTH,
-                > {
-                    lut,
-                    _phantom: PhantomData,
-                }),
-                Layout::Rgba => Box::new(TransformLut4XyzToRgb::<
-                    T,
-                    { Layout::Rgba as u8 },
-                    GRID_SIZE,
-                    BIT_DEPTH,
-                > {
-                    lut,
-                    _phantom: PhantomData,
-                }),
-                _ => unimplemented!(),
-            });
+            #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+            {
+                #[cfg(feature = "avx")]
+                if std::arch::is_x86_feature_detected!("avx2")
+                    && std::arch::is_x86_feature_detected!("fma")
+                {
+                    return Ok(make_transformer_4x3_avx_fma::<T, GRID_SIZE, BIT_DEPTH>(
+                        dst_layout, lut,
+                    ));
+                }
+                #[cfg(feature = "sse")]
+                if std::arch::is_x86_feature_detected!("sse4.1") {
+                    return Ok(make_transformer_4x3_sse41::<T, GRID_SIZE, BIT_DEPTH>(
+                        dst_layout, lut,
+                    ));
+                }
+            }
+
+            return Ok(make_transformer_4x3::<T, GRID_SIZE, BIT_DEPTH>(
+                dst_layout, lut,
+            ));
         }
     } else if (source.color_space == DataColorSpace::Rgb
         || source.color_space == DataColorSpace::Lab)
@@ -755,11 +772,14 @@ where
 
         #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
         {
+            #[cfg(feature = "avx")]
             if std::arch::is_x86_feature_detected!("avx2") && std::is_x86_feature_detected!("fma") {
                 return Ok(make_transformer_3x3_avx_fma::<T, GRID_SIZE, BIT_DEPTH>(
                     src_layout, dst_layout, lut,
                 ));
-            } else if std::arch::is_x86_feature_detected!("sse4.1") {
+            }
+            #[cfg(feature = "sse")]
+            if std::arch::is_x86_feature_detected!("sse4.1") {
                 return Ok(make_transformer_3x3_sse41::<T, GRID_SIZE, BIT_DEPTH>(
                     src_layout, dst_layout, lut,
                 ));

@@ -39,7 +39,7 @@ pub(crate) struct TransformProfileRgb<T: Clone, const BUCKET: usize> {
     pub(crate) adaptation_matrix: Option<Matrix3f>,
 }
 
-#[cfg(not(all(target_arch = "aarch64", target_feature = "neon")))]
+#[cfg(not(all(target_arch = "aarch64", target_feature = "neon", feature = "neon")))]
 struct TransformProfilePcsXYZRgb<
     T: Clone,
     const SRC_LAYOUT: u8,
@@ -51,7 +51,11 @@ struct TransformProfilePcsXYZRgb<
     pub(crate) profile: TransformProfileRgb<T, LINEAR_CAP>,
 }
 
-#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+#[cfg(any(
+    any(target_arch = "x86", target_arch = "x86_64"),
+    all(target_arch = "aarch64", target_feature = "neon")
+))]
+#[allow(unused)]
 macro_rules! create_rgb_xyz_dependant_executor {
     ($dep_name: ident, $dependant: ident) => {
         pub(crate) fn $dep_name<
@@ -117,25 +121,25 @@ macro_rules! create_rgb_xyz_dependant_executor {
     };
 }
 
-#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+#[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"))]
 use crate::conversions::sse::TransformProfilePcsXYZRgbSse;
 
-#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+#[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "avx"))]
 use crate::conversions::avx::TransformProfilePcsXYZRgbAvx;
 
-#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+#[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"))]
 create_rgb_xyz_dependant_executor!(
     make_rgb_xyz_rgb_transform_sse_41,
     TransformProfilePcsXYZRgbSse
 );
 
-#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+#[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "avx"))]
 create_rgb_xyz_dependant_executor!(
     make_rgb_xyz_rgb_transform_avx2,
     TransformProfilePcsXYZRgbAvx
 );
 
-#[cfg(not(all(target_arch = "aarch64", target_feature = "neon")))]
+#[cfg(not(all(target_arch = "aarch64", target_feature = "neon", feature = "neon")))]
 pub(crate) fn make_rgb_xyz_rgb_transform<
     T: Clone + Send + Sync + AsPrimitive<usize> + Default,
     const LINEAR_CAP: usize,
@@ -151,11 +155,13 @@ where
 {
     #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
     {
+        #[cfg(feature = "avx")]
         if std::arch::is_x86_feature_detected!("avx2") {
             return make_rgb_xyz_rgb_transform_avx2::<T, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>(
                 src_layout, dst_layout, profile,
             );
         }
+        #[cfg(feature = "sse")]
         if std::arch::is_x86_feature_detected!("sse4.1") {
             return make_rgb_xyz_rgb_transform_sse_41::<T, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>(
                 src_layout, dst_layout, profile,
@@ -210,70 +216,12 @@ where
     Err(CmsError::UnsupportedProfileConnection)
 }
 
-#[cfg(all(target_arch = "aarch64", target_feature = "neon"))]
-pub(crate) fn make_rgb_xyz_rgb_transform<
-    T: Clone + Send + Sync + AsPrimitive<usize> + Default,
-    const LINEAR_CAP: usize,
-    const GAMMA_LUT: usize,
-    const BIT_DEPTH: usize,
->(
-    src_layout: Layout,
-    dst_layout: Layout,
-    profile: TransformProfileRgb<T, LINEAR_CAP>,
-) -> Result<Box<dyn TransformExecutor<T> + Send + Sync>, CmsError>
-where
-    u32: AsPrimitive<T>,
-{
-    use crate::conversions::neon::TransformProfilePcsXYZRgbNeon;
-    if (src_layout == Layout::Rgba) && (dst_layout == Layout::Rgba) {
-        return Ok(Box::new(TransformProfilePcsXYZRgbNeon::<
-            T,
-            { Layout::Rgba as u8 },
-            { Layout::Rgba as u8 },
-            LINEAR_CAP,
-            GAMMA_LUT,
-            BIT_DEPTH,
-        > {
-            profile,
-        }));
-    } else if (src_layout == Layout::Rgb) && (dst_layout == Layout::Rgba) {
-        return Ok(Box::new(TransformProfilePcsXYZRgbNeon::<
-            T,
-            { Layout::Rgb as u8 },
-            { Layout::Rgba as u8 },
-            LINEAR_CAP,
-            GAMMA_LUT,
-            BIT_DEPTH,
-        > {
-            profile,
-        }));
-    } else if (src_layout == Layout::Rgba) && (dst_layout == Layout::Rgb) {
-        return Ok(Box::new(TransformProfilePcsXYZRgbNeon::<
-            T,
-            { Layout::Rgba as u8 },
-            { Layout::Rgb as u8 },
-            LINEAR_CAP,
-            GAMMA_LUT,
-            BIT_DEPTH,
-        > {
-            profile,
-        }));
-    } else if (src_layout == Layout::Rgb) && (dst_layout == Layout::Rgb) {
-        return Ok(Box::new(TransformProfilePcsXYZRgbNeon::<
-            T,
-            { Layout::Rgb as u8 },
-            { Layout::Rgb as u8 },
-            LINEAR_CAP,
-            GAMMA_LUT,
-            BIT_DEPTH,
-        > {
-            profile,
-        }));
-    }
-    Err(CmsError::UnsupportedProfileConnection)
-}
+#[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
+use crate::conversions::neon::TransformProfilePcsXYZRgbNeon;
+#[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
+create_rgb_xyz_dependant_executor!(make_rgb_xyz_rgb_transform, TransformProfilePcsXYZRgbNeon);
 
-#[cfg(not(all(target_arch = "aarch64", target_feature = "neon")))]
+#[cfg(not(all(target_arch = "aarch64", target_feature = "neon", feature = "neon")))]
 impl<
     T: Clone + AsPrimitive<usize> + Default,
     const SRC_LAYOUT: u8,
@@ -305,7 +253,7 @@ where
 
         let transform = self.profile.adaptation_matrix.unwrap_or(Matrix3f::IDENTITY);
         let scale = (GAMMA_LUT - 1) as f32;
-        let max_colors = (1 << BIT_DEPTH) - 1;
+        let max_colors: T = ((1 << BIT_DEPTH) - 1).as_();
 
         for (src, dst) in src
             .chunks_exact(src_channels)
@@ -315,9 +263,9 @@ where
             let g = self.profile.g_linear[src[src_cn.g_i()].as_()];
             let b = self.profile.b_linear[src[src_cn.b_i()].as_()];
             let a = if src_channels == 4 {
-                f32::from_bits(src[src_cn.a_i()].as_() as u32)
+                src[src_cn.a_i()]
             } else {
-                f32::from_bits(max_colors)
+                max_colors
             };
 
             let new_r = mlaf(
@@ -360,7 +308,7 @@ where
             dst[dst_cn.g_i()] = self.profile.g_gamma[(new_g as u16) as usize];
             dst[dst_cn.b_i()] = self.profile.b_gamma[(new_b as u16) as usize];
             if dst_channels == 4 {
-                dst[dst_cn.a_i()] = a.to_bits().as_();
+                dst[dst_cn.a_i()] = a;
             }
         }
 
