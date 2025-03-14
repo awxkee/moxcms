@@ -27,23 +27,21 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::conversions::CompressLut;
-use crate::conversions::avx::TetrahedralAvxFma;
+use crate::conversions::neon::TetrahedralNeon;
+use crate::conversions::neon::stages::NeonAlignedU32;
 use crate::conversions::tetrahedral::TetrhedralInterpolation;
-use crate::{CmsError, Layout, TransformExecutor};
+use crate::{CmsError, Layout, TransformExecutor, rounding_div_ceil};
 use num_traits::AsPrimitive;
+use std::arch::aarch64::*;
 #[cfg(target_arch = "x86")]
 use std::arch::x86::*;
 #[cfg(target_arch = "x86_64")]
 use std::arch::x86_64::*;
 use std::marker::PhantomData;
 
-#[repr(align(16), C)]
-pub(crate) struct SseAlignedU32(pub(crate) [u32; 4]);
-
-pub(crate) struct TransformLut3x3AvxFma<
+pub(crate) struct TransformLut4XyzToRgbNeon<
     T,
-    const SRC_LAYOUT: u8,
-    const DST_LAYOUT: u8,
+    const LAYOUT: u8,
     const GRID_SIZE: usize,
     const BIT_DEPTH: usize,
 > {
@@ -53,56 +51,60 @@ pub(crate) struct TransformLut3x3AvxFma<
 
 impl<
     T: Copy + AsPrimitive<f32> + Default + CompressLut,
-    const SRC_LAYOUT: u8,
-    const DST_LAYOUT: u8,
+    const LAYOUT: u8,
     const GRID_SIZE: usize,
     const BIT_DEPTH: usize,
-> TransformLut3x3AvxFma<T, SRC_LAYOUT, DST_LAYOUT, GRID_SIZE, BIT_DEPTH>
+> TransformLut4XyzToRgbNeon<T, LAYOUT, GRID_SIZE, BIT_DEPTH>
 where
     f32: AsPrimitive<T>,
     u32: AsPrimitive<T>,
 {
     #[allow(unused_unsafe)]
-    #[target_feature(enable = "avx2", enable = "fma")]
-    unsafe fn transform_chunk(&self, src: &[T], dst: &mut [T]) {
-        let src_cn = Layout::from(SRC_LAYOUT);
-        let src_channels = src_cn.channels();
+    fn transform_chunk<'k>(&'k self, src: &[T], dst: &mut [T]) {
+        let cn = Layout::from(LAYOUT);
+        let channels = cn.channels();
+        let grid_size = GRID_SIZE as i32;
+        let grid_size3 = grid_size * grid_size * grid_size;
 
-        let dst_cn = Layout::from(DST_LAYOUT);
-        let dst_channels = dst_cn.channels();
+        let value_scale = unsafe { vdupq_n_f32(((1 << BIT_DEPTH) - 1) as f32) };
+        let max_value = ((1 << BIT_DEPTH) - 1u32).as_();
 
-        let value_scale = unsafe { _mm_set1_ps(((1 << BIT_DEPTH) - 1) as f32) };
-        let max_value = ((1u32 << BIT_DEPTH) - 1).as_();
+        let mut temporary0 = NeonAlignedU32([0; 4]);
 
-        let mut temporary0 = SseAlignedU32([0; 4]);
+        for (src, dst) in src.chunks_exact(4).zip(dst.chunks_exact_mut(channels)) {
+            let c = src[0].compress_lut::<BIT_DEPTH>();
+            let m = src[1].compress_lut::<BIT_DEPTH>();
+            let y = src[2].compress_lut::<BIT_DEPTH>();
+            let k = src[3].compress_lut::<BIT_DEPTH>();
+            let linear_k: f32 = k as i32 as f32 / 255.0;
+            let w: i32 = k as i32 * (GRID_SIZE as i32 - 1) / 255;
+            let w_n: i32 = rounding_div_ceil(k as i32 * (GRID_SIZE as i32 - 1), 255);
+            let t: f32 = linear_k * (GRID_SIZE as i32 - 1) as f32 - w as f32;
 
-        for (src, dst) in src
-            .chunks_exact(src_channels)
-            .zip(dst.chunks_exact_mut(dst_channels))
-        {
-            let x = src[src_cn.r_i()].compress_lut::<BIT_DEPTH>();
-            let y = src[src_cn.g_i()].compress_lut::<BIT_DEPTH>();
-            let z = src[src_cn.b_i()].compress_lut::<BIT_DEPTH>();
+            let table1 = &self.lut[(w * grid_size3 * 3) as usize..];
+            let table2 = &self.lut[(w_n * grid_size3 * 3) as usize..];
 
-            let a = if src_channels == 4 {
-                src[src_cn.a_i()]
-            } else {
-                max_value
-            };
+            let tetrahedral1 = TetrahedralNeon::<GRID_SIZE>::new(table1);
+            let tetrahedral2 = TetrahedralNeon::<GRID_SIZE>::new(table2);
+            let a0 = tetrahedral1.inter3_neon(c, m, y).v;
+            let b0 = tetrahedral2.inter3_neon(c, m, y).v;
 
-            let tetrahedral = TetrahedralAvxFma::<GRID_SIZE>::new(&self.lut);
-            let v = tetrahedral.inter3_sse(x, y, z);
             unsafe {
-                let mut r = _mm_mul_ps(v.v, value_scale);
-                r = _mm_max_ps(r, _mm_setzero_ps());
-                r = _mm_min_ps(r, value_scale);
-                _mm_store_si128(temporary0.0.as_mut_ptr() as *mut _, _mm_cvtps_epi32(r));
+                let t0 = vdupq_n_f32(t);
+                let ones = vdupq_n_f32(1f32);
+                let hp = vmulq_f32(a0, vsubq_f32(ones, t0));
+                let mut v = vfmaq_f32(hp, b0, t0);
+                v = vmaxq_f32(v, vdupq_n_f32(0f32));
+                v = vmulq_f32(v, value_scale);
+                v = vminq_f32(v, value_scale);
+                vst1q_u32(temporary0.0.as_mut_ptr() as *mut _, vcvtaq_u32_f32(v));
             }
-            dst[dst_cn.r_i()] = temporary0.0[0].as_();
-            dst[dst_cn.g_i()] = temporary0.0[1].as_();
-            dst[dst_cn.b_i()] = temporary0.0[2].as_();
-            if dst_channels == 4 {
-                dst[dst_cn.a_i()] = a;
+
+            dst[cn.r_i()] = temporary0.0[0].as_();
+            dst[cn.g_i()] = temporary0.0[1].as_();
+            dst[cn.b_i()] = temporary0.0[2].as_();
+            if channels == 4 {
+                dst[cn.a_i()] = max_value;
             }
         }
     }
@@ -110,36 +112,31 @@ where
 
 impl<
     T: Copy + AsPrimitive<f32> + Default + CompressLut,
-    const SRC_LAYOUT: u8,
-    const DST_LAYOUT: u8,
+    const LAYOUT: u8,
     const GRID_SIZE: usize,
     const BIT_DEPTH: usize,
-> TransformExecutor<T> for TransformLut3x3AvxFma<T, SRC_LAYOUT, DST_LAYOUT, GRID_SIZE, BIT_DEPTH>
+> TransformExecutor<T> for TransformLut4XyzToRgbNeon<T, LAYOUT, GRID_SIZE, BIT_DEPTH>
 where
     f32: AsPrimitive<T>,
     u32: AsPrimitive<T>,
 {
     fn transform(&self, src: &[T], dst: &mut [T]) -> Result<(), CmsError> {
-        let src_cn = Layout::from(SRC_LAYOUT);
-        let src_channels = src_cn.channels();
-
-        let dst_cn = Layout::from(DST_LAYOUT);
-        let dst_channels = dst_cn.channels();
-        if src.len() % src_channels != 0 {
+        let cn = Layout::from(LAYOUT);
+        let channels = cn.channels();
+        if src.len() % 4 != 0 {
             return Err(CmsError::LaneMultipleOfChannels);
         }
-        if dst.len() % dst_channels != 0 {
+        if dst.len() % channels != 0 {
             return Err(CmsError::LaneMultipleOfChannels);
         }
-        let src_chunks = src.len() / src_channels;
-        let dst_chunks = dst.len() / dst_channels;
+        let src_chunks = src.len() / 4;
+        let dst_chunks = dst.len() / channels;
         if src_chunks != dst_chunks {
             return Err(CmsError::LaneSizeMismatch);
         }
 
-        unsafe {
-            self.transform_chunk(src, dst);
-        }
+        self.transform_chunk(src, dst);
+
         Ok(())
     }
 }

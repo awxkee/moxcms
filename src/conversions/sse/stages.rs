@@ -96,8 +96,6 @@ where
 
             let v_scale = _mm_set1_ps(scale);
 
-            let rnd = _mm_set1_ps(0.5f32);
-
             for (src, dst) in src
                 .chunks_exact(src_channels)
                 .zip(dst.chunks_exact_mut(dst_channels))
@@ -121,10 +119,10 @@ where
 
                 let mut v = _mm_add_ps(_mm_add_ps(v0, v1), v2);
                 v = _mm_max_ps(v, zeros);
-                v = _mm_add_ps(rnd, _mm_mul_ps(v, v_scale));
+                v = _mm_mul_ps(v, v_scale);
                 v = _mm_min_ps(v, v_scale);
 
-                let zx = _mm_cvttps_epi32(v);
+                let zx = _mm_cvtps_epi32(v);
                 _mm_store_si128(temporary.0.as_mut_ptr() as *mut _, zx);
 
                 dst[dst_cn.r_i()] = self.profile.r_gamma[temporary.0[0] as usize];
