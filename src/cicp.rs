@@ -126,19 +126,40 @@ impl ColorPrimaries {
         },
     };
 
-    /// [Adobe RGB](https://en.wikipedia.org/wiki/DCI-P3) (1998).
+    /// [Adobe RGB](https://en.wikipedia.org/wiki/Adobe_RGB_color_space) (1998).
     pub const ADOBE_RGB: ColorPrimaries = ColorPrimaries {
         red: Chromaticity { x: 0.64, y: 0.33 },
         green: Chromaticity { x: 0.21, y: 0.71 },
         blue: Chromaticity { x: 0.15, y: 0.06 },
     };
 
-    /// [DCI-P3](https://en.wikipedia.org/wiki/DCI-P3).
+    /// [DCI P3](https://en.wikipedia.org/wiki/DCI-P3#DCI_P3).
+    ///
+    /// This is the same as [`DISPLAY_P3`](Self::DISPLAY_P3),
+    /// [`SMPTE_431`](Self::SMPTE_431) and [`SMPTE_432`](Self::SMPTE_432).
     pub const DCI_P3: ColorPrimaries = ColorPrimaries {
         red: Chromaticity { x: 0.680, y: 0.320 },
         green: Chromaticity { x: 0.265, y: 0.690 },
         blue: Chromaticity { x: 0.150, y: 0.060 },
     };
+
+    /// [Diplay P3](https://en.wikipedia.org/wiki/DCI-P3#Display_P3).
+    ///
+    /// This is the same as [`DCI_P3`](Self::DCI_P3),
+    /// [`SMPTE_431`](Self::SMPTE_431) and [`SMPTE_432`](Self::SMPTE_432).
+    pub const DISPLAY_P3: ColorPrimaries = Self::DCI_P3;
+
+    /// SMPTE RP 431-2 (2011).
+    ///
+    /// This is the same as [`DCI_P3`](Self::DCI_P3),
+    /// [`DISPLAY_P3`](Self::DISPLAY_P3) and [`SMPTE_432`](Self::SMPTE_432).
+    pub const SMPTE_431: ColorPrimaries = Self::DCI_P3;
+
+    /// SMPTE EG 432-1 (2010).
+    ///
+    /// This is the same as [`DCI_P3`](Self::DCI_P3),
+    /// [`DISPLAY_P3`](Self::DISPLAY_P3) and [`SMPTE_431`](Self::SMPTE_431).
+    pub const SMPTE_432: ColorPrimaries = Self::DCI_P3;
 
     /// [ProPhoto RGB](https://en.wikipedia.org/wiki/ProPhoto_RGB_color_space).
     pub const PRO_PHOTO_RGB: ColorPrimaries = ColorPrimaries {
@@ -229,16 +250,6 @@ impl ColorPrimaries {
         green: Chromaticity { x: 0.0, y: 1.0 },
         blue: Chromaticity { x: 0.0, y: 0.0 },
     };
-
-    /// SMPTE RP 431-2 (2011).
-    pub const SMPTE_431: ColorPrimaries = ColorPrimaries {
-        red: Chromaticity { x: 0.680, y: 0.320 },
-        green: Chromaticity { x: 0.265, y: 0.690 },
-        blue: Chromaticity { x: 0.150, y: 0.060 },
-    };
-
-    /// SMPTE EG 432-1 (2010)<br />
-    pub const SMPTE_432: ColorPrimaries = Self::SMPTE_431;
 
     /// EBU Tech. 3213-E (1975).
     pub const EBU_3213: ColorPrimaries = ColorPrimaries {
