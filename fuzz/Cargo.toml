@@ -13,6 +13,12 @@ libfuzzer-sys = "0.4"
 [dependencies.moxcms]
 path = ".."
 
+[features]
+default = []
+avx = ["moxcms/avx"]
+sse = ["moxcms/sse"]
+neon = ["moxcms/neon"]
+
 [[bin]]
 name = "unsafe"
 path = "unsafe/unsafe.rs"
