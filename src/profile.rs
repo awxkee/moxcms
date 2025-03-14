@@ -946,6 +946,9 @@ impl ColorProfile {
         if slice[entry..].len() < 8 {
             return Err(CmsError::InvalidProfile);
         }
+        if tag_size < 8 {
+            return Ok(None);
+        }
         if (tag_size - 8) / 4 != 9 {
             return Ok(None);
         }
@@ -1152,6 +1155,9 @@ impl ColorProfile {
         if tag_size < 36 {
             return Ok(None);
         }
+        if slice.len() < entry.safe_add(36)? {
+            return Err(CmsError::InvalidProfile);
+        }
         let tag = &slice[entry..entry.safe_add(36)?];
         let tag_type =
             TagTypeDefinition::from(u32::from_be_bytes([tag[0], tag[1], tag[2], tag[3]]));
@@ -1281,6 +1287,9 @@ impl ColorProfile {
 
             return Ok(Some(ProfileText::Localizable(records)));
         } else if tag_type == TagTypeDefinition::Description {
+            if tag.len() < 12 {
+                return Err(CmsError::InvalidProfile);
+            }
             let ascii_length = u32::from_be_bytes([tag[8], tag[9], tag[10], tag[11]]) as usize;
             if tag.len() < 12.safe_add(ascii_length)? {
                 return Err(CmsError::InvalidProfile);
