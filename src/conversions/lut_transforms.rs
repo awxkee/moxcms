@@ -859,15 +859,15 @@ where
     f32: AsPrimitive<T>,
     u32: AsPrimitive<T>,
 {
-    let gamma_map_r = dest.build_gamma_table_cicp::<T, 65536, GAMMA_LUT, BIT_DEPTH>(
+    let gamma_map_r = dest.build_gamma_table::<T, 65536, GAMMA_LUT, BIT_DEPTH>(
         &dest.red_trc,
         options.allow_use_cicp_transfer,
     )?;
-    let gamma_map_g = dest.build_gamma_table_cicp::<T, 65536, GAMMA_LUT, BIT_DEPTH>(
+    let gamma_map_g = dest.build_gamma_table::<T, 65536, GAMMA_LUT, BIT_DEPTH>(
         &dest.green_trc,
         options.allow_use_cicp_transfer,
     )?;
-    let gamma_map_b = dest.build_gamma_table_cicp::<T, 65536, GAMMA_LUT, BIT_DEPTH>(
+    let gamma_map_b = dest.build_gamma_table::<T, 65536, GAMMA_LUT, BIT_DEPTH>(
         &dest.blue_trc,
         options.allow_use_cicp_transfer,
     )?;

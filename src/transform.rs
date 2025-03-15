@@ -261,15 +261,15 @@ impl ColorProfile {
                 options.allow_use_cicp_transfer,
             )?;
 
-            let gamma_r = dst_pr.build_gamma_table_cicp::<T, 65536, GAMMA_CAP, BIT_DEPTH>(
+            let gamma_r = dst_pr.build_gamma_table::<T, 65536, GAMMA_CAP, BIT_DEPTH>(
                 &self.red_trc,
                 options.allow_use_cicp_transfer,
             )?;
-            let gamma_g = dst_pr.build_gamma_table_cicp::<T, 65536, GAMMA_CAP, BIT_DEPTH>(
+            let gamma_g = dst_pr.build_gamma_table::<T, 65536, GAMMA_CAP, BIT_DEPTH>(
                 &self.green_trc,
                 options.allow_use_cicp_transfer,
             )?;
-            let gamma_b = dst_pr.build_gamma_table_cicp::<T, 65536, GAMMA_CAP, BIT_DEPTH>(
+            let gamma_b = dst_pr.build_gamma_table::<T, 65536, GAMMA_CAP, BIT_DEPTH>(
                 &self.blue_trc,
                 options.allow_use_cicp_transfer,
             )?;
@@ -299,8 +299,10 @@ impl ColorProfile {
                 return Err(CmsError::InvalidLayout);
             }
             let gray_linear = self.build_gray_linearize_table::<LINEAR_CAP, BIT_DEPTH>()?;
-            let gray_gamma =
-                dst_pr.build_gamma_table::<T, 65536, GAMMA_CAP, BIT_DEPTH>(&self.gray_trc)?;
+            let gray_gamma = dst_pr.build_gamma_table::<T, 65536, GAMMA_CAP, BIT_DEPTH>(
+                &self.gray_trc,
+                options.allow_use_cicp_transfer,
+            )?;
 
             return make_gray_to_x::<T, LINEAR_CAP, BIT_DEPTH, GAMMA_CAP>(
                 src_layout,
@@ -329,8 +331,10 @@ impl ColorProfile {
             let lin_b = self.build_b_linearize_table::<LINEAR_CAP, BIT_DEPTH>(
                 options.allow_use_cicp_transfer,
             )?;
-            let gray_linear =
-                dst_pr.build_gamma_table::<T, 65536, GAMMA_CAP, BIT_DEPTH>(&dst_pr.gray_trc)?;
+            let gray_linear = dst_pr.build_gamma_table::<T, 65536, GAMMA_CAP, BIT_DEPTH>(
+                &dst_pr.gray_trc,
+                options.allow_use_cicp_transfer,
+            )?;
 
             let transform = self
                 .rgb_to_xyz_matrix()
