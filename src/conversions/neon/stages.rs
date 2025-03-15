@@ -92,8 +92,6 @@ where
             let m1 = vld1q_f32([t.v[1][0], t.v[1][1], t.v[1][2], 0f32].as_ptr());
             let m2 = vld1q_f32([t.v[2][0], t.v[2][1], t.v[2][2], 0f32].as_ptr());
 
-            let zeros = vdupq_n_f32(0f32);
-
             let v_scale = vdupq_n_f32(scale);
 
             let rnd = vdupq_n_f32(0.5f32);
@@ -102,16 +100,20 @@ where
                 .chunks_exact(src_channels * 2)
                 .zip(dst.chunks_exact_mut(dst_channels * 2))
             {
-                let r0 = vld1q_dup_f32(&self.profile.r_linear[src[src_cn.r_i()].as_()]);
-                let g0 = vld1q_dup_f32(&self.profile.g_linear[src[src_cn.g_i()].as_()]);
-                let b0 = vld1q_dup_f32(&self.profile.b_linear[src[src_cn.b_i()].as_()]);
+                let r0p = &self.profile.r_linear[src[src_cn.r_i()].as_()];
+                let g0p = &self.profile.g_linear[src[src_cn.g_i()].as_()];
+                let b0p = &self.profile.b_linear[src[src_cn.b_i()].as_()];
 
-                let r1 =
-                    vld1q_dup_f32(&self.profile.r_linear[src[src_cn.r_i() + src_channels].as_()]);
-                let g1 =
-                    vld1q_dup_f32(&self.profile.g_linear[src[src_cn.g_i() + src_channels].as_()]);
-                let b1 =
-                    vld1q_dup_f32(&self.profile.b_linear[src[src_cn.b_i() + src_channels].as_()]);
+                let r1p = &self.profile.r_linear[src[src_cn.r_i() + src_channels].as_()];
+                let g1p = &self.profile.g_linear[src[src_cn.g_i() + src_channels].as_()];
+                let b1p = &self.profile.b_linear[src[src_cn.b_i() + src_channels].as_()];
+                let r0 = vld1q_dup_f32(r0p);
+                let g0 = vld1q_dup_f32(g0p);
+                let b0 = vld1q_dup_f32(b0p);
+
+                let r1 = vld1q_dup_f32(r1p);
+                let g1 = vld1q_dup_f32(g1p);
+                let b1 = vld1q_dup_f32(b1p);
 
                 let a0 = if src_channels == 4 {
                     src[src_cn.a_i()]
@@ -134,8 +136,6 @@ where
                 let mut vr0 = vfmaq_f32(v1_0, b0, m2);
                 let mut vr1 = vfmaq_f32(v1_1, b1, m2);
 
-                vr0 = vmaxq_f32(vr0, zeros);
-                vr1 = vmaxq_f32(vr1, zeros);
                 vr0 = vfmaq_f32(rnd, vr0, v_scale);
                 vr1 = vfmaq_f32(rnd, vr1, v_scale);
                 vr0 = vminq_f32(vr0, v_scale);
@@ -168,9 +168,12 @@ where
                 .chunks_exact(src_channels)
                 .zip(dst.chunks_exact_mut(dst_channels))
             {
-                let r = vld1q_dup_f32(&self.profile.r_linear[src[src_cn.r_i()].as_()]);
-                let g = vld1q_dup_f32(&self.profile.g_linear[src[src_cn.g_i()].as_()]);
-                let b = vld1q_dup_f32(&self.profile.b_linear[src[src_cn.b_i()].as_()]);
+                let rp = &self.profile.r_linear[src[src_cn.r_i()].as_()];
+                let gp = &self.profile.g_linear[src[src_cn.g_i()].as_()];
+                let bp = &self.profile.b_linear[src[src_cn.b_i()].as_()];
+                let r = vld1q_dup_f32(rp);
+                let g = vld1q_dup_f32(gp);
+                let b = vld1q_dup_f32(bp);
                 let a = if src_channels == 4 {
                     src[src_cn.a_i()]
                 } else {
@@ -181,7 +184,6 @@ where
                 let v1 = vfmaq_f32(v0, g, m1);
                 let mut v = vfmaq_f32(v1, b, m2);
 
-                v = vmaxq_f32(v, zeros);
                 v = vfmaq_f32(rnd, v, v_scale);
                 v = vminq_f32(v, v_scale);
 
