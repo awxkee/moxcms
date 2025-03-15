@@ -56,9 +56,7 @@ fn fuzz_8_bit(width: usize, height: usize, px: u8, src_layout: Layout, dst_layou
             src_layout,
             &dst_profile,
             dst_layout,
-            TransformOptions {
-                rendering_intent: RenderingIntent::Perceptual,
-            },
+            TransformOptions::default(),
         )
         .unwrap();
     transform
@@ -79,9 +77,7 @@ fn fuzz_16_bit(width: usize, height: usize, px: u16, src_layout: Layout, dst_lay
             src_layout,
             &dst_profile,
             dst_layout,
-            TransformOptions {
-                rendering_intent: RenderingIntent::Perceptual,
-            },
+            TransformOptions::default(),
         )
         .unwrap();
     transform
@@ -105,9 +101,7 @@ fn fuzz_cmyk_8_bit(width: usize, height: usize, px: u8, dst_layout: Layout) {
             Layout::Rgba,
             &dst_profile,
             dst_layout,
-            TransformOptions {
-                rendering_intent: RenderingIntent::Perceptual,
-            },
+            TransformOptions::default(),
         )
         .unwrap();
     transform
@@ -131,9 +125,7 @@ fn fuzz_lut_rgb_8_bit(width: usize, height: usize, px: u8, dst_layout: Layout) {
             Layout::Rgba,
             &dst_profile,
             dst_layout,
-            TransformOptions {
-                rendering_intent: RenderingIntent::Perceptual,
-            },
+            TransformOptions::default(),
         )
         .unwrap();
     transform
