@@ -154,8 +154,6 @@ pub const fn expf(d: f32) -> f32 {
     const EXP_POLY_1_S: f32 = 2f32;
     const EXP_POLY_2_S: f32 = 0.16666707f32;
     const EXP_POLY_3_S: f32 = -0.002775669f32;
-    const EXP_POLY_4_S: f32 = 6.6094115e-5f32;
-    const EXP_POLY_5_S: f32 = 1.6546869e-6f32;
     let qf = rintfk(d * R_LN2_F);
     let q = qf as i32;
     let r = fmlaf(qf, -L2U_F, d);
@@ -163,9 +161,7 @@ pub const fn expf(d: f32) -> f32 {
 
     let f = r * r;
     // Poly for u = r*(exp(r)+1)/(exp(r)-1)
-    let mut u = EXP_POLY_5_S;
-    u = fmlaf(u, f, EXP_POLY_4_S);
-    u = fmlaf(u, f, EXP_POLY_3_S);
+    let mut u = EXP_POLY_3_S;
     u = fmlaf(u, f, EXP_POLY_2_S);
     u = fmlaf(u, f, EXP_POLY_1_S);
     let u = 1f32 + 2f32 * r / (u - r);
@@ -288,10 +284,6 @@ pub const fn exp(d: f64) -> f64 {
     const EXP_POLY_4_D: f64 = 6.613756613755705e-5f64;
     const EXP_POLY_5_D: f64 = -1.6534391534392554e-6f64;
     const EXP_POLY_6_D: f64 = 4.17535139757361979584e-8f64;
-    const EXP_POLY_7_D: f64 = -1.05683802773749863697e-9f64;
-    const EXP_POLY_8_D: f64 = 2.67650730613693576657e-11f64;
-    const EXP_POLY_9_D: f64 = 1.71721241125556891283e-14;
-    const EXP_POLY_10_D: f64 = -6.77936059264516573366e-13f64;
 
     const L2_U: f64 = 0.693_147_180_559_662_956_511_601_805_686_950_683_593_75;
     const L2_L: f64 = 0.282_352_905_630_315_771_225_884_481_750_134_360_255_254_120_68_e-12;
@@ -306,11 +298,7 @@ pub const fn exp(d: f64) -> f64 {
 
     let f = r * r;
     // Poly for u = r*(exp(r)+1)/(exp(r)-1)
-    let mut u = EXP_POLY_10_D;
-    u = fmla(u, f, EXP_POLY_9_D);
-    u = fmla(u, f, EXP_POLY_8_D);
-    u = fmla(u, f, EXP_POLY_7_D);
-    u = fmla(u, f, EXP_POLY_6_D);
+    let mut u = EXP_POLY_6_D;
     u = fmla(u, f, EXP_POLY_5_D);
     u = fmla(u, f, EXP_POLY_4_D);
     u = fmla(u, f, EXP_POLY_3_D);

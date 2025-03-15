@@ -5,7 +5,7 @@
  * // license that can be found in the LICENSE file.
  */
 use criterion::{Criterion, black_box, criterion_group, criterion_main};
-use moxcms::{atanf, cbrtf, cosf, expf, logf, pow, powf, sinf};
+use moxcms::{atanf, cbrtf, cosf, exp, expf, logf, pow, powf, sinf};
 
 pub fn criterion_benchmark(c: &mut Criterion) {
     c.bench_function("libm::cbrtf", |b| {
@@ -68,6 +68,22 @@ pub fn criterion_benchmark(c: &mut Criterion) {
         b.iter(|| {
             for i in 1..1000 {
                 black_box(expf(i as f32));
+            }
+        })
+    });
+
+    c.bench_function("libm::exp", |b| {
+        b.iter(|| {
+            for i in 1..1000 {
+                black_box(libm::exp(i as f64));
+            }
+        })
+    });
+
+    c.bench_function("moxcms: exp", |b| {
+        b.iter(|| {
+            for i in 1..1000 {
+                black_box(exp(i as f64));
             }
         })
     });
