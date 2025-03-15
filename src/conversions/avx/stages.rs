@@ -174,8 +174,6 @@ where
             let src = src.chunks_exact(src_channels * 2).remainder();
             let dst = dst.chunks_exact_mut(dst_channels * 2).into_remainder();
 
-            let v_scale = _mm_set1_ps(scale);
-
             for (src, dst) in src
                 .chunks_exact(src_channels)
                 .zip(dst.chunks_exact_mut(dst_channels))
@@ -202,8 +200,8 @@ where
                 };
 
                 v = _mm_max_ps(v, zeros);
-                v = _mm_mul_ps(v, v_scale);
-                v = _mm_min_ps(v, v_scale);
+                v = _mm_mul_ps(v, _mm256_castps256_ps128(v_scale));
+                v = _mm_min_ps(v, _mm256_castps256_ps128(v_scale));
 
                 let zx = _mm_cvtps_epi32(v);
                 _mm_store_si128(temporary0.0.as_mut_ptr() as *mut _, zx);
