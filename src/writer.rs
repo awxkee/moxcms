@@ -28,7 +28,7 @@
  */
 use crate::profile::{LutDataType, ProfileHeader};
 use crate::tag::{TAG_SIZE, Tag, TagTypeDefinition};
-use crate::trc::Trc;
+use crate::trc::ToneReprCurve;
 use crate::{
     CicpProfile, CmsError, ColorDateTime, ColorProfile, LocalizableString, LutMCurvesType, LutType,
     LutWarehouse, Matrix3f, ProfileSignature, ProfileText, ProfileVersion, Vector3f, Xyz,
@@ -199,9 +199,9 @@ fn write_tag_entry(into: &mut Vec<u8>, tag: Tag, tag_entry: usize, tag_size: usi
     write_u32_be(into, tag_size as u32);
 }
 
-fn write_trc_entry(into: &mut Vec<u8>, trc: &Trc) -> Result<usize, CmsError> {
+fn write_trc_entry(into: &mut Vec<u8>, trc: &ToneReprCurve) -> Result<usize, CmsError> {
     match trc {
-        Trc::Lut(lut) => {
+        ToneReprCurve::Lut(lut) => {
             let curv: u32 = TagTypeDefinition::LutToneCurve.into();
             write_u32_be(into, curv);
             write_u32_be(into, 0);
@@ -211,7 +211,7 @@ fn write_trc_entry(into: &mut Vec<u8>, trc: &Trc) -> Result<usize, CmsError> {
             }
             Ok(12 + lut.len() * 2)
         }
-        Trc::Parametric(parametric_curve) => {
+        ToneReprCurve::Parametric(parametric_curve) => {
             if parametric_curve.len() > 7
                 || parametric_curve.len() == 6
                 || parametric_curve.len() == 2

@@ -27,7 +27,7 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::math::cbrtf;
-use crate::{Chromacity, Xyz};
+use crate::{Chromaticity, Xyz};
 
 /// Holds CIE LAB values
 #[repr(C)]
@@ -77,7 +77,7 @@ impl Lab {
     /// Converts to CIE Lab from CIE XYZ for PCS encoding
     #[inline]
     pub const fn from_pcs_xyz(xyz: Xyz) -> Self {
-        const WP: Xyz = Chromacity::D50.to_xyz();
+        const WP: Xyz = Chromaticity::D50.to_xyz();
         let device_x = (xyz.x as f64 * (1.0f64 + 32767.0f64 / 32768.0f64) / WP.x as f64) as f32;
         let device_y = (xyz.y as f64 * (1.0f64 + 32767.0f64 / 32768.0f64) / WP.y as f64) as f32;
         let device_z = (xyz.z as f64 * (1.0f64 + 32767.0f64 / 32768.0f64) / WP.z as f64) as f32;
@@ -99,7 +99,7 @@ impl Lab {
     /// Converts to CIE Lab from CIE XYZ
     #[inline]
     pub const fn from_xyz(xyz: Xyz) -> Self {
-        const WP: Xyz = Chromacity::D50.to_xyz();
+        const WP: Xyz = Chromaticity::D50.to_xyz();
         let device_x = (xyz.x as f64 * (1.0f64 + 32767.0f64 / 32768.0f64) / WP.x as f64) as f32;
         let device_y = (xyz.y as f64 * (1.0f64 + 32767.0f64 / 32768.0f64) / WP.y as f64) as f32;
         let device_z = (xyz.z as f64 * (1.0f64 + 32767.0f64 / 32768.0f64) / WP.z as f64) as f32;
@@ -124,7 +124,7 @@ impl Lab {
 
         let y = (device_l + 16.0) / 116.0;
 
-        const WP: Xyz = Chromacity::D50.to_xyz();
+        const WP: Xyz = Chromaticity::D50.to_xyz();
 
         let x = f_1(y + 0.002 * device_a) * WP.x;
         let y1 = f_1(y) * WP.y;
@@ -145,7 +145,7 @@ impl Lab {
 
         let y = (device_l + 16.0) / 116.0;
 
-        const WP: Xyz = Chromacity::D50.to_xyz();
+        const WP: Xyz = Chromaticity::D50.to_xyz();
 
         let x = f_1(y + 0.002 * device_a) * WP.x;
         let y1 = f_1(y) * WP.y;

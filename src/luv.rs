@@ -54,18 +54,18 @@ pub struct LCh {
 }
 
 use crate::math::cbrtf;
-use crate::{Chromacity, Lab, Xyz, atan2f, const_hypotf, cosf, hypotf, powf, sinf};
+use crate::{Chromaticity, Lab, Xyz, atan2f, const_hypotf, cosf, hypotf, powf, sinf};
 use num_traits::Pow;
 use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 
-pub(crate) const LUV_WHITE_U_PRIME: f32 = 4.0f32 * Chromacity::D50.to_xyz().y
-    / (Chromacity::D50.to_xyz().x
-        + 15.0 * Chromacity::D50.to_xyz().y
-        + 3.0 * Chromacity::D50.to_xyz().z);
-pub(crate) const LUV_WHITE_V_PRIME: f32 = 9.0f32 * Chromacity::D50.to_xyz().y
-    / (Chromacity::D50.to_xyz().x
-        + 15.0 * Chromacity::D50.to_xyz().y
-        + 3.0 * Chromacity::D50.to_xyz().z);
+pub(crate) const LUV_WHITE_U_PRIME: f32 = 4.0f32 * Chromaticity::D50.to_xyz().y
+    / (Chromaticity::D50.to_xyz().x
+        + 15.0 * Chromaticity::D50.to_xyz().y
+        + 3.0 * Chromaticity::D50.to_xyz().z);
+pub(crate) const LUV_WHITE_V_PRIME: f32 = 9.0f32 * Chromaticity::D50.to_xyz().y
+    / (Chromaticity::D50.to_xyz().x
+        + 15.0 * Chromaticity::D50.to_xyz().y
+        + 3.0 * Chromaticity::D50.to_xyz().z);
 
 pub(crate) const LUV_CUTOFF_FORWARD_Y: f32 = (6f32 / 29f32) * (6f32 / 29f32) * (6f32 / 29f32);
 pub(crate) const LUV_MULTIPLIER_FORWARD_Y: f32 = (29f32 / 3f32) * (29f32 / 3f32) * (29f32 / 3f32);

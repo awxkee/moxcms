@@ -26,15 +26,19 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-use crate::err::CmsError;
-use crate::trc::{Trc, build_srgb_gamma_table, build_trc_table, curve_from_gamma};
-use crate::{Chromacity, pow};
+use crate::{
+    Chromaticity,
+    err::CmsError,
+    pow,
+    trc::{ToneReprCurve, build_srgb_gamma_table, build_trc_table, curve_from_gamma},
+};
+use bytemuck::{ByteEq, NoUninit};
 use std::convert::TryFrom;
 
 /// See [Rec. ITU-T H.273 (12/2016)](https://www.itu.int/rec/T-REC-H.273-201612-I/en) Table 2
 /// Values 0, 3, 13–21, 23–255 are all reserved so all map to the same variant
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub enum ColorPrimaries {
+pub enum CicpColorPrimaries {
     /// For future use by ITU-T | ISO/IEC
     Reserved,
     /// Rec. ITU-R BT.709-6<br />
@@ -76,12 +80,14 @@ pub enum ColorPrimaries {
     Ebu3213 = 22,
 }
 
-impl TryFrom<u8> for ColorPrimaries {
+impl TryFrom<u8> for CicpColorPrimaries {
     type Error = CmsError;
 
     #[allow(unreachable_patterns)]
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         match value {
+            // Values 0, 3, 13–21, 23–255 are all reserved so all map to the
+            // same variant.
             0 | 3 | 13..=21 | 23..=255 => Ok(Self::Reserved),
             1 => Ok(Self::Bt709),
             2 => Ok(Self::Unspecified),
@@ -100,105 +106,170 @@ impl TryFrom<u8> for ColorPrimaries {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
-pub struct ChromacityTriple {
-    pub red: Chromacity,
-    pub green: Chromacity,
-    pub blue: Chromacity,
+#[derive(Clone, Copy, Debug, NoUninit, ByteEq)]
+#[repr(C)]
+pub struct ColorPrimaries {
+    pub red: Chromaticity,
+    pub green: Chromaticity,
+    pub blue: Chromaticity,
 }
 
-impl TryFrom<ColorPrimaries> for ChromacityTriple {
-    type Error = CmsError;
-
-    fn try_from(value: ColorPrimaries) -> Result<Self, Self::Error> {
-        let red;
-        let green;
-        let blue;
-
-        match value {
-            ColorPrimaries::Reserved => {
-                return Err(CmsError::UnsupportedColorPrimaries(value as u8));
-            }
-            ColorPrimaries::Bt709 => {
-                green = Chromacity { x: 0.300, y: 0.600 };
-                blue = Chromacity { x: 0.150, y: 0.060 };
-                red = Chromacity { x: 0.640, y: 0.330 };
-            }
-            ColorPrimaries::Unspecified => {
-                return Err(CmsError::UnsupportedColorPrimaries(value as u8));
-            }
-            ColorPrimaries::Bt470M => {
-                green = Chromacity { x: 0.21, y: 0.71 };
-                blue = Chromacity { x: 0.14, y: 0.08 };
-                red = Chromacity { x: 0.67, y: 0.33 };
-            }
-            ColorPrimaries::Bt470Bg => {
-                green = Chromacity { x: 0.29, y: 0.60 };
-                blue = Chromacity { x: 0.15, y: 0.06 };
-                red = Chromacity { x: 0.64, y: 0.33 };
-            }
-            ColorPrimaries::Bt601 | ColorPrimaries::Smpte240 => {
-                green = Chromacity { x: 0.310, y: 0.595 };
-                blue = Chromacity { x: 0.155, y: 0.070 };
-                red = Chromacity { x: 0.630, y: 0.340 };
-            }
-            ColorPrimaries::GenericFilm => {
-                green = Chromacity { x: 0.243, y: 0.692 };
-                blue = Chromacity { x: 0.145, y: 0.049 };
-                red = Chromacity { x: 0.681, y: 0.319 };
-            }
-            ColorPrimaries::Bt2020 => {
-                green = Chromacity { x: 0.170, y: 0.797 };
-                blue = Chromacity { x: 0.131, y: 0.046 };
-                red = Chromacity { x: 0.708, y: 0.292 };
-            }
-            ColorPrimaries::Xyz => {
-                green = Chromacity { x: 0.0, y: 1.0 };
-                blue = Chromacity { x: 0.0, y: 0.0 };
-                red = Chromacity { x: 1.0, y: 0.0 };
-            }
-            // These two share primaries, but have distinct white points
-            ColorPrimaries::Smpte431 | ColorPrimaries::Smpte432 => {
-                green = Chromacity { x: 0.265, y: 0.690 };
-                blue = Chromacity { x: 0.150, y: 0.060 };
-                red = Chromacity { x: 0.680, y: 0.320 };
-            }
-            ColorPrimaries::Ebu3213 => {
-                green = Chromacity { x: 0.295, y: 0.605 };
-                blue = Chromacity { x: 0.155, y: 0.077 };
-                red = Chromacity { x: 0.630, y: 0.340 };
-            }
-        }
-
-        Ok(Self { red, green, blue })
-    }
-}
-
+/// See [Rec. ITU-T H.273 (12/2016)](https://www.itu.int/rec/T-REC-H.273-201612-I/en) Table 2.
 impl ColorPrimaries {
-    pub(crate) fn has_chromacity(self) -> bool {
-        self != Self::Reserved && self != Self::Unspecified
-    }
+    /// [ACEScg](https://en.wikipedia.org/wiki/Academy_Color_Encoding_System#ACEScg).
+    pub const ACES_CG: ColorPrimaries = ColorPrimaries {
+        red: Chromaticity { x: 0.713, y: 0.293 },
+        green: Chromaticity { x: 0.165, y: 0.830 },
+        blue: Chromaticity { x: 0.128, y: 0.044 },
+    };
 
-    pub(crate) fn white_point(self) -> Result<Chromacity, CmsError> {
-        Ok(match self {
-            Self::Reserved => return Err(CmsError::UnsupportedColorPrimaries(self as u8)),
-            Self::Bt709
-            | Self::Bt470Bg
-            | Self::Bt601
-            | Self::Smpte240
-            | Self::Bt2020
-            | Self::Smpte432
-            | Self::Ebu3213 => Chromacity::D65,
-            Self::Unspecified => return Err(CmsError::UnsupportedColorPrimaries(self as u8)),
-            Self::Bt470M => Chromacity { x: 0.310, y: 0.316 },
-            Self::GenericFilm => Chromacity { x: 0.310, y: 0.316 },
-            Self::Xyz => Chromacity {
-                x: 1. / 3.,
-                y: 1. / 3.,
-            },
-            Self::Smpte431 => Chromacity { x: 0.314, y: 0.351 },
-        })
-    }
+    /// [ACES2065-1](https://en.wikipedia.org/wiki/Academy_Color_Encoding_System#ACES2065-1).
+    pub const ACES_2065_1: ColorPrimaries = ColorPrimaries {
+        red: Chromaticity {
+            x: 0.7347,
+            y: 0.2653,
+        },
+        green: Chromaticity {
+            x: 0.0000,
+            y: 1.0000,
+        },
+        blue: Chromaticity {
+            x: 0.0001,
+            y: -0.0770,
+        },
+    };
+
+    /// [Adobe RGB](https://en.wikipedia.org/wiki/Adobe_RGB_color_space) (1998).
+    pub const ADOBE_RGB: ColorPrimaries = ColorPrimaries {
+        red: Chromaticity { x: 0.64, y: 0.33 },
+        green: Chromaticity { x: 0.21, y: 0.71 },
+        blue: Chromaticity { x: 0.15, y: 0.06 },
+    };
+
+    /// [DCI P3](https://en.wikipedia.org/wiki/DCI-P3#DCI_P3).
+    ///
+    /// This is the same as [`DISPLAY_P3`](Self::DISPLAY_P3),
+    /// [`SMPTE_431`](Self::SMPTE_431) and [`SMPTE_432`](Self::SMPTE_432).
+    pub const DCI_P3: ColorPrimaries = ColorPrimaries {
+        red: Chromaticity { x: 0.680, y: 0.320 },
+        green: Chromaticity { x: 0.265, y: 0.690 },
+        blue: Chromaticity { x: 0.150, y: 0.060 },
+    };
+
+    /// [Diplay P3](https://en.wikipedia.org/wiki/DCI-P3#Display_P3).
+    ///
+    /// This is the same as [`DCI_P3`](Self::DCI_P3),
+    /// [`SMPTE_431`](Self::SMPTE_431) and [`SMPTE_432`](Self::SMPTE_432).
+    pub const DISPLAY_P3: ColorPrimaries = Self::DCI_P3;
+
+    /// SMPTE RP 431-2 (2011).
+    ///
+    /// This is the same as [`DCI_P3`](Self::DCI_P3),
+    /// [`DISPLAY_P3`](Self::DISPLAY_P3) and [`SMPTE_432`](Self::SMPTE_432).
+    pub const SMPTE_431: ColorPrimaries = Self::DCI_P3;
+
+    /// SMPTE EG 432-1 (2010).
+    ///
+    /// This is the same as [`DCI_P3`](Self::DCI_P3),
+    /// [`DISPLAY_P3`](Self::DISPLAY_P3) and [`SMPTE_431`](Self::SMPTE_431).
+    pub const SMPTE_432: ColorPrimaries = Self::DCI_P3;
+
+    /// [ProPhoto RGB](https://en.wikipedia.org/wiki/ProPhoto_RGB_color_space).
+    pub const PRO_PHOTO_RGB: ColorPrimaries = ColorPrimaries {
+        red: Chromaticity {
+            x: 0.734699,
+            y: 0.265301,
+        },
+        green: Chromaticity {
+            x: 0.159597,
+            y: 0.840403,
+        },
+        blue: Chromaticity {
+            x: 0.036598,
+            y: 0.000105,
+        },
+    };
+
+    /// Rec. ITU-R BT.709-6
+    ///
+    /// Rec. ITU-R BT.1361-0 conventional colour gamut system and extended
+    /// colour gamut system (historical).
+    ///
+    /// IEC 61966-2-1 sRGB or sYCC IEC 61966-2-4).
+    ///
+    /// Society of Motion Picture and Television Engineers (MPTE) RP 177 (1993) Annex B.
+    pub const BT_709: ColorPrimaries = ColorPrimaries {
+        red: Chromaticity { x: 0.64, y: 0.33 },
+        green: Chromaticity { x: 0.30, y: 0.60 },
+        blue: Chromaticity { x: 0.15, y: 0.06 },
+    };
+
+    /// Rec. ITU-R BT.470-6 System M (historical).
+    ///
+    /// United States National Television System Committee 1953 Recommendation
+    /// for transmission standards for color television.
+    ///
+    /// United States Federal Communications Commission (2003) Title 47 Code of
+    /// Federal Regulations 73.682 (a) (20).
+    pub const BT_470M: ColorPrimaries = ColorPrimaries {
+        red: Chromaticity { x: 0.67, y: 0.33 },
+        green: Chromaticity { x: 0.21, y: 0.71 },
+        blue: Chromaticity { x: 0.14, y: 0.08 },
+    };
+
+    /// Rec. ITU-R BT.470-6 System B, G (historical) Rec. ITU-R BT.601-7 625.
+    ///
+    /// Rec. ITU-R BT.1358-0 625 (historical).
+    /// Rec. ITU-R BT.1700-0 625 PAL and 625 SECAM.
+    pub const BT_470BG: ColorPrimaries = ColorPrimaries {
+        red: Chromaticity { x: 0.64, y: 0.33 },
+        green: Chromaticity { x: 0.29, y: 0.60 },
+        blue: Chromaticity { x: 0.15, y: 0.06 },
+    };
+
+    /// Rec. ITU-R BT.601-7 525.
+    ///
+    /// Rec. ITU-R BT.1358-1 525 or 625 (historical) Rec. ITU-R BT.1700-0 NTSC.
+    ///
+    /// SMPTE 170M (2004) (functionally the same as the [`SMPTE_240`](Self::SMPTE_240)).
+    pub const BT_601: ColorPrimaries = ColorPrimaries {
+        red: Chromaticity { x: 0.630, y: 0.340 },
+        green: Chromaticity { x: 0.310, y: 0.595 },
+        blue: Chromaticity { x: 0.155, y: 0.070 },
+    };
+
+    /// SMPTE 240M (1999) (historical) (functionally the same as [`BT_601`](Self::BT_601)).
+    pub const SMPTE_240: ColorPrimaries = Self::BT_601;
+
+    /// Generic film (colour filters using Illuminant C).
+    pub const GENERIC_FILM: ColorPrimaries = ColorPrimaries {
+        red: Chromaticity { x: 0.681, y: 0.319 },
+        green: Chromaticity { x: 0.243, y: 0.692 },
+        blue: Chromaticity { x: 0.145, y: 0.049 },
+    };
+
+    /// Rec. ITU-R BT.2020-2.
+    ///
+    /// Rec. ITU-R BT.2100-0.
+    pub const BT_2020: ColorPrimaries = ColorPrimaries {
+        red: Chromaticity { x: 0.708, y: 0.292 },
+        green: Chromaticity { x: 0.170, y: 0.797 },
+        blue: Chromaticity { x: 0.131, y: 0.046 },
+    };
+
+    /// SMPTE ST 428-1 (CIE 1931 XYZ as in ISO 11664-1).
+    pub const XYZ: ColorPrimaries = ColorPrimaries {
+        red: Chromaticity { x: 1.0, y: 0.0 },
+        green: Chromaticity { x: 0.0, y: 1.0 },
+        blue: Chromaticity { x: 0.0, y: 0.0 },
+    };
+
+    /// EBU Tech. 3213-E (1975).
+    pub const EBU_3213: ColorPrimaries = ColorPrimaries {
+        red: Chromaticity { x: 0.630, y: 0.340 },
+        green: Chromaticity { x: 0.295, y: 0.605 },
+        blue: Chromaticity { x: 0.155, y: 0.077 },
+    };
 }
 
 /// See [Rec. ITU-T H.273 (12/2016)](https://www.itu.int/rec/T-REC-H.273-201612-I/en) Table 3
@@ -284,6 +355,58 @@ impl TryFrom<u8> for TransferCharacteristics {
     }
 }
 
+impl CicpColorPrimaries {
+    pub(crate) const fn has_chromacity(self) -> bool {
+        self as u8 != Self::Reserved as u8 && self as u8 != Self::Unspecified as u8
+    }
+
+    pub(crate) const fn white_point(self) -> Result<Chromaticity, CmsError> {
+        Ok(match self {
+            Self::Reserved => return Err(CmsError::UnsupportedColorPrimaries(self as u8)),
+            Self::Bt709
+            | Self::Bt470Bg
+            | Self::Bt601
+            | Self::Smpte240
+            | Self::Bt2020
+            | Self::Smpte432
+            | Self::Ebu3213 => Chromaticity::D65,
+            Self::Unspecified => return Err(CmsError::UnsupportedColorPrimaries(self as u8)),
+            Self::Bt470M => Chromaticity { x: 0.310, y: 0.316 },
+            Self::GenericFilm => Chromaticity { x: 0.310, y: 0.316 },
+            Self::Xyz => Chromaticity {
+                x: 1. / 3.,
+                y: 1. / 3.,
+            },
+            Self::Smpte431 => Chromaticity { x: 0.314, y: 0.351 },
+        })
+    }
+}
+
+impl TryFrom<CicpColorPrimaries> for ColorPrimaries {
+    type Error = CmsError;
+
+    fn try_from(value: CicpColorPrimaries) -> Result<Self, Self::Error> {
+        match value {
+            CicpColorPrimaries::Reserved => Err(CmsError::UnsupportedColorPrimaries(value as u8)),
+            CicpColorPrimaries::Bt709 => Ok(ColorPrimaries::BT_709),
+            CicpColorPrimaries::Unspecified => {
+                Err(CmsError::UnsupportedColorPrimaries(value as u8))
+            }
+            CicpColorPrimaries::Bt470M => Ok(ColorPrimaries::BT_470M),
+            CicpColorPrimaries::Bt470Bg => Ok(ColorPrimaries::BT_470BG),
+            CicpColorPrimaries::Bt601 | CicpColorPrimaries::Smpte240 => Ok(ColorPrimaries::BT_601),
+            CicpColorPrimaries::GenericFilm => Ok(ColorPrimaries::GENERIC_FILM),
+            CicpColorPrimaries::Bt2020 => Ok(ColorPrimaries::BT_2020),
+            CicpColorPrimaries::Xyz => Ok(ColorPrimaries::XYZ),
+            // These two share primaries, but have distinct white points
+            CicpColorPrimaries::Smpte431 | CicpColorPrimaries::Smpte432 => {
+                Ok(ColorPrimaries::SMPTE_431)
+            }
+            CicpColorPrimaries::Ebu3213 => Ok(ColorPrimaries::EBU_3213),
+        }
+    }
+}
+
 impl TransferCharacteristics {
     pub(crate) fn has_transfer_curve(self) -> bool {
         self != Self::Reserved
@@ -295,7 +418,7 @@ impl TransferCharacteristics {
     }
 }
 
-impl TryFrom<TransferCharacteristics> for Trc {
+impl TryFrom<TransferCharacteristics> for ToneReprCurve {
     type Error = CmsError;
     /// See [ICC.1:2010](https://www.color.org/specification/ICC1v43_2010-12.pdf)
     /// See [Rec. ITU-R BT.2100-2](https://www.itu.int/dms_pubrec/itu-r/rec/bt/R-REC-BT.2100-2-201807-I!!PDF-E.pdf)
@@ -354,7 +477,7 @@ impl TryFrom<TransferCharacteristics> for Trc {
                 const C: Float = 1. / LINEAR_CONF;
                 const D: Float = LINEAR_CONF * BETA;
 
-                Trc::Parametric(vec![G, A, B, C, D])
+                ToneReprCurve::Parametric(vec![G, A, B, C, D])
             }
             TransferCharacteristics::Unspecified => {
                 return Err(CmsError::UnsupportedTrc(value as u8));
@@ -377,7 +500,7 @@ impl TryFrom<TransferCharacteristics> for Trc {
                 //
                 // Lc = 10^(2*V - 2)  for 1 >= V >= 0
                 let table = build_trc_table(NUM_TRC_TABLE_ENTRIES, |v| pow(10f64, 2. * v - 2.));
-                Trc::Lut(table)
+                ToneReprCurve::Lut(table)
             }
             TransferCharacteristics::Log100sqrt10 => {
                 // The opto-electronic transfer characteristic function (OETF)
@@ -390,7 +513,7 @@ impl TryFrom<TransferCharacteristics> for Trc {
                 //
                 // Lc = 10^(2.5*V - 2.5)  for 1 >= V >= 0
                 let table = build_trc_table(NUM_TRC_TABLE_ENTRIES, |v| pow(10f64, 2.5 * v - 2.5));
-                Trc::Lut(table)
+                ToneReprCurve::Lut(table)
             }
             TransferCharacteristics::Iec61966 => {
                 return Err(CmsError::UnsupportedTrc(value as u8));
@@ -398,7 +521,7 @@ impl TryFrom<TransferCharacteristics> for Trc {
             TransferCharacteristics::Bt1361 => return Err(CmsError::UnsupportedTrc(value as u8)),
             TransferCharacteristics::Srgb => {
                 // Should we prefer this or curveType::Parametric?
-                Trc::Lut(build_srgb_gamma_table(NUM_TRC_TABLE_ENTRIES))
+                ToneReprCurve::Lut(build_srgb_gamma_table(NUM_TRC_TABLE_ENTRIES))
             }
 
             TransferCharacteristics::Smpte2084 => {
@@ -421,7 +544,7 @@ impl TryFrom<TransferCharacteristics> for Trc {
                         1. / N,
                     )
                 });
-                Trc::Lut(table)
+                ToneReprCurve::Lut(table)
             }
             TransferCharacteristics::Smpte428 => {
                 return Err(CmsError::UnsupportedTrc(value as u8));
@@ -450,7 +573,7 @@ impl TryFrom<TransferCharacteristics> for Trc {
                         (pow(std::f64::consts::E, (x - C) / A) + B) / 12.
                     }
                 });
-                Trc::Lut(table)
+                ToneReprCurve::Lut(table)
             }
         })
     }

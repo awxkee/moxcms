@@ -71,11 +71,11 @@ fn perceptual_quantizer_inverse(x: f32) -> f32 {
 #[derive(Debug, Copy, Clone, PartialOrd, PartialEq, Default)]
 /// Represents Jzazbz
 pub struct Jzazbz {
-    /// Jz(lightness) generally expects to be between [0;1]
+    /// Jz(lightness) generally expects to be between `0.0..1.0`.
     pub jz: f32,
-    /// Az generally expects to be between [-0.5;0.5]
+    /// Az generally expects to be between `-0.5..0.5`.
     pub az: f32,
-    /// Bz generally expects to be between [-0.5;0.5]
+    /// Bz generally expects to be between `-0.5..0.5`.
     pub bz: f32,
 }
 
