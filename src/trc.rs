@@ -678,8 +678,9 @@ impl ColorProfile {
     pub fn build_8bit_gamma_table(
         &self,
         trc: &Option<ToneReprCurve>,
+        use_cicp: bool,
     ) -> Result<Box<[u16; 65536]>, CmsError> {
-        self.build_gamma_table::<u16, 65536, 4092, 8>(trc)
+        self.build_gamma_table::<u16, 65536, 4092, 8>(trc, use_cicp)
     }
 
     /// Build gamma table for 10 bit depth
@@ -687,8 +688,9 @@ impl ColorProfile {
     pub fn build_10bit_gamma_table(
         &self,
         trc: &Option<ToneReprCurve>,
+        use_cicp: bool,
     ) -> Result<Box<[u16; 65536]>, CmsError> {
-        self.build_gamma_table::<u16, 65536, 8192, 10>(trc)
+        self.build_gamma_table::<u16, 65536, 8192, 10>(trc, use_cicp)
     }
 
     /// Build gamma table for 12 bit depth
@@ -696,8 +698,9 @@ impl ColorProfile {
     pub fn build_12bit_gamma_table(
         &self,
         trc: &Option<ToneReprCurve>,
+        use_cicp: bool,
     ) -> Result<Box<[u16; 65536]>, CmsError> {
-        self.build_gamma_table::<u16, 65536, 16384, 12>(trc)
+        self.build_gamma_table::<u16, 65536, 16384, 12>(trc, use_cicp)
     }
 
     /// Build gamma table for 16 bit depth
@@ -705,32 +708,14 @@ impl ColorProfile {
     pub fn build_16bit_gamma_table(
         &self,
         trc: &Option<ToneReprCurve>,
+        use_cicp: bool,
     ) -> Result<Box<[u16; 65536]>, CmsError> {
-        self.build_gamma_table::<u16, 65536, 65536, 16>(trc)
-    }
-
-    #[inline]
-    pub fn build_gamma_table<
-        T: Default + Copy + 'static,
-        const BUCKET: usize,
-        const N: usize,
-        const BIT_DEPTH: usize,
-    >(
-        &self,
-        trc: &Option<ToneReprCurve>,
-    ) -> Result<Box<[T; BUCKET]>, CmsError>
-    where
-        f32: AsPrimitive<T>,
-        u32: AsPrimitive<T>,
-    {
-        trc.as_ref()
-            .and_then(|trc| trc.build_gamma_table::<T, BUCKET, N, BIT_DEPTH>())
-            .ok_or(CmsError::BuildTransferFunction)
+        self.build_gamma_table::<u16, 65536, 65536, 16>(trc, use_cicp)
     }
 
     /// Builds gamma table checking CICP for Transfer characteristics first.
     #[inline]
-    pub fn build_gamma_table_cicp<
+    pub fn build_gamma_table<
         T: Default + Copy + 'static,
         const BUCKET: usize,
         const N: usize,
