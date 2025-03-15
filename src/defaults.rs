@@ -181,6 +181,7 @@ pub const HLG_LUT_TABLE: [u16; 4096] = build_trc_table_hlg();
 impl ColorProfile {
     const SRGB_COLORANTS: Matrix3f =
         ColorProfile::colorants_matrix(WHITE_POINT_D65, ColorPrimaries::BT_709);
+
     const DISPLAY_P3_COLORANTS: Matrix3f =
         ColorProfile::colorants_matrix(WHITE_POINT_D65, ColorPrimaries::SMPTE_432);
 

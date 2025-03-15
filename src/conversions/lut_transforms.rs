@@ -590,7 +590,7 @@ where
 
         if dest.color_space == DataColorSpace::Rgb || dest.color_space == DataColorSpace::Lab {
             if dest.pcs == DataColorSpace::Xyz {
-                prepare_inverse_lut_rgb_xyz::<T, BIT_DEPTH, GAMMA_LUT>(&dest, &mut lut)?;
+                prepare_inverse_lut_rgb_xyz::<T, BIT_DEPTH, GAMMA_LUT>(&dest, &mut lut, options)?;
             } else if dest.pcs == DataColorSpace::Lab {
                 let pcs_to_device = dest
                     .get_pcs_to_device(options.rendering_intent)
@@ -662,7 +662,7 @@ where
                 LutWarehouse::MCurves(mab) => prepare_mab_3x3(mab, &mut lut)?,
             }
         } else {
-            lut = create_rgb_lin_lut::<T, BIT_DEPTH, LINEAR_CAP, GRID_SIZE>(source)?;
+            lut = create_rgb_lin_lut::<T, BIT_DEPTH, LINEAR_CAP, GRID_SIZE>(source, options)?;
         }
 
         pcs_lab_v2_to_v4(source, &mut lut);
@@ -743,7 +743,7 @@ where
                 LutWarehouse::MCurves(mab) => prepare_mab_3x3(mab, &mut lut)?,
             }
         } else {
-            lut = create_rgb_lin_lut::<T, BIT_DEPTH, LINEAR_CAP, GRID_SIZE>(source)?;
+            lut = create_rgb_lin_lut::<T, BIT_DEPTH, LINEAR_CAP, GRID_SIZE>(source, options)?;
         }
 
         pcs_lab_v2_to_v4(source, &mut lut);
@@ -767,7 +767,7 @@ where
                 LutWarehouse::MCurves(mab) => prepare_mba_3x3(mab, &mut lut)?,
             }
         } else {
-            prepare_inverse_lut_rgb_xyz::<T, BIT_DEPTH, GAMMA_LUT>(&dest, &mut lut)?;
+            prepare_inverse_lut_rgb_xyz::<T, BIT_DEPTH, GAMMA_LUT>(&dest, &mut lut, options)?;
         }
 
         #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
@@ -801,6 +801,7 @@ fn create_rgb_lin_lut<
     const GRID_SIZE: usize,
 >(
     source: &ColorProfile,
+    opts: TransformOptions,
 ) -> Result<Vec<f32>, CmsError>
 where
     u32: AsPrimitive<T>,
@@ -808,9 +809,12 @@ where
 {
     let lut_origins = create_lut3_samples::<T, GRID_SIZE>();
 
-    let lin_r = source.build_r_linearize_table::<LINEAR_CAP, BIT_DEPTH>()?;
-    let lin_g = source.build_g_linearize_table::<LINEAR_CAP, BIT_DEPTH>()?;
-    let lin_b = source.build_b_linearize_table::<LINEAR_CAP, BIT_DEPTH>()?;
+    let lin_r =
+        source.build_r_linearize_table::<LINEAR_CAP, BIT_DEPTH>(opts.allow_use_cicp_transfer)?;
+    let lin_g =
+        source.build_g_linearize_table::<LINEAR_CAP, BIT_DEPTH>(opts.allow_use_cicp_transfer)?;
+    let lin_b =
+        source.build_b_linearize_table::<LINEAR_CAP, BIT_DEPTH>(opts.allow_use_cicp_transfer)?;
 
     let lin_stage = RgbLinearizationStage::<T, BIT_DEPTH, LINEAR_CAP, GRID_SIZE> {
         r_lin: lin_r,
@@ -849,14 +853,24 @@ fn prepare_inverse_lut_rgb_xyz<
 >(
     dest: &&ColorProfile,
     lut: &mut [f32],
+    options: TransformOptions,
 ) -> Result<(), CmsError>
 where
     f32: AsPrimitive<T>,
     u32: AsPrimitive<T>,
 {
-    let gamma_map_r = dest.build_gamma_table::<T, 65536, GAMMA_LUT, BIT_DEPTH>(&dest.red_trc)?;
-    let gamma_map_g = dest.build_gamma_table::<T, 65536, GAMMA_LUT, BIT_DEPTH>(&dest.green_trc)?;
-    let gamma_map_b = dest.build_gamma_table::<T, 65536, GAMMA_LUT, BIT_DEPTH>(&dest.blue_trc)?;
+    let gamma_map_r = dest.build_gamma_table_cicp::<T, 65536, GAMMA_LUT, BIT_DEPTH>(
+        &dest.red_trc,
+        options.allow_use_cicp_transfer,
+    )?;
+    let gamma_map_g = dest.build_gamma_table_cicp::<T, 65536, GAMMA_LUT, BIT_DEPTH>(
+        &dest.green_trc,
+        options.allow_use_cicp_transfer,
+    )?;
+    let gamma_map_b = dest.build_gamma_table_cicp::<T, 65536, GAMMA_LUT, BIT_DEPTH>(
+        &dest.blue_trc,
+        options.allow_use_cicp_transfer,
+    )?;
 
     let xyz_to_rgb = dest
         .rgb_to_xyz_matrix()

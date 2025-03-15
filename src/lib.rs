@@ -38,6 +38,7 @@ mod conversions;
 mod dat;
 mod defaults;
 mod err;
+mod gamma;
 mod gamut;
 mod jzazbz;
 mod jzczhz;

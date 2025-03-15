@@ -76,7 +76,7 @@ pub(crate) fn compute_max_saturation(a: f32, b: f32) -> f32 {
     // Approximate max saturation using a polynomial:
     let mut ss = k0 + k1 * a + k2 * b + k3 * a * a + k4 * a * b;
 
-    // Do one step Halley's method to get closer
+    // Do one-step Halley's method to get closer
     // this gives an error less than 10e6, except for some blue hues where the dS/dh is close to infinite
     // this should be sufficient for most applications, otherwise do two/three steps
 
