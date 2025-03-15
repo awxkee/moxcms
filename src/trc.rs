@@ -622,7 +622,15 @@ impl ColorProfile {
     /// Produces LUT for Red transfer curve with N depth
     pub fn build_r_linearize_table<const N: usize, const BIT_DEPTH: usize>(
         &self,
+        use_cicp: bool,
     ) -> Result<Box<[f32; N]>, CmsError> {
+        if use_cicp {
+            if let Some(tc) = self.cicp.as_ref().map(|c| c.transfer_characteristics) {
+                if tc.has_transfer_curve() {
+                    return Ok(tc.make_linear_table::<N, BIT_DEPTH>());
+                }
+            }
+        }
         self.red_trc
             .as_ref()
             .and_then(|trc| trc.build_linearize_table::<N, BIT_DEPTH>())
@@ -632,7 +640,15 @@ impl ColorProfile {
     /// Produces LUT for Green transfer curve with N depth
     pub fn build_g_linearize_table<const N: usize, const BIT_DEPTH: usize>(
         &self,
+        use_cicp: bool,
     ) -> Result<Box<[f32; N]>, CmsError> {
+        if use_cicp {
+            if let Some(tc) = self.cicp.as_ref().map(|c| c.transfer_characteristics) {
+                if tc.has_transfer_curve() {
+                    return Ok(tc.make_linear_table::<N, BIT_DEPTH>());
+                }
+            }
+        }
         self.green_trc
             .as_ref()
             .and_then(|trc| trc.build_linearize_table::<N, BIT_DEPTH>())
@@ -642,7 +658,15 @@ impl ColorProfile {
     /// Produces LUT for Blue transfer curve with N depth
     pub fn build_b_linearize_table<const N: usize, const BIT_DEPTH: usize>(
         &self,
+        use_cicp: bool,
     ) -> Result<Box<[f32; N]>, CmsError> {
+        if use_cicp {
+            if let Some(tc) = self.cicp.as_ref().map(|c| c.transfer_characteristics) {
+                if tc.has_transfer_curve() {
+                    return Ok(tc.make_linear_table::<N, BIT_DEPTH>());
+                }
+            }
+        }
         self.blue_trc
             .as_ref()
             .and_then(|trc| trc.build_linearize_table::<N, BIT_DEPTH>())
@@ -699,6 +723,34 @@ impl ColorProfile {
         f32: AsPrimitive<T>,
         u32: AsPrimitive<T>,
     {
+        trc.as_ref()
+            .and_then(|trc| trc.build_gamma_table::<T, BUCKET, N, BIT_DEPTH>())
+            .ok_or(CmsError::BuildTransferFunction)
+    }
+
+    /// Builds gamma table checking CICP for Transfer characteristics first.
+    #[inline]
+    pub fn build_gamma_table_cicp<
+        T: Default + Copy + 'static,
+        const BUCKET: usize,
+        const N: usize,
+        const BIT_DEPTH: usize,
+    >(
+        &self,
+        trc: &Option<ToneReprCurve>,
+        use_cicp: bool,
+    ) -> Result<Box<[T; BUCKET]>, CmsError>
+    where
+        f32: AsPrimitive<T>,
+        u32: AsPrimitive<T>,
+    {
+        if use_cicp {
+            if let Some(tc) = self.cicp.as_ref().map(|c| c.transfer_characteristics) {
+                if tc.has_transfer_curve() {
+                    return Ok(tc.make_gamma_table::<T, BUCKET, N, BIT_DEPTH>());
+                }
+            }
+        }
         trc.as_ref()
             .and_then(|trc| trc.build_gamma_table::<T, BUCKET, N, BIT_DEPTH>())
             .ok_or(CmsError::BuildTransferFunction)

@@ -26,10 +26,13 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+use crate::gamma::{
+    bt1361_to_linear, hlg_to_linear, iec61966_to_linear, log100_sqrt10_to_linear, log100_to_linear,
+    pq_to_linear, smpte240_to_linear, smpte428_to_linear,
+};
 use crate::{
     Chromaticity,
     err::CmsError,
-    pow,
     trc::{ToneReprCurve, build_srgb_gamma_table, build_trc_table, curve_from_gamma},
 };
 use bytemuck::{ByteEq, NoUninit};
@@ -409,12 +412,7 @@ impl TryFrom<CicpColorPrimaries> for ColorPrimaries {
 
 impl TransferCharacteristics {
     pub(crate) fn has_transfer_curve(self) -> bool {
-        self != Self::Reserved
-            && self != Self::Unspecified
-            && self != Self::Smpte240
-            && self != Self::Iec61966
-            && self != Self::Bt1361
-            && self != Self::Smpte428
+        self != Self::Reserved && self != Self::Unspecified
     }
 }
 
@@ -485,94 +483,41 @@ impl TryFrom<TransferCharacteristics> for ToneReprCurve {
             TransferCharacteristics::Bt470M => curve_from_gamma(2.2),
             TransferCharacteristics::Bt470Bg => curve_from_gamma(2.8),
             TransferCharacteristics::Smpte240 => {
-                return Err(CmsError::UnsupportedTrc(value as u8));
+                let table = build_trc_table(NUM_TRC_TABLE_ENTRIES, smpte240_to_linear);
+                ToneReprCurve::Lut(table)
             }
             TransferCharacteristics::Linear => curve_from_gamma(1.),
             TransferCharacteristics::Log100 => {
-                // See log_100_transfer_characteristics() for derivation
-                // The opto-electronic transfer characteristic function (OETF)
-                // as defined in ITU-T H.273 table 3, row 9:
-                //
-                // V = 1.0 + Log10(Lc) ÷ 2  for 1    >= Lc >= 0.01
-                // V = 0.0                  for 0.01 >  Lc >= 0
-                //
-                // Inverting this to give the EOTF required for the profile gives
-                //
-                // Lc = 10^(2*V - 2)  for 1 >= V >= 0
-                let table = build_trc_table(NUM_TRC_TABLE_ENTRIES, |v| pow(10f64, 2. * v - 2.));
+                let table = build_trc_table(NUM_TRC_TABLE_ENTRIES, log100_to_linear);
                 ToneReprCurve::Lut(table)
             }
             TransferCharacteristics::Log100sqrt10 => {
-                // The opto-electronic transfer characteristic function (OETF)
-                // as defined in ITU-T H.273 table 3, row 10:
-                //
-                // V = 1.0 + Log10(Lc) ÷ 2.5  for               1 >= Lc >= Sqrt(10) ÷ 1000
-                // V = 0.0                    for Sqrt(10) ÷ 1000 >  Lc >= 0
-                //
-                // Inverting this to give the EOTF required for the profile gives
-                //
-                // Lc = 10^(2.5*V - 2.5)  for 1 >= V >= 0
-                let table = build_trc_table(NUM_TRC_TABLE_ENTRIES, |v| pow(10f64, 2.5 * v - 2.5));
+                let table = build_trc_table(NUM_TRC_TABLE_ENTRIES, log100_sqrt10_to_linear);
                 ToneReprCurve::Lut(table)
             }
             TransferCharacteristics::Iec61966 => {
-                return Err(CmsError::UnsupportedTrc(value as u8));
+                let table = build_trc_table(NUM_TRC_TABLE_ENTRIES, iec61966_to_linear);
+                ToneReprCurve::Lut(table)
             }
-            TransferCharacteristics::Bt1361 => return Err(CmsError::UnsupportedTrc(value as u8)),
+            TransferCharacteristics::Bt1361 => {
+                let table = build_trc_table(NUM_TRC_TABLE_ENTRIES, bt1361_to_linear);
+                ToneReprCurve::Lut(table)
+            }
             TransferCharacteristics::Srgb => {
                 // Should we prefer this or curveType::Parametric?
                 ToneReprCurve::Lut(build_srgb_gamma_table(NUM_TRC_TABLE_ENTRIES))
             }
 
             TransferCharacteristics::Smpte2084 => {
-                // Despite using Lo rather than Lc, H.273 gives the OETF:
-                //
-                // V = ( ( c1 + c2 * (Lo)^n ) ÷ ( 1 + c3 * (Lo)^n ) )^m
-                const C1: f64 = 0.8359375;
-                const C2: f64 = 18.8515625;
-                const C3: f64 = 18.6875;
-                const M: f64 = 78.84375;
-                const N: f64 = 0.1593017578125;
-
-                // Inverting this to give the EOTF required for the profile
-                // (and confirmed by Rec. ITU-R BT.2100-2, Table 4) gives
-                //
-                // Y = ( max[( X^(1/m) - c1 ), 0] ÷ ( c2 - c3 * X^(1/m) ) )^(1/n)
-                let table = build_trc_table(NUM_TRC_TABLE_ENTRIES, |x| {
-                    pow(
-                        (pow(x, 1. / M) - C1).max(0.) / (C2 - C3 * pow(x, 1. / M)),
-                        1. / N,
-                    )
-                });
+                let table = build_trc_table(NUM_TRC_TABLE_ENTRIES, pq_to_linear);
                 ToneReprCurve::Lut(table)
             }
             TransferCharacteristics::Smpte428 => {
-                return Err(CmsError::UnsupportedTrc(value as u8));
+                let table = build_trc_table(NUM_TRC_TABLE_ENTRIES, smpte428_to_linear);
+                ToneReprCurve::Lut(table)
             }
             TransferCharacteristics::Hlg => {
-                // The opto-electronic transfer characteristic function (OETF)
-                // as defined in ITU-T H.273 table 3, row 18:
-                //
-                // V = a * Ln(12 * Lc - b) + c  for 1      >= Lc >  1 ÷ 12
-                // V = Sqrt(3) * Lc^0.5         for 1 ÷ 12 >= Lc >= 0
-                const A: f64 = 0.17883277;
-                const B: f64 = 0.28466892;
-                const C: f64 = 0.55991073;
-
-                // Inverting this to give the EOTF required for the profile
-                // (and confirmed by Rec. ITU-R BT.2100-2, Table 4) gives
-                //
-                // Y = (X^2) / 3             for 0   <= X <= 0.5
-                // Y = ((e^((X-c)/a))+b)/12  for 0.5 <  X <= 1
-                let table = build_trc_table(NUM_TRC_TABLE_ENTRIES, |x| {
-                    if x <= 0.5 {
-                        let y1 = (x * x) / 3.;
-                        debug_assert!((0. ..=1. / 12.).contains(&y1));
-                        y1
-                    } else {
-                        (pow(std::f64::consts::E, (x - C) / A) + B) / 12.
-                    }
-                });
+                let table = build_trc_table(NUM_TRC_TABLE_ENTRIES, hlg_to_linear);
                 ToneReprCurve::Lut(table)
             }
         })

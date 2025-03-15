@@ -119,6 +119,7 @@ fn main() {
             Layout::Rgba,
             TransformOptions {
                 rendering_intent: RenderingIntent::Perceptual,
+                allow_use_cicp_transfer: true,
             },
         )
         .unwrap();
@@ -151,6 +152,7 @@ fn main() {
             Layout::Rgba,
             TransformOptions {
                 rendering_intent: RenderingIntent::Perceptual,
+                allow_use_cicp_transfer: true,
             },
         )
         .unwrap();

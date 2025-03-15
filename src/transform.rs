@@ -53,9 +53,21 @@ pub trait InPlaceStage {
 }
 
 /// Declares additional transformation options
-#[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Default)]
+#[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub struct TransformOptions {
     pub rendering_intent: RenderingIntent,
+    /// If set it will try to use Transfer Characteristics from CICP
+    /// on transform. This might be more precise and faster.
+    pub allow_use_cicp_transfer: bool,
+}
+
+impl Default for TransformOptions {
+    fn default() -> Self {
+        Self {
+            rendering_intent: RenderingIntent::default(),
+            allow_use_cicp_transfer: true,
+        }
+    }
 }
 
 pub type Transform8BitExecutor = dyn TransformExecutor<u8> + Send + Sync;
@@ -239,16 +251,28 @@ impl ColorProfile {
             }
             let transform = self.transform_matrix(dst_pr);
 
-            let lin_r = self.build_r_linearize_table::<LINEAR_CAP, BIT_DEPTH>()?;
-            let lin_g = self.build_g_linearize_table::<LINEAR_CAP, BIT_DEPTH>()?;
-            let lin_b = self.build_b_linearize_table::<LINEAR_CAP, BIT_DEPTH>()?;
+            let lin_r = self.build_r_linearize_table::<LINEAR_CAP, BIT_DEPTH>(
+                options.allow_use_cicp_transfer,
+            )?;
+            let lin_g = self.build_g_linearize_table::<LINEAR_CAP, BIT_DEPTH>(
+                options.allow_use_cicp_transfer,
+            )?;
+            let lin_b = self.build_b_linearize_table::<LINEAR_CAP, BIT_DEPTH>(
+                options.allow_use_cicp_transfer,
+            )?;
 
-            let gamma_r =
-                dst_pr.build_gamma_table::<T, 65536, GAMMA_CAP, BIT_DEPTH>(&self.red_trc)?;
-            let gamma_g =
-                dst_pr.build_gamma_table::<T, 65536, GAMMA_CAP, BIT_DEPTH>(&self.green_trc)?;
-            let gamma_b =
-                dst_pr.build_gamma_table::<T, 65536, GAMMA_CAP, BIT_DEPTH>(&self.blue_trc)?;
+            let gamma_r = dst_pr.build_gamma_table_cicp::<T, 65536, GAMMA_CAP, BIT_DEPTH>(
+                &self.red_trc,
+                options.allow_use_cicp_transfer,
+            )?;
+            let gamma_g = dst_pr.build_gamma_table_cicp::<T, 65536, GAMMA_CAP, BIT_DEPTH>(
+                &self.green_trc,
+                options.allow_use_cicp_transfer,
+            )?;
+            let gamma_b = dst_pr.build_gamma_table_cicp::<T, 65536, GAMMA_CAP, BIT_DEPTH>(
+                &self.blue_trc,
+                options.allow_use_cicp_transfer,
+            )?;
 
             let profile_transform = TransformProfileRgb {
                 r_linear: lin_r,
@@ -296,9 +320,15 @@ impl ColorProfile {
                 return Err(CmsError::InvalidLayout);
             }
 
-            let lin_r = self.build_r_linearize_table::<LINEAR_CAP, BIT_DEPTH>()?;
-            let lin_g = self.build_g_linearize_table::<LINEAR_CAP, BIT_DEPTH>()?;
-            let lin_b = self.build_b_linearize_table::<LINEAR_CAP, BIT_DEPTH>()?;
+            let lin_r = self.build_r_linearize_table::<LINEAR_CAP, BIT_DEPTH>(
+                options.allow_use_cicp_transfer,
+            )?;
+            let lin_g = self.build_g_linearize_table::<LINEAR_CAP, BIT_DEPTH>(
+                options.allow_use_cicp_transfer,
+            )?;
+            let lin_b = self.build_b_linearize_table::<LINEAR_CAP, BIT_DEPTH>(
+                options.allow_use_cicp_transfer,
+            )?;
             let gray_linear =
                 dst_pr.build_gamma_table::<T, 65536, GAMMA_CAP, BIT_DEPTH>(&dst_pr.gray_trc)?;
 
