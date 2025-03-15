@@ -93,6 +93,7 @@ pub(crate) fn build_trc_table(num_entries: i32, eotf: impl Fn(f64) -> f64) -> Ve
     table
 }
 
+/// Creates Tone Reproduction curve from gamma
 pub fn curve_from_gamma(gamma: f32) -> ToneReprCurve {
     ToneReprCurve::Lut(vec![gamma.to_u8_fixed8()])
 }

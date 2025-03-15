@@ -64,6 +64,7 @@ pub use cicp::{CicpColorPrimaries, ColorPrimaries, MatrixCoefficients, TransferC
 pub use dat::ColorDateTime;
 pub use defaults::{
     HLG_LUT_TABLE, PQ_LUT_TABLE, WHITE_POINT_D50, WHITE_POINT_D60, WHITE_POINT_D65,
+    WHITE_POINT_DCI_P3,
 };
 pub use err::CmsError;
 pub use gamut::{

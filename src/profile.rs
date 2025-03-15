@@ -1937,6 +1937,26 @@ impl ColorProfile {
         }
     }
 
+    /// Computes colorants matrix. Returns not transposed matrix.
+    ///
+    /// To work on `const` context this method does have restrictions.
+    /// If invalid values were provided it may return invalid matrix or NaNs.
+    pub const fn colorants_matrix(white_point: XyY, primaries: ColorPrimaries) -> Matrix3f {
+        let red_xyz = primaries.red.to_xyz();
+        let green_xyz = primaries.green.to_xyz();
+        let blue_xyz = primaries.blue.to_xyz();
+
+        let xyz_matrix = Matrix3f {
+            v: [
+                [red_xyz.x, green_xyz.x, blue_xyz.x],
+                [red_xyz.y, green_xyz.y, blue_xyz.y],
+                [red_xyz.z, green_xyz.z, blue_xyz.z],
+            ],
+        };
+        let colorants = ColorProfile::rgb_to_xyz_const(xyz_matrix, white_point.to_xyz());
+        adapt_to_d50_const(colorants, white_point)
+    }
+
     /// Updates RGB triple colorimetry from 3 [Chromaticity] and white point
     pub const fn update_rgb_colorimetry(&mut self, white_point: XyY, primaries: ColorPrimaries) {
         let red_xyz = primaries.red.to_xyz();
@@ -1964,9 +1984,13 @@ impl ColorProfile {
                 [red_xyz.z, green_xyz.z, blue_xyz.z],
             ],
         };
-        let colorants = self.rgb_to_xyz_const(xyz_matrix, white_point.to_xyz());
+        let colorants = ColorProfile::rgb_to_xyz_const(xyz_matrix, white_point.to_xyz());
         let colorants = adapt_to_d50_const(colorants, white_point);
 
+        self.update_colorants(colorants);
+    }
+
+    pub(crate) const fn update_colorants(&mut self, colorants: Matrix3f) {
         // note: there's a transpose type of operation going on here
         self.red_colorant.x = colorants.v[0][0];
         self.red_colorant.y = colorants.v[1][0];
@@ -2017,7 +2041,7 @@ impl ColorProfile {
     }
 
     /// If Primaries is invalid will return invalid matrix on const context
-    pub const fn rgb_to_xyz_const(&self, xyz_matrix: Matrix3f, wp: Xyz) -> Matrix3f {
+    pub const fn rgb_to_xyz_const(xyz_matrix: Matrix3f, wp: Xyz) -> Matrix3f {
         let xyz_inverse = xyz_matrix.inverse_const();
         let s = xyz_inverse.mul_vector(wp.to_vector());
         let mut v = xyz_matrix.mul_row_vector::<0>(s);

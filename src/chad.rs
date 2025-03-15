@@ -43,12 +43,12 @@ use crate::matrix::{Matrix3f, Vector3f, XyY, Xyz};
 //         ],
 //     };
 //     let cone_source_rgb = chad.mul_vector(cone_source_xyz);
-// 
+//
 //     let cone_dest_xyz = Vector3f {
 //         v: [dest_white_point.x, dest_white_point.y, dest_white_point.z],
 //     };
 //     let cone_dest_rgb = chad.mul_vector(cone_dest_xyz);
-// 
+//
 //     let cone = Matrix3f {
 //         v: [
 //             [cone_dest_rgb.v[0] / cone_source_rgb.v[0], 0., 0.],
@@ -56,9 +56,9 @@ use crate::matrix::{Matrix3f, Vector3f, XyY, Xyz};
 //             [0., 0., cone_dest_rgb.v[2] / cone_source_rgb.v[2]],
 //         ],
 //     };
-// 
+//
 //     let chad_inv = chad.inverse()?;
-// 
+//
 //     let p0 = cone.mat_mul(chad);
 //     Some(chad_inv.mat_mul(p0))
 // }
@@ -150,11 +150,11 @@ pub(crate) const fn adapt_to_illuminant_const(
 //     if source_white_pt.y == 0.0 {
 //         return None;
 //     }
-// 
+//
 //     let xyz_wp = source_white_pt.to_xyz();
 //     adapt_to_illuminant_xyz(r, xyz_wp, illuminant_xyz)
 // }
-// 
+//
 // #[inline]
 // pub(crate) fn adapt_to_illuminant_xyz(
 //     r: Option<Matrix3f>,
@@ -164,7 +164,7 @@ pub(crate) const fn adapt_to_illuminant_const(
 //     if source_white_pt.y == 0.0 {
 //         return None;
 //     }
-// 
+//
 //     let bradford = adaption_matrix(source_white_pt, illuminant_xyz)?;
 //     Some(bradford.mat_mul(r?))
 // }
