@@ -34,7 +34,6 @@ use std::arch::x86::*;
 #[cfg(target_arch = "x86_64")]
 use std::arch::x86_64::*;
 
-#[allow(unused)]
 #[repr(align(16), C)]
 struct SseAlignedU16([u16; 8]);
 
@@ -67,7 +66,6 @@ where
         let src_channels = src_cn.channels();
         let dst_channels = dst_cn.channels();
 
-        #[cfg(target_arch = "x86")]
         let mut temporary = SseAlignedU16([0; 8]);
 
         if src.len() / src_channels != dst.len() / dst_channels {
@@ -129,30 +127,13 @@ where
                 v = _mm_min_ps(v, v_scale);
 
                 let zx = _mm_cvtps_epi32(v);
-                #[cfg(target_arch = "x86_64")]
-                {
-                    let f_64 = _mm_extract_epi64::<0>(zx).to_ne_bytes();
-                    let s_64 = _mm_extract_epi64::<1>(zx).to_ne_bytes();
-                    dst[dst_cn.r_i()] =
-                        self.profile.r_gamma[u16::from_ne_bytes([f_64[0], f_64[1]]) as usize];
-                    dst[dst_cn.g_i()] =
-                        self.profile.g_gamma[u16::from_ne_bytes([f_64[4], f_64[5]]) as usize];
-                    dst[dst_cn.b_i()] =
-                        self.profile.b_gamma[u16::from_ne_bytes([s_64[0], s_64[1]]) as usize];
-                    if dst_channels == 4 {
-                        dst[dst_cn.a_i()] = a;
-                    }
-                }
-                #[cfg(target_arch = "x86")]
-                {
-                    _mm_store_si128(temporary.0.as_mut_ptr() as *mut _, zx);
+                _mm_store_si128(temporary.0.as_mut_ptr() as *mut _, zx);
 
-                    dst[dst_cn.r_i()] = self.profile.r_gamma[temporary.0[0] as usize];
-                    dst[dst_cn.g_i()] = self.profile.g_gamma[temporary.0[2] as usize];
-                    dst[dst_cn.b_i()] = self.profile.b_gamma[temporary.0[4] as usize];
-                    if dst_channels == 4 {
-                        dst[dst_cn.a_i()] = a;
-                    }
+                dst[dst_cn.r_i()] = self.profile.r_gamma[temporary.0[0] as usize];
+                dst[dst_cn.g_i()] = self.profile.g_gamma[temporary.0[2] as usize];
+                dst[dst_cn.b_i()] = self.profile.b_gamma[temporary.0[4] as usize];
+                if dst_channels == 4 {
+                    dst[dst_cn.a_i()] = a;
                 }
             }
         }

@@ -34,7 +34,6 @@ use std::arch::x86::*;
 #[cfg(target_arch = "x86_64")]
 use std::arch::x86_64::*;
 
-#[allow(unused)]
 #[repr(align(32), C)]
 struct AvxAlignedU16([u16; 16]);
 
@@ -71,7 +70,6 @@ where
         let src_channels = src_cn.channels();
         let dst_channels = dst_cn.channels();
 
-        #[cfg(target_arch = "x86")]
         let mut temporary0 = AvxAlignedU16([0; 16]);
 
         if src.len() / src_channels != dst.len() / dst_channels {
@@ -156,55 +154,20 @@ where
                 v = _mm256_min_ps(v, v_scale);
 
                 let zx = _mm256_cvtps_epi32(v);
+                _mm256_store_si256(temporary0.0.as_mut_ptr() as *mut _, zx);
 
-                #[cfg(target_arch = "x86")]
-                {
-                    _mm256_store_si256(temporary0.0.as_mut_ptr() as *mut _, zx);
-
-                    dst[dst_cn.r_i()] = self.profile.r_gamma[temporary0.0[0] as usize];
-                    dst[dst_cn.g_i()] = self.profile.g_gamma[temporary0.0[2] as usize];
-                    dst[dst_cn.b_i()] = self.profile.b_gamma[temporary0.0[4] as usize];
-                    if dst_channels == 4 {
-                        dst[dst_cn.a_i()] = a0;
-                    }
-
-                    dst[dst_cn.r_i() + dst_channels] =
-                        self.profile.r_gamma[temporary0.0[8] as usize];
-                    dst[dst_cn.g_i() + dst_channels] =
-                        self.profile.g_gamma[temporary0.0[10] as usize];
-                    dst[dst_cn.b_i() + dst_channels] =
-                        self.profile.b_gamma[temporary0.0[12] as usize];
-                    if dst_channels == 4 {
-                        dst[dst_cn.a_i() + dst_channels] = a1;
-                    }
+                dst[dst_cn.r_i()] = self.profile.r_gamma[temporary0.0[0] as usize];
+                dst[dst_cn.g_i()] = self.profile.g_gamma[temporary0.0[2] as usize];
+                dst[dst_cn.b_i()] = self.profile.b_gamma[temporary0.0[4] as usize];
+                if dst_channels == 4 {
+                    dst[dst_cn.a_i()] = a0;
                 }
-                #[cfg(target_arch = "x86_64")]
-                {
-                    let f_64 = _mm256_extract_epi64::<0>(zx).to_ne_bytes();
-                    let s_64 = _mm256_extract_epi64::<1>(zx).to_ne_bytes();
 
-                    let f2_64 = _mm256_extract_epi64::<2>(zx).to_ne_bytes();
-                    let s2_64 = _mm256_extract_epi64::<3>(zx).to_ne_bytes();
-
-                    dst[dst_cn.r_i()] =
-                        self.profile.r_gamma[u16::from_ne_bytes([f_64[0], f_64[1]]) as usize];
-                    dst[dst_cn.g_i()] =
-                        self.profile.g_gamma[u16::from_ne_bytes([f_64[4], f_64[5]]) as usize];
-                    dst[dst_cn.b_i()] =
-                        self.profile.b_gamma[u16::from_ne_bytes([s_64[0], s_64[1]]) as usize];
-                    if dst_channels == 4 {
-                        dst[dst_cn.a_i()] = a0;
-                    }
-
-                    dst[dst_cn.r_i() + dst_channels] =
-                        self.profile.r_gamma[u16::from_ne_bytes([f2_64[0], f2_64[1]]) as usize];
-                    dst[dst_cn.g_i() + dst_channels] =
-                        self.profile.g_gamma[u16::from_ne_bytes([f2_64[4], f2_64[5]]) as usize];
-                    dst[dst_cn.b_i() + dst_channels] =
-                        self.profile.b_gamma[u16::from_ne_bytes([s2_64[0], s2_64[1]]) as usize];
-                    if dst_channels == 4 {
-                        dst[dst_cn.a_i() + dst_channels] = a1;
-                    }
+                dst[dst_cn.r_i() + dst_channels] = self.profile.r_gamma[temporary0.0[8] as usize];
+                dst[dst_cn.g_i() + dst_channels] = self.profile.g_gamma[temporary0.0[10] as usize];
+                dst[dst_cn.b_i() + dst_channels] = self.profile.b_gamma[temporary0.0[12] as usize];
+                if dst_channels == 4 {
+                    dst[dst_cn.a_i() + dst_channels] = a1;
                 }
             }
 
@@ -241,30 +204,13 @@ where
                 v = _mm_min_ps(v, _mm256_castps256_ps128(v_scale));
 
                 let zx = _mm_cvtps_epi32(v);
-                #[cfg(target_arch = "x86_64")]
-                {
-                    let f_64 = _mm_extract_epi64::<0>(zx).to_ne_bytes();
-                    let s_64 = _mm_extract_epi64::<1>(zx).to_ne_bytes();
-                    dst[dst_cn.r_i()] =
-                        self.profile.r_gamma[u16::from_ne_bytes([f_64[0], f_64[1]]) as usize];
-                    dst[dst_cn.g_i()] =
-                        self.profile.g_gamma[u16::from_ne_bytes([f_64[4], f_64[5]]) as usize];
-                    dst[dst_cn.b_i()] =
-                        self.profile.b_gamma[u16::from_ne_bytes([s_64[0], s_64[1]]) as usize];
-                    if dst_channels == 4 {
-                        dst[dst_cn.a_i()] = a;
-                    }
-                }
-                #[cfg(target_arch = "x86")]
-                {
-                    _mm_store_si128(temporary0.0.as_mut_ptr() as *mut _, zx);
+                _mm_store_si128(temporary0.0.as_mut_ptr() as *mut _, zx);
 
-                    dst[dst_cn.r_i()] = self.profile.r_gamma[temporary0.0[0] as usize];
-                    dst[dst_cn.g_i()] = self.profile.g_gamma[temporary0.0[2] as usize];
-                    dst[dst_cn.b_i()] = self.profile.b_gamma[temporary0.0[4] as usize];
-                    if dst_channels == 4 {
-                        dst[dst_cn.a_i()] = a;
-                    }
+                dst[dst_cn.r_i()] = self.profile.r_gamma[temporary0.0[0] as usize];
+                dst[dst_cn.g_i()] = self.profile.g_gamma[temporary0.0[2] as usize];
+                dst[dst_cn.b_i()] = self.profile.b_gamma[temporary0.0[4] as usize];
+                if dst_channels == 4 {
+                    dst[dst_cn.a_i()] = a;
                 }
             }
         }
