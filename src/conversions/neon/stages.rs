@@ -174,18 +174,6 @@ where
                 g1 = vld1q_dup_f32(g1p);
                 b1 = vld1q_dup_f32(b1p);
 
-                a0 = if src_channels == 4 {
-                    src[src_cn.a_i()]
-                } else {
-                    max_colors
-                };
-
-                a1 = if src_channels == 4 {
-                    src[src_cn.a_i() + src_channels]
-                } else {
-                    max_colors
-                };
-
                 dst[dst_cn.r_i()] = self.profile.r_gamma[temporary0.0[0] as usize];
                 dst[dst_cn.g_i()] = self.profile.g_gamma[temporary0.0[2] as usize];
                 dst[dst_cn.b_i()] = self.profile.b_gamma[temporary0.0[4] as usize];
@@ -199,6 +187,18 @@ where
                 if dst_channels == 4 {
                     dst[dst_cn.a_i() + dst_channels] = a1;
                 }
+
+                a0 = if src_channels == 4 {
+                    src[src_cn.a_i()]
+                } else {
+                    max_colors
+                };
+
+                a1 = if src_channels == 4 {
+                    src[src_cn.a_i() + src_channels]
+                } else {
+                    max_colors
+                };
             }
 
             if let Some(dst) = dst.chunks_exact_mut(dst_channels * 2).last() {
