@@ -32,7 +32,7 @@ use crate::conversions::neon::stages::NeonAlignedU32;
 use crate::conversions::tetrahedral::TetrhedralInterpolation;
 use crate::{CmsError, Layout, TransformExecutor};
 use num_traits::AsPrimitive;
-use std::arch::aarch64::{vcvtq_u32_f32, vdupq_n_f32, vfmaq_f32, vmaxq_f32, vminq_f32, vst1q_u32};
+use std::arch::aarch64::{vcvtq_u32_f32, vdupq_n_f32, vfmaq_f32, vminq_f32, vst1q_u32};
 use std::marker::PhantomData;
 
 pub(crate) struct TransformLut3x3Neon<
@@ -88,7 +88,6 @@ where
             let v = tetrahedral.inter3_neon(x, y, z);
             unsafe {
                 let mut r = vfmaq_f32(vdupq_n_f32(0.5f32), v.v, value_scale);
-                r = vmaxq_f32(r, vdupq_n_f32(0f32));
                 r = vminq_f32(r, value_scale);
                 vst1q_u32(temporary0.0.as_mut_ptr() as *mut _, vcvtq_u32_f32(r));
             }
