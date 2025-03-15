@@ -35,7 +35,6 @@ use crate::{
     err::CmsError,
     trc::{ToneReprCurve, build_srgb_gamma_table, build_trc_table, curve_from_gamma},
 };
-use bytemuck::{ByteEq, NoUninit};
 use std::convert::TryFrom;
 
 /// See [Rec. ITU-T H.273 (12/2016)](https://www.itu.int/rec/T-REC-H.273-201612-I/en) Table 2
@@ -109,7 +108,7 @@ impl TryFrom<u8> for CicpColorPrimaries {
     }
 }
 
-#[derive(Clone, Copy, Debug, NoUninit, ByteEq)]
+#[derive(Clone, Copy, Debug)]
 #[repr(C)]
 pub struct ColorPrimaries {
     pub red: Chromaticity,

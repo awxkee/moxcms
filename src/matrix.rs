@@ -30,7 +30,6 @@ use crate::err::CmsError;
 use crate::math::FusedMultiplyAdd;
 use crate::mlaf::mlaf;
 use crate::profile::s15_fixed16_number_to_float;
-use bytemuck::NoUninit;
 use num_traits::{AsPrimitive, MulAdd};
 use std::ops::{Add, Div, Mul, Sub};
 
@@ -810,7 +809,7 @@ impl XyY {
     }
 }
 
-#[derive(Clone, Debug, Copy, NoUninit)]
+#[derive(Clone, Debug, Copy)]
 #[repr(C)]
 pub struct Chromaticity {
     pub x: f32,
