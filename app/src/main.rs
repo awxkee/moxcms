@@ -39,7 +39,7 @@ use zune_jpeg::zune_core::options::DecoderOptions;
 
 fn main() {
     let funny_icc = fs::read("./assets/us_swop_coated.icc").unwrap();
-    let funny_profile = ColorProfile::new_from_slice(&funny_icc).unwrap();
+    let funny_profile = ColorProfile::new_bt2020();
 
     let encoded = funny_profile.encode().unwrap();
 
