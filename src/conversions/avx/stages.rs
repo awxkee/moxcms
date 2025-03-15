@@ -115,13 +115,13 @@ where
                 .chunks_exact(src_channels)
                 .zip(dst.chunks_exact_mut(dst_channels))
             {
-                let rp = &self.profile.r_linear[src[src_cn.r_i()].as_()];
-                let gp = &self.profile.g_linear[src[src_cn.g_i()].as_()];
-                let bp = &self.profile.b_linear[src[src_cn.b_i()].as_()];
+                let rp = self.profile.r_linear[src[src_cn.r_i()].as_()];
+                let gp = self.profile.g_linear[src[src_cn.g_i()].as_()];
+                let bp = self.profile.b_linear[src[src_cn.b_i()].as_()];
 
-                let r = _mm_broadcast_ss(rp);
-                let g = _mm_broadcast_ss(gp);
-                let b = _mm_broadcast_ss(bp);
+                let r = _mm_set1_ps(rp);
+                let g = _mm_set1_ps(gp);
+                let b = _mm_set1_ps(bp);
                 let a = if src_channels == 4 {
                     src[src_cn.a_i()]
                 } else {
