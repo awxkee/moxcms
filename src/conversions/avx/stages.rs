@@ -174,10 +174,6 @@ where
             let src = src.chunks_exact(src_channels * 2).remainder();
             let dst = dst.chunks_exact_mut(dst_channels * 2).into_remainder();
 
-            let m0 = _mm_setr_ps(t.v[0][0], t.v[0][1], t.v[0][2], 0f32);
-            let m1 = _mm_setr_ps(t.v[1][0], t.v[1][1], t.v[1][2], 0f32);
-            let m2 = _mm_setr_ps(t.v[2][0], t.v[2][1], t.v[2][2], 0f32);
-
             let v_scale = _mm_set1_ps(scale);
 
             for (src, dst) in src
@@ -194,13 +190,13 @@ where
                 };
 
                 let mut v = if FMA {
-                    let v0 = _mm_mul_ps(r, m0);
-                    let v1 = _mm_fmadd_ps(g, m1, v0);
-                    _mm_fmadd_ps(b, m2, v1)
+                    let v0 = _mm_mul_ps(r, _mm256_castps256_ps128(m0));
+                    let v1 = _mm_fmadd_ps(g, _mm256_castps256_ps128(m1), v0);
+                    _mm_fmadd_ps(b, _mm256_castps256_ps128(m2), v1)
                 } else {
-                    let v0 = _mm_mul_ps(r, m0);
-                    let v1 = _mm_mul_ps(g, m1);
-                    let v2 = _mm_mul_ps(b, m2);
+                    let v0 = _mm_mul_ps(r, _mm256_castps256_ps128(m0));
+                    let v1 = _mm_mul_ps(g, _mm256_castps256_ps128(m1));
+                    let v2 = _mm_mul_ps(b, _mm256_castps256_ps128(m2));
 
                     _mm_add_ps(_mm_add_ps(v0, v1), v2)
                 };
