@@ -106,33 +106,115 @@ where
 
             let v_scale = _mm256_set1_ps(scale);
 
-            for (src, dst) in src
-                .chunks_exact(src_channels * 2)
-                .zip(dst.chunks_exact_mut(dst_channels * 2))
-            {
-                let r0 = _mm_broadcast_ss(&self.profile.r_linear[src[src_cn.r_i()].as_()]);
-                let g0 = _mm_broadcast_ss(&self.profile.g_linear[src[src_cn.g_i()].as_()]);
-                let b0 = _mm_broadcast_ss(&self.profile.b_linear[src[src_cn.b_i()].as_()]);
-                let r1 = _mm_broadcast_ss(
+            let mut src = src;
+            let mut dst = dst;
+
+            let mut src_iter = src.chunks_exact(src_channels * 2);
+            let dst_iter = dst.chunks_exact_mut(dst_channels * 2);
+
+            let (mut r0, mut g0, mut b0, mut a0);
+            let (mut r1, mut g1, mut b1, mut a1);
+
+            if let Some(src) = src_iter.next() {
+                r0 = _mm_broadcast_ss(&self.profile.r_linear[src[src_cn.r_i()].as_()]);
+                g0 = _mm_broadcast_ss(&self.profile.g_linear[src[src_cn.g_i()].as_()]);
+                b0 = _mm_broadcast_ss(&self.profile.b_linear[src[src_cn.b_i()].as_()]);
+                r1 = _mm_broadcast_ss(
                     &self.profile.r_linear[src[src_cn.r_i() + src_channels].as_()],
                 );
-                let g1 = _mm_broadcast_ss(
+                g1 = _mm_broadcast_ss(
                     &self.profile.g_linear[src[src_cn.g_i() + src_channels].as_()],
                 );
-                let b1 = _mm_broadcast_ss(
+                b1 = _mm_broadcast_ss(
                     &self.profile.b_linear[src[src_cn.b_i() + src_channels].as_()],
                 );
-                let a0 = if src_channels == 4 {
+                a0 = if src_channels == 4 {
                     src[src_cn.a_i()]
                 } else {
                     max_colors
                 };
-                let a1 = if src_channels == 4 {
+                a1 = if src_channels == 4 {
+                    src[src_cn.a_i() + src_channels]
+                } else {
+                    max_colors
+                };
+            } else {
+                r0 = _mm_setzero_ps();
+                g0 = _mm_setzero_ps();
+                b0 = _mm_setzero_ps();
+                a0 = max_colors;
+                r1 = _mm_setzero_ps();
+                g1 = _mm_setzero_ps();
+                b1 = _mm_setzero_ps();
+                a1 = max_colors;
+            }
+
+            for (src, dst) in src_iter.zip(dst_iter) {
+                let r = _mm256_insertf128_ps::<1>(_mm256_castps128_ps256(r0), r1);
+                let g = _mm256_insertf128_ps::<1>(_mm256_castps128_ps256(g0), g1);
+                let b = _mm256_insertf128_ps::<1>(_mm256_castps128_ps256(b0), b1);
+
+                let mut v = if FMA {
+                    let v0 = _mm256_mul_ps(r, m0);
+                    let v1 = _mm256_fmadd_ps(g, m1, v0);
+                    _mm256_fmadd_ps(b, m2, v1)
+                } else {
+                    let v0 = _mm256_mul_ps(r, m0);
+                    let v1 = _mm256_mul_ps(g, m1);
+                    let v2 = _mm256_mul_ps(b, m2);
+
+                    _mm256_add_ps(_mm256_add_ps(v0, v1), v2)
+                };
+
+                v = _mm256_max_ps(v, _mm256_setzero_ps());
+                v = _mm256_mul_ps(v, v_scale);
+                v = _mm256_min_ps(v, v_scale);
+
+                let zx = _mm256_cvtps_epi32(v);
+                _mm256_store_si256(temporary0.0.as_mut_ptr() as *mut _, zx);
+
+                let as0 = a0;
+                let as1 = a1;
+
+                r0 = _mm_broadcast_ss(&self.profile.r_linear[src[src_cn.r_i()].as_()]);
+                g0 = _mm_broadcast_ss(&self.profile.g_linear[src[src_cn.g_i()].as_()]);
+                b0 = _mm_broadcast_ss(&self.profile.b_linear[src[src_cn.b_i()].as_()]);
+                r1 = _mm_broadcast_ss(
+                    &self.profile.r_linear[src[src_cn.r_i() + src_channels].as_()],
+                );
+                g1 = _mm_broadcast_ss(
+                    &self.profile.g_linear[src[src_cn.g_i() + src_channels].as_()],
+                );
+                b1 = _mm_broadcast_ss(
+                    &self.profile.b_linear[src[src_cn.b_i() + src_channels].as_()],
+                );
+                a0 = if src_channels == 4 {
+                    src[src_cn.a_i()]
+                } else {
+                    max_colors
+                };
+                a1 = if src_channels == 4 {
                     src[src_cn.a_i() + src_channels]
                 } else {
                     max_colors
                 };
 
+                dst[dst_cn.r_i()] = self.profile.r_gamma[temporary0.0[0] as usize];
+                dst[dst_cn.g_i()] = self.profile.g_gamma[temporary0.0[2] as usize];
+                dst[dst_cn.b_i()] = self.profile.b_gamma[temporary0.0[4] as usize];
+                if dst_channels == 4 {
+                    dst[dst_cn.a_i()] = as0;
+                }
+
+                dst[dst_cn.r_i() + dst_channels] = self.profile.r_gamma[temporary0.0[8] as usize];
+                dst[dst_cn.g_i() + dst_channels] = self.profile.g_gamma[temporary0.0[10] as usize];
+                dst[dst_cn.b_i() + dst_channels] = self.profile.b_gamma[temporary0.0[12] as usize];
+                if dst_channels == 4 {
+                    dst[dst_cn.a_i() + dst_channels] = as1;
+                }
+            }
+
+            if let Some(dst) = dst.chunks_exact_mut(dst_channels * 2).last() {
                 let r = _mm256_insertf128_ps::<1>(_mm256_castps128_ps256(r0), r1);
                 let g = _mm256_insertf128_ps::<1>(_mm256_castps128_ps256(g0), g1);
                 let b = _mm256_insertf128_ps::<1>(_mm256_castps128_ps256(b0), b1);
@@ -171,8 +253,8 @@ where
                 }
             }
 
-            let src = src.chunks_exact(src_channels * 2).remainder();
-            let dst = dst.chunks_exact_mut(dst_channels * 2).into_remainder();
+            src = src.chunks_exact(src_channels * 2).remainder();
+            dst = dst.chunks_exact_mut(dst_channels * 2).into_remainder();
 
             for (src, dst) in src
                 .chunks_exact(src_channels)

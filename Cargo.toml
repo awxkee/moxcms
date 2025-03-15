@@ -19,7 +19,6 @@ rust-version = "1.85.0"
 [dependencies]
 chrono = "0.4"
 num-traits = "0.2"
-bytemuck = { version = "1", default-features = false, features = ["derive"] }
 
 [dev-dependencies]
 rand = "0.9"

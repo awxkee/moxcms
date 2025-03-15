@@ -28,7 +28,7 @@
  */
 use image::GenericImageView;
 use lcms2::{Intent, PixelFormat, Profile, Transform};
-use moxcms::{ColorProfile, Layout, RenderingIntent, TransformOptions};
+use moxcms::{ColorProfile, Layout, RenderingIntent, TransformOptions, pow, powf};
 use std::fs;
 use std::fs::File;
 use std::io::{BufReader, Read};
@@ -38,6 +38,7 @@ use zune_jpeg::zune_core::colorspace::ColorSpace;
 use zune_jpeg::zune_core::options::DecoderOptions;
 
 fn main() {
+    println!("{}", pow(4f64, 1f64 / 2f64));
     let funny_icc = fs::read("./assets/us_swop_coated.icc").unwrap();
     let funny_profile = ColorProfile::new_bt2020();
 
