@@ -28,7 +28,7 @@
  */
 use image::GenericImageView;
 use lcms2::{Intent, PixelFormat, Profile, Transform};
-use moxcms::{pow, powf, ColorProfile, Layout, RenderingIntent, TransformOptions};
+use moxcms::{ColorProfile, Layout, RenderingIntent, TransformOptions, pow, powf};
 use std::fs;
 use std::fs::File;
 use std::io::{BufReader, Read};
