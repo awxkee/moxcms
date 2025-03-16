@@ -27,8 +27,8 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::conversions::{
-    CompressLut, ToneReproductionRgbToGray, TransformProfileRgb, make_gray_to_x,
-    make_lut_transform, make_rgb_to_gray, make_rgb_xyz_rgb_transform,
+    CompressLut, RgbXyzFactory, ToneReproductionRgbToGray, TransformProfileRgb, make_gray_to_x,
+    make_lut_transform, make_rgb_to_gray,
 };
 use crate::err::CmsError;
 use crate::profile::LutDataType;
@@ -221,7 +221,14 @@ impl ColorProfile {
     }
 
     fn create_transform_nbit<
-        T: Copy + Default + AsPrimitive<usize> + Send + Sync + AsPrimitive<f32> + CompressLut,
+        T: Copy
+            + Default
+            + AsPrimitive<usize>
+            + Send
+            + Sync
+            + AsPrimitive<f32>
+            + CompressLut
+            + RgbXyzFactory<T>,
         const BIT_DEPTH: usize,
         const LINEAR_CAP: usize,
         const GAMMA_CAP: usize,
@@ -284,7 +291,7 @@ impl ColorProfile {
                 adaptation_matrix: transform,
             };
 
-            return make_rgb_xyz_rgb_transform::<T, LINEAR_CAP, GAMMA_CAP, BIT_DEPTH>(
+            return T::make_transform::<LINEAR_CAP, GAMMA_CAP, BIT_DEPTH>(
                 src_layout,
                 dst_layout,
                 profile_transform,
@@ -386,7 +393,7 @@ impl ColorProfile {
         dst_layout: Layout,
         options: TransformOptions,
     ) -> Result<Box<Transform8BitExecutor>, CmsError> {
-        self.create_transform_nbit::<u8, 8, 256, 4092>(src_layout, dst_pr, dst_layout, options)
+        self.create_transform_nbit::<u8, 8, 256, 4096>(src_layout, dst_pr, dst_layout, options)
     }
 
     pub(crate) fn get_device_to_pcs_lut(&self, intent: RenderingIntent) -> Option<&LutDataType> {

@@ -29,6 +29,36 @@
 use crate::{CmsError, Layout, Matrix3f, TransformExecutor};
 use num_traits::AsPrimitive;
 
+pub(crate) trait RgbXyzFactory<T: Clone + AsPrimitive<usize> + Default> {
+    fn make_transform<const LINEAR_CAP: usize, const GAMMA_LUT: usize, const BIT_DEPTH: usize>(
+        src_layout: Layout,
+        dst_layout: Layout,
+        profile: TransformProfileRgb<T, LINEAR_CAP>,
+    ) -> Result<Box<dyn TransformExecutor<T> + Send + Sync>, CmsError>;
+}
+
+impl RgbXyzFactory<u16> for u16 {
+    fn make_transform<const LINEAR_CAP: usize, const GAMMA_LUT: usize, const BIT_DEPTH: usize>(
+        src_layout: Layout,
+        dst_layout: Layout,
+        profile: TransformProfileRgb<u16, LINEAR_CAP>,
+    ) -> Result<Box<dyn TransformExecutor<u16> + Send + Sync>, CmsError> {
+        make_rgb_xyz_rgb_transform::<u16, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>(
+            src_layout, dst_layout, profile,
+        )
+    }
+}
+
+impl RgbXyzFactory<u8> for u8 {
+    fn make_transform<const LINEAR_CAP: usize, const GAMMA_LUT: usize, const BIT_DEPTH: usize>(
+        src_layout: Layout,
+        dst_layout: Layout,
+        profile: TransformProfileRgb<u8, LINEAR_CAP>,
+    ) -> Result<Box<dyn TransformExecutor<u8> + Send + Sync>, CmsError> {
+        make_8bit_rgb_xyz::<LINEAR_CAP, GAMMA_LUT>(src_layout, dst_layout, profile)
+    }
+}
+
 pub(crate) struct TransformProfileRgb<T: Clone, const BUCKET: usize> {
     pub(crate) r_linear: Box<[f32; BUCKET]>,
     pub(crate) g_linear: Box<[f32; BUCKET]>,
@@ -37,6 +67,40 @@ pub(crate) struct TransformProfileRgb<T: Clone, const BUCKET: usize> {
     pub(crate) g_gamma: Box<[T; 65536]>,
     pub(crate) b_gamma: Box<[T; 65536]>,
     pub(crate) adaptation_matrix: Option<Matrix3f>,
+}
+
+impl<const BUCKET: usize> TransformProfileRgb<u8, BUCKET> {
+    pub(crate) fn to_q4_12(&self) -> TransformProfileRgb8Bit {
+        const SCALE: i16 = (1 << 12) - 1;
+        let mut new_box_r = Box::new([0i16; 256]);
+        let mut new_box_g = Box::new([0i16; 256]);
+        let mut new_box_b = Box::new([0i16; 256]);
+        for (dst, src) in new_box_r.iter_mut().zip(self.r_linear.iter()) {
+            *dst = (*src * SCALE as f32).round() as i16;
+        }
+        for (dst, src) in new_box_g.iter_mut().zip(self.g_linear.iter()) {
+            *dst = (*src * SCALE as f32).round() as i16;
+        }
+        for (dst, src) in new_box_b.iter_mut().zip(self.b_linear.iter()) {
+            *dst = (*src * SCALE as f32).round() as i16;
+        }
+        let source_matrix = self.adaptation_matrix.unwrap_or(Matrix3f::IDENTITY);
+        let mut dst_matrix = Matrix3::<i16> { v: [[0i16; 3]; 3] };
+        for i in 0..3 {
+            for j in 0..3 {
+                dst_matrix.v[i][j] = (source_matrix.v[i][j] * SCALE as f32).round() as i16;
+            }
+        }
+        TransformProfileRgb8Bit {
+            r_linear: new_box_r,
+            g_linear: new_box_g,
+            b_linear: new_box_b,
+            r_gamma: self.r_gamma.clone(),
+            g_gamma: self.g_gamma.clone(),
+            b_gamma: self.b_gamma.clone(),
+            adaptation_matrix: dst_matrix,
+        }
+    }
 }
 
 #[cfg(not(all(target_arch = "aarch64", target_feature = "neon", feature = "neon")))]
@@ -218,6 +282,9 @@ where
 
 #[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
 use crate::conversions::neon::TransformProfilePcsXYZRgbNeon;
+use crate::conversions::rgbxyz_fixed::{TransformProfileRgb8Bit, make_8bit_rgb_xyz};
+use crate::matrix::Matrix3;
+
 #[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
 create_rgb_xyz_dependant_executor!(make_rgb_xyz_rgb_transform, TransformProfilePcsXYZRgbNeon);
 

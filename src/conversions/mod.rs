@@ -38,6 +38,7 @@ mod mab;
 mod neon;
 mod rgb2gray;
 mod rgbxyz;
+mod rgbxyz_fixed;
 #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"))]
 mod sse;
 mod stages;
@@ -48,4 +49,5 @@ mod transform_lut3_to_4;
 pub(crate) use gray2rgb::make_gray_to_x;
 pub(crate) use lut_transforms::{CompressLut, make_lut_transform};
 pub(crate) use rgb2gray::{ToneReproductionRgbToGray, make_rgb_to_gray};
-pub(crate) use rgbxyz::{TransformProfileRgb, make_rgb_xyz_rgb_transform};
+pub(crate) use rgbxyz::RgbXyzFactory;
+pub(crate) use rgbxyz::TransformProfileRgb;
