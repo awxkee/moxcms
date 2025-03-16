@@ -167,18 +167,32 @@ impl<const SRC_LAYOUT: u8, const DST_LAYOUT: u8, const LINEAR_CAP: usize, const 
                 let as0 = a0;
                 let as1 = a1;
 
-                r0 = _mm_set1_epi16(self.profile.r_linear[src[src_cn.r_i()] as usize]);
-                g0 = _mm_set1_epi16(self.profile.g_linear[src[src_cn.g_i()] as usize]);
-                b0 = _mm_set1_epi16(self.profile.b_linear[src[src_cn.b_i()] as usize]);
-                r1 = _mm_set1_epi16(
-                    self.profile.r_linear[src[src_cn.r_i() + src_channels] as usize],
+                // r0 = _mm_set1_epi16(self.profile.r_linear[src[src_cn.r_i()] as usize]);
+                // g0 = _mm_set1_epi16(self.profile.g_linear[src[src_cn.g_i()] as usize]);
+                // b0 = _mm_set1_epi16(self.profile.b_linear[src[src_cn.b_i()] as usize]);
+                // r1 = _mm_set1_epi16(
+                //     self.profile.r_linear[src[src_cn.r_i() + src_channels] as usize],
+                // );
+                // g1 = _mm_set1_epi16(
+                //     self.profile.g_linear[src[src_cn.g_i() + src_channels] as usize],
+                // );
+                // b1 = _mm_set1_epi16(
+                //     self.profile.b_linear[src[src_cn.b_i() + src_channels] as usize],
+                // );
+
+                r0 = _mm_loadu_si16((&self.profile.r_linear[src[src_cn.r_i()] as usize] as *const i16).cast());
+                g0 = _mm_loadu_si16((&self.profile.g_linear[src[src_cn.g_i()] as usize] as *const i16).cast());
+                b0 = _mm_loadu_si16((&self.profile.b_linear[src[src_cn.b_i()] as usize] as *const i16).cast());
+                r1 = _mm_loadu_si16(
+                    (&self.profile.r_linear[src[src_cn.r_i() + src_channels] as usize] as *const i16).cast(),
                 );
-                g1 = _mm_set1_epi16(
-                    self.profile.g_linear[src[src_cn.g_i() + src_channels] as usize],
+                g1 = _mm_loadu_si16(
+                    (&self.profile.g_linear[src[src_cn.g_i() + src_channels] as usize] as*const i16).cast(),
                 );
-                b1 = _mm_set1_epi16(
-                    self.profile.b_linear[src[src_cn.b_i() + src_channels] as usize],
+                b1 = _mm_loadu_si16(
+                    (&self.profile.b_linear[src[src_cn.b_i() + src_channels] as usize] as *const i16).cast(),
                 );
+                
                 a0 = if src_channels == 4 {
                     src[src_cn.a_i()]
                 } else {
@@ -203,6 +217,13 @@ impl<const SRC_LAYOUT: u8, const DST_LAYOUT: u8, const LINEAR_CAP: usize, const 
                 if dst_channels == 4 {
                     dst[dst_cn.a_i() + dst_channels] = as1;
                 }
+                
+                r0 = _mm_broadcastw_epi16(r0);
+                g0 = _mm_broadcastw_epi16(g0);
+                b0 = _mm_broadcastw_epi16(b0);
+                r1 = _mm_broadcastw_epi16(r1);
+                g1 = _mm_broadcastw_epi16(g1);
+                b1 = _mm_broadcastw_epi16(b1);
             }
 
             if let Some(dst) = dst.chunks_exact_mut(dst_channels * 2).last() {
