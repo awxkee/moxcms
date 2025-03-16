@@ -6,7 +6,7 @@
  */
 use crate::math::{m_clamp, m_max, m_min};
 use crate::mlaf::mlaf;
-use crate::{Matrix3f, Xyz};
+use crate::{Matrix3f, Vector3, Xyz};
 use num_traits::{AsPrimitive, Bounded, Float, Num, Pow};
 use std::cmp::Ordering;
 use std::ops::{Add, AddAssign, Div, DivAssign, Index, IndexMut, Mul, MulAssign, Neg, Sub};
@@ -35,6 +35,13 @@ where
 {
     pub fn dup(v: T) -> Rgb<T> {
         Rgb { r: v, g: v, b: v }
+    }
+
+    #[inline]
+    pub const fn to_vector(self) -> Vector3<T> {
+        Vector3 {
+            v: [self.r, self.g, self.b],
+        }
     }
 }
 

@@ -40,6 +40,7 @@ mod defaults;
 mod err;
 mod gamma;
 mod gamut;
+mod ictcp;
 mod jzazbz;
 mod jzczhz;
 mod lab;
@@ -72,6 +73,7 @@ pub use gamut::{
     gamut_clip_adaptive_l0_0_5, gamut_clip_adaptive_l0_l_cusp, gamut_clip_preserve_chroma,
     gamut_clip_project_to_l_cusp,
 };
+pub use ictcp::ICtCp;
 pub use jzazbz::Jzazbz;
 pub use jzczhz::Jzczhz;
 pub use lab::Lab;

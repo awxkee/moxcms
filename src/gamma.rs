@@ -26,7 +26,7 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-use crate::{TransferCharacteristics, pow};
+use crate::{TransferCharacteristics, pow, powf};
 use num_traits::AsPrimitive;
 
 #[inline]
@@ -277,10 +277,23 @@ const fn gamma2p8_to_linear(gamma: f64) -> f64 {
 /// Linear transfer function for PQ
 pub(crate) fn pq_to_linear(gamma: f64) -> f64 {
     if gamma > 0.0 {
-        let pow_gamma = f64::powf(gamma, 1.0 / 78.84375);
+        let pow_gamma = pow(gamma, 1.0 / 78.84375);
         let num = (pow_gamma - 0.8359375).max(0.);
         let den = (18.8515625 - 18.6875 * pow_gamma).max(f64::MIN);
-        f64::powf(num / den, 1.0 / 0.1593017578125)
+        pow(num / den, 1.0 / 0.1593017578125)
+    } else {
+        0.0
+    }
+}
+
+#[inline]
+/// Linear transfer function for PQ
+pub(crate) fn pq_to_linearf(gamma: f32) -> f32 {
+    if gamma > 0.0 {
+        let pow_gamma = powf(gamma, 1.0 / 78.84375);
+        let num = (pow_gamma - 0.8359375).max(0.);
+        let den = (18.8515625 - 18.6875 * pow_gamma).max(f32::MIN);
+        powf(num / den, 1.0 / 0.1593017578125)
     } else {
         0.0
     }
@@ -295,6 +308,20 @@ fn pq_from_linear(linear: f64) -> f64 {
         let num = 0.1640625 * pow_linear - 0.1640625;
         let den = 1.0 + 18.6875 * pow_linear;
         pow(1.0 + num / den, 78.84375)
+    } else {
+        0.0
+    }
+}
+
+#[inline]
+/// Gamma transfer function for PQ
+pub(crate) const fn pq_from_linearf(linear: f32) -> f32 {
+    if linear > 0.0 {
+        let linear = linear.clamp(0., 1.);
+        let pow_linear = powf(linear, 0.1593017578125);
+        let num = 0.1640625 * pow_linear - 0.1640625;
+        let den = 1.0 + 18.6875 * pow_linear;
+        powf(1.0 + num / den, 78.84375)
     } else {
         0.0
     }
