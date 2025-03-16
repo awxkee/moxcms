@@ -111,14 +111,14 @@ impl ICtCp {
     /// Precompute forward matrix by [ICtCp::prepare_to_lms] and then inverse it
     #[inline]
     pub fn to_linear_rgb(&self, matrix: Matrix3f) -> Rgb<f32> {
-        let l_lms = matrix.mul_vector(Vector3f {
+        let l_lms = ICTCP_TO_L_LMS.mul_vector(Vector3f {
             v: [self.i, self.ct, self.cp],
         });
         let gamma_l = pq_from_linearf(l_lms.v[0]);
         let gamma_m = pq_from_linearf(l_lms.v[1]);
         let gamma_s = pq_from_linearf(l_lms.v[2]);
 
-        let lms = LMS_TO_XYZ.mul_vector(Vector3f {
+        let lms = matrix.mul_vector(Vector3f {
             v: [gamma_l, gamma_m, gamma_s],
         });
         Rgb {
@@ -165,5 +165,24 @@ mod tests {
         assert!((r_xyz.x - xyz.x).abs() < 1e-5);
         assert!((r_xyz.y - xyz.y).abs() < 1e-5);
         assert!((r_xyz.z - xyz.z).abs() < 1e-5);
+    }
+
+    #[test]
+    fn check_roundtrip_rgb() {
+        let rgb_to_xyz = Matrix3f {
+            v: [
+                [0.67345345, 0.165661961, 0.125096574],
+                [0.27903071, 0.675341845, 0.045627553],
+                [-0.00193137419, 0.0299795717, 0.797140181],
+            ],
+        };
+        let prepared_matrix = ICtCp::prepare_to_lms(rgb_to_xyz);
+        let inversed_matrix = prepared_matrix.inverse().unwrap();
+        let rgb = Rgb::new(1.5, 4.4, 3.3);
+        let ictcp = ICtCp::from_linear_rgb(rgb, prepared_matrix);
+        let r_xyz = ictcp.to_linear_rgb(inversed_matrix);
+        assert!((r_xyz.r - rgb.r).abs() < 1e-5);
+        assert!((r_xyz.g - rgb.g).abs() < 1e-5);
+        assert!((r_xyz.b - rgb.b).abs() < 1e-5);
     }
 }
