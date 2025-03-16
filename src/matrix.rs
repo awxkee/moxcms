@@ -323,6 +323,26 @@ pub struct Matrix3f {
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Default)]
+pub(crate) struct Matrix3<T> {
+    pub v: [[T; 3]; 3],
+}
+
+impl<T: Copy> Matrix3<T> {
+    #[inline]
+    #[allow(dead_code)]
+    pub(crate) fn transpose(&self) -> Matrix3<T> {
+        Matrix3 {
+            v: [
+                [self.v[0][0], self.v[1][0], self.v[2][0]],
+                [self.v[0][1], self.v[1][1], self.v[2][1]],
+                [self.v[0][2], self.v[1][2], self.v[2][2]],
+            ],
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone, Debug, Default)]
 pub struct Matrix4f {
     pub v: [[f32; 4]; 4],
 }

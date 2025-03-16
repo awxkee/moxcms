@@ -496,15 +496,14 @@ pub const fn atanf(d: f32) -> f32 {
     }
     let x2 = x * x;
 
-    let mut u = 0.00282363896258175373077393;
-    u = fmlaf(u, x2, -0.0159569028764963150024414);
-    u = fmlaf(u, x2, 0.0425049886107444763183594);
-    u = fmlaf(u, x2, -0.0748900920152664184570312);
-    u = fmlaf(u, x2, 0.106347933411598205566406);
-    u = fmlaf(u, x2, -0.142027363181114196777344);
-    u = fmlaf(u, x2, 0.199926957488059997558594);
-    u = fmlaf(u, x2, -0.333331018686294555664062);
-
+    let mut u = 0.3057095382e-2;
+    u = fmlaf(u, x2, -0.1684093114e-1);
+    u = fmlaf(u, x2, 0.4385302239e-1);
+    u = fmlaf(u, x2, -0.7594467979e-1);
+    u = fmlaf(u, x2, 0.1067925170e+0);
+    u = fmlaf(u, x2, -0.1421231870e+0);
+    u = fmlaf(u, x2, 0.1999354698e+0);
+    u = fmlaf(u, x2, -0.3333310690e+0);
     u = x + x * (x2 * u);
 
     u = if c > 1f32 {
@@ -703,6 +702,7 @@ mod tests {
             pow(0.5f64, 2f64)
         );
     }
+
     #[test]
     fn sqrtf_test() {
         assert!(
@@ -723,6 +723,11 @@ mod tests {
 
     #[test]
     fn atan_test() {
+        assert!(
+            (atanf(1.0) - std::f32::consts::PI / 4f32).abs() < 1e-6,
+            "Invalid result {}",
+            atanf(1f32)
+        );
         assert!(
             (atanf(2f32) - 1.107148717794090503017065f32).abs() < 1e-6,
             "Invalid result {}",

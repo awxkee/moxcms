@@ -29,6 +29,88 @@
 use crate::{CmsError, Layout, Matrix3f, TransformExecutor};
 use num_traits::AsPrimitive;
 
+pub(crate) trait RgbXyzFactory<T: Clone + AsPrimitive<usize> + Default> {
+    fn make_transform<const LINEAR_CAP: usize, const GAMMA_LUT: usize, const BIT_DEPTH: usize>(
+        src_layout: Layout,
+        dst_layout: Layout,
+        profile: TransformProfileRgb<T, LINEAR_CAP>,
+    ) -> Result<Box<dyn TransformExecutor<T> + Send + Sync>, CmsError>;
+}
+
+impl RgbXyzFactory<u16> for u16 {
+    fn make_transform<const LINEAR_CAP: usize, const GAMMA_LUT: usize, const BIT_DEPTH: usize>(
+        src_layout: Layout,
+        dst_layout: Layout,
+        profile: TransformProfileRgb<u16, LINEAR_CAP>,
+    ) -> Result<Box<dyn TransformExecutor<u16> + Send + Sync>, CmsError> {
+        if BIT_DEPTH == 10 {
+            #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "avx"))]
+            {
+                use crate::conversions::rgbxyz_fixed::make_rgb_xyz_q4_12_transform_avx2;
+                if std::arch::is_x86_feature_detected!("avx2") {
+                    return make_rgb_xyz_q4_12_transform_avx2::<
+                        u16,
+                        LINEAR_CAP,
+                        GAMMA_LUT,
+                        BIT_DEPTH,
+                    >(src_layout, dst_layout, profile);
+                }
+            }
+            #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"))]
+            {
+                use crate::conversions::rgbxyz_fixed::make_rgb_xyz_q4_12_transform_sse_41;
+                if std::arch::is_x86_feature_detected!("sse4.1") {
+                    return make_rgb_xyz_q4_12_transform_sse_41::<
+                        u16,
+                        LINEAR_CAP,
+                        GAMMA_LUT,
+                        BIT_DEPTH,
+                    >(src_layout, dst_layout, profile);
+                }
+            }
+        }
+        if BIT_DEPTH == 10 {
+            #[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
+            {
+                return make_rgb_xyz_q4_12::<u16, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>(
+                    src_layout, dst_layout, profile,
+                );
+            }
+        }
+        make_rgb_xyz_rgb_transform::<u16, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>(
+            src_layout, dst_layout, profile,
+        )
+    }
+}
+
+impl RgbXyzFactory<u8> for u8 {
+    fn make_transform<const LINEAR_CAP: usize, const GAMMA_LUT: usize, const BIT_DEPTH: usize>(
+        src_layout: Layout,
+        dst_layout: Layout,
+        profile: TransformProfileRgb<u8, LINEAR_CAP>,
+    ) -> Result<Box<dyn TransformExecutor<u8> + Send + Sync>, CmsError> {
+        #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "avx"))]
+        {
+            use crate::conversions::rgbxyz_fixed::make_rgb_xyz_q4_12_transform_avx2;
+            if std::arch::is_x86_feature_detected!("avx2") {
+                return make_rgb_xyz_q4_12_transform_avx2::<u8, LINEAR_CAP, GAMMA_LUT, 8>(
+                    src_layout, dst_layout, profile,
+                );
+            }
+        }
+        #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"))]
+        {
+            use crate::conversions::rgbxyz_fixed::make_rgb_xyz_q4_12_transform_sse_41;
+            if std::arch::is_x86_feature_detected!("sse4.1") {
+                return make_rgb_xyz_q4_12_transform_sse_41::<u8, LINEAR_CAP, GAMMA_LUT, 8>(
+                    src_layout, dst_layout, profile,
+                );
+            }
+        }
+        make_rgb_xyz_q4_12::<u8, LINEAR_CAP, GAMMA_LUT, 8>(src_layout, dst_layout, profile)
+    }
+}
+
 pub(crate) struct TransformProfileRgb<T: Clone, const BUCKET: usize> {
     pub(crate) r_linear: Box<[f32; BUCKET]>,
     pub(crate) g_linear: Box<[f32; BUCKET]>,
@@ -37,6 +119,45 @@ pub(crate) struct TransformProfileRgb<T: Clone, const BUCKET: usize> {
     pub(crate) g_gamma: Box<[T; 65536]>,
     pub(crate) b_gamma: Box<[T; 65536]>,
     pub(crate) adaptation_matrix: Option<Matrix3f>,
+}
+
+impl<T: Clone, const BUCKET: usize> TransformProfileRgb<T, BUCKET> {
+    pub(crate) fn to_q4_12<R: Copy + 'static + Default>(
+        &self,
+    ) -> TransformProfileRgbFixedPoint<R, T, BUCKET>
+    where
+        f32: AsPrimitive<R>,
+    {
+        const SCALE: i16 = (1 << 12) - 1;
+        let mut new_box_r = Box::new([R::default(); BUCKET]);
+        let mut new_box_g = Box::new([R::default(); BUCKET]);
+        let mut new_box_b = Box::new([R::default(); BUCKET]);
+        for (dst, src) in new_box_r.iter_mut().zip(self.r_linear.iter()) {
+            *dst = (*src * SCALE as f32).round().as_();
+        }
+        for (dst, src) in new_box_g.iter_mut().zip(self.g_linear.iter()) {
+            *dst = (*src * SCALE as f32).round().as_();
+        }
+        for (dst, src) in new_box_b.iter_mut().zip(self.b_linear.iter()) {
+            *dst = (*src * SCALE as f32).round().as_();
+        }
+        let source_matrix = self.adaptation_matrix.unwrap_or(Matrix3f::IDENTITY);
+        let mut dst_matrix = Matrix3::<i16> { v: [[0i16; 3]; 3] };
+        for i in 0..3 {
+            for j in 0..3 {
+                dst_matrix.v[i][j] = (source_matrix.v[i][j] * SCALE as f32).round() as i16;
+            }
+        }
+        TransformProfileRgbFixedPoint {
+            r_linear: new_box_r,
+            g_linear: new_box_g,
+            b_linear: new_box_b,
+            r_gamma: self.r_gamma.clone(),
+            g_gamma: self.g_gamma.clone(),
+            b_gamma: self.b_gamma.clone(),
+            adaptation_matrix: dst_matrix,
+        }
+    }
 }
 
 #[cfg(not(all(target_arch = "aarch64", target_feature = "neon", feature = "neon")))]
@@ -218,6 +339,9 @@ where
 
 #[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
 use crate::conversions::neon::TransformProfilePcsXYZRgbNeon;
+use crate::conversions::rgbxyz_fixed::{TransformProfileRgbFixedPoint, make_rgb_xyz_q4_12};
+use crate::matrix::Matrix3;
+
 #[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
 create_rgb_xyz_dependant_executor!(make_rgb_xyz_rgb_transform, TransformProfilePcsXYZRgbNeon);
 

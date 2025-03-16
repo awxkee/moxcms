@@ -26,7 +26,7 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-use crate::{TransferCharacteristics, pow, powf};
+use crate::{TransferCharacteristics, exp, pow, powf};
 use num_traits::AsPrimitive;
 
 #[inline]
@@ -37,7 +37,10 @@ fn srgb_to_linear(gamma: f64) -> f64 {
     } else if gamma < 12.92f64 * 0.0030412825601275209f64 {
         gamma * (1f64 / 12.92f64)
     } else if gamma < 1.0f64 {
-        ((gamma + 0.0550107189475866f64) / 1.0550107189475866f64).powf(2.4f64)
+        pow(
+            (gamma + 0.0550107189475866f64) / 1.0550107189475866f64,
+            2.4f64,
+        )
     } else {
         1.0f64
     }
@@ -51,7 +54,7 @@ fn srgb_from_linear(linear: f64) -> f64 {
     } else if linear < 0.0030412825601275209f64 {
         linear * 12.92f64
     } else if linear < 1.0f64 {
-        1.0550107189475866f64 * linear.powf(1.0f64 / 2.4f64) - 0.0550107189475866f64
+        1.0550107189475866f64 * pow(linear, 1.0f64 / 2.4f64) - 0.0550107189475866f64
     } else {
         1.0f64
     }
@@ -92,7 +95,7 @@ const fn rec709_from_linear(linear: f64) -> f64 {
 /// Linear transfer function for Smpte 428
 pub(crate) fn smpte428_to_linear(gamma: f64) -> f64 {
     const SCALE: f64 = 1. / 0.91655527974030934f64;
-    gamma.max(0.).min(1f64).powf(2.6f64) * SCALE
+    pow(gamma.max(0.).min(1f64), 2.6f64) * SCALE
 }
 
 #[inline]
@@ -334,10 +337,10 @@ pub(crate) fn hlg_to_linear(gamma: f64) -> f64 {
         return 0.0;
     }
     if gamma <= 0.5 {
-        f64::powf((gamma * gamma) * (1.0 / 3.0), 1.2)
+        pow((gamma * gamma) * (1.0 / 3.0), 1.2)
     } else {
-        f64::powf(
-            (f64::exp((gamma - 0.55991073) / 0.17883277) + 0.28466892) / 12.0,
+        pow(
+            (exp((gamma - 0.55991073) / 0.17883277) + 0.28466892) / 12.0,
             1.2,
         )
     }
@@ -347,7 +350,7 @@ pub(crate) fn hlg_to_linear(gamma: f64) -> f64 {
 /// Gamma transfer function for HLG
 fn hlg_from_linear(linear: f64) -> f64 {
     // Scale from extended SDR range to [0.0, 1.0].
-    let mut linear = (linear).clamp(0., 1.);
+    let mut linear = linear.clamp(0., 1.);
     // Inverse OOTF followed by OETF see Table 5 and Note 5i in ITU-R BT.2100-2 page 7-8.
     linear = pow(linear, 1.0 / 1.2);
     if linear < 0.0 {
