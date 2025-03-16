@@ -203,16 +203,16 @@ macro_rules! create_rgb_xyz_dependant_q4_12_executor {
 }
 
 #[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
-use crate::conversions::neon::TransformProfileRgb8BitNeon;
+use crate::conversions::neon::TransformProfileRgbQ12Neon;
 
 #[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
-create_rgb_xyz_dependant_q4_12_executor!(make_rgb_xyz_q4_12, TransformProfileRgb8BitNeon, i16);
+create_rgb_xyz_dependant_q4_12_executor!(make_rgb_xyz_q4_12, TransformProfileRgbQ12Neon, i16);
 
 #[cfg(not(all(target_arch = "aarch64", target_feature = "neon", feature = "neon")))]
 create_rgb_xyz_dependant_q4_12_executor!(make_rgb_xyz_q4_12, TransformProfilePcsXYZRgbQ4_12, i16);
 
 #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"))]
-use crate::conversions::sse::TransformProfileRgb8BitSse;
+use crate::conversions::sse::TransformProfileRgbQ12Sse;
 
 #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"))]
 create_rgb_xyz_dependant_q4_12_executor!(
@@ -222,7 +222,7 @@ create_rgb_xyz_dependant_q4_12_executor!(
 );
 
 #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "avx"))]
-use crate::conversions::avx::TransformProfilePcsXYZRgb8BitAvx;
+use crate::conversions::avx::TransformProfilePcsXYZRgbQ12Avx;
 
 #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "avx"))]
 create_rgb_xyz_dependant_q4_12_executor!(

@@ -147,7 +147,7 @@ fn main() {
 
     dest_profile.rendering_intent = RenderingIntent::Perceptual;
     let transform = funny_profile
-        .create_transform_8bit(
+        .create_transform_10bit(
             Layout::Rgba,
             &dest_profile,
             Layout::Rgba,
@@ -157,7 +157,7 @@ fn main() {
             },
         )
         .unwrap();
-    let mut dst = vec![0u8; real_dst.len()];
+    let mut dst = vec![0u16; real_dst.len()];
     // t.transform_pixels(&real_dst)
 
     // let gray_image = rgb
@@ -168,6 +168,12 @@ fn main() {
     //     })
     //     .collect::<Vec<u8>>();
     //
+
+    let cmyk = cmyk
+        .iter()
+        .map(|&x| u16::from_ne_bytes([x, x]) >> 6)
+        .collect::<Vec<_>>();
+
     let instant = Instant::now();
     for (src, dst) in cmyk
         .chunks_exact(img.width() as usize * 4)
@@ -234,6 +240,7 @@ fn main() {
     // )
     // .unwrap();
 
+    let dst = dst.iter().map(|&x| (x >> 2) as u8).collect::<Vec<_>>();
     image::save_buffer(
         "v_new_sat.png",
         &dst,

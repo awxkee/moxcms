@@ -33,7 +33,7 @@ mod tetrahedral;
 mod transform_lut3_to_3;
 
 pub(crate) use lut4_to_3::TransformLut4XyzToRgbAvx;
-pub(crate) use rgb_xyz_q4_12::TransformProfilePcsXYZRgb8BitAvx;
+pub(crate) use rgb_xyz_q4_12::TransformProfilePcsXYZRgbQ12Avx;
 pub(crate) use stages::TransformProfilePcsXYZRgbAvx;
 pub(crate) use tetrahedral::TetrahedralAvxFma;
 pub(crate) use transform_lut3_to_3::TransformLut3x3AvxFma;
