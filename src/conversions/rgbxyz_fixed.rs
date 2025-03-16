@@ -217,7 +217,7 @@ use crate::conversions::sse::TransformProfileRgbQ12Sse;
 #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"))]
 create_rgb_xyz_dependant_q4_12_executor!(
     make_rgb_xyz_q4_12_transform_sse_41,
-    TransformProfileRgb8BitSse,
+    TransformProfileRgbQ12Sse,
     i32
 );
 
@@ -227,6 +227,6 @@ use crate::conversions::avx::TransformProfilePcsXYZRgbQ12Avx;
 #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "avx"))]
 create_rgb_xyz_dependant_q4_12_executor!(
     make_rgb_xyz_q4_12_transform_avx2,
-    TransformProfilePcsXYZRgb8BitAvx,
+    TransformProfilePcsXYZRgbQ12Avx,
     i32
 );
