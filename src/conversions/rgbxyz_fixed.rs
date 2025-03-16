@@ -30,34 +30,45 @@ use crate::Layout;
 use crate::conversions::TransformProfileRgb;
 use crate::matrix::Matrix3;
 use crate::{CmsError, TransformExecutor};
+use num_traits::AsPrimitive;
 
-/// Fixed point conversion for 8-bit
-pub(crate) struct TransformProfileRgb8Bit<R> {
-    pub(crate) r_linear: Box<[R; 256]>,
-    pub(crate) g_linear: Box<[R; 256]>,
-    pub(crate) b_linear: Box<[R; 256]>,
-    pub(crate) r_gamma: Box<[u8; 65536]>,
-    pub(crate) g_gamma: Box<[u8; 65536]>,
-    pub(crate) b_gamma: Box<[u8; 65536]>,
+/// Fixed point conversion for 8-bit/10-bit
+pub(crate) struct TransformProfileRgbFixedPoint<R, T, const LINEAR_CAP: usize> {
+    pub(crate) r_linear: Box<[R; LINEAR_CAP]>,
+    pub(crate) g_linear: Box<[R; LINEAR_CAP]>,
+    pub(crate) b_linear: Box<[R; LINEAR_CAP]>,
+    pub(crate) r_gamma: Box<[T; 65536]>,
+    pub(crate) g_gamma: Box<[T; 65536]>,
+    pub(crate) b_gamma: Box<[T; 65536]>,
     pub(crate) adaptation_matrix: Matrix3<i16>,
 }
 
 #[allow(unused)]
 struct TransformProfilePcsXYZRgbQ4_12<
+    T: Copy,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
     const LINEAR_CAP: usize,
     const GAMMA_LUT: usize,
+    const BIT_DEPTH: usize,
 > {
-    pub(crate) profile: TransformProfileRgb8Bit<i16>,
+    pub(crate) profile: TransformProfileRgbFixedPoint<i16, T, LINEAR_CAP>,
 }
 
 #[allow(unused)]
-impl<const SRC_LAYOUT: u8, const DST_LAYOUT: u8, const LINEAR_CAP: usize, const GAMMA_LUT: usize>
-    TransformExecutor<u8>
-    for TransformProfilePcsXYZRgbQ4_12<SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP, GAMMA_LUT>
+impl<
+    T: AsPrimitive<usize> + 'static + Copy + Default,
+    const SRC_LAYOUT: u8,
+    const DST_LAYOUT: u8,
+    const LINEAR_CAP: usize,
+    const GAMMA_LUT: usize,
+    const BIT_DEPTH: usize,
+> TransformExecutor<T>
+    for TransformProfilePcsXYZRgbQ4_12<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>
+where
+    u32: AsPrimitive<T>,
 {
-    fn transform(&self, src: &[u8], dst: &mut [u8]) -> Result<(), CmsError> {
+    fn transform(&self, src: &[T], dst: &mut [T]) -> Result<(), CmsError> {
         let src_cn = Layout::from(SRC_LAYOUT);
         let dst_cn = Layout::from(DST_LAYOUT);
         let src_channels = src_cn.channels();
@@ -74,17 +85,19 @@ impl<const SRC_LAYOUT: u8, const DST_LAYOUT: u8, const LINEAR_CAP: usize, const 
         }
 
         let transform = self.profile.adaptation_matrix;
-        let max_colors: u8 = 255;
+        let max_colors: T = ((1 << BIT_DEPTH as u32) - 1u32).as_();
         const ROUNDING_Q4_12: i32 = (1 << (12 - 1)) - 1;
         const Q: i32 = 12;
+
+        let v_gamma_max = GAMMA_LUT as i32 - 1;
 
         for (src, dst) in src
             .chunks_exact(src_channels)
             .zip(dst.chunks_exact_mut(dst_channels))
         {
-            let r = self.profile.r_linear[src[src_cn.r_i()] as usize];
-            let g = self.profile.g_linear[src[src_cn.g_i()] as usize];
-            let b = self.profile.b_linear[src[src_cn.b_i()] as usize];
+            let r = self.profile.r_linear[src[src_cn.r_i()].as_()];
+            let g = self.profile.g_linear[src[src_cn.g_i()].as_()];
+            let b = self.profile.b_linear[src[src_cn.b_i()].as_()];
             let a = if src_channels == 4 {
                 src[src_cn.a_i()]
             } else {
@@ -96,21 +109,21 @@ impl<const SRC_LAYOUT: u8, const DST_LAYOUT: u8, const LINEAR_CAP: usize, const 
                 + b as i32 * transform.v[0][2] as i32
                 + ROUNDING_Q4_12;
 
-            let r_q4_12 = (new_r >> Q).min(4095).max(0) as u16;
+            let r_q4_12 = (new_r >> Q).min(v_gamma_max).max(0) as u16;
 
             let new_g = r as i32 * transform.v[1][0] as i32
                 + g as i32 * transform.v[1][1] as i32
                 + b as i32 * transform.v[1][2] as i32
                 + ROUNDING_Q4_12;
 
-            let g_q4_12 = (new_g >> Q).min(4095).max(0) as u16;
+            let g_q4_12 = (new_g >> Q).min(v_gamma_max).max(0) as u16;
 
             let new_b = r as i32 * transform.v[2][0] as i32
                 + g as i32 * transform.v[2][1] as i32
                 + b as i32 * transform.v[2][2] as i32
                 + ROUNDING_Q4_12;
 
-            let b_q4_12 = (new_b >> Q).min(4095).max(0) as u16;
+            let b_q4_12 = (new_b >> Q).min(v_gamma_max).max(0) as u16;
 
             dst[dst_cn.r_i()] = self.profile.r_gamma[r_q4_12 as usize];
             dst[dst_cn.g_i()] = self.profile.g_gamma[g_q4_12 as usize];
@@ -125,45 +138,61 @@ impl<const SRC_LAYOUT: u8, const DST_LAYOUT: u8, const LINEAR_CAP: usize, const 
 
 macro_rules! create_rgb_xyz_dependant_8bit_executor {
     ($dep_name: ident, $dependant: ident, $resolution: ident) => {
-        pub(crate) fn $dep_name<const LINEAR_CAP: usize, const GAMMA_LUT: usize>(
+        pub(crate) fn $dep_name<
+            T: Clone + Send + Sync + AsPrimitive<usize> + Default,
+            const LINEAR_CAP: usize,
+            const GAMMA_LUT: usize,
+            const BIT_DEPTH: usize,
+        >(
             src_layout: Layout,
             dst_layout: Layout,
-            profile: TransformProfileRgb<u8, LINEAR_CAP>,
-        ) -> Result<Box<dyn TransformExecutor<u8> + Send + Sync>, CmsError> {
+            profile: TransformProfileRgb<T, LINEAR_CAP>,
+        ) -> Result<Box<dyn TransformExecutor<T> + Send + Sync>, CmsError>
+        where
+            u32: AsPrimitive<T>,
+        {
             let q4_12_profile = profile.to_q4_12::<$resolution>();
             if (src_layout == Layout::Rgba) && (dst_layout == Layout::Rgba) {
                 return Ok(Box::new($dependant::<
+                    T,
                     { Layout::Rgba as u8 },
                     { Layout::Rgba as u8 },
                     LINEAR_CAP,
                     GAMMA_LUT,
+                    BIT_DEPTH,
                 > {
                     profile: q4_12_profile,
                 }));
             } else if (src_layout == Layout::Rgb) && (dst_layout == Layout::Rgba) {
                 return Ok(Box::new($dependant::<
+                    T,
                     { Layout::Rgb as u8 },
                     { Layout::Rgba as u8 },
                     LINEAR_CAP,
                     GAMMA_LUT,
+                    BIT_DEPTH,
                 > {
                     profile: q4_12_profile,
                 }));
             } else if (src_layout == Layout::Rgba) && (dst_layout == Layout::Rgb) {
                 return Ok(Box::new($dependant::<
+                    T,
                     { Layout::Rgba as u8 },
                     { Layout::Rgb as u8 },
                     LINEAR_CAP,
                     GAMMA_LUT,
+                    BIT_DEPTH,
                 > {
                     profile: q4_12_profile,
                 }));
             } else if (src_layout == Layout::Rgb) && (dst_layout == Layout::Rgb) {
                 return Ok(Box::new($dependant::<
+                    T,
                     { Layout::Rgb as u8 },
                     { Layout::Rgb as u8 },
                     LINEAR_CAP,
                     GAMMA_LUT,
+                    BIT_DEPTH,
                 > {
                     profile: q4_12_profile,
                 }));
@@ -177,10 +206,10 @@ macro_rules! create_rgb_xyz_dependant_8bit_executor {
 use crate::conversions::neon::TransformProfileRgb8BitNeon;
 
 #[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
-create_rgb_xyz_dependant_8bit_executor!(make_8bit_rgb_xyz, TransformProfileRgb8BitNeon, i16);
+create_rgb_xyz_dependant_8bit_executor!(make_rgb_xyz_q4_12, TransformProfileRgb8BitNeon, i16);
 
 #[cfg(not(all(target_arch = "aarch64", target_feature = "neon", feature = "neon")))]
-create_rgb_xyz_dependant_8bit_executor!(make_8bit_rgb_xyz, TransformProfilePcsXYZRgbQ4_12, i16);
+create_rgb_xyz_dependant_8bit_executor!(make_rgb_xyz_q4_12, TransformProfilePcsXYZRgbQ4_12, i16);
 
 #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"))]
 use crate::conversions::sse::TransformProfileRgb8BitSse;

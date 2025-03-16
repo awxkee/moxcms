@@ -26,21 +26,24 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-use crate::conversions::rgbxyz_fixed::TransformProfileRgb8Bit;
+use crate::conversions::rgbxyz_fixed::TransformProfileRgbFixedPoint;
 use crate::conversions::sse::stages::SseAlignedU16;
 use crate::{CmsError, Layout, TransformExecutor};
+use num_traits::AsPrimitive;
 #[cfg(target_arch = "x86")]
 use std::arch::x86::*;
 #[cfg(target_arch = "x86_64")]
 use std::arch::x86_64::*;
 
 pub(crate) struct TransformProfileRgb8BitSse<
+    T: Copy,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
     const LINEAR_CAP: usize,
     const GAMMA_LUT: usize,
+    const BIT_DEPTH: usize,
 > {
-    pub(crate) profile: TransformProfileRgb8Bit<i32>,
+    pub(crate) profile: TransformProfileRgbFixedPoint<i32, T, LINEAR_CAP>,
 }
 
 #[inline(always)]
@@ -49,11 +52,19 @@ unsafe fn _xmm_load_epi32(f: &i32) -> __m128i {
     unsafe { _mm_castps_si128(_mm_load_ss(float_ref)) }
 }
 
-impl<const SRC_LAYOUT: u8, const DST_LAYOUT: u8, const LINEAR_CAP: usize, const GAMMA_LUT: usize>
-    TransformProfileRgb8BitSse<SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP, GAMMA_LUT>
+impl<
+    T: Copy + AsPrimitive<usize> + 'static,
+    const SRC_LAYOUT: u8,
+    const DST_LAYOUT: u8,
+    const LINEAR_CAP: usize,
+    const GAMMA_LUT: usize,
+    const BIT_DEPTH: usize,
+> TransformProfileRgb8BitSse<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>
+where
+    u32: AsPrimitive<T>,
 {
     #[target_feature(enable = "sse4.1")]
-    unsafe fn transform_impl(&self, src: &[u8], dst: &mut [u8]) -> Result<(), CmsError> {
+    unsafe fn transform_impl(&self, src: &[T], dst: &mut [T]) -> Result<(), CmsError> {
         let src_cn = Layout::from(SRC_LAYOUT);
         let dst_cn = Layout::from(DST_LAYOUT);
         let src_channels = src_cn.channels();
@@ -73,7 +84,7 @@ impl<const SRC_LAYOUT: u8, const DST_LAYOUT: u8, const LINEAR_CAP: usize, const 
 
         let t = self.profile.adaptation_matrix.transpose();
 
-        let max_colors = 255;
+        let max_colors = ((1 << BIT_DEPTH) - 1).as_();
 
         unsafe {
             let m0 = _mm_setr_epi32(t.v[0][0] as i32, t.v[0][1] as i32, t.v[0][2] as i32, 0);
@@ -85,15 +96,15 @@ impl<const SRC_LAYOUT: u8, const DST_LAYOUT: u8, const LINEAR_CAP: usize, const 
 
             let zeros = _mm_setzero_si128();
 
-            let v_max_value = _mm_set1_epi32((1 << 12) - 1);
+            let v_max_value = _mm_set1_epi32(GAMMA_LUT as i32 - 1);
 
             for (src, dst) in src
                 .chunks_exact(src_channels)
                 .zip(dst.chunks_exact_mut(dst_channels))
             {
-                let rp = &self.profile.r_linear[src[src_cn.r_i()] as usize];
-                let gp = &self.profile.g_linear[src[src_cn.g_i()] as usize];
-                let bp = &self.profile.b_linear[src[src_cn.b_i()] as usize];
+                let rp = &self.profile.r_linear[src[src_cn.r_i()].as_()];
+                let gp = &self.profile.g_linear[src[src_cn.g_i()].as_()];
+                let bp = &self.profile.b_linear[src[src_cn.b_i()].as_()];
 
                 let mut r = _xmm_load_epi32(rp);
                 let mut g = _xmm_load_epi32(gp);
@@ -135,11 +146,19 @@ impl<const SRC_LAYOUT: u8, const DST_LAYOUT: u8, const LINEAR_CAP: usize, const 
     }
 }
 
-impl<const SRC_LAYOUT: u8, const DST_LAYOUT: u8, const LINEAR_CAP: usize, const GAMMA_LUT: usize>
-    TransformExecutor<u8>
-    for TransformProfileRgb8BitSse<SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP, GAMMA_LUT>
+impl<
+    T: Copy + AsPrimitive<usize> + 'static + Default,
+    const SRC_LAYOUT: u8,
+    const DST_LAYOUT: u8,
+    const LINEAR_CAP: usize,
+    const GAMMA_LUT: usize,
+    const BIT_DEPTH: usize,
+> TransformExecutor<T>
+    for TransformProfileRgb8BitSse<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>
+where
+    u32: AsPrimitive<T>,
 {
-    fn transform(&self, src: &[u8], dst: &mut [u8]) -> Result<(), CmsError> {
+    fn transform(&self, src: &[T], dst: &mut [T]) -> Result<(), CmsError> {
         unsafe { self.transform_impl(src, dst) }
     }
 }

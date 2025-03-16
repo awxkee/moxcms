@@ -27,20 +27,23 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::conversions::avx::stages::AvxAlignedU16;
-use crate::conversions::rgbxyz_fixed::TransformProfileRgb8Bit;
+use crate::conversions::rgbxyz_fixed::TransformProfileRgbFixedPoint;
 use crate::{CmsError, Layout, TransformExecutor};
+use num_traits::AsPrimitive;
 #[cfg(target_arch = "x86")]
 use std::arch::x86::*;
 #[cfg(target_arch = "x86_64")]
 use std::arch::x86_64::*;
 
 pub(crate) struct TransformProfilePcsXYZRgb8BitAvx<
+    T: Copy,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
     const LINEAR_CAP: usize,
     const GAMMA_LUT: usize,
+    const BIT_DEPTH: usize,
 > {
-    pub(crate) profile: TransformProfileRgb8Bit<i32>,
+    pub(crate) profile: TransformProfileRgbFixedPoint<i32, T, LINEAR_CAP>,
 }
 
 #[inline(always)]
@@ -49,11 +52,19 @@ unsafe fn _xmm_broadcast_epi32(f: &i32) -> __m128i {
     unsafe { _mm_castps_si128(_mm_broadcast_ss(float_ref)) }
 }
 
-impl<const SRC_LAYOUT: u8, const DST_LAYOUT: u8, const LINEAR_CAP: usize, const GAMMA_LUT: usize>
-    TransformProfilePcsXYZRgb8BitAvx<SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP, GAMMA_LUT>
+impl<
+    T: Copy + AsPrimitive<usize> + 'static,
+    const SRC_LAYOUT: u8,
+    const DST_LAYOUT: u8,
+    const LINEAR_CAP: usize,
+    const GAMMA_LUT: usize,
+    const BIT_DEPTH: usize,
+> TransformProfilePcsXYZRgb8BitAvx<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>
+where
+    u32: AsPrimitive<T>,
 {
     #[target_feature(enable = "avx2")]
-    unsafe fn transform_avx2(&self, src: &[u8], dst: &mut [u8]) -> Result<(), CmsError> {
+    unsafe fn transform_avx2(&self, src: &[T], dst: &mut [T]) -> Result<(), CmsError> {
         let src_cn = Layout::from(SRC_LAYOUT);
         let dst_cn = Layout::from(DST_LAYOUT);
         let src_channels = src_cn.channels();
@@ -73,7 +84,7 @@ impl<const SRC_LAYOUT: u8, const DST_LAYOUT: u8, const LINEAR_CAP: usize, const 
 
         let t = self.profile.adaptation_matrix.transpose();
 
-        let max_colors = 255;
+        let max_colors = ((1 << BIT_DEPTH) - 1).as_();
 
         unsafe {
             let m0 = _mm256_setr_epi32(
@@ -112,7 +123,7 @@ impl<const SRC_LAYOUT: u8, const DST_LAYOUT: u8, const LINEAR_CAP: usize, const 
 
             let zeros = _mm256_setzero_si256();
 
-            let v_max_value = _mm256_set1_epi32((1 << 12) - 1);
+            let v_max_value = _mm256_set1_epi32(GAMMA_LUT as i32 - 1);
 
             let mut src = src;
             let mut dst = dst;
@@ -124,17 +135,17 @@ impl<const SRC_LAYOUT: u8, const DST_LAYOUT: u8, const LINEAR_CAP: usize, const 
             let (mut r1, mut g1, mut b1, mut a1);
 
             if let Some(src) = src_iter.next() {
-                r0 = _xmm_broadcast_epi32(&self.profile.r_linear[src[src_cn.r_i()] as usize]);
-                g0 = _xmm_broadcast_epi32(&self.profile.g_linear[src[src_cn.g_i()] as usize]);
-                b0 = _xmm_broadcast_epi32(&self.profile.b_linear[src[src_cn.b_i()] as usize]);
+                r0 = _xmm_broadcast_epi32(&self.profile.r_linear[src[src_cn.r_i()].as_()]);
+                g0 = _xmm_broadcast_epi32(&self.profile.g_linear[src[src_cn.g_i()].as_()]);
+                b0 = _xmm_broadcast_epi32(&self.profile.b_linear[src[src_cn.b_i()].as_()]);
                 r1 = _xmm_broadcast_epi32(
-                    &self.profile.r_linear[src[src_cn.r_i() + src_channels] as usize],
+                    &self.profile.r_linear[src[src_cn.r_i() + src_channels].as_()],
                 );
                 g1 = _xmm_broadcast_epi32(
-                    &self.profile.g_linear[src[src_cn.g_i() + src_channels] as usize],
+                    &self.profile.g_linear[src[src_cn.g_i() + src_channels].as_()],
                 );
                 b1 = _xmm_broadcast_epi32(
-                    &self.profile.b_linear[src[src_cn.b_i() + src_channels] as usize],
+                    &self.profile.b_linear[src[src_cn.b_i() + src_channels].as_()],
                 );
                 a0 = if src_channels == 4 {
                     src[src_cn.a_i()]
@@ -176,17 +187,17 @@ impl<const SRC_LAYOUT: u8, const DST_LAYOUT: u8, const LINEAR_CAP: usize, const 
 
                 _mm256_store_si256(temporary0.0.as_mut_ptr() as *mut _, v);
 
-                r0 = _xmm_broadcast_epi32(&self.profile.r_linear[src[src_cn.r_i()] as usize]);
-                g0 = _xmm_broadcast_epi32(&self.profile.g_linear[src[src_cn.g_i()] as usize]);
-                b0 = _xmm_broadcast_epi32(&self.profile.b_linear[src[src_cn.b_i()] as usize]);
+                r0 = _xmm_broadcast_epi32(&self.profile.r_linear[src[src_cn.r_i()].as_()]);
+                g0 = _xmm_broadcast_epi32(&self.profile.g_linear[src[src_cn.g_i()].as_()]);
+                b0 = _xmm_broadcast_epi32(&self.profile.b_linear[src[src_cn.b_i()].as_()]);
                 r1 = _xmm_broadcast_epi32(
-                    &self.profile.r_linear[src[src_cn.r_i() + src_channels] as usize],
+                    &self.profile.r_linear[src[src_cn.r_i() + src_channels].as_()],
                 );
                 g1 = _xmm_broadcast_epi32(
-                    &self.profile.g_linear[src[src_cn.g_i() + src_channels] as usize],
+                    &self.profile.g_linear[src[src_cn.g_i() + src_channels].as_()],
                 );
                 b1 = _xmm_broadcast_epi32(
-                    &self.profile.b_linear[src[src_cn.b_i() + src_channels] as usize],
+                    &self.profile.b_linear[src[src_cn.b_i() + src_channels].as_()],
                 );
 
                 dst[dst_cn.r_i()] = self.profile.r_gamma[temporary0.0[0] as usize];
@@ -256,9 +267,9 @@ impl<const SRC_LAYOUT: u8, const DST_LAYOUT: u8, const LINEAR_CAP: usize, const 
                 .chunks_exact(src_channels)
                 .zip(dst.chunks_exact_mut(dst_channels))
             {
-                let r = _xmm_broadcast_epi32(&self.profile.r_linear[src[src_cn.r_i()] as usize]);
-                let g = _xmm_broadcast_epi32(&self.profile.g_linear[src[src_cn.g_i()] as usize]);
-                let b = _xmm_broadcast_epi32(&self.profile.b_linear[src[src_cn.b_i()] as usize]);
+                let r = _xmm_broadcast_epi32(&self.profile.r_linear[src[src_cn.r_i()].as_()]);
+                let g = _xmm_broadcast_epi32(&self.profile.g_linear[src[src_cn.g_i()].as_()]);
+                let b = _xmm_broadcast_epi32(&self.profile.b_linear[src[src_cn.b_i()].as_()]);
                 let a = if src_channels == 4 {
                     src[src_cn.a_i()]
                 } else {
@@ -293,11 +304,26 @@ impl<const SRC_LAYOUT: u8, const DST_LAYOUT: u8, const LINEAR_CAP: usize, const 
     }
 }
 
-impl<const SRC_LAYOUT: u8, const DST_LAYOUT: u8, const LINEAR_CAP: usize, const GAMMA_LUT: usize>
-    TransformExecutor<u8>
-    for TransformProfilePcsXYZRgb8BitAvx<SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP, GAMMA_LUT>
+impl<
+    T: Copy + AsPrimitive<usize> + 'static + Default,
+    const SRC_LAYOUT: u8,
+    const DST_LAYOUT: u8,
+    const LINEAR_CAP: usize,
+    const GAMMA_LUT: usize,
+    const BIT_DEPTH: usize,
+> TransformExecutor<T>
+    for TransformProfilePcsXYZRgb8BitAvx<
+        T,
+        SRC_LAYOUT,
+        DST_LAYOUT,
+        LINEAR_CAP,
+        GAMMA_LUT,
+        BIT_DEPTH,
+    >
+where
+    u32: AsPrimitive<T>,
 {
-    fn transform(&self, src: &[u8], dst: &mut [u8]) -> Result<(), CmsError> {
+    fn transform(&self, src: &[T], dst: &mut [T]) -> Result<(), CmsError> {
         unsafe { self.transform_avx2(src, dst) }
     }
 }

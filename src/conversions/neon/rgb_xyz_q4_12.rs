@@ -26,7 +26,7 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-use crate::conversions::rgbxyz_fixed::TransformProfileRgb8Bit;
+use crate::conversions::rgbxyz_fixed::TransformProfileRgbFixedPoint;
 use crate::{CmsError, Layout, TransformExecutor};
 use std::arch::aarch64::*;
 
@@ -36,7 +36,7 @@ pub(crate) struct TransformProfileRgb8BitNeon<
     const LINEAR_CAP: usize,
     const GAMMA_LUT: usize,
 > {
-    pub(crate) profile: TransformProfileRgb8Bit<i16>,
+    pub(crate) profile: TransformProfileRgbFixedPoint<i16>,
 }
 
 impl<const SRC_LAYOUT: u8, const DST_LAYOUT: u8, const LINEAR_CAP: usize, const GAMMA_LUT: usize>
