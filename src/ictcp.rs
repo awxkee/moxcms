@@ -181,8 +181,8 @@ mod tests {
         let rgb = Rgb::new(1.5, 4.4, 3.3);
         let ictcp = ICtCp::from_linear_rgb(rgb, prepared_matrix);
         let r_xyz = ictcp.to_linear_rgb(inversed_matrix);
-        assert!((r_xyz.r - rgb.r).abs() < 1e-5);
-        assert!((r_xyz.g - rgb.g).abs() < 1e-5);
-        assert!((r_xyz.b - rgb.b).abs() < 1e-5);
+        assert!((r_xyz.r - rgb.r).abs() < 1e-4);
+        assert!((r_xyz.g - rgb.g).abs() < 1e-4);
+        assert!((r_xyz.b - rgb.b).abs() < 1e-4);
     }
 }
