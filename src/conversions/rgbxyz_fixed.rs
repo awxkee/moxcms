@@ -32,10 +32,10 @@ use crate::matrix::Matrix3;
 use crate::{CmsError, TransformExecutor};
 
 /// Fixed point conversion for 8-bit
-pub(crate) struct TransformProfileRgb8Bit {
-    pub(crate) r_linear: Box<[i16; 256]>,
-    pub(crate) g_linear: Box<[i16; 256]>,
-    pub(crate) b_linear: Box<[i16; 256]>,
+pub(crate) struct TransformProfileRgb8Bit<R> {
+    pub(crate) r_linear: Box<[R; 256]>,
+    pub(crate) g_linear: Box<[R; 256]>,
+    pub(crate) b_linear: Box<[R; 256]>,
     pub(crate) r_gamma: Box<[u8; 65536]>,
     pub(crate) g_gamma: Box<[u8; 65536]>,
     pub(crate) b_gamma: Box<[u8; 65536]>,
@@ -49,7 +49,7 @@ struct TransformProfilePcsXYZRgbQ4_12<
     const LINEAR_CAP: usize,
     const GAMMA_LUT: usize,
 > {
-    pub(crate) profile: TransformProfileRgb8Bit,
+    pub(crate) profile: TransformProfileRgb8Bit<i16>,
 }
 
 #[allow(unused)]
@@ -124,13 +124,13 @@ impl<const SRC_LAYOUT: u8, const DST_LAYOUT: u8, const LINEAR_CAP: usize, const 
 }
 
 macro_rules! create_rgb_xyz_dependant_8bit_executor {
-    ($dep_name: ident, $dependant: ident) => {
+    ($dep_name: ident, $dependant: ident, $resolution: ident) => {
         pub(crate) fn $dep_name<const LINEAR_CAP: usize, const GAMMA_LUT: usize>(
             src_layout: Layout,
             dst_layout: Layout,
             profile: TransformProfileRgb<u8, LINEAR_CAP>,
         ) -> Result<Box<dyn TransformExecutor<u8> + Send + Sync>, CmsError> {
-            let q4_12_profile = profile.to_q4_12();
+            let q4_12_profile = profile.to_q4_12::<$resolution>();
             if (src_layout == Layout::Rgba) && (dst_layout == Layout::Rgba) {
                 return Ok(Box::new($dependant::<
                     { Layout::Rgba as u8 },
@@ -177,10 +177,10 @@ macro_rules! create_rgb_xyz_dependant_8bit_executor {
 use crate::conversions::neon::TransformProfileRgb8BitNeon;
 
 #[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
-create_rgb_xyz_dependant_8bit_executor!(make_8bit_rgb_xyz, TransformProfileRgb8BitNeon);
+create_rgb_xyz_dependant_8bit_executor!(make_8bit_rgb_xyz, TransformProfileRgb8BitNeon, i16);
 
 #[cfg(not(all(target_arch = "aarch64", target_feature = "neon", feature = "neon")))]
-create_rgb_xyz_dependant_8bit_executor!(make_8bit_rgb_xyz, TransformProfilePcsXYZRgbQ4_12);
+create_rgb_xyz_dependant_8bit_executor!(make_8bit_rgb_xyz, TransformProfilePcsXYZRgbQ4_12, i16);
 
 #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"))]
 use crate::conversions::sse::TransformProfileRgb8BitSse;
@@ -188,7 +188,8 @@ use crate::conversions::sse::TransformProfileRgb8BitSse;
 #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"))]
 create_rgb_xyz_dependant_8bit_executor!(
     make_rgb_xyz_q4_12_transform_sse_41,
-    TransformProfileRgb8BitSse
+    TransformProfileRgb8BitSse,
+    i32
 );
 
 #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "avx"))]
@@ -197,5 +198,6 @@ use crate::conversions::avx::TransformProfilePcsXYZRgb8BitAvx;
 #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "avx"))]
 create_rgb_xyz_dependant_8bit_executor!(
     make_rgb_xyz_q4_12_transform_avx2,
-    TransformProfilePcsXYZRgb8BitAvx
+    TransformProfilePcsXYZRgb8BitAvx,
+    i32
 );

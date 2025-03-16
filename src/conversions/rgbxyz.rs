@@ -88,19 +88,22 @@ pub(crate) struct TransformProfileRgb<T: Clone, const BUCKET: usize> {
 }
 
 impl<const BUCKET: usize> TransformProfileRgb<u8, BUCKET> {
-    pub(crate) fn to_q4_12(&self) -> TransformProfileRgb8Bit {
+    pub(crate) fn to_q4_12<R: Copy + 'static + Default>(&self) -> TransformProfileRgb8Bit<R>
+    where
+        f32: AsPrimitive<R>,
+    {
         const SCALE: i16 = (1 << 12) - 1;
-        let mut new_box_r = Box::new([0i16; 256]);
-        let mut new_box_g = Box::new([0i16; 256]);
-        let mut new_box_b = Box::new([0i16; 256]);
+        let mut new_box_r = Box::new([R::default(); 256]);
+        let mut new_box_g = Box::new([R::default(); 256]);
+        let mut new_box_b = Box::new([R::default(); 256]);
         for (dst, src) in new_box_r.iter_mut().zip(self.r_linear.iter()) {
-            *dst = (*src * SCALE as f32).round() as i16;
+            *dst = (*src * SCALE as f32).round().as_();
         }
         for (dst, src) in new_box_g.iter_mut().zip(self.g_linear.iter()) {
-            *dst = (*src * SCALE as f32).round() as i16;
+            *dst = (*src * SCALE as f32).round().as_();
         }
         for (dst, src) in new_box_b.iter_mut().zip(self.b_linear.iter()) {
-            *dst = (*src * SCALE as f32).round() as i16;
+            *dst = (*src * SCALE as f32).round().as_();
         }
         let source_matrix = self.adaptation_matrix.unwrap_or(Matrix3f::IDENTITY);
         let mut dst_matrix = Matrix3::<i16> { v: [[0i16; 3]; 3] };

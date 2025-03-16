@@ -40,7 +40,13 @@ pub(crate) struct TransformProfileRgb8BitSse<
     const LINEAR_CAP: usize,
     const GAMMA_LUT: usize,
 > {
-    pub(crate) profile: TransformProfileRgb8Bit,
+    pub(crate) profile: TransformProfileRgb8Bit<i32>,
+}
+
+#[inline(always)]
+unsafe fn _xmm_load_epi32(f: &i32) -> __m128i {
+    let float_ref: &f32 = unsafe { &*(f as *const i32 as *const f32) };
+    unsafe { _mm_castps_si128(_mm_load_ss(float_ref)) }
 }
 
 impl<const SRC_LAYOUT: u8, const DST_LAYOUT: u8, const LINEAR_CAP: usize, const GAMMA_LUT: usize>
@@ -70,17 +76,16 @@ impl<const SRC_LAYOUT: u8, const DST_LAYOUT: u8, const LINEAR_CAP: usize, const 
         let max_colors = 255;
 
         unsafe {
-            let m0 = _mm_setr_epi16(
-                t.v[0][0], t.v[1][0], t.v[0][1], t.v[1][1], t.v[0][2], t.v[1][2], 0, 0,
-            );
+            let m0 = _mm_setr_epi32(t.v[0][0] as i32, t.v[0][1] as i32, t.v[0][2] as i32, 0);
+            let m1 = _mm_setr_epi32(t.v[1][0] as i32, t.v[1][1] as i32, t.v[1][2] as i32, 0);
             let m2 = _mm_setr_epi32(t.v[2][0] as i32, t.v[2][1] as i32, t.v[2][2] as i32, 0);
+
+            const ROUNDING_Q4_12: i32 = (1 << (12 - 1)) - 1;
+            let rnd = _mm_set1_epi32(ROUNDING_Q4_12);
 
             let zeros = _mm_setzero_si128();
 
             let v_max_value = _mm_set1_epi32((1 << 12) - 1);
-
-            let shuffle = _mm_setr_epi8(0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0);
-            let shuffle_r_g = _mm_setr_epi8(0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3);
 
             for (src, dst) in src
                 .chunks_exact(src_channels)
@@ -90,22 +95,27 @@ impl<const SRC_LAYOUT: u8, const DST_LAYOUT: u8, const LINEAR_CAP: usize, const 
                 let gp = &self.profile.g_linear[src[src_cn.g_i()] as usize];
                 let bp = &self.profile.b_linear[src[src_cn.b_i()] as usize];
 
-                let mut r = _mm_loadu_si16((rp as *const i16).cast());
-                let mut b = _mm_loadu_si16((bp as *const i16).cast());
-                r = _mm_insert_epi16::<1>(r, *gp as i32);
+                let mut r = _xmm_load_epi32(rp);
+                let mut g = _xmm_load_epi32(gp);
+                let mut b = _xmm_load_epi32(bp);
                 let a = if src_channels == 4 {
                     src[src_cn.a_i()]
                 } else {
                     max_colors
                 };
 
-                r = _mm_shuffle_epi8(r, shuffle_r_g);
-                b = _mm_shuffle_epi8(b, shuffle);
+                r = _mm_shuffle_epi32::<0>(r);
+                g = _mm_shuffle_epi32::<0>(g);
+                b = _mm_shuffle_epi32::<0>(b);
 
                 let v0 = _mm_madd_epi16(r, m0);
+                let v1 = _mm_madd_epi16(g, m1);
                 let v2 = _mm_madd_epi16(b, m2);
 
-                let mut v = _mm_add_epi32(v0, v2);
+                let acc0 = _mm_add_epi32(v0, rnd);
+                let acc1 = _mm_add_epi32(v1, v2);
+
+                let mut v = _mm_add_epi32(acc0, acc1);
                 v = _mm_srai_epi32::<12>(v);
                 v = _mm_max_epi32(v, zeros);
                 v = _mm_min_epi32(v, v_max_value);

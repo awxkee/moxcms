@@ -40,7 +40,13 @@ pub(crate) struct TransformProfilePcsXYZRgb8BitAvx<
     const LINEAR_CAP: usize,
     const GAMMA_LUT: usize,
 > {
-    pub(crate) profile: TransformProfileRgb8Bit,
+    pub(crate) profile: TransformProfileRgb8Bit<i32>,
+}
+
+#[inline(always)]
+unsafe fn _xmm_broadcast_epi32(f: &i32) -> __m128i {
+    let float_ref: &f32 = unsafe { &*(f as *const i32 as *const f32) };
+    unsafe { _mm_castps_si128(_mm_broadcast_ss(float_ref)) }
 }
 
 impl<const SRC_LAYOUT: u8, const DST_LAYOUT: u8, const LINEAR_CAP: usize, const GAMMA_LUT: usize>
@@ -101,6 +107,9 @@ impl<const SRC_LAYOUT: u8, const DST_LAYOUT: u8, const LINEAR_CAP: usize, const 
                 0,
             );
 
+            const ROUNDING_Q4_12: i32 = (1 << (12 - 1)) - 1;
+            let rnd = _mm256_set1_epi32(ROUNDING_Q4_12);
+
             let zeros = _mm256_setzero_si256();
 
             let v_max_value = _mm256_set1_epi32((1 << 12) - 1);
@@ -115,17 +124,17 @@ impl<const SRC_LAYOUT: u8, const DST_LAYOUT: u8, const LINEAR_CAP: usize, const 
             let (mut r1, mut g1, mut b1, mut a1);
 
             if let Some(src) = src_iter.next() {
-                r0 = _mm_set1_epi16(self.profile.r_linear[src[src_cn.r_i()] as usize]);
-                g0 = _mm_set1_epi16(self.profile.g_linear[src[src_cn.g_i()] as usize]);
-                b0 = _mm_set1_epi16(self.profile.b_linear[src[src_cn.b_i()] as usize]);
-                r1 = _mm_set1_epi16(
-                    self.profile.r_linear[src[src_cn.r_i() + src_channels] as usize],
+                r0 = _xmm_broadcast_epi32(&self.profile.r_linear[src[src_cn.r_i()] as usize]);
+                g0 = _xmm_broadcast_epi32(&self.profile.g_linear[src[src_cn.g_i()] as usize]);
+                b0 = _xmm_broadcast_epi32(&self.profile.b_linear[src[src_cn.b_i()] as usize]);
+                r1 = _xmm_broadcast_epi32(
+                    &self.profile.r_linear[src[src_cn.r_i() + src_channels] as usize],
                 );
-                g1 = _mm_set1_epi16(
-                    self.profile.g_linear[src[src_cn.g_i() + src_channels] as usize],
+                g1 = _xmm_broadcast_epi32(
+                    &self.profile.g_linear[src[src_cn.g_i() + src_channels] as usize],
                 );
-                b1 = _mm_set1_epi16(
-                    self.profile.b_linear[src[src_cn.b_i() + src_channels] as usize],
+                b1 = _xmm_broadcast_epi32(
+                    &self.profile.b_linear[src[src_cn.b_i() + src_channels] as usize],
                 );
                 a0 = if src_channels == 4 {
                     src[src_cn.a_i()]
@@ -157,7 +166,10 @@ impl<const SRC_LAYOUT: u8, const DST_LAYOUT: u8, const LINEAR_CAP: usize, const 
                 let v1 = _mm256_madd_epi16(g, m1);
                 let v2 = _mm256_madd_epi16(b, m2);
 
-                let mut v = _mm256_add_epi32(_mm256_add_epi32(v0, v1), v2);
+                let acc0 = _mm256_add_epi32(v0, rnd);
+                let acc1 = _mm256_add_epi32(v1, v2);
+
+                let mut v = _mm256_add_epi32(acc0, acc1);
                 v = _mm256_srai_epi32::<12>(v);
                 v = _mm256_max_epi32(v, zeros);
                 v = _mm256_min_epi32(v, v_max_value);
@@ -167,17 +179,17 @@ impl<const SRC_LAYOUT: u8, const DST_LAYOUT: u8, const LINEAR_CAP: usize, const 
                 let as0 = a0;
                 let as1 = a1;
 
-                r0 = _mm_set1_epi16(self.profile.r_linear[src[src_cn.r_i()] as usize]);
-                g0 = _mm_set1_epi16(self.profile.g_linear[src[src_cn.g_i()] as usize]);
-                b0 = _mm_set1_epi16(self.profile.b_linear[src[src_cn.b_i()] as usize]);
-                r1 = _mm_set1_epi16(
-                    self.profile.r_linear[src[src_cn.r_i() + src_channels] as usize],
+                r0 = _xmm_broadcast_epi32(&self.profile.r_linear[src[src_cn.r_i()] as usize]);
+                g0 = _xmm_broadcast_epi32(&self.profile.g_linear[src[src_cn.g_i()] as usize]);
+                b0 = _xmm_broadcast_epi32(&self.profile.b_linear[src[src_cn.b_i()] as usize]);
+                r1 = _xmm_broadcast_epi32(
+                    &self.profile.r_linear[src[src_cn.r_i() + src_channels] as usize],
                 );
-                g1 = _mm_set1_epi16(
-                    self.profile.g_linear[src[src_cn.g_i() + src_channels] as usize],
+                g1 = _xmm_broadcast_epi32(
+                    &self.profile.g_linear[src[src_cn.g_i() + src_channels] as usize],
                 );
-                b1 = _mm_set1_epi16(
-                    self.profile.b_linear[src[src_cn.b_i() + src_channels] as usize],
+                b1 = _xmm_broadcast_epi32(
+                    &self.profile.b_linear[src[src_cn.b_i() + src_channels] as usize],
                 );
 
                 a0 = if src_channels == 4 {
@@ -215,7 +227,10 @@ impl<const SRC_LAYOUT: u8, const DST_LAYOUT: u8, const LINEAR_CAP: usize, const 
                 let v1 = _mm256_madd_epi16(g, m1);
                 let v2 = _mm256_madd_epi16(b, m2);
 
-                let mut v = _mm256_add_epi32(_mm256_add_epi32(v0, v1), v2);
+                let acc0 = _mm256_add_epi32(v0, rnd);
+                let acc1 = _mm256_add_epi32(v1, v2);
+
+                let mut v = _mm256_add_epi32(acc0, acc1);
                 v = _mm256_srai_epi32::<12>(v);
                 v = _mm256_max_epi32(v, zeros);
                 v = _mm256_min_epi32(v, v_max_value);
@@ -244,9 +259,9 @@ impl<const SRC_LAYOUT: u8, const DST_LAYOUT: u8, const LINEAR_CAP: usize, const 
                 .chunks_exact(src_channels)
                 .zip(dst.chunks_exact_mut(dst_channels))
             {
-                let r = _mm_set1_epi16(self.profile.r_linear[src[src_cn.r_i()] as usize]);
-                let g = _mm_set1_epi16(self.profile.g_linear[src[src_cn.g_i()] as usize]);
-                let b = _mm_set1_epi16(self.profile.b_linear[src[src_cn.b_i()] as usize]);
+                let r = _xmm_broadcast_epi32(&self.profile.r_linear[src[src_cn.r_i()] as usize]);
+                let g = _xmm_broadcast_epi32(&self.profile.g_linear[src[src_cn.g_i()] as usize]);
+                let b = _xmm_broadcast_epi32(&self.profile.b_linear[src[src_cn.b_i()] as usize]);
                 let a = if src_channels == 4 {
                     src[src_cn.a_i()]
                 } else {
@@ -257,7 +272,11 @@ impl<const SRC_LAYOUT: u8, const DST_LAYOUT: u8, const LINEAR_CAP: usize, const 
                 let v1 = _mm_madd_epi16(g, _mm256_castsi256_si128(m1));
                 let v2 = _mm_madd_epi16(b, _mm256_castsi256_si128(m2));
 
-                let mut v = _mm_add_epi32(_mm_add_epi32(v0, v1), v2);
+                let acc0 = _mm_add_epi32(v0, _mm256_castsi256_si128(rnd));
+                let acc1 = _mm_add_epi32(v1, v2);
+
+                let mut v = _mm_add_epi32(acc0, acc1);
+
                 v = _mm_srai_epi32::<12>(v);
                 v = _mm_max_epi32(v, _mm_setzero_si128());
                 v = _mm_min_epi32(v, _mm256_castsi256_si128(v_max_value));

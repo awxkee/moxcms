@@ -36,7 +36,7 @@ pub(crate) struct TransformProfileRgb8BitNeon<
     const LINEAR_CAP: usize,
     const GAMMA_LUT: usize,
 > {
-    pub(crate) profile: TransformProfileRgb8Bit,
+    pub(crate) profile: TransformProfileRgb8Bit<i16>,
 }
 
 impl<const SRC_LAYOUT: u8, const DST_LAYOUT: u8, const LINEAR_CAP: usize, const GAMMA_LUT: usize>
