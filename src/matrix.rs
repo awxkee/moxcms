@@ -329,6 +329,7 @@ pub(crate) struct Matrix3<T> {
 
 impl<T: Copy> Matrix3<T> {
     #[inline]
+    #[allow(dead_code)]
     pub(crate) fn transpose(&self) -> Matrix3<T> {
         Matrix3 {
             v: [
