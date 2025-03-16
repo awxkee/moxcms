@@ -181,3 +181,21 @@ create_rgb_xyz_dependant_8bit_executor!(make_8bit_rgb_xyz, TransformProfileRgb8B
 
 #[cfg(not(all(target_arch = "aarch64", target_feature = "neon", feature = "neon")))]
 create_rgb_xyz_dependant_8bit_executor!(make_8bit_rgb_xyz, TransformProfilePcsXYZRgbQ4_12);
+
+#[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"))]
+use crate::conversions::sse::TransformProfileRgb8BitSse;
+
+#[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"))]
+create_rgb_xyz_dependant_8bit_executor!(
+    make_rgb_xyz_q4_12_transform_sse_41,
+    TransformProfileRgb8BitSse
+);
+
+#[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "avx"))]
+use crate::conversions::avx::TransformProfilePcsXYZRgb8BitAvx;
+
+#[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "avx"))]
+create_rgb_xyz_dependant_8bit_executor!(
+    make_rgb_xyz_q4_12_transform_avx2,
+    TransformProfilePcsXYZRgb8BitAvx
+);

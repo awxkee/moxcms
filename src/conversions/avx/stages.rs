@@ -35,7 +35,7 @@ use std::arch::x86::*;
 use std::arch::x86_64::*;
 
 #[repr(align(32), C)]
-struct AvxAlignedU16([u16; 16]);
+pub(crate) struct AvxAlignedU16(pub(crate) [u16; 16]);
 
 pub(crate) struct TransformProfilePcsXYZRgbAvx<
     T: Clone + AsPrimitive<usize> + Default,

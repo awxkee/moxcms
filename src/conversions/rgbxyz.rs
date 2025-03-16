@@ -55,6 +55,24 @@ impl RgbXyzFactory<u8> for u8 {
         dst_layout: Layout,
         profile: TransformProfileRgb<u8, LINEAR_CAP>,
     ) -> Result<Box<dyn TransformExecutor<u8> + Send + Sync>, CmsError> {
+        #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "avx"))]
+        {
+            use crate::conversions::rgbxyz_fixed::make_rgb_xyz_q4_12_transform_avx2;
+            if std::arch::is_x86_feature_detected!("avx2") {
+                return make_rgb_xyz_q4_12_transform_avx2::<LINEAR_CAP, GAMMA_LUT>(
+                    src_layout, dst_layout, profile,
+                );
+            }
+        }
+        #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"))]
+        {
+            use crate::conversions::rgbxyz_fixed::make_rgb_xyz_q4_12_transform_sse_41;
+            if std::arch::is_x86_feature_detected!("sse4.1") {
+                return make_rgb_xyz_q4_12_transform_sse_41::<LINEAR_CAP, GAMMA_LUT>(
+                    src_layout, dst_layout, profile,
+                );
+            }
+        }
         make_8bit_rgb_xyz::<LINEAR_CAP, GAMMA_LUT>(src_layout, dst_layout, profile)
     }
 }
