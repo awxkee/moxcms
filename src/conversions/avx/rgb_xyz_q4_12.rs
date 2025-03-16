@@ -102,6 +102,10 @@ impl<const SRC_LAYOUT: u8, const DST_LAYOUT: u8, const LINEAR_CAP: usize, const 
                 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3,
                 0, 1, 2, 3,
             );
+            let shuffle = _mm256_setr_epi8(
+                0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0,
+                0, 1, 0, 0,
+            );
 
             if let Some(src) = src_iter.next() {
                 r0 = _mm_loadu_si16(
@@ -146,8 +150,9 @@ impl<const SRC_LAYOUT: u8, const DST_LAYOUT: u8, const LINEAR_CAP: usize, const 
 
             for (src, dst) in src_iter.zip(dst_iter) {
                 let mut r = _mm256_inserti128_si256::<1>(_mm256_castsi128_si256(r0), r1);
-                let b = _mm256_inserti128_si256::<1>(_mm256_castsi128_si256(b0), b1);
+                let mut b = _mm256_inserti128_si256::<1>(_mm256_castsi128_si256(b0), b1);
                 r = _mm256_shuffle_epi8(r, shuffle_r_g);
+                b = _mm256_shuffle_epi8(b, shuffle);
 
                 let v0 = _mm256_madd_epi16(r, m0);
                 let v2 = _mm256_madd_epi16(b, m2);
@@ -187,8 +192,6 @@ impl<const SRC_LAYOUT: u8, const DST_LAYOUT: u8, const LINEAR_CAP: usize, const 
                     r1,
                     self.profile.g_linear[src[src_cn.g_i() + src_channels] as usize] as i32,
                 );
-                b0 = _mm_broadcastw_epi16(b0);
-                b1 = _mm_broadcastw_epi16(b1);
 
                 a0 = if src_channels == 4 {
                     src[src_cn.a_i()]
@@ -218,8 +221,9 @@ impl<const SRC_LAYOUT: u8, const DST_LAYOUT: u8, const LINEAR_CAP: usize, const 
 
             if let Some(dst) = dst.chunks_exact_mut(dst_channels * 2).last() {
                 let mut r = _mm256_inserti128_si256::<1>(_mm256_castsi128_si256(r0), r1);
-                let b = _mm256_inserti128_si256::<1>(_mm256_castsi128_si256(b0), b1);
+                let mut b = _mm256_inserti128_si256::<1>(_mm256_castsi128_si256(b0), b1);
                 r = _mm256_shuffle_epi8(r, shuffle_r_g);
+                b = _mm256_shuffle_epi8(b, shuffle);
 
                 let v0 = _mm256_madd_epi16(r, m0);
                 let v2 = _mm256_madd_epi16(b, m2);
