@@ -176,9 +176,6 @@ impl<const SRC_LAYOUT: u8, const DST_LAYOUT: u8, const LINEAR_CAP: usize, const 
 
                 _mm256_store_si256(temporary0.0.as_mut_ptr() as *mut _, v);
 
-                let as0 = a0;
-                let as1 = a1;
-
                 r0 = _xmm_broadcast_epi32(&self.profile.r_linear[src[src_cn.r_i()] as usize]);
                 g0 = _xmm_broadcast_epi32(&self.profile.g_linear[src[src_cn.g_i()] as usize]);
                 b0 = _xmm_broadcast_epi32(&self.profile.b_linear[src[src_cn.b_i()] as usize]);
@@ -192,6 +189,20 @@ impl<const SRC_LAYOUT: u8, const DST_LAYOUT: u8, const LINEAR_CAP: usize, const 
                     &self.profile.b_linear[src[src_cn.b_i() + src_channels] as usize],
                 );
 
+                dst[dst_cn.r_i()] = self.profile.r_gamma[temporary0.0[0] as usize];
+                dst[dst_cn.g_i()] = self.profile.g_gamma[temporary0.0[2] as usize];
+                dst[dst_cn.b_i()] = self.profile.b_gamma[temporary0.0[4] as usize];
+                if dst_channels == 4 {
+                    dst[dst_cn.a_i()] = a0;
+                }
+
+                dst[dst_cn.r_i() + dst_channels] = self.profile.r_gamma[temporary0.0[8] as usize];
+                dst[dst_cn.g_i() + dst_channels] = self.profile.g_gamma[temporary0.0[10] as usize];
+                dst[dst_cn.b_i() + dst_channels] = self.profile.b_gamma[temporary0.0[12] as usize];
+                if dst_channels == 4 {
+                    dst[dst_cn.a_i() + dst_channels] = a1;
+                }
+
                 a0 = if src_channels == 4 {
                     src[src_cn.a_i()]
                 } else {
@@ -202,20 +213,6 @@ impl<const SRC_LAYOUT: u8, const DST_LAYOUT: u8, const LINEAR_CAP: usize, const 
                 } else {
                     max_colors
                 };
-
-                dst[dst_cn.r_i()] = self.profile.r_gamma[temporary0.0[0] as usize];
-                dst[dst_cn.g_i()] = self.profile.g_gamma[temporary0.0[2] as usize];
-                dst[dst_cn.b_i()] = self.profile.b_gamma[temporary0.0[4] as usize];
-                if dst_channels == 4 {
-                    dst[dst_cn.a_i()] = as0;
-                }
-
-                dst[dst_cn.r_i() + dst_channels] = self.profile.r_gamma[temporary0.0[8] as usize];
-                dst[dst_cn.g_i() + dst_channels] = self.profile.g_gamma[temporary0.0[10] as usize];
-                dst[dst_cn.b_i() + dst_channels] = self.profile.b_gamma[temporary0.0[12] as usize];
-                if dst_channels == 4 {
-                    dst[dst_cn.a_i() + dst_channels] = as1;
-                }
             }
 
             if let Some(dst) = dst.chunks_exact_mut(dst_channels * 2).last() {
