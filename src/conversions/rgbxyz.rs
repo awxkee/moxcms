@@ -43,7 +43,7 @@ impl RgbXyzFactory<u16> for u16 {
         dst_layout: Layout,
         profile: TransformProfileRgb<u16, LINEAR_CAP>,
     ) -> Result<Box<dyn TransformExecutor<u16> + Send + Sync>, CmsError> {
-        if BIT_DEPTH == 10 {
+        if BIT_DEPTH == 10 || BIT_DEPTH == 12 {
             #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "avx"))]
             {
                 use crate::conversions::rgbxyz_fixed::make_rgb_xyz_q4_12_transform_avx2;
@@ -69,7 +69,7 @@ impl RgbXyzFactory<u16> for u16 {
                 }
             }
         }
-        if BIT_DEPTH == 10 {
+        if BIT_DEPTH == 10 || BIT_DEPTH == 12 {
             #[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
             {
                 return make_rgb_xyz_q4_12::<u16, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>(
