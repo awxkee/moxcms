@@ -136,7 +136,7 @@ where
     }
 }
 
-macro_rules! create_rgb_xyz_dependant_8bit_executor {
+macro_rules! create_rgb_xyz_dependant_q4_12_executor {
     ($dep_name: ident, $dependant: ident, $resolution: ident) => {
         pub(crate) fn $dep_name<
             T: Clone + Send + Sync + AsPrimitive<usize> + Default,
@@ -206,16 +206,16 @@ macro_rules! create_rgb_xyz_dependant_8bit_executor {
 use crate::conversions::neon::TransformProfileRgb8BitNeon;
 
 #[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
-create_rgb_xyz_dependant_8bit_executor!(make_rgb_xyz_q4_12, TransformProfileRgb8BitNeon, i16);
+create_rgb_xyz_dependant_q4_12_executor!(make_rgb_xyz_q4_12, TransformProfileRgb8BitNeon, i16);
 
 #[cfg(not(all(target_arch = "aarch64", target_feature = "neon", feature = "neon")))]
-create_rgb_xyz_dependant_8bit_executor!(make_rgb_xyz_q4_12, TransformProfilePcsXYZRgbQ4_12, i16);
+create_rgb_xyz_dependant_q4_12_executor!(make_rgb_xyz_q4_12, TransformProfilePcsXYZRgbQ4_12, i16);
 
 #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"))]
 use crate::conversions::sse::TransformProfileRgb8BitSse;
 
 #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"))]
-create_rgb_xyz_dependant_8bit_executor!(
+create_rgb_xyz_dependant_q4_12_executor!(
     make_rgb_xyz_q4_12_transform_sse_41,
     TransformProfileRgb8BitSse,
     i32
@@ -225,7 +225,7 @@ create_rgb_xyz_dependant_8bit_executor!(
 use crate::conversions::avx::TransformProfilePcsXYZRgb8BitAvx;
 
 #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "avx"))]
-create_rgb_xyz_dependant_8bit_executor!(
+create_rgb_xyz_dependant_q4_12_executor!(
     make_rgb_xyz_q4_12_transform_avx2,
     TransformProfilePcsXYZRgb8BitAvx,
     i32

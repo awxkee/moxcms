@@ -69,6 +69,14 @@ impl RgbXyzFactory<u16> for u16 {
                 }
             }
         }
+        if BIT_DEPTH == 10 {
+            #[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
+            {
+                return make_rgb_xyz_q4_12::<u16, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>(
+                    src_layout, dst_layout, profile,
+                );
+            }
+        }
         make_rgb_xyz_rgb_transform::<u16, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>(
             src_layout, dst_layout, profile,
         )

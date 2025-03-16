@@ -28,22 +28,33 @@
  */
 use crate::conversions::rgbxyz_fixed::TransformProfileRgbFixedPoint;
 use crate::{CmsError, Layout, TransformExecutor};
+use num_traits::AsPrimitive;
 use std::arch::aarch64::*;
 
 pub(crate) struct TransformProfileRgb8BitNeon<
+    T: Copy,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
     const LINEAR_CAP: usize,
     const GAMMA_LUT: usize,
+    const BIT_DEPTH: usize,
 > {
-    pub(crate) profile: TransformProfileRgbFixedPoint<i16>,
+    pub(crate) profile: TransformProfileRgbFixedPoint<i16, T, LINEAR_CAP>,
 }
 
-impl<const SRC_LAYOUT: u8, const DST_LAYOUT: u8, const LINEAR_CAP: usize, const GAMMA_LUT: usize>
-    TransformExecutor<u8>
-    for TransformProfileRgb8BitNeon<SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP, GAMMA_LUT>
+impl<
+    T: Copy + AsPrimitive<usize> + 'static + Default,
+    const SRC_LAYOUT: u8,
+    const DST_LAYOUT: u8,
+    const LINEAR_CAP: usize,
+    const GAMMA_LUT: usize,
+    const BIT_DEPTH: usize,
+> TransformExecutor<T>
+    for TransformProfileRgb8BitNeon<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>
+where
+    u32: AsPrimitive<T>,
 {
-    fn transform(&self, src: &[u8], dst: &mut [u8]) -> Result<(), CmsError> {
+    fn transform(&self, src: &[T], dst: &mut [T]) -> Result<(), CmsError> {
         let src_cn = Layout::from(SRC_LAYOUT);
         let dst_cn = Layout::from(DST_LAYOUT);
         let src_channels = src_cn.channels();
@@ -60,14 +71,14 @@ impl<const SRC_LAYOUT: u8, const DST_LAYOUT: u8, const LINEAR_CAP: usize, const 
         }
 
         let t = self.profile.adaptation_matrix.transpose();
-        let max_colors = 255;
+        let max_colors: T = ((1 << BIT_DEPTH) - 1).as_();
 
         unsafe {
             let m0 = vld1_s16([t.v[0][0], t.v[0][1], t.v[0][2], 0].as_ptr());
             let m1 = vld1_s16([t.v[1][0], t.v[1][1], t.v[1][2], 0].as_ptr());
             let m2 = vld1_s16([t.v[2][0], t.v[2][1], t.v[2][2], 0].as_ptr());
 
-            let v_max_value = vdup_n_u16((1 << 12) - 1);
+            let v_max_value = vdup_n_u16(GAMMA_LUT as u16 - 1);
 
             let rnd = vdupq_n_s32((1 << (12 - 1)) - 1);
 
@@ -77,13 +88,13 @@ impl<const SRC_LAYOUT: u8, const DST_LAYOUT: u8, const LINEAR_CAP: usize, const 
             let (mut r1, mut g1, mut b1, mut a1);
 
             if let Some(src) = src_iter.next() {
-                let r0p = &self.profile.r_linear[src[src_cn.r_i()] as usize];
-                let g0p = &self.profile.g_linear[src[src_cn.g_i()] as usize];
-                let b0p = &self.profile.b_linear[src[src_cn.b_i()] as usize];
+                let r0p = &self.profile.r_linear[src[src_cn.r_i()].as_()];
+                let g0p = &self.profile.g_linear[src[src_cn.g_i()].as_()];
+                let b0p = &self.profile.b_linear[src[src_cn.b_i()].as_()];
 
-                let r1p = &self.profile.r_linear[src[src_cn.r_i() + src_channels] as usize];
-                let g1p = &self.profile.g_linear[src[src_cn.g_i() + src_channels] as usize];
-                let b1p = &self.profile.b_linear[src[src_cn.b_i() + src_channels] as usize];
+                let r1p = &self.profile.r_linear[src[src_cn.r_i() + src_channels].as_()];
+                let g1p = &self.profile.g_linear[src[src_cn.g_i() + src_channels].as_()];
+                let b1p = &self.profile.b_linear[src[src_cn.b_i() + src_channels].as_()];
                 r0 = vld1_dup_s16(r0p);
                 g0 = vld1_dup_s16(g0p);
                 b0 = vld1_dup_s16(b0p);
@@ -130,13 +141,13 @@ impl<const SRC_LAYOUT: u8, const DST_LAYOUT: u8, const LINEAR_CAP: usize, const 
                 vr0 = vmin_u16(vr0, v_max_value);
                 vr1 = vmin_u16(vr1, v_max_value);
 
-                let r0p = &self.profile.r_linear[src[src_cn.r_i()] as usize];
-                let g0p = &self.profile.g_linear[src[src_cn.g_i()] as usize];
-                let b0p = &self.profile.b_linear[src[src_cn.b_i()] as usize];
+                let r0p = &self.profile.r_linear[src[src_cn.r_i()].as_()];
+                let g0p = &self.profile.g_linear[src[src_cn.g_i()].as_()];
+                let b0p = &self.profile.b_linear[src[src_cn.b_i()].as_()];
 
-                let r1p = &self.profile.r_linear[src[src_cn.r_i() + src_channels] as usize];
-                let g1p = &self.profile.g_linear[src[src_cn.g_i() + src_channels] as usize];
-                let b1p = &self.profile.b_linear[src[src_cn.b_i() + src_channels] as usize];
+                let r1p = &self.profile.r_linear[src[src_cn.r_i() + src_channels].as_()];
+                let g1p = &self.profile.g_linear[src[src_cn.g_i() + src_channels].as_()];
+                let b1p = &self.profile.b_linear[src[src_cn.b_i() + src_channels].as_()];
                 r0 = vld1_dup_s16(r0p);
                 g0 = vld1_dup_s16(g0p);
                 b0 = vld1_dup_s16(b0p);
@@ -216,9 +227,9 @@ impl<const SRC_LAYOUT: u8, const DST_LAYOUT: u8, const LINEAR_CAP: usize, const 
                 .chunks_exact(src_channels)
                 .zip(dst.chunks_exact_mut(dst_channels))
             {
-                let rp = &self.profile.r_linear[src[src_cn.r_i()] as usize];
-                let gp = &self.profile.g_linear[src[src_cn.g_i()] as usize];
-                let bp = &self.profile.b_linear[src[src_cn.b_i()] as usize];
+                let rp = &self.profile.r_linear[src[src_cn.r_i()].as_()];
+                let gp = &self.profile.g_linear[src[src_cn.g_i()].as_()];
+                let bp = &self.profile.b_linear[src[src_cn.b_i()].as_()];
                 let r = vld1_dup_s16(rp);
                 let g = vld1_dup_s16(gp);
                 let b = vld1_dup_s16(bp);
