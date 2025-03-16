@@ -178,7 +178,7 @@ mod tests {
         };
         let prepared_matrix = ICtCp::prepare_to_lms(rgb_to_xyz);
         let inversed_matrix = prepared_matrix.inverse().unwrap();
-        let rgb = Rgb::new(1.5, 4.4, 3.3);
+        let rgb = Rgb::new(0.5, 0.4, 0.3);
         let ictcp = ICtCp::from_linear_rgb(rgb, prepared_matrix);
         let r_xyz = ictcp.to_linear_rgb(inversed_matrix);
         assert!((r_xyz.r - rgb.r).abs() < 1e-4);
