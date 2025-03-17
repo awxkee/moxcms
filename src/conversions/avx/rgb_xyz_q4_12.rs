@@ -42,6 +42,7 @@ pub(crate) struct TransformProfilePcsXYZRgbQ12Avx<
     const LINEAR_CAP: usize,
     const GAMMA_LUT: usize,
     const BIT_DEPTH: usize,
+    const PRECISION: i32,
 > {
     pub(crate) profile: TransformProfileRgbFixedPoint<i32, T, LINEAR_CAP>,
 }
@@ -59,7 +60,17 @@ impl<
     const LINEAR_CAP: usize,
     const GAMMA_LUT: usize,
     const BIT_DEPTH: usize,
-> TransformProfilePcsXYZRgbQ12Avx<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>
+    const PRECISION: i32,
+>
+    TransformProfilePcsXYZRgbQ12Avx<
+        T,
+        SRC_LAYOUT,
+        DST_LAYOUT,
+        LINEAR_CAP,
+        GAMMA_LUT,
+        BIT_DEPTH,
+        PRECISION,
+    >
 where
     u32: AsPrimitive<T>,
 {
@@ -118,8 +129,7 @@ where
                 0,
             );
 
-            const ROUNDING_Q4_12: i32 = (1 << (12 - 1)) - 1;
-            let rnd = _mm256_set1_epi32(ROUNDING_Q4_12);
+            let rnd = _mm256_set1_epi32((1 << (PRECISION - 1)) - 1);
 
             let zeros = _mm256_setzero_si256();
 
@@ -181,7 +191,7 @@ where
                 let acc1 = _mm256_add_epi32(v1, v2);
 
                 let mut v = _mm256_add_epi32(acc0, acc1);
-                v = _mm256_srai_epi32::<12>(v);
+                v = _mm256_srai_epi32::<PRECISION>(v);
                 v = _mm256_max_epi32(v, zeros);
                 v = _mm256_min_epi32(v, v_max_value);
 
@@ -239,7 +249,7 @@ where
                 let acc1 = _mm256_add_epi32(v1, v2);
 
                 let mut v = _mm256_add_epi32(acc0, acc1);
-                v = _mm256_srai_epi32::<12>(v);
+                v = _mm256_srai_epi32::<PRECISION>(v);
                 v = _mm256_max_epi32(v, zeros);
                 v = _mm256_min_epi32(v, v_max_value);
 
@@ -285,7 +295,7 @@ where
 
                 let mut v = _mm_add_epi32(acc0, acc1);
 
-                v = _mm_srai_epi32::<12>(v);
+                v = _mm_srai_epi32::<PRECISION>(v);
                 v = _mm_max_epi32(v, _mm_setzero_si128());
                 v = _mm_min_epi32(v, _mm256_castsi256_si128(v_max_value));
 
@@ -311,8 +321,17 @@ impl<
     const LINEAR_CAP: usize,
     const GAMMA_LUT: usize,
     const BIT_DEPTH: usize,
+    const PRECISION: i32,
 > TransformExecutor<T>
-    for TransformProfilePcsXYZRgbQ12Avx<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>
+    for TransformProfilePcsXYZRgbQ12Avx<
+        T,
+        SRC_LAYOUT,
+        DST_LAYOUT,
+        LINEAR_CAP,
+        GAMMA_LUT,
+        BIT_DEPTH,
+        PRECISION,
+    >
 where
     u32: AsPrimitive<T>,
 {

@@ -121,6 +121,7 @@ fn main() {
             TransformOptions {
                 rendering_intent: RenderingIntent::Perceptual,
                 allow_use_cicp_transfer: true,
+                prefer_fixed_point: false,
             },
         )
         .unwrap();
@@ -154,6 +155,7 @@ fn main() {
             TransformOptions {
                 rendering_intent: RenderingIntent::Perceptual,
                 allow_use_cicp_transfer: true,
+                prefer_fixed_point: true,
             },
         )
         .unwrap();
