@@ -61,7 +61,7 @@ pub struct TransformOptions {
     pub allow_use_cicp_transfer: bool,
     /// Prefers fixed point where implement as default.
     /// Most of the applications actually do not need floating point.
-    /// 
+    ///
     /// Do not change it if you're not sure that extreme precision is required,
     /// in most cases it is a simple way to spend energy to warming up environment
     /// a little.
