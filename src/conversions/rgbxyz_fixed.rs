@@ -51,6 +51,7 @@ struct TransformProfilePcsXYZRgbQ4_12<
     const LINEAR_CAP: usize,
     const GAMMA_LUT: usize,
     const BIT_DEPTH: usize,
+    const PRECISION: i32,
 > {
     pub(crate) profile: TransformProfileRgbFixedPoint<i16, T, LINEAR_CAP>,
 }
@@ -63,8 +64,17 @@ impl<
     const LINEAR_CAP: usize,
     const GAMMA_LUT: usize,
     const BIT_DEPTH: usize,
+    const PRECISION: i32,
 > TransformExecutor<T>
-    for TransformProfilePcsXYZRgbQ4_12<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>
+    for TransformProfilePcsXYZRgbQ4_12<
+        T,
+        SRC_LAYOUT,
+        DST_LAYOUT,
+        LINEAR_CAP,
+        GAMMA_LUT,
+        BIT_DEPTH,
+        PRECISION,
+    >
 where
     u32: AsPrimitive<T>,
 {
@@ -86,8 +96,7 @@ where
 
         let transform = self.profile.adaptation_matrix;
         let max_colors: T = ((1 << BIT_DEPTH as u32) - 1u32).as_();
-        const ROUNDING_Q4_12: i32 = (1 << (12 - 1)) - 1;
-        const Q: i32 = 12;
+        let rnd: i32 = (1 << (PRECISION - 1)) - 1;
 
         let v_gamma_max = GAMMA_LUT as i32 - 1;
 
@@ -107,23 +116,23 @@ where
             let new_r = r as i32 * transform.v[0][0] as i32
                 + g as i32 * transform.v[0][1] as i32
                 + b as i32 * transform.v[0][2] as i32
-                + ROUNDING_Q4_12;
+                + rnd;
 
-            let r_q4_12 = (new_r >> Q).min(v_gamma_max).max(0) as u16;
+            let r_q4_12 = (new_r >> PRECISION).min(v_gamma_max).max(0) as u16;
 
             let new_g = r as i32 * transform.v[1][0] as i32
                 + g as i32 * transform.v[1][1] as i32
                 + b as i32 * transform.v[1][2] as i32
-                + ROUNDING_Q4_12;
+                + rnd;
 
-            let g_q4_12 = (new_g >> Q).min(v_gamma_max).max(0) as u16;
+            let g_q4_12 = (new_g >> PRECISION).min(v_gamma_max).max(0) as u16;
 
             let new_b = r as i32 * transform.v[2][0] as i32
                 + g as i32 * transform.v[2][1] as i32
                 + b as i32 * transform.v[2][2] as i32
-                + ROUNDING_Q4_12;
+                + rnd;
 
-            let b_q4_12 = (new_b >> Q).min(v_gamma_max).max(0) as u16;
+            let b_q4_12 = (new_b >> PRECISION).min(v_gamma_max).max(0) as u16;
 
             dst[dst_cn.r_i()] = self.profile.r_gamma[r_q4_12 as usize];
             dst[dst_cn.g_i()] = self.profile.g_gamma[g_q4_12 as usize];
@@ -143,6 +152,7 @@ macro_rules! create_rgb_xyz_dependant_q4_12_executor {
             const LINEAR_CAP: usize,
             const GAMMA_LUT: usize,
             const BIT_DEPTH: usize,
+            const PRECISION: i32,
         >(
             src_layout: Layout,
             dst_layout: Layout,
@@ -151,7 +161,7 @@ macro_rules! create_rgb_xyz_dependant_q4_12_executor {
         where
             u32: AsPrimitive<T>,
         {
-            let q4_12_profile = profile.to_q4_12::<$resolution>();
+            let q4_12_profile = profile.to_q4_n::<$resolution, PRECISION>();
             if (src_layout == Layout::Rgba) && (dst_layout == Layout::Rgba) {
                 return Ok(Box::new($dependant::<
                     T,
@@ -160,6 +170,7 @@ macro_rules! create_rgb_xyz_dependant_q4_12_executor {
                     LINEAR_CAP,
                     GAMMA_LUT,
                     BIT_DEPTH,
+                    PRECISION,
                 > {
                     profile: q4_12_profile,
                 }));
@@ -171,6 +182,7 @@ macro_rules! create_rgb_xyz_dependant_q4_12_executor {
                     LINEAR_CAP,
                     GAMMA_LUT,
                     BIT_DEPTH,
+                    PRECISION,
                 > {
                     profile: q4_12_profile,
                 }));
@@ -182,6 +194,7 @@ macro_rules! create_rgb_xyz_dependant_q4_12_executor {
                     LINEAR_CAP,
                     GAMMA_LUT,
                     BIT_DEPTH,
+                    PRECISION,
                 > {
                     profile: q4_12_profile,
                 }));
@@ -193,6 +206,7 @@ macro_rules! create_rgb_xyz_dependant_q4_12_executor {
                     LINEAR_CAP,
                     GAMMA_LUT,
                     BIT_DEPTH,
+                    PRECISION,
                 > {
                     profile: q4_12_profile,
                 }));

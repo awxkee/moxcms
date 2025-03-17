@@ -59,6 +59,13 @@ pub struct TransformOptions {
     /// If set it will try to use Transfer Characteristics from CICP
     /// on transform. This might be more precise and faster.
     pub allow_use_cicp_transfer: bool,
+    /// Prefers fixed point where implement as default.
+    /// Most of the applications actually do not need floating point.
+    ///
+    /// Do not change it if you're not sure that extreme precision is required,
+    /// in most cases it is a simple way to spend energy to warming up environment
+    /// a little.
+    pub prefer_fixed_point: bool,
 }
 
 impl Default for TransformOptions {
@@ -66,6 +73,7 @@ impl Default for TransformOptions {
         Self {
             rendering_intent: RenderingIntent::default(),
             allow_use_cicp_transfer: true,
+            prefer_fixed_point: true,
         }
     }
 }
@@ -295,6 +303,7 @@ impl ColorProfile {
                 src_layout,
                 dst_layout,
                 profile_transform,
+                options,
             );
         } else if self.color_space == DataColorSpace::Gray
             && (dst_pr.color_space == DataColorSpace::Rgb

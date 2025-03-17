@@ -38,6 +38,7 @@ pub(crate) struct TransformProfileRgbQ12Neon<
     const LINEAR_CAP: usize,
     const GAMMA_LUT: usize,
     const BIT_DEPTH: usize,
+    const PRECISION: i32,
 > {
     pub(crate) profile: TransformProfileRgbFixedPoint<i16, T, LINEAR_CAP>,
 }
@@ -49,8 +50,17 @@ impl<
     const LINEAR_CAP: usize,
     const GAMMA_LUT: usize,
     const BIT_DEPTH: usize,
+    const PRECISION: i32,
 > TransformExecutor<T>
-    for TransformProfileRgbQ12Neon<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>
+    for TransformProfileRgbQ12Neon<
+        T,
+        SRC_LAYOUT,
+        DST_LAYOUT,
+        LINEAR_CAP,
+        GAMMA_LUT,
+        BIT_DEPTH,
+        PRECISION,
+    >
 where
     u32: AsPrimitive<T>,
 {
@@ -80,7 +90,7 @@ where
 
             let v_max_value = vdup_n_u16(GAMMA_LUT as u16 - 1);
 
-            let rnd = vdupq_n_s32((1 << (12 - 1)) - 1);
+            let rnd = vdupq_n_s32((1 << (PRECISION - 1)) - 1);
 
             let mut src_iter = src.chunks_exact(src_channels * 2);
 
@@ -135,8 +145,8 @@ where
                 let vr0 = vmlal_s16(v1_0, b0, m2);
                 let vr1 = vmlal_s16(v1_1, b1, m2);
 
-                let mut vr0 = vqshrun_n_s32::<12>(vr0);
-                let mut vr1 = vqshrun_n_s32::<12>(vr1);
+                let mut vr0 = vqshrun_n_s32::<PRECISION>(vr0);
+                let mut vr1 = vqshrun_n_s32::<PRECISION>(vr1);
 
                 vr0 = vmin_u16(vr0, v_max_value);
                 vr1 = vmin_u16(vr1, v_max_value);
@@ -243,7 +253,7 @@ where
                 let v1 = vmlal_s16(v0, g, m1);
                 let v = vmlal_s16(v1, b, m2);
 
-                let mut vr0 = vqshrun_n_s32::<12>(v);
+                let mut vr0 = vqshrun_n_s32::<PRECISION>(v);
                 vr0 = vmin_u16(vr0, v_max_value);
 
                 dst[dst_cn.r_i()] = self.profile.r_gamma[vget_lane_u16::<0>(vr0) as usize];
