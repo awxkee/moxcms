@@ -43,7 +43,7 @@ const HPE_LMS: Matrix3f = Matrix3f {
 
 const XYZ_TO_LMS: Matrix3f = CROSSTALK.mat_mul_const(HPE_LMS);
 
-const LMS_TO_XYZ: Matrix3f = XYZ_TO_LMS.inverse_const();
+const LMS_TO_XYZ: Matrix3f = XYZ_TO_LMS.inverse();
 
 const L_LMS_TO_ICTCP: Matrix3f = Matrix3f {
     v: [
@@ -53,7 +53,7 @@ const L_LMS_TO_ICTCP: Matrix3f = Matrix3f {
     ],
 };
 
-const ICTCP_TO_L_LMS: Matrix3f = L_LMS_TO_ICTCP.inverse_const();
+const ICTCP_TO_L_LMS: Matrix3f = L_LMS_TO_ICTCP.inverse();
 
 #[derive(Copy, Clone, Default, PartialOrd, PartialEq)]
 pub struct ICtCp {
@@ -177,7 +177,7 @@ mod tests {
             ],
         };
         let prepared_matrix = ICtCp::prepare_to_lms(rgb_to_xyz);
-        let inversed_matrix = prepared_matrix.inverse().unwrap();
+        let inversed_matrix = prepared_matrix.inverse();
         let rgb = Rgb::new(0.5, 0.4, 0.3);
         let ictcp = ICtCp::from_linear_rgb(rgb, prepared_matrix);
         let r_xyz = ictcp.to_linear_rgb(inversed_matrix);

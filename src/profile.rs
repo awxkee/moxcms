@@ -2032,7 +2032,7 @@ impl ColorProfile {
     }
 
     pub fn rgb_to_xyz(&self, xyz_matrix: Matrix3f, wp: Xyz) -> Option<Matrix3f> {
-        let xyz_inverse = xyz_matrix.inverse()?;
+        let xyz_inverse = xyz_matrix.inverse();
         let s = xyz_inverse.mul_vector(wp.to_vector());
         let mut v = xyz_matrix.mul_row_vector::<0>(s);
         v = v.mul_row_vector::<1>(s);
@@ -2042,7 +2042,7 @@ impl ColorProfile {
 
     /// If Primaries is invalid will return invalid matrix on const context
     pub const fn rgb_to_xyz_const(xyz_matrix: Matrix3f, wp: Xyz) -> Matrix3f {
-        let xyz_inverse = xyz_matrix.inverse_const();
+        let xyz_inverse = xyz_matrix.inverse();
         let s = xyz_inverse.mul_vector(wp.to_vector());
         let mut v = xyz_matrix.mul_row_vector::<0>(s);
         v = v.mul_row_vector::<1>(s);
@@ -2061,7 +2061,7 @@ impl ColorProfile {
     pub fn transform_matrix(&self, dest: &ColorProfile) -> Option<Matrix3f> {
         let source = self.rgb_to_xyz_matrix()?;
         let dst = dest.rgb_to_xyz_matrix()?;
-        let dest_inverse = dst.inverse()?;
+        let dest_inverse = dst.inverse();
         Some(dest_inverse.mat_mul(source))
     }
 

@@ -500,76 +500,43 @@ impl Matrix3f {
     }
 
     #[inline]
-    pub fn inverse(&self) -> Option<Self> {
+    pub const fn inverse(&self) -> Self {
         let v = self.v;
-        let det = 1. / self.determinant()?;
-        let a = v[0][0];
-        let b = v[0][1];
-        let c = v[0][2];
-        let d = v[1][0];
-        let e = v[1][1];
-        let f = v[1][2];
-        let g = v[2][0];
-        let h = v[2][1];
-        let i = v[2][2];
+        let det = self.determinant();
+        match det {
+            None => Matrix3f::IDENTITY,
+            Some(determinant) => {
+                let det = 1. / determinant;
+                let a = v[0][0];
+                let b = v[0][1];
+                let c = v[0][2];
+                let d = v[1][0];
+                let e = v[1][1];
+                let f = v[1][2];
+                let g = v[2][0];
+                let h = v[2][1];
+                let i = v[2][2];
 
-        Some(Matrix3f {
-            v: [
-                [
-                    (e * i - f * h) * det,
-                    (c * h - b * i) * det,
-                    (b * f - c * e) * det,
-                ],
-                [
-                    (f * g - d * i) * det,
-                    (a * i - c * g) * det,
-                    (c * d - a * f) * det,
-                ],
-                [
-                    (d * h - e * g) * det,
-                    (b * g - a * h) * det,
-                    (a * e - b * d) * det,
-                ],
-            ],
-        })
-    }
-
-    #[inline]
-    pub const fn inverse_const(&self) -> Self {
-        let v = self.v;
-        let m_det = match self.determinant() {
-            None => 0f32,
-            Some(v) => v,
-        };
-        let det = 1. / m_det;
-        let a = v[0][0];
-        let b = v[0][1];
-        let c = v[0][2];
-        let d = v[1][0];
-        let e = v[1][1];
-        let f = v[1][2];
-        let g = v[2][0];
-        let h = v[2][1];
-        let i = v[2][2];
-
-        Matrix3f {
-            v: [
-                [
-                    (e * i - f * h) * det,
-                    (c * h - b * i) * det,
-                    (b * f - c * e) * det,
-                ],
-                [
-                    (f * g - d * i) * det,
-                    (a * i - c * g) * det,
-                    (c * d - a * f) * det,
-                ],
-                [
-                    (d * h - e * g) * det,
-                    (b * g - a * h) * det,
-                    (a * e - b * d) * det,
-                ],
-            ],
+                Matrix3f {
+                    v: [
+                        [
+                            (e * i - f * h) * det,
+                            (c * h - b * i) * det,
+                            (b * f - c * e) * det,
+                        ],
+                        [
+                            (f * g - d * i) * det,
+                            (a * i - c * g) * det,
+                            (c * d - a * f) * det,
+                        ],
+                        [
+                            (d * h - e * g) * det,
+                            (b * g - a * h) * det,
+                            (a * e - b * d) * det,
+                        ],
+                    ],
+                }
+            }
         }
     }
 

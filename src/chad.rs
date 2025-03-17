@@ -91,7 +91,7 @@ const fn compute_chromatic_adaption_const(
         ],
     };
 
-    let chad_inv = chad.inverse_const();
+    let chad_inv = chad.inverse();
 
     let p0 = cone.mat_mul_const(chad);
     chad_inv.mat_mul_const(p0)

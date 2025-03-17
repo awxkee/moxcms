@@ -875,8 +875,7 @@ where
     let xyz_to_rgb = dest
         .rgb_to_xyz_matrix()
         .ok_or(CmsError::UnsupportedProfileConnection)?
-        .inverse()
-        .ok_or(CmsError::UnsupportedProfileConnection)?;
+        .inverse();
 
     let mut matrices = vec![Matrix3f {
         v: [
