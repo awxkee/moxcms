@@ -78,6 +78,39 @@ impl RgbXyzFactory<u16> for u16 {
                     src_layout, dst_layout, profile,
                 );
             }
+        } else if BIT_DEPTH == 14 && transform_options.prefer_fixed_point {
+            #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "avx"))]
+            {
+                use crate::conversions::rgbxyz_fixed::make_rgb_xyz_q4_12_transform_avx2;
+                if std::arch::is_x86_feature_detected!("avx2") {
+                    return make_rgb_xyz_q4_12_transform_avx2::<
+                        u16,
+                        LINEAR_CAP,
+                        GAMMA_LUT,
+                        BIT_DEPTH,
+                        14,
+                    >(src_layout, dst_layout, profile);
+                }
+            }
+            #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"))]
+            {
+                use crate::conversions::rgbxyz_fixed::make_rgb_xyz_q4_12_transform_sse_41;
+                if std::arch::is_x86_feature_detected!("sse4.1") {
+                    return make_rgb_xyz_q4_12_transform_sse_41::<
+                        u16,
+                        LINEAR_CAP,
+                        GAMMA_LUT,
+                        BIT_DEPTH,
+                        14,
+                    >(src_layout, dst_layout, profile);
+                }
+            }
+            #[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
+            {
+                return make_rgb_xyz_q4_12::<u16, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH, 14>(
+                    src_layout, dst_layout, profile,
+                );
+            }
         }
         make_rgb_xyz_rgb_transform::<u16, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>(
             src_layout, dst_layout, profile,

@@ -148,7 +148,7 @@ fn main() {
 
     dest_profile.rendering_intent = RenderingIntent::Perceptual;
     let transform = funny_profile
-        .create_transform_10bit(
+        .create_transform_12bit(
             Layout::Rgba,
             &dest_profile,
             Layout::Rgba,
@@ -173,7 +173,7 @@ fn main() {
 
     let cmyk = cmyk
         .iter()
-        .map(|&x| u16::from_ne_bytes([x, x]) >> 6)
+        .map(|&x| u16::from_ne_bytes([x, x]) >> 4)
         .collect::<Vec<_>>();
 
     let instant = Instant::now();
@@ -242,7 +242,7 @@ fn main() {
     // )
     // .unwrap();
 
-    let dst = dst.iter().map(|&x| (x >> 2) as u8).collect::<Vec<_>>();
+    let dst = dst.iter().map(|&x| (x >> 4) as u8).collect::<Vec<_>>();
     image::save_buffer(
         "v_new_sat.png",
         &dst,
