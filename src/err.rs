@@ -35,7 +35,7 @@ pub enum CmsError {
     LaneSizeMismatch,
     LaneMultipleOfChannels,
     InvalidProfile,
-    InvalicTrcCurve,
+    InvalidTrcCurve,
     InvalidCicp,
     CurveLutIsTooLarge,
     ParametricCurveZeroDivision,
@@ -65,7 +65,7 @@ impl Display for CmsError {
             CmsError::InvalidCicp => {
                 f.write_str("Invalid Code Independent point (CICP) in ICC profile")
             }
-            CmsError::InvalicTrcCurve => f.write_str("Invalid TRC curve"),
+            CmsError::InvalidTrcCurve => f.write_str("Invalid TRC curve"),
             CmsError::CurveLutIsTooLarge => f.write_str("Curve Lut is too large"),
             CmsError::ParametricCurveZeroDivision => {
                 f.write_str("Parametric Curve definition causes division by zero")

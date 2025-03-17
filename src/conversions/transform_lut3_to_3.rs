@@ -27,7 +27,7 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 #![cfg(not(all(target_arch = "aarch64", target_feature = "neon", feature = "neon")))]
-use crate::conversions::CompressLut;
+use crate::conversions::CompressForLut;
 use crate::conversions::tetrahedral::TetrhedralInterpolation;
 use crate::{CmsError, Layout, TransformExecutor};
 use num_traits::AsPrimitive;
@@ -45,7 +45,7 @@ pub(crate) struct TransformLut3x3<
 }
 
 impl<
-    T: Copy + AsPrimitive<f32> + Default + CompressLut,
+    T: Copy + AsPrimitive<f32> + Default + CompressForLut,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
     const GRID_SIZE: usize,
@@ -98,7 +98,7 @@ where
 }
 
 impl<
-    T: Copy + AsPrimitive<f32> + Default + CompressLut,
+    T: Copy + AsPrimitive<f32> + Default + CompressForLut,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
     const GRID_SIZE: usize,

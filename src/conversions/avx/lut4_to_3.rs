@@ -26,7 +26,7 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-use crate::conversions::CompressLut;
+use crate::conversions::CompressForLut;
 use crate::conversions::avx::TetrahedralAvxFma;
 use crate::conversions::avx::transform_lut3_to_3::SseAlignedU32;
 use crate::conversions::tetrahedral::TetrhedralInterpolation;
@@ -49,7 +49,7 @@ pub(crate) struct TransformLut4XyzToRgbAvx<
 }
 
 impl<
-    T: Copy + AsPrimitive<f32> + Default + CompressLut,
+    T: Copy + AsPrimitive<f32> + Default + CompressForLut,
     const LAYOUT: u8,
     const GRID_SIZE: usize,
     const BIT_DEPTH: usize,
@@ -111,7 +111,7 @@ where
 }
 
 impl<
-    T: Copy + AsPrimitive<f32> + Default + CompressLut,
+    T: Copy + AsPrimitive<f32> + Default + CompressForLut,
     const LAYOUT: u8,
     const GRID_SIZE: usize,
     const BIT_DEPTH: usize,

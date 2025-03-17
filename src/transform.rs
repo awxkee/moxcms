@@ -27,7 +27,7 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::conversions::{
-    CompressLut, RgbXyzFactory, ToneReproductionRgbToGray, TransformProfileRgb, make_gray_to_x,
+    CompressForLut, RgbXyzFactory, ToneReproductionRgbToGray, TransformProfileRgb, make_gray_to_x,
     make_lut_transform, make_rgb_to_gray,
 };
 use crate::err::CmsError;
@@ -235,7 +235,7 @@ impl ColorProfile {
             + Send
             + Sync
             + AsPrimitive<f32>
-            + CompressLut
+            + CompressForLut
             + RgbXyzFactory<T>,
         const BIT_DEPTH: usize,
         const LINEAR_CAP: usize,

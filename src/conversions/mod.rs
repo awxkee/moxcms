@@ -47,7 +47,7 @@ mod transform_lut3_to_3;
 mod transform_lut3_to_4;
 
 pub(crate) use gray2rgb::make_gray_to_x;
-pub(crate) use lut_transforms::{CompressLut, make_lut_transform};
+pub(crate) use lut_transforms::{CompressForLut, make_lut_transform};
 pub(crate) use rgb2gray::{ToneReproductionRgbToGray, make_rgb_to_gray};
 pub(crate) use rgbxyz::RgbXyzFactory;
 pub(crate) use rgbxyz::TransformProfileRgb;

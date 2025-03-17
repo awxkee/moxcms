@@ -319,8 +319,9 @@ fn linear_curve_parametric<const N: usize, const BIT_DEPTH: usize>(
     let params = ParametricCurve::new(params)?;
     let mut gamma_table = Box::new([0f32; N]);
     let max_value = (1 << BIT_DEPTH) - 1;
+    let cap_value = 1 << BIT_DEPTH;
     let scale_value = 1f32 / max_value as f32;
-    for (i, g) in gamma_table.iter_mut().enumerate().take(N) {
+    for (i, g) in gamma_table.iter_mut().enumerate().take(cap_value) {
         let x = i as f32 * scale_value;
         *g = m_clamp(params.eval(x), 0.0, 1.0);
     }
@@ -363,24 +364,24 @@ fn lut_interp_linear_gamma<T: Default + Copy + 'static, const N: usize, const BI
 where
     u32: AsPrimitive<T>,
 {
-    // Start scaling input_value to the length of the array: PRECACHE_OUTPUT_MAX*(length-1).
-    // We'll divide out the PRECACHE_OUTPUT_MAX next
+    // Start scaling input_value to the length of the array: GAMMA_CAP*(length-1).
+    // We'll divide out the GAMMA_CAP next
     let mut value: u32 = input_value * (table.len() - 1) as u32;
     let cap_value = N - 1;
-    // equivalent to ceil(value/PRECACHE_OUTPUT_MAX)
+    // equivalent to ceil(value/GAMMA_CAP)
     let upper: u32 = value.div_ceil(cap_value as u32);
-    // equivalent to floor(value/PRECACHE_OUTPUT_MAX)
+    // equivalent to floor(value/GAMMA_CAP)
     let lower: u32 = value / cap_value as u32;
-    // interp is the distance from upper to value scaled to 0..PRECACHE_OUTPUT_MAX
+    // interp is the distance from upper to value scaled to 0..GAMMA_CAP
     let interp: u32 = value % cap_value as u32;
     let lw_value = table[lower as usize];
     let hw_value = table[upper as usize];
     // the table values range from 0..65535
-    value = hw_value as u32 * interp + lw_value as u32 * ((N - 1) as u32 - interp); // 0..(65535*PRECACHE_OUTPUT_MAX)
+    value = hw_value as u32 * interp + lw_value as u32 * ((N - 1) as u32 - interp); // 0..(65535*GAMMA_CAP)
 
     // round and scale
     let max_colors = (1 << BIT_DEPTH) - 1;
-    value += (cap_value * 65535 / max_colors / 2) as u32; // scale to 0..255
+    value += (cap_value * 65535 / max_colors / 2) as u32; // scale to 0...max_colors
     value /= (cap_value * 65535 / max_colors) as u32;
     value.as_()
 }

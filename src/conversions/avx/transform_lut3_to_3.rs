@@ -26,7 +26,7 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-use crate::conversions::CompressLut;
+use crate::conversions::CompressForLut;
 use crate::conversions::avx::TetrahedralAvxFma;
 use crate::conversions::tetrahedral::TetrhedralInterpolation;
 use crate::{CmsError, Layout, TransformExecutor};
@@ -52,7 +52,7 @@ pub(crate) struct TransformLut3x3AvxFma<
 }
 
 impl<
-    T: Copy + AsPrimitive<f32> + Default + CompressLut,
+    T: Copy + AsPrimitive<f32> + Default + CompressForLut,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
     const GRID_SIZE: usize,
@@ -109,7 +109,7 @@ where
 }
 
 impl<
-    T: Copy + AsPrimitive<f32> + Default + CompressLut,
+    T: Copy + AsPrimitive<f32> + Default + CompressForLut,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
     const GRID_SIZE: usize,

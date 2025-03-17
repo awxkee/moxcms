@@ -185,18 +185,18 @@ impl InPlaceStage for MatrixStage {
     }
 }
 
-pub(crate) trait CompressLut {
+pub(crate) trait CompressForLut {
     fn compress_lut<const BIT_DEPTH: usize>(self) -> u8;
 }
 
-impl CompressLut for u8 {
+impl CompressForLut for u8 {
     #[inline(always)]
     fn compress_lut<const BIT_DEPTH: usize>(self) -> u8 {
         self
     }
 }
 
-impl CompressLut for u16 {
+impl CompressForLut for u16 {
     #[inline(always)]
     fn compress_lut<const BIT_DEPTH: usize>(self) -> u8 {
         let scale = BIT_DEPTH - 8;
@@ -206,7 +206,7 @@ impl CompressLut for u16 {
 
 #[allow(unused)]
 impl<
-    T: Copy + AsPrimitive<f32> + Default + CompressLut,
+    T: Copy + AsPrimitive<f32> + Default + CompressForLut,
     const LAYOUT: u8,
     const GRID_SIZE: usize,
     const BIT_DEPTH: usize,
@@ -263,7 +263,7 @@ where
 
 #[allow(unused)]
 impl<
-    T: Copy + AsPrimitive<f32> + Default + CompressLut,
+    T: Copy + AsPrimitive<f32> + Default + CompressForLut,
     const LAYOUT: u8,
     const GRID_SIZE: usize,
     const BIT_DEPTH: usize,
@@ -383,7 +383,7 @@ fn pcs_lab_v2_to_v4(profile: &ColorProfile, lut: &mut [f32]) {
 macro_rules! make_transform_3x3_fn {
     ($method_name: ident, $exec_impl: ident) => {
         fn $method_name<
-            T: Copy + Default + AsPrimitive<f32> + Send + Sync + CompressLut + AsPrimitive<usize>,
+            T: Copy + Default + AsPrimitive<f32> + Send + Sync + CompressForLut + AsPrimitive<usize>,
             const GRID_SIZE: usize,
             const BIT_DEPTH: usize,
         >(
@@ -451,7 +451,7 @@ macro_rules! make_transform_3x3_fn {
 macro_rules! make_transform_4x3_fn {
     ($method_name: ident, $exec_name: ident) => {
         fn $method_name<
-            T: Copy + Default + AsPrimitive<f32> + Send + Sync + CompressLut + AsPrimitive<usize>,
+            T: Copy + Default + AsPrimitive<f32> + Send + Sync + CompressForLut + AsPrimitive<usize>,
             const GRID_SIZE: usize,
             const BIT_DEPTH: usize,
         >(
@@ -524,7 +524,7 @@ use crate::conversions::neon::TransformLut4XyzToRgbNeon;
 make_transform_4x3_fn!(make_transformer_4x3, TransformLut4XyzToRgbNeon);
 
 pub(crate) fn make_lut_transform<
-    T: Copy + Default + AsPrimitive<f32> + Send + Sync + CompressLut + AsPrimitive<usize>,
+    T: Copy + Default + AsPrimitive<f32> + Send + Sync + CompressForLut + AsPrimitive<usize>,
     const BIT_DEPTH: usize,
     const LINEAR_CAP: usize,
     const GAMMA_LUT: usize,
@@ -795,7 +795,7 @@ where
 }
 
 fn create_rgb_lin_lut<
-    T: Copy + Default + AsPrimitive<f32> + Send + Sync + CompressLut + AsPrimitive<usize>,
+    T: Copy + Default + AsPrimitive<f32> + Send + Sync + CompressForLut + AsPrimitive<usize>,
     const BIT_DEPTH: usize,
     const LINEAR_CAP: usize,
     const GRID_SIZE: usize,
@@ -847,7 +847,7 @@ where
 }
 
 fn prepare_inverse_lut_rgb_xyz<
-    T: Copy + Default + AsPrimitive<f32> + Send + Sync + CompressLut + AsPrimitive<usize>,
+    T: Copy + Default + AsPrimitive<f32> + Send + Sync + CompressForLut + AsPrimitive<usize>,
     const BIT_DEPTH: usize,
     const GAMMA_LUT: usize,
 >(
