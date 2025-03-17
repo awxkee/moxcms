@@ -59,7 +59,7 @@ pub struct TransformOptions {
     /// If set it will try to use Transfer Characteristics from CICP
     /// on transform. This might be more precise and faster.
     pub allow_use_cicp_transfer: bool,
-    /// Prefers fixed point where implement as default.
+    /// Prefers fixed point where implemented as default.
     /// Most of the applications actually do not need floating point.
     ///
     /// Do not change it if you're not sure that extreme precision is required,
