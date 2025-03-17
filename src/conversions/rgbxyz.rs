@@ -170,24 +170,24 @@ impl<T: Clone, const BUCKET: usize> TransformProfileRgb<T, BUCKET> {
     where
         f32: AsPrimitive<R>,
     {
-        let scale: i16 = (1 << PRECISION as i16) - 1;
+        let scale: f32 = ((1 << PRECISION as i16) - 1) as f32;
         let mut new_box_r = Box::new([R::default(); BUCKET]);
         let mut new_box_g = Box::new([R::default(); BUCKET]);
         let mut new_box_b = Box::new([R::default(); BUCKET]);
         for (dst, src) in new_box_r.iter_mut().zip(self.r_linear.iter()) {
-            *dst = (*src * scale as f32).round().as_();
+            *dst = (*src * scale).round().as_();
         }
         for (dst, src) in new_box_g.iter_mut().zip(self.g_linear.iter()) {
-            *dst = (*src * scale as f32).round().as_();
+            *dst = (*src * scale).round().as_();
         }
         for (dst, src) in new_box_b.iter_mut().zip(self.b_linear.iter()) {
-            *dst = (*src * scale as f32).round().as_();
+            *dst = (*src * scale).round().as_();
         }
         let source_matrix = self.adaptation_matrix.unwrap_or(Matrix3f::IDENTITY);
         let mut dst_matrix = Matrix3::<i16> { v: [[0i16; 3]; 3] };
         for i in 0..3 {
             for j in 0..3 {
-                dst_matrix.v[i][j] = (source_matrix.v[i][j] * scale as f32).round() as i16;
+                dst_matrix.v[i][j] = (source_matrix.v[i][j] * scale).round() as i16;
             }
         }
         TransformProfileRgbFixedPoint {
