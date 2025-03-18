@@ -206,8 +206,8 @@ where
                 let vr0 = vmlal_s16(v1_0, b0, m2);
                 let vr1 = vmlal_s16(v1_1, b1, m2);
 
-                let mut vr0 = vqshrun_n_s32::<12>(vr0);
-                let mut vr1 = vqshrun_n_s32::<12>(vr1);
+                let mut vr0 = vqshrun_n_s32::<PRECISION>(vr0);
+                let mut vr1 = vqshrun_n_s32::<PRECISION>(vr1);
 
                 vr0 = vmin_u16(vr0, v_max_value);
                 vr1 = vmin_u16(vr1, v_max_value);
