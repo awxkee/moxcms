@@ -463,7 +463,7 @@ impl TransferCharacteristics {
                     .round()
                     .as_();
             } else {
-                *output = ((self.gamma(v as f64 * max_range) * max_value) as f32).as_();
+                *output = (self.gamma(v as f64 * max_range) as f32).as_();
             }
         }
         table

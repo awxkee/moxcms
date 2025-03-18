@@ -50,7 +50,7 @@ fn main() {
 
     let srgb_perceptual_icc = fs::read("./assets/srgb_perceptual.icc").unwrap();
 
-    let funny_profile = ColorProfile::new_srgb();
+    let funny_profile = ColorProfile::new_adobe_rgb();
 
     let srgb_perceptual_profile = ColorProfile::new_from_slice(&srgb_perceptual_icc).unwrap();
 
@@ -101,7 +101,7 @@ fn main() {
     // )
     //     .unwrap();
 
-    let mut cmyk = vec![0u8; (decoder.output_buffer_size().unwrap() / 3) * 4];
+    // let mut cmyk = vec![0f32; (decoder.output_buffer_size().unwrap() / 3) * 4];
 
     // t1.transform_pixels(&real_dst, &mut cmyk);
 
@@ -111,20 +111,22 @@ fn main() {
     // let color_profile = ColorProfile::new_gray_with_gamma(2.2);
     let mut dest_profile = ColorProfile::new_srgb();
 
-    let transform = dest_profile
-        .create_transform_8bit(
-            Layout::Rgba,
-            &funny_profile,
-            Layout::Rgba,
-            TransformOptions {
-                rendering_intent: RenderingIntent::Perceptual,
-                allow_use_cicp_transfer: true,
-                prefer_fixed_point: true,
-            },
-        )
-        .unwrap();
-
-    transform.transform(&real_dst, &mut cmyk).unwrap();
+    // let real_dst = real_dst.iter().map(|&c| c as f32 / 255f32).collect::<Vec<_>>();
+    //
+    // let transform = dest_profile
+    //     .create_transform_f32(
+    //         Layout::Rgba,
+    //         &funny_profile,
+    //         Layout::Rgba,
+    //         TransformOptions {
+    //             rendering_intent: RenderingIntent::Perceptual,
+    //             allow_use_cicp_transfer: true,
+    //             prefer_fixed_point: false,
+    //         },
+    //     )
+    //     .unwrap();
+    //
+    // transform.transform(&real_dst, &mut cmyk).unwrap();
 
     // // let instant = Instant::now();
     // let rgb_to_cmyk = dest_profile
@@ -153,7 +155,7 @@ fn main() {
             TransformOptions {
                 rendering_intent: RenderingIntent::Perceptual,
                 allow_use_cicp_transfer: true,
-                prefer_fixed_point: true,
+                prefer_fixed_point: false,
             },
         )
         .unwrap();
@@ -168,11 +170,9 @@ fn main() {
     //     })
     //     .collect::<Vec<u8>>();
     //
-
-    let cmyk = cmyk.iter().map(|&c| c as f32 / 255f32).collect::<Vec<_>>();
-
+    let real_dst = real_dst.iter().map(|&c| c as f32 / 255f32).collect::<Vec<_>>();
     let instant = Instant::now();
-    for (src, dst) in cmyk
+    for (src, dst) in real_dst
         .chunks_exact(img.width() as usize * 4)
         .zip(dst.chunks_exact_mut(img.width() as usize * 4))
     {

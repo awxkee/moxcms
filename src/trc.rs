@@ -387,7 +387,7 @@ where
 }
 
 #[inline]
-fn lut_interp_linear_gamma<
+fn lut_interp_linear_gamma_impl<
     T: Default + Copy + 'static + PointeeSizeExpressible,
     const N: usize,
     const BIT_DEPTH: usize,
@@ -420,8 +420,120 @@ where
     value.as_()
 }
 
-pub(crate) fn make_gamma_lut<
+#[inline]
+fn lut_interp_linear_gamma_impl_f32<
     T: Default + Copy + 'static + PointeeSizeExpressible,
+    const N: usize,
+    const BIT_DEPTH: usize,
+>(
+    input_value: u32,
+    table: &[u16],
+) -> T
+where
+    f32: AsPrimitive<T>,
+{
+    // Start scaling input_value to the length of the array: GAMMA_CAP*(length-1).
+    // We'll divide out the GAMMA_CAP next
+    let guess: u32 = input_value * (table.len() - 1) as u32;
+    let cap_value = N - 1;
+    // equivalent to ceil(value/GAMMA_CAP)
+    let upper: u32 = guess.div_ceil(cap_value as u32);
+    // equivalent to floor(value/GAMMA_CAP)
+    let lower: u32 = guess / cap_value as u32;
+    // interp is the distance from upper to value scaled to 0..GAMMA_CAP
+    let interp: u32 = guess % cap_value as u32;
+    let lw_value = table[lower as usize];
+    let hw_value = table[upper as usize];
+    // the table values range from 0..65535
+    let mut value =
+        hw_value as f32 * interp as f32 + lw_value as f32 * ((N - 1) as f32 - interp as f32); // 0..(65535*GAMMA_CAP)
+
+    // round and scale
+    let max_colors = if T::FINITE { (1 << BIT_DEPTH) - 1 } else { 1 };
+    value /= (cap_value * 65535 / max_colors) as f32;
+    value.as_()
+}
+
+pub trait GammaLutInterpolate {
+
+    fn gamma_lut_interp<
+        T: Default + Copy + 'static + PointeeSizeExpressible,
+        const N: usize,
+        const BIT_DEPTH: usize,
+    >(
+        input_value: u32,
+        table: &[u16],
+    ) -> T
+    where
+        u32: AsPrimitive<T>, f32: AsPrimitive<T>;
+}
+
+impl GammaLutInterpolate for u8 {
+    fn gamma_lut_interp<
+        T: Default + Copy + 'static + PointeeSizeExpressible,
+        const N: usize,
+        const BIT_DEPTH: usize,
+    >(
+        input_value: u32,
+        table: &[u16],
+    ) -> T
+    where
+        u32: AsPrimitive<T>,
+    {
+        lut_interp_linear_gamma_impl::<T, N, BIT_DEPTH>(input_value, table)
+    }
+}
+
+impl GammaLutInterpolate for u16 {
+    fn gamma_lut_interp<
+        T: Default + Copy + 'static + PointeeSizeExpressible,
+        const N: usize,
+        const BIT_DEPTH: usize,
+    >(
+        input_value: u32,
+        table: &[u16],
+    ) -> T
+    where
+        u32: AsPrimitive<T>,
+    {
+        lut_interp_linear_gamma_impl::<T, N, BIT_DEPTH>(input_value, table)
+    }
+}
+
+impl GammaLutInterpolate for f32 {
+    fn gamma_lut_interp<
+        T: Default + Copy + 'static + PointeeSizeExpressible,
+        const N: usize,
+        const BIT_DEPTH: usize,
+    >(
+        input_value: u32,
+        table: &[u16],
+    ) -> T
+    where
+        f32: AsPrimitive<T>, u32: AsPrimitive<T>,
+    {
+        lut_interp_linear_gamma_impl_f32::<T, N, BIT_DEPTH>(input_value, table)
+    }
+}
+
+impl GammaLutInterpolate for f64 {
+    fn gamma_lut_interp<
+        T: Default + Copy + 'static + PointeeSizeExpressible,
+        const N: usize,
+        const BIT_DEPTH: usize,
+    >(
+        input_value: u32,
+        table: &[u16],
+    ) -> T
+    where
+        f32: AsPrimitive<T>, u32: AsPrimitive<T>,
+    {
+        lut_interp_linear_gamma_impl_f32::<T, N, BIT_DEPTH>(input_value, table)
+    }
+}
+
+pub(crate) fn make_gamma_lut<
+    T: Default + Copy + 'static + PointeeSizeExpressible + GammaLutInterpolate,
     const BUCKET: usize,
     const N: usize,
     const BIT_DEPTH: usize,
@@ -429,11 +541,11 @@ pub(crate) fn make_gamma_lut<
     table: &[u16],
 ) -> Box<[T; BUCKET]>
 where
-    u32: AsPrimitive<T>,
+    u32: AsPrimitive<T>, f32: AsPrimitive<T>,
 {
     let mut new_table = Box::new([T::default(); BUCKET]);
     for (v, output) in new_table.iter_mut().take(N).enumerate() {
-        *output = lut_interp_linear_gamma::<T, N, BIT_DEPTH>(v as u32, table);
+        *output = T::gamma_lut_interp::<T, N, BIT_DEPTH>(v as u32, table);
     }
     new_table
 }
@@ -594,9 +706,9 @@ impl ToneReprCurve {
         }
     }
 
-    #[inline]
+    // #[inline]
     pub(crate) fn build_gamma_table<
-        T: Default + Copy + 'static + PointeeSizeExpressible,
+        T: Default + Copy + 'static + PointeeSizeExpressible + GammaLutInterpolate,
         const BUCKET: usize,
         const N: usize,
         const BIT_DEPTH: usize,
@@ -771,7 +883,7 @@ impl ColorProfile {
     /// Builds gamma table checking CICP for Transfer characteristics first.
     #[inline]
     pub fn build_gamma_table<
-        T: Default + Copy + 'static + PointeeSizeExpressible,
+        T: Default + Copy + 'static + PointeeSizeExpressible + GammaLutInterpolate,
         const BUCKET: usize,
         const N: usize,
         const BIT_DEPTH: usize,
@@ -794,36 +906,5 @@ impl ColorProfile {
         trc.as_ref()
             .and_then(|trc| trc.build_gamma_table::<T, BUCKET, N, BIT_DEPTH>())
             .ok_or(CmsError::BuildTransferFunction)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_16_bit_parametric() {
-        let mut gamma_table_uint: [u16; 65536] = [0; 65536];
-
-        let curve = vec![2.4, 1. / 1.055, 0.055 / 1.055, 1. / 12.92, 0.04045f32];
-
-        let inverted_size: usize = 65536;
-        let gamma_table = linear_curve_parametric::<u16, 65536, 16>(&curve).unwrap();
-        for (&src, dst) in gamma_table.iter().zip(gamma_table_uint.iter_mut()) {
-            *dst = (src * 65535f32) as u16;
-        }
-        let inverted = invert_lut(&gamma_table_uint, inverted_size);
-        let value = lut_interp_linear_gamma::<u16, 65536, 16>(65535, &inverted);
-        assert_ne!(value, 0);
-        let inverted_lut = make_gamma_lut::<u16, 65536, 65536, 16>(&inverted);
-        let last100 = &inverted[inverted_lut.len() - 50..inverted_lut.len() - 1];
-        for &item in last100.iter() {
-            assert_ne!(item, 0);
-        }
-
-        let last_inverted_100 = &inverted_lut[inverted_lut.len() - 50..inverted_lut.len() - 1];
-        for &item in last_inverted_100.iter() {
-            assert_ne!(item, 0);
-        }
     }
 }

@@ -569,6 +569,7 @@ make_transform_4x3_fn!(make_transformer_4x3, TransformLut4XyzToRgb);
 #[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
 use crate::conversions::neon::TransformLut4XyzToRgbNeon;
 use crate::transform::PointeeSizeExpressible;
+use crate::trc::GammaLutInterpolate;
 
 #[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
 make_transform_4x3_fn!(make_transformer_4x3, TransformLut4XyzToRgbNeon);
@@ -581,7 +582,8 @@ pub(crate) fn make_lut_transform<
         + Sync
         + CompressForLut
         + AsPrimitive<usize>
-        + PointeeSizeExpressible,
+        + PointeeSizeExpressible
+        + GammaLutInterpolate,
     const BIT_DEPTH: usize,
     const LINEAR_CAP: usize,
     const GAMMA_LUT: usize,
@@ -918,7 +920,8 @@ fn prepare_inverse_lut_rgb_xyz<
         + Sync
         + CompressForLut
         + AsPrimitive<usize>
-        + PointeeSizeExpressible,
+        + PointeeSizeExpressible
+        + GammaLutInterpolate,
     const BIT_DEPTH: usize,
     const GAMMA_LUT: usize,
 >(

@@ -32,6 +32,7 @@ use crate::conversions::{
 };
 use crate::err::CmsError;
 use crate::profile::LutDataType;
+use crate::trc::GammaLutInterpolate;
 use crate::{ColorProfile, DataColorSpace, LutWarehouse, RenderingIntent, Vector3f, Xyz};
 use num_traits::AsPrimitive;
 
@@ -297,7 +298,7 @@ impl ColorProfile {
         dst_layout: Layout,
         options: TransformOptions,
     ) -> Result<Box<TransformF32BitExecutor>, CmsError> {
-        self.create_transform_nbit::<f32, 1, 65536, 32768>(src_layout, dst_pr, dst_layout, options)
+        self.create_transform_nbit::<f32, 1, 65536, 16384>(src_layout, dst_pr, dst_layout, options)
     }
 
     /// Creates transform between source and destination profile
@@ -323,7 +324,8 @@ impl ColorProfile {
             + Sync
             + AsPrimitive<f32>
             + CompressForLut
-            + RgbXyzFactory<T>,
+            + RgbXyzFactory<T>
+            + GammaLutInterpolate,
         const BIT_DEPTH: usize,
         const LINEAR_CAP: usize,
         const GAMMA_CAP: usize,
