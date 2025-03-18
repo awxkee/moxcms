@@ -26,6 +26,7 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+use crate::transform::PointeeExpressible;
 use crate::{CmsError, Layout, TransformExecutor};
 use num_traits::AsPrimitive;
 
@@ -43,7 +44,7 @@ struct TransformProfileGrayToRgb<
 }
 
 pub(crate) fn make_gray_to_x<
-    T: Copy + Default + AsPrimitive<usize> + Send + Sync,
+    T: Copy + Default + PointeeExpressible + 'static + Send + Sync,
     const BUCKET: usize,
     const BIT_DEPTH: usize,
     const GAMMA_LUT: usize,
@@ -158,7 +159,7 @@ where
 }
 
 impl<
-    T: Copy + Default + AsPrimitive<usize>,
+    T: Copy + Default + PointeeExpressible + 'static,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
     const BUCKET: usize,
@@ -194,7 +195,7 @@ where
             .chunks_exact(src_channels)
             .zip(dst.chunks_exact_mut(dst_channels))
         {
-            let g = self.gray_linear[src[0].as_()];
+            let g = self.gray_linear[src[0]._as_usize()];
             let a = if is_gray_alpha { src[1] } else { max_value };
 
             let possible_value = ((g * max_lut_size).round() as u16) as usize;

@@ -28,6 +28,7 @@
  */
 use crate::math::m_clamp;
 use crate::mlaf::mlaf;
+use crate::transform::PointeeExpressible;
 use crate::writer::FloatToFixedU8Fixed8;
 use crate::{CmsError, ColorProfile, pow, powf};
 use num_traits::AsPrimitive;
@@ -242,10 +243,15 @@ fn u8_fixed_8number_to_float(x: u16) -> f32 {
     (x as i32 as f64 / 256.0) as f32
 }
 
-fn passthrough_table<const N: usize, const BIT_DEPTH: usize>() -> Box<[f32; N]> {
+fn passthrough_table<T: PointeeExpressible, const N: usize, const BIT_DEPTH: usize>()
+-> Box<[f32; N]> {
     let mut gamma_table = Box::new([0f32; N]);
-    let max_value = (1 << BIT_DEPTH) - 1;
-    let cap_values = (1u32 << BIT_DEPTH) as usize;
+    let max_value = if T::FINITE { (1 << BIT_DEPTH) - 1 } else { 1 };
+    let cap_values = if T::FINITE {
+        (1u32 << BIT_DEPTH) as usize
+    } else {
+        T::NOT_FINITE_LINEAR_TABLE_SIZE
+    };
     assert!(cap_values <= N, "Invalid lut table construction");
     let scale_value = 1f64 / max_value as f64;
     for (i, g) in gamma_table.iter_mut().enumerate().take(cap_values) {
@@ -313,13 +319,21 @@ fn linear_lut_interpolate<const N: usize, const BIT_DEPTH: usize>(table: &[u16])
     gamma_table
 }
 
-fn linear_curve_parametric<const N: usize, const BIT_DEPTH: usize>(
+fn linear_curve_parametric<T: PointeeExpressible, const N: usize, const BIT_DEPTH: usize>(
     params: &[f32],
 ) -> Option<Box<[f32; N]>> {
     let params = ParametricCurve::new(params)?;
     let mut gamma_table = Box::new([0f32; N]);
-    let max_value = (1 << BIT_DEPTH) - 1;
-    let cap_value = 1 << BIT_DEPTH;
+    let max_value = if T::FINITE {
+        (1 << BIT_DEPTH) - 1
+    } else {
+        T::NOT_FINITE_LINEAR_TABLE_SIZE - 1
+    };
+    let cap_value = if T::FINITE {
+        1 << BIT_DEPTH
+    } else {
+        T::NOT_FINITE_LINEAR_TABLE_SIZE
+    };
     let scale_value = 1f32 / max_value as f32;
     for (i, g) in gamma_table.iter_mut().enumerate().take(cap_value) {
         let x = i as f32 * scale_value;
@@ -543,13 +557,17 @@ fn invert_lut(table: &[u16], out_length: usize) -> Vec<u16> {
 
 impl ToneReprCurve {
     #[inline(always)]
-    pub(crate) fn build_linearize_table<const N: usize, const BIT_DEPTH: usize>(
+    pub(crate) fn build_linearize_table<
+        T: PointeeExpressible,
+        const N: usize,
+        const BIT_DEPTH: usize,
+    >(
         &self,
     ) -> Option<Box<[f32; N]>> {
         match self {
-            ToneReprCurve::Parametric(params) => linear_curve_parametric::<N, BIT_DEPTH>(params),
+            ToneReprCurve::Parametric(params) => linear_curve_parametric::<T, N, BIT_DEPTH>(params),
             ToneReprCurve::Lut(data) => match data.len() {
-                0 => Some(passthrough_table::<N, BIT_DEPTH>()),
+                0 => Some(passthrough_table::<T, N, BIT_DEPTH>()),
                 1 => Some(linear_forward_table::<N, BIT_DEPTH>(data[0])),
                 _ => Some(linear_lut_interpolate::<N, BIT_DEPTH>(data)),
             },
@@ -606,71 +624,87 @@ impl ColorProfile {
         trc: &Option<ToneReprCurve>,
     ) -> Result<Box<[f32; 256]>, CmsError> {
         trc.as_ref()
-            .and_then(|trc| trc.build_linearize_table::<256, 8>())
+            .and_then(|trc| trc.build_linearize_table::<u8, 256, 8>())
             .ok_or(CmsError::BuildTransferFunction)
     }
 
     /// Produces LUT for Gray transfer curve with N depth
-    pub fn build_gray_linearize_table<const N: usize, const BIT_DEPTH: usize>(
+    pub fn build_gray_linearize_table<
+        T: PointeeExpressible,
+        const N: usize,
+        const BIT_DEPTH: usize,
+    >(
         &self,
     ) -> Result<Box<[f32; N]>, CmsError> {
         self.gray_trc
             .as_ref()
-            .and_then(|trc| trc.build_linearize_table::<N, BIT_DEPTH>())
+            .and_then(|trc| trc.build_linearize_table::<T, N, BIT_DEPTH>())
             .ok_or(CmsError::BuildTransferFunction)
     }
 
     /// Produces LUT for Red transfer curve with N depth
-    pub fn build_r_linearize_table<const N: usize, const BIT_DEPTH: usize>(
+    pub fn build_r_linearize_table<
+        T: PointeeExpressible,
+        const N: usize,
+        const BIT_DEPTH: usize,
+    >(
         &self,
         use_cicp: bool,
     ) -> Result<Box<[f32; N]>, CmsError> {
         if use_cicp {
             if let Some(tc) = self.cicp.as_ref().map(|c| c.transfer_characteristics) {
                 if tc.has_transfer_curve() {
-                    return Ok(tc.make_linear_table::<N, BIT_DEPTH>());
+                    return Ok(tc.make_linear_table::<T, N, BIT_DEPTH>());
                 }
             }
         }
         self.red_trc
             .as_ref()
-            .and_then(|trc| trc.build_linearize_table::<N, BIT_DEPTH>())
+            .and_then(|trc| trc.build_linearize_table::<T, N, BIT_DEPTH>())
             .ok_or(CmsError::BuildTransferFunction)
     }
 
     /// Produces LUT for Green transfer curve with N depth
-    pub fn build_g_linearize_table<const N: usize, const BIT_DEPTH: usize>(
+    pub fn build_g_linearize_table<
+        T: PointeeExpressible,
+        const N: usize,
+        const BIT_DEPTH: usize,
+    >(
         &self,
         use_cicp: bool,
     ) -> Result<Box<[f32; N]>, CmsError> {
         if use_cicp {
             if let Some(tc) = self.cicp.as_ref().map(|c| c.transfer_characteristics) {
                 if tc.has_transfer_curve() {
-                    return Ok(tc.make_linear_table::<N, BIT_DEPTH>());
+                    return Ok(tc.make_linear_table::<T, N, BIT_DEPTH>());
                 }
             }
         }
         self.green_trc
             .as_ref()
-            .and_then(|trc| trc.build_linearize_table::<N, BIT_DEPTH>())
+            .and_then(|trc| trc.build_linearize_table::<T, N, BIT_DEPTH>())
             .ok_or(CmsError::BuildTransferFunction)
     }
 
     /// Produces LUT for Blue transfer curve with N depth
-    pub fn build_b_linearize_table<const N: usize, const BIT_DEPTH: usize>(
+    pub fn build_b_linearize_table<
+        T: PointeeExpressible,
+        const N: usize,
+        const BIT_DEPTH: usize,
+    >(
         &self,
         use_cicp: bool,
     ) -> Result<Box<[f32; N]>, CmsError> {
         if use_cicp {
             if let Some(tc) = self.cicp.as_ref().map(|c| c.transfer_characteristics) {
                 if tc.has_transfer_curve() {
-                    return Ok(tc.make_linear_table::<N, BIT_DEPTH>());
+                    return Ok(tc.make_linear_table::<T, N, BIT_DEPTH>());
                 }
             }
         }
         self.blue_trc
             .as_ref()
-            .and_then(|trc| trc.build_linearize_table::<N, BIT_DEPTH>())
+            .and_then(|trc| trc.build_linearize_table::<T, N, BIT_DEPTH>())
             .ok_or(CmsError::BuildTransferFunction)
     }
 
@@ -717,7 +751,7 @@ impl ColorProfile {
     /// Builds gamma table checking CICP for Transfer characteristics first.
     #[inline]
     pub fn build_gamma_table<
-        T: Default + Copy + 'static,
+        T: Default + Copy + 'static + PointeeExpressible,
         const BUCKET: usize,
         const N: usize,
         const BIT_DEPTH: usize,
@@ -754,7 +788,7 @@ mod tests {
         let curve = vec![2.4, 1. / 1.055, 0.055 / 1.055, 1. / 12.92, 0.04045f32];
 
         let inverted_size: usize = 65536;
-        let gamma_table = linear_curve_parametric::<65536, 16>(&curve).unwrap();
+        let gamma_table = linear_curve_parametric::<u16, 65536, 16>(&curve).unwrap();
         for (&src, dst) in gamma_table.iter().zip(gamma_table_uint.iter_mut()) {
             *dst = (src * 65535f32) as u16;
         }

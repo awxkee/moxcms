@@ -27,6 +27,7 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::mlaf::mlaf;
+use crate::transform::PointeeExpressible;
 use crate::{CmsError, Layout, TransformExecutor, Vector3f};
 use num_traits::AsPrimitive;
 
@@ -52,7 +53,7 @@ struct TransformProfileRgbToGray<
 }
 
 pub(crate) fn make_rgb_to_gray<
-    T: Copy + Default + AsPrimitive<usize> + Send + Sync,
+    T: Copy + Default + PointeeExpressible + Send + Sync + 'static,
     const BUCKET: usize,
     const BIT_DEPTH: usize,
     const GAMMA_LUT: usize,
@@ -124,7 +125,7 @@ where
 }
 
 impl<
-    T: Copy + Default + AsPrimitive<usize>,
+    T: Copy + Default + PointeeExpressible + 'static,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
     const BUCKET: usize,
@@ -158,9 +159,9 @@ where
             .chunks_exact(src_channels)
             .zip(dst.chunks_exact_mut(dst_channels))
         {
-            let r = self.trc_box.r_linear[src[src_cn.r_i()].as_()];
-            let g = self.trc_box.g_linear[src[src_cn.g_i()].as_()];
-            let b = self.trc_box.b_linear[src[src_cn.b_i()].as_()];
+            let r = self.trc_box.r_linear[src[src_cn.r_i()]._as_usize()];
+            let g = self.trc_box.g_linear[src[src_cn.g_i()]._as_usize()];
+            let b = self.trc_box.b_linear[src[src_cn.b_i()]._as_usize()];
             let a = if src_channels == 4 {
                 src[src_cn.a_i()]
             } else {

@@ -58,7 +58,7 @@ struct TransformProfilePcsXYZRgbQ4_12<
 
 #[allow(unused)]
 impl<
-    T: AsPrimitive<usize> + 'static + Copy + Default,
+    T: Clone + PointeeExpressible + Copy + Default + 'static,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
     const LINEAR_CAP: usize,
@@ -104,9 +104,9 @@ where
             .chunks_exact(src_channels)
             .zip(dst.chunks_exact_mut(dst_channels))
         {
-            let r = self.profile.r_linear[src[src_cn.r_i()].as_()];
-            let g = self.profile.g_linear[src[src_cn.g_i()].as_()];
-            let b = self.profile.b_linear[src[src_cn.b_i()].as_()];
+            let r = self.profile.r_linear[src[src_cn.r_i()]._as_usize()];
+            let g = self.profile.g_linear[src[src_cn.g_i()]._as_usize()];
+            let b = self.profile.b_linear[src[src_cn.b_i()]._as_usize()];
             let a = if src_channels == 4 {
                 src[src_cn.a_i()]
             } else {
@@ -148,7 +148,7 @@ where
 macro_rules! create_rgb_xyz_dependant_q4_12_executor {
     ($dep_name: ident, $dependant: ident, $resolution: ident) => {
         pub(crate) fn $dep_name<
-            T: Clone + Send + Sync + AsPrimitive<usize> + Default,
+            T: Clone + Send + Sync + AsPrimitive<usize> + Default + PointeeExpressible,
             const LINEAR_CAP: usize,
             const GAMMA_LUT: usize,
             const BIT_DEPTH: usize,
@@ -237,6 +237,7 @@ create_rgb_xyz_dependant_q4_12_executor!(
 
 #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "avx"))]
 use crate::conversions::avx::TransformProfilePcsXYZRgbQ12Avx;
+use crate::transform::PointeeExpressible;
 
 #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "avx"))]
 create_rgb_xyz_dependant_q4_12_executor!(

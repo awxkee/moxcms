@@ -26,8 +26,7 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-use crate::TechnologySignatures::Unknown;
-use crate::chad::adapt_to_d50_const;
+use crate::chad::adapt_to_d50;
 use crate::cicp::{
     CicpColorPrimaries, ColorPrimaries, MatrixCoefficients, TransferCharacteristics,
 };
@@ -432,7 +431,7 @@ impl From<u32> for TechnologySignatures {
         } else if value == u32::from_ne_bytes(*b"dcpj").to_be() {
             return TechnologySignatures::DigitalCinemaProjector;
         }
-        Unknown(value)
+        TechnologySignatures::Unknown(value)
     }
 }
 
@@ -1954,7 +1953,7 @@ impl ColorProfile {
             ],
         };
         let colorants = ColorProfile::rgb_to_xyz_const(xyz_matrix, white_point.to_xyz());
-        adapt_to_d50_const(colorants, white_point)
+        adapt_to_d50(colorants, white_point)
     }
 
     /// Updates RGB triple colorimetry from 3 [Chromaticity] and white point
@@ -1985,7 +1984,7 @@ impl ColorProfile {
             ],
         };
         let colorants = ColorProfile::rgb_to_xyz_const(xyz_matrix, white_point.to_xyz());
-        let colorants = adapt_to_d50_const(colorants, white_point);
+        let colorants = adapt_to_d50(colorants, white_point);
 
         self.update_colorants(colorants);
     }
@@ -2006,7 +2005,7 @@ impl ColorProfile {
     /// Updates RGB triple colorimetry from CICP
     pub fn update_rgb_colorimetry_from_cicp(&mut self, cicp: CicpProfile) -> bool {
         self.cicp = Some(cicp);
-        if !cicp.color_primaries.has_chromacity()
+        if !cicp.color_primaries.has_chromaticity()
             || !cicp.transfer_characteristics.has_transfer_curve()
         {
             return false;

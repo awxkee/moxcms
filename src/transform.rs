@@ -80,6 +80,8 @@ impl Default for TransformOptions {
 
 pub type Transform8BitExecutor = dyn TransformExecutor<u8> + Send + Sync;
 pub type Transform16BitExecutor = dyn TransformExecutor<u16> + Send + Sync;
+pub type TransformF32BitExecutor = dyn TransformExecutor<f32> + Send + Sync;
+pub type TransformF64BitExecutor = dyn TransformExecutor<f64> + Send + Sync;
 
 /// Layout declares a data layout.
 /// For RGB it shows also the channel order.
@@ -182,6 +184,62 @@ impl Layout {
     }
 }
 
+pub trait PointeeExpressible {
+    fn _as_usize(self) -> usize;
+    const FINITE: bool;
+    const NOT_FINITE_GAMMA_TABLE_SIZE: usize;
+    const NOT_FINITE_LINEAR_TABLE_SIZE: usize;
+}
+
+impl PointeeExpressible for u8 {
+    #[inline(always)]
+    fn _as_usize(self) -> usize {
+        self as usize
+    }
+
+    const FINITE: bool = true;
+    const NOT_FINITE_GAMMA_TABLE_SIZE: usize = 1;
+    const NOT_FINITE_LINEAR_TABLE_SIZE: usize = 1;
+}
+
+impl PointeeExpressible for u16 {
+    #[inline(always)]
+    fn _as_usize(self) -> usize {
+        self as usize
+    }
+
+    const FINITE: bool = true;
+
+    const NOT_FINITE_GAMMA_TABLE_SIZE: usize = 1;
+    const NOT_FINITE_LINEAR_TABLE_SIZE: usize = 1;
+}
+
+impl PointeeExpressible for f32 {
+    #[inline(always)]
+    fn _as_usize(self) -> usize {
+        const MAX_12_BIT: f32 = ((1 << 12u32) - 1) as f32;
+        ((self * MAX_12_BIT).max(0f32).min(MAX_12_BIT) as u16) as usize
+    }
+
+    const FINITE: bool = false;
+
+    const NOT_FINITE_GAMMA_TABLE_SIZE: usize = 16384;
+    const NOT_FINITE_LINEAR_TABLE_SIZE: usize = 1 << 12u32;
+}
+
+impl PointeeExpressible for f64 {
+    #[inline(always)]
+    fn _as_usize(self) -> usize {
+        const MAX_16_BIT: f64 = ((1 << 16u32) - 1) as f64;
+        ((self * MAX_16_BIT).max(0.).min(MAX_16_BIT) as u16) as usize
+    }
+
+    const FINITE: bool = false;
+
+    const NOT_FINITE_GAMMA_TABLE_SIZE: usize = 65536;
+    const NOT_FINITE_LINEAR_TABLE_SIZE: usize = 1 << 16;
+}
+
 impl ColorProfile {
     fn has_full_colors_triplet(&self) -> bool {
         self.red_colorant != Xyz::default()
@@ -228,10 +286,35 @@ impl ColorProfile {
         self.create_transform_nbit::<u16, 10, 65536, 8192>(src_layout, dst_pr, dst_layout, options)
     }
 
+    /// Creates transform between source and destination profile
+    /// Data has to be normalized into [0, 1] range.
+    pub fn create_transform_f32(
+        &self,
+        src_layout: Layout,
+        dst_pr: &ColorProfile,
+        dst_layout: Layout,
+        options: TransformOptions,
+    ) -> Result<Box<TransformF32BitExecutor>, CmsError> {
+        self.create_transform_nbit::<f32, 1, 65536, 16384>(src_layout, dst_pr, dst_layout, options)
+    }
+
+    /// Creates transform between source and destination profile
+    /// Data has to be normalized into [0, 1] range.
+    pub fn create_transform_f64(
+        &self,
+        src_layout: Layout,
+        dst_pr: &ColorProfile,
+        dst_layout: Layout,
+        options: TransformOptions,
+    ) -> Result<Box<TransformF64BitExecutor>, CmsError> {
+        self.create_transform_nbit::<f64, 1, 65536, 65536>(src_layout, dst_pr, dst_layout, options)
+    }
+
     fn create_transform_nbit<
         T: Copy
             + Default
             + AsPrimitive<usize>
+            + PointeeExpressible
             + Send
             + Sync
             + AsPrimitive<f32>
@@ -266,13 +349,13 @@ impl ColorProfile {
             }
             let transform = self.transform_matrix(dst_pr);
 
-            let lin_r = self.build_r_linearize_table::<LINEAR_CAP, BIT_DEPTH>(
+            let lin_r = self.build_r_linearize_table::<T, LINEAR_CAP, BIT_DEPTH>(
                 options.allow_use_cicp_transfer,
             )?;
-            let lin_g = self.build_g_linearize_table::<LINEAR_CAP, BIT_DEPTH>(
+            let lin_g = self.build_g_linearize_table::<T, LINEAR_CAP, BIT_DEPTH>(
                 options.allow_use_cicp_transfer,
             )?;
-            let lin_b = self.build_b_linearize_table::<LINEAR_CAP, BIT_DEPTH>(
+            let lin_b = self.build_b_linearize_table::<T, LINEAR_CAP, BIT_DEPTH>(
                 options.allow_use_cicp_transfer,
             )?;
 
@@ -314,7 +397,7 @@ impl ColorProfile {
             if src_layout != Layout::GrayAlpha && src_layout != Layout::Gray {
                 return Err(CmsError::InvalidLayout);
             }
-            let gray_linear = self.build_gray_linearize_table::<LINEAR_CAP, BIT_DEPTH>()?;
+            let gray_linear = self.build_gray_linearize_table::<T, LINEAR_CAP, BIT_DEPTH>()?;
             let gray_gamma = dst_pr.build_gamma_table::<T, 65536, GAMMA_CAP, BIT_DEPTH>(
                 &self.gray_trc,
                 options.allow_use_cicp_transfer,
@@ -338,13 +421,13 @@ impl ColorProfile {
                 return Err(CmsError::InvalidLayout);
             }
 
-            let lin_r = self.build_r_linearize_table::<LINEAR_CAP, BIT_DEPTH>(
+            let lin_r = self.build_r_linearize_table::<T, LINEAR_CAP, BIT_DEPTH>(
                 options.allow_use_cicp_transfer,
             )?;
-            let lin_g = self.build_g_linearize_table::<LINEAR_CAP, BIT_DEPTH>(
+            let lin_g = self.build_g_linearize_table::<T, LINEAR_CAP, BIT_DEPTH>(
                 options.allow_use_cicp_transfer,
             )?;
-            let lin_b = self.build_b_linearize_table::<LINEAR_CAP, BIT_DEPTH>(
+            let lin_b = self.build_b_linearize_table::<T, LINEAR_CAP, BIT_DEPTH>(
                 options.allow_use_cicp_transfer,
             )?;
             let gray_linear = dst_pr.build_gamma_table::<T, 65536, GAMMA_CAP, BIT_DEPTH>(

@@ -62,6 +62,7 @@ mod trc;
 mod writer;
 mod yrg;
 
+pub use chad::{adapt_to_d50, adapt_to_illuminant, adapt_to_illuminant_xyz};
 pub use cicp::{CicpColorPrimaries, ColorPrimaries, MatrixCoefficients, TransferCharacteristics};
 pub use dat::ColorDateTime;
 pub use defaults::{
@@ -98,7 +99,7 @@ pub use profile::{
 pub use rgb::Rgb;
 pub use transform::{
     InPlaceStage, Layout, Stage, Transform8BitExecutor, Transform16BitExecutor, TransformExecutor,
-    TransformOptions,
+    TransformF32BitExecutor, TransformF64BitExecutor, TransformOptions,
 };
 pub use trc::{ToneReprCurve, curve_from_gamma};
 pub use yrg::{Ych, Yrg, cie_y_1931_to_cie_y_2006};

@@ -111,7 +111,7 @@ impl<T: Clone + AsPrimitive<f32>, const BIT_DEPTH: usize, const GAMMA_LUT: usize
     for XyzToRgbStage<T, BIT_DEPTH, GAMMA_LUT>
 {
     fn transform(&self, dst: &mut [f32]) -> Result<(), CmsError> {
-        assert!(BIT_DEPTH >= 8);
+        assert!(BIT_DEPTH > 0);
         if !self.matrices.is_empty() {
             let m = self.matrices[0];
             for dst in dst.chunks_exact_mut(3) {
@@ -201,6 +201,20 @@ impl CompressForLut for u16 {
     fn compress_lut<const BIT_DEPTH: usize>(self) -> u8 {
         let scale = BIT_DEPTH - 8;
         (self >> scale).min(255) as u8
+    }
+}
+
+impl CompressForLut for f32 {
+    #[inline(always)]
+    fn compress_lut<const BIT_DEPTH: usize>(self) -> u8 {
+        (self * 255.).max(0f32).min(255.) as u8
+    }
+}
+
+impl CompressForLut for f64 {
+    #[inline(always)]
+    fn compress_lut<const BIT_DEPTH: usize>(self) -> u8 {
+        (self * 255.).max(0.).min(255.) as u8
     }
 }
 
@@ -520,11 +534,20 @@ make_transform_4x3_fn!(make_transformer_4x3, TransformLut4XyzToRgb);
 
 #[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
 use crate::conversions::neon::TransformLut4XyzToRgbNeon;
+use crate::transform::PointeeExpressible;
+
 #[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
 make_transform_4x3_fn!(make_transformer_4x3, TransformLut4XyzToRgbNeon);
 
 pub(crate) fn make_lut_transform<
-    T: Copy + Default + AsPrimitive<f32> + Send + Sync + CompressForLut + AsPrimitive<usize>,
+    T: Copy
+        + Default
+        + AsPrimitive<f32>
+        + Send
+        + Sync
+        + CompressForLut
+        + AsPrimitive<usize>
+        + PointeeExpressible,
     const BIT_DEPTH: usize,
     const LINEAR_CAP: usize,
     const GAMMA_LUT: usize,
@@ -795,7 +818,14 @@ where
 }
 
 fn create_rgb_lin_lut<
-    T: Copy + Default + AsPrimitive<f32> + Send + Sync + CompressForLut + AsPrimitive<usize>,
+    T: Copy
+        + Default
+        + AsPrimitive<f32>
+        + Send
+        + Sync
+        + CompressForLut
+        + AsPrimitive<usize>
+        + PointeeExpressible,
     const BIT_DEPTH: usize,
     const LINEAR_CAP: usize,
     const GRID_SIZE: usize,
@@ -810,11 +840,11 @@ where
     let lut_origins = create_lut3_samples::<T, GRID_SIZE>();
 
     let lin_r =
-        source.build_r_linearize_table::<LINEAR_CAP, BIT_DEPTH>(opts.allow_use_cicp_transfer)?;
+        source.build_r_linearize_table::<T, LINEAR_CAP, BIT_DEPTH>(opts.allow_use_cicp_transfer)?;
     let lin_g =
-        source.build_g_linearize_table::<LINEAR_CAP, BIT_DEPTH>(opts.allow_use_cicp_transfer)?;
+        source.build_g_linearize_table::<T, LINEAR_CAP, BIT_DEPTH>(opts.allow_use_cicp_transfer)?;
     let lin_b =
-        source.build_b_linearize_table::<LINEAR_CAP, BIT_DEPTH>(opts.allow_use_cicp_transfer)?;
+        source.build_b_linearize_table::<T, LINEAR_CAP, BIT_DEPTH>(opts.allow_use_cicp_transfer)?;
 
     let lin_stage = RgbLinearizationStage::<T, BIT_DEPTH, LINEAR_CAP, GRID_SIZE> {
         r_lin: lin_r,
@@ -847,7 +877,14 @@ where
 }
 
 fn prepare_inverse_lut_rgb_xyz<
-    T: Copy + Default + AsPrimitive<f32> + Send + Sync + CompressForLut + AsPrimitive<usize>,
+    T: Copy
+        + Default
+        + AsPrimitive<f32>
+        + Send
+        + Sync
+        + CompressForLut
+        + AsPrimitive<usize>
+        + PointeeExpressible,
     const BIT_DEPTH: usize,
     const GAMMA_LUT: usize,
 >(

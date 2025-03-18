@@ -358,7 +358,7 @@ impl TryFrom<u8> for TransferCharacteristics {
 }
 
 impl CicpColorPrimaries {
-    pub(crate) const fn has_chromacity(self) -> bool {
+    pub(crate) const fn has_chromaticity(self) -> bool {
         self as u8 != Self::Reserved as u8 && self as u8 != Self::Unspecified as u8
     }
 
