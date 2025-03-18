@@ -840,7 +840,6 @@ impl ColorProfile {
         self.version_internal
     }
 
-    #[inline]
     fn read_trc_tag_s(
         slice: &[u8],
         entry: usize,
@@ -850,7 +849,6 @@ impl ColorProfile {
         Self::read_trc_tag(slice, entry, tag_size, &mut _empty)
     }
 
-    #[inline]
     fn read_trc_tag(
         slice: &[u8],
         entry: usize,
@@ -1197,7 +1195,6 @@ impl ColorProfile {
         }))
     }
 
-    #[inline]
     fn read_string_tag(
         slice: &[u8],
         entry: usize,

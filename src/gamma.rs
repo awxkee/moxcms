@@ -428,12 +428,12 @@ impl TransferCharacteristics {
         let max_value = if T::FINITE {
             (1 << BIT_DEPTH) - 1
         } else {
-            T::NOT_FINITE_LINEAR_TABLE_SIZE
+            T::NOT_FINITE_LINEAR_TABLE_SIZE - 1
         };
         let cap_values = if T::FINITE {
             (1u32 << BIT_DEPTH) as usize
         } else {
-            T::NOT_FINITE_LINEAR_TABLE_SIZE - 1
+            T::NOT_FINITE_LINEAR_TABLE_SIZE
         };
         assert!(cap_values <= N, "Invalid lut table construction");
         let scale_value = 1f64 / max_value as f64;

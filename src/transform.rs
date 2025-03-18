@@ -298,7 +298,7 @@ impl ColorProfile {
         dst_layout: Layout,
         options: TransformOptions,
     ) -> Result<Box<TransformF32BitExecutor>, CmsError> {
-        self.create_transform_nbit::<f32, 1, 65536, 16384>(src_layout, dst_pr, dst_layout, options)
+        self.create_transform_nbit::<f32, 1, 65536, 32768>(src_layout, dst_pr, dst_layout, options)
     }
 
     /// Creates transform between source and destination profile

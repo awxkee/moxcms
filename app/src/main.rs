@@ -38,7 +38,6 @@ use zune_jpeg::zune_core::colorspace::ColorSpace;
 use zune_jpeg::zune_core::options::DecoderOptions;
 
 fn main() {
-    println!("{}", pow(4f64, 1f64 / 2f64));
     let funny_icc = fs::read("./assets/us_swop_coated.icc").unwrap();
 
     // println!("{:?}", decoded);
@@ -50,7 +49,7 @@ fn main() {
 
     let srgb_perceptual_icc = fs::read("./assets/srgb_perceptual.icc").unwrap();
 
-    let funny_profile = ColorProfile::new_adobe_rgb();
+    let funny_profile = ColorProfile::new_display_p3();
 
     let srgb_perceptual_profile = ColorProfile::new_from_slice(&srgb_perceptual_icc).unwrap();
 
@@ -83,11 +82,13 @@ fn main() {
         .flat_map(|x| [x[0], x[1], x[2], 255u8])
         .collect::<Vec<_>>();
 
+    let pr1 = lcms2::Profile::new_icc(&funny_icc).unwrap();
+
     // let t1 = Transform::new(
-    //     &custom_profile,
-    //     PixelFormat::RGB_8,
-    //     &srgb_profile,
-    //     PixelFormat::RGB_8,
+    //     &lcms2::Profile::new_srgb(),
+    //     PixelFormat::RGBA_8,
+    //     &pr1,
+    //     PixelFormat::CMYK_8,
     //     Intent::Perceptual,
     // )
     // .unwrap();
@@ -101,9 +102,7 @@ fn main() {
     // )
     //     .unwrap();
 
-    // let mut cmyk = vec![0f32; (decoder.output_buffer_size().unwrap() / 3) * 4];
-
-    // t1.transform_pixels(&real_dst, &mut cmyk);
+    let mut cmyk = vec![0f64; (decoder.output_buffer_size().unwrap() / 3) * 4];
 
     let icc = decoder.icc_profile().unwrap();
     let color_profile = ColorProfile::new_from_slice(&srgb_perceptual_icc).unwrap();
@@ -111,22 +110,27 @@ fn main() {
     // let color_profile = ColorProfile::new_gray_with_gamma(2.2);
     let mut dest_profile = ColorProfile::new_srgb();
 
-    // let real_dst = real_dst.iter().map(|&c| c as f32 / 255f32).collect::<Vec<_>>();
-    //
-    // let transform = dest_profile
-    //     .create_transform_f32(
-    //         Layout::Rgba,
-    //         &funny_profile,
-    //         Layout::Rgba,
-    //         TransformOptions {
-    //             rendering_intent: RenderingIntent::Perceptual,
-    //             allow_use_cicp_transfer: true,
-    //             prefer_fixed_point: false,
-    //         },
-    //     )
-    //     .unwrap();
-    //
-    // transform.transform(&real_dst, &mut cmyk).unwrap();
+    // t1.transform_pixels(&real_dst, &mut cmyk);
+
+    let transform = dest_profile
+        .create_transform_f64(
+            Layout::Rgba,
+            &funny_profile,
+            Layout::Rgba,
+            TransformOptions {
+                rendering_intent: RenderingIntent::Perceptual,
+                allow_use_cicp_transfer: true,
+                prefer_fixed_point: false,
+            },
+        )
+        .unwrap();
+
+    let real_dst = real_dst
+        .iter()
+        .map(|&x| x as f64 / 255f64)
+        .collect::<Vec<_>>();
+
+    transform.transform(&real_dst, &mut cmyk).unwrap();
 
     // // let instant = Instant::now();
     // let rgb_to_cmyk = dest_profile
@@ -146,9 +150,11 @@ fn main() {
 
     // let t = Transform::new(&srgb_profile, PixelFormat::RGB_8, &custom_profile, PixelFormat::RGB_8, Intent::Perceptual).unwrap();
 
+    // let cmyk = cmyk.iter().map(|&c| c as f32 / 255f32).collect::<Vec<_>>();
+
     dest_profile.rendering_intent = RenderingIntent::Perceptual;
     let transform = funny_profile
-        .create_transform_f32(
+        .create_transform_f64(
             Layout::Rgba,
             &dest_profile,
             Layout::Rgba,
@@ -159,7 +165,7 @@ fn main() {
             },
         )
         .unwrap();
-    let mut dst = vec![0f32; real_dst.len()];
+    let mut dst = vec![0f64; real_dst.len()];
     // t.transform_pixels(&real_dst)
 
     // let gray_image = rgb
@@ -170,9 +176,10 @@ fn main() {
     //     })
     //     .collect::<Vec<u8>>();
     //
-    let real_dst = real_dst.iter().map(|&c| c as f32 / 255f32).collect::<Vec<_>>();
+
     let instant = Instant::now();
-    for (src, dst) in real_dst
+
+    for (src, dst) in cmyk
         .chunks_exact(img.width() as usize * 4)
         .zip(dst.chunks_exact_mut(img.width() as usize * 4))
     {
@@ -239,7 +246,7 @@ fn main() {
 
     let dst = dst
         .iter()
-        .map(|&x| (x * 255f32).round() as u8)
+        .map(|&x| (x * 255f64).round() as u8)
         .collect::<Vec<_>>();
     image::save_buffer(
         "v_new_sat.png",

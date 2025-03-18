@@ -340,7 +340,7 @@ struct RgbLinearizationStage<
 }
 
 impl<
-    T: Clone + AsPrimitive<usize>,
+    T: Clone + AsPrimitive<usize> + PointeeSizeExpressible,
     const BIT_DEPTH: usize,
     const LINEAR_CAP: usize,
     const SAMPLES: usize,
@@ -354,15 +354,19 @@ impl<
             return Err(CmsError::LaneMultipleOfChannels);
         }
 
-        let scale = ((1 << BIT_DEPTH) - 1) as f32 / (SAMPLES as f32 - 1f32);
+        let scale = if T::FINITE {
+            ((1 << BIT_DEPTH) - 1) as f32 / (SAMPLES as f32 - 1f32)
+        } else {
+            (T::NOT_FINITE_LINEAR_TABLE_SIZE - 1) as f32 / (SAMPLES as f32 - 1f32)
+        };
 
         for (src, dst) in src.chunks_exact(3).zip(dst.chunks_exact_mut(3)) {
             let j_r = src[0].as_() as f32 * scale;
             let j_g = src[1].as_() as f32 * scale;
             let j_b = src[2].as_() as f32 * scale;
-            dst[0] = self.r_lin[(j_r as u16) as usize];
-            dst[1] = self.g_lin[(j_g as u16) as usize];
-            dst[2] = self.b_lin[(j_b as u16) as usize];
+            dst[0] = self.r_lin[(j_r.round() as u16) as usize];
+            dst[1] = self.g_lin[(j_g.round() as u16) as usize];
+            dst[2] = self.b_lin[(j_b.round() as u16) as usize];
         }
         Ok(())
     }

@@ -246,7 +246,11 @@ fn u8_fixed_8number_to_float(x: u16) -> f32 {
 fn passthrough_table<T: PointeeSizeExpressible, const N: usize, const BIT_DEPTH: usize>()
 -> Box<[f32; N]> {
     let mut gamma_table = Box::new([0f32; N]);
-    let max_value = if T::FINITE { (1 << BIT_DEPTH) - 1 } else { 1 };
+    let max_value = if T::FINITE {
+        (1 << BIT_DEPTH) - 1
+    } else {
+        T::NOT_FINITE_LINEAR_TABLE_SIZE - 1
+    };
     let cap_values = if T::FINITE {
         (1u32 << BIT_DEPTH) as usize
     } else {
@@ -265,7 +269,11 @@ fn linear_forward_table<T: PointeeSizeExpressible, const N: usize, const BIT_DEP
 ) -> Box<[f32; N]> {
     let mut gamma_table = Box::new([0f32; N]);
     let gamma_float: f32 = u8_fixed_8number_to_float(gamma);
-    let max_value = if T::FINITE { (1 << BIT_DEPTH) - 1 } else { 1 };
+    let max_value = if T::FINITE {
+        (1 << BIT_DEPTH) - 1
+    } else {
+        T::NOT_FINITE_LINEAR_TABLE_SIZE - 1
+    };
     let cap_values = if T::FINITE {
         (1u32 << BIT_DEPTH) as usize
     } else {
@@ -317,7 +325,11 @@ fn linear_lut_interpolate<T: PointeeSizeExpressible, const N: usize, const BIT_D
     table: &[u16],
 ) -> Box<[f32; N]> {
     let mut gamma_table = Box::new([0f32; N]);
-    let max_value = if T::FINITE { (1 << BIT_DEPTH) - 1 } else { 1 };
+    let max_value = if T::FINITE {
+        (1 << BIT_DEPTH) - 1
+    } else {
+        T::NOT_FINITE_LINEAR_TABLE_SIZE - 1
+    };
     let cap_values = if T::FINITE {
         (1u32 << BIT_DEPTH) as usize
     } else {
@@ -455,7 +467,6 @@ where
 }
 
 pub trait GammaLutInterpolate {
-
     fn gamma_lut_interp<
         T: Default + Copy + 'static + PointeeSizeExpressible,
         const N: usize,
@@ -465,7 +476,8 @@ pub trait GammaLutInterpolate {
         table: &[u16],
     ) -> T
     where
-        u32: AsPrimitive<T>, f32: AsPrimitive<T>;
+        u32: AsPrimitive<T>,
+        f32: AsPrimitive<T>;
 }
 
 impl GammaLutInterpolate for u8 {
@@ -510,7 +522,8 @@ impl GammaLutInterpolate for f32 {
         table: &[u16],
     ) -> T
     where
-        f32: AsPrimitive<T>, u32: AsPrimitive<T>,
+        f32: AsPrimitive<T>,
+        u32: AsPrimitive<T>,
     {
         lut_interp_linear_gamma_impl_f32::<T, N, BIT_DEPTH>(input_value, table)
     }
@@ -526,7 +539,8 @@ impl GammaLutInterpolate for f64 {
         table: &[u16],
     ) -> T
     where
-        f32: AsPrimitive<T>, u32: AsPrimitive<T>,
+        f32: AsPrimitive<T>,
+        u32: AsPrimitive<T>,
     {
         lut_interp_linear_gamma_impl_f32::<T, N, BIT_DEPTH>(input_value, table)
     }
@@ -541,7 +555,8 @@ pub(crate) fn make_gamma_lut<
     table: &[u16],
 ) -> Box<[T; BUCKET]>
 where
-    u32: AsPrimitive<T>, f32: AsPrimitive<T>,
+    u32: AsPrimitive<T>,
+    f32: AsPrimitive<T>,
 {
     let mut new_table = Box::new([T::default(); BUCKET]);
     for (v, output) in new_table.iter_mut().take(N).enumerate() {
@@ -881,7 +896,6 @@ impl ColorProfile {
     }
 
     /// Builds gamma table checking CICP for Transfer characteristics first.
-    #[inline]
     pub fn build_gamma_table<
         T: Default + Copy + 'static + PointeeSizeExpressible + GammaLutInterpolate,
         const BUCKET: usize,
