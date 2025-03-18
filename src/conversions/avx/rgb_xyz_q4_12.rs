@@ -28,6 +28,7 @@
  */
 use crate::conversions::avx::stages::AvxAlignedU16;
 use crate::conversions::rgbxyz_fixed::TransformProfileRgbFixedPoint;
+use crate::transform::PointeeSizeExpressible;
 use crate::{CmsError, Layout, TransformExecutor};
 use num_traits::AsPrimitive;
 #[cfg(target_arch = "x86")]
@@ -54,7 +55,7 @@ unsafe fn _xmm_broadcast_epi32(f: &i32) -> __m128i {
 }
 
 impl<
-    T: Copy + AsPrimitive<usize> + 'static,
+    T: Copy + PointeeSizeExpressible + 'static,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
     const LINEAR_CAP: usize,
@@ -145,17 +146,17 @@ where
             let (mut r1, mut g1, mut b1, mut a1);
 
             if let Some(src) = src_iter.next() {
-                r0 = _xmm_broadcast_epi32(&self.profile.r_linear[src[src_cn.r_i()].as_()]);
-                g0 = _xmm_broadcast_epi32(&self.profile.g_linear[src[src_cn.g_i()].as_()]);
-                b0 = _xmm_broadcast_epi32(&self.profile.b_linear[src[src_cn.b_i()].as_()]);
+                r0 = _xmm_broadcast_epi32(&self.profile.r_linear[src[src_cn.r_i()]._as_usize()]);
+                g0 = _xmm_broadcast_epi32(&self.profile.g_linear[src[src_cn.g_i()]._as_usize()]);
+                b0 = _xmm_broadcast_epi32(&self.profile.b_linear[src[src_cn.b_i()]._as_usize()]);
                 r1 = _xmm_broadcast_epi32(
-                    &self.profile.r_linear[src[src_cn.r_i() + src_channels].as_()],
+                    &self.profile.r_linear[src[src_cn.r_i() + src_channels]._as_usize()],
                 );
                 g1 = _xmm_broadcast_epi32(
-                    &self.profile.g_linear[src[src_cn.g_i() + src_channels].as_()],
+                    &self.profile.g_linear[src[src_cn.g_i() + src_channels]._as_usize()],
                 );
                 b1 = _xmm_broadcast_epi32(
-                    &self.profile.b_linear[src[src_cn.b_i() + src_channels].as_()],
+                    &self.profile.b_linear[src[src_cn.b_i() + src_channels]._as_usize()],
                 );
                 a0 = if src_channels == 4 {
                     src[src_cn.a_i()]
@@ -197,17 +198,17 @@ where
 
                 _mm256_store_si256(temporary0.0.as_mut_ptr() as *mut _, v);
 
-                r0 = _xmm_broadcast_epi32(&self.profile.r_linear[src[src_cn.r_i()].as_()]);
-                g0 = _xmm_broadcast_epi32(&self.profile.g_linear[src[src_cn.g_i()].as_()]);
-                b0 = _xmm_broadcast_epi32(&self.profile.b_linear[src[src_cn.b_i()].as_()]);
+                r0 = _xmm_broadcast_epi32(&self.profile.r_linear[src[src_cn.r_i()]._as_usize()]);
+                g0 = _xmm_broadcast_epi32(&self.profile.g_linear[src[src_cn.g_i()]._as_usize()]);
+                b0 = _xmm_broadcast_epi32(&self.profile.b_linear[src[src_cn.b_i()]._as_usize()]);
                 r1 = _xmm_broadcast_epi32(
-                    &self.profile.r_linear[src[src_cn.r_i() + src_channels].as_()],
+                    &self.profile.r_linear[src[src_cn.r_i() + src_channels]._as_usize()],
                 );
                 g1 = _xmm_broadcast_epi32(
-                    &self.profile.g_linear[src[src_cn.g_i() + src_channels].as_()],
+                    &self.profile.g_linear[src[src_cn.g_i() + src_channels]._as_usize()],
                 );
                 b1 = _xmm_broadcast_epi32(
-                    &self.profile.b_linear[src[src_cn.b_i() + src_channels].as_()],
+                    &self.profile.b_linear[src[src_cn.b_i() + src_channels]._as_usize()],
                 );
 
                 dst[dst_cn.r_i()] = self.profile.r_gamma[temporary0.0[0] as usize];
@@ -277,9 +278,9 @@ where
                 .chunks_exact(src_channels)
                 .zip(dst.chunks_exact_mut(dst_channels))
             {
-                let r = _xmm_broadcast_epi32(&self.profile.r_linear[src[src_cn.r_i()].as_()]);
-                let g = _xmm_broadcast_epi32(&self.profile.g_linear[src[src_cn.g_i()].as_()]);
-                let b = _xmm_broadcast_epi32(&self.profile.b_linear[src[src_cn.b_i()].as_()]);
+                let r = _xmm_broadcast_epi32(&self.profile.r_linear[src[src_cn.r_i()]._as_usize()]);
+                let g = _xmm_broadcast_epi32(&self.profile.g_linear[src[src_cn.g_i()]._as_usize()]);
+                let b = _xmm_broadcast_epi32(&self.profile.b_linear[src[src_cn.b_i()]._as_usize()]);
                 let a = if src_channels == 4 {
                     src[src_cn.a_i()]
                 } else {
@@ -315,7 +316,7 @@ where
 }
 
 impl<
-    T: Copy + AsPrimitive<usize> + 'static + Default,
+    T: Copy + PointeeSizeExpressible + 'static + Default,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
     const LINEAR_CAP: usize,

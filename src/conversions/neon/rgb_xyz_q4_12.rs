@@ -27,7 +27,7 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::conversions::rgbxyz_fixed::TransformProfileRgbFixedPoint;
-use crate::transform::PointeeExpressible;
+use crate::transform::PointeeSizeExpressible;
 use crate::{CmsError, Layout, TransformExecutor};
 use num_traits::AsPrimitive;
 use std::arch::aarch64::*;
@@ -45,7 +45,7 @@ pub(crate) struct TransformProfileRgbQ12Neon<
 }
 
 impl<
-    T: Copy + PointeeExpressible + 'static + Default,
+    T: Copy + PointeeSizeExpressible + 'static + Default,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
     const LINEAR_CAP: usize,

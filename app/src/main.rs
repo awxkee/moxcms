@@ -40,11 +40,6 @@ use zune_jpeg::zune_core::options::DecoderOptions;
 fn main() {
     println!("{}", pow(4f64, 1f64 / 2f64));
     let funny_icc = fs::read("./assets/us_swop_coated.icc").unwrap();
-    let funny_profile = ColorProfile::new_bt2020();
-
-    let encoded = funny_profile.encode().unwrap();
-
-    let decoded = ColorProfile::new_from_slice(&encoded).unwrap();
 
     // println!("{:?}", decoded);
 
@@ -54,6 +49,9 @@ fn main() {
     fs::write("./bt2020.icc", encoded).unwrap();
 
     let srgb_perceptual_icc = fs::read("./assets/srgb_perceptual.icc").unwrap();
+
+    let funny_profile = ColorProfile::new_srgb();
+
     let srgb_perceptual_profile = ColorProfile::new_from_slice(&srgb_perceptual_icc).unwrap();
 
     let f_str = "./assets/bench.jpg";
@@ -103,7 +101,7 @@ fn main() {
     // )
     //     .unwrap();
 
-    // let mut cmyk = vec![0u8; (decoder.output_buffer_size().unwrap() / 3) * 4];
+    let mut cmyk = vec![0u8; (decoder.output_buffer_size().unwrap() / 3) * 4];
 
     // t1.transform_pixels(&real_dst, &mut cmyk);
 
@@ -113,20 +111,20 @@ fn main() {
     // let color_profile = ColorProfile::new_gray_with_gamma(2.2);
     let mut dest_profile = ColorProfile::new_srgb();
 
-    // let transform = dest_profile
-    //     .create_transform_8bit(
-    //         Layout::Rgba,
-    //         &funny_profile,
-    //         Layout::Rgba,
-    //         TransformOptions {
-    //             rendering_intent: RenderingIntent::Perceptual,
-    //             allow_use_cicp_transfer: true,
-    //             prefer_fixed_point: false,
-    //         },
-    //     )
-    //     .unwrap();
-    //
-    // transform.transform(&real_dst, &mut cmyk).unwrap();
+    let transform = dest_profile
+        .create_transform_8bit(
+            Layout::Rgba,
+            &funny_profile,
+            Layout::Rgba,
+            TransformOptions {
+                rendering_intent: RenderingIntent::Perceptual,
+                allow_use_cicp_transfer: true,
+                prefer_fixed_point: true,
+            },
+        )
+        .unwrap();
+
+    transform.transform(&real_dst, &mut cmyk).unwrap();
 
     // // let instant = Instant::now();
     // let rgb_to_cmyk = dest_profile
@@ -147,7 +145,7 @@ fn main() {
     // let t = Transform::new(&srgb_profile, PixelFormat::RGB_8, &custom_profile, PixelFormat::RGB_8, Intent::Perceptual).unwrap();
 
     dest_profile.rendering_intent = RenderingIntent::Perceptual;
-    let transform = ColorProfile::new_srgb()
+    let transform = funny_profile
         .create_transform_f32(
             Layout::Rgba,
             &dest_profile,
@@ -171,10 +169,7 @@ fn main() {
     //     .collect::<Vec<u8>>();
     //
 
-    let cmyk = real_dst
-        .iter()
-        .map(|&c| c as f32 / 255f32)
-        .collect::<Vec<_>>();
+    let cmyk = cmyk.iter().map(|&c| c as f32 / 255f32).collect::<Vec<_>>();
 
     let instant = Instant::now();
     for (src, dst) in cmyk

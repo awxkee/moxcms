@@ -28,6 +28,7 @@
  */
 use crate::conversions::CompressForLut;
 use crate::conversions::tetrahedral::TetrhedralInterpolation;
+use crate::transform::PointeeSizeExpressible;
 use crate::{CmsError, Layout, TransformExecutor};
 use num_traits::AsPrimitive;
 use std::marker::PhantomData;
@@ -43,7 +44,7 @@ pub(crate) struct TransformLut3x4<
 }
 
 impl<
-    T: Copy + AsPrimitive<f32> + Default + CompressForLut,
+    T: Copy + AsPrimitive<f32> + Default + CompressForLut + PointeeSizeExpressible,
     const LAYOUT: u8,
     const GRID_SIZE: usize,
     const BIT_DEPTH: usize,
@@ -70,7 +71,11 @@ where
 
             let tetrahedral = Tetrahedral::new(&self.lut);
             let v = tetrahedral.inter4(x, y, z);
-            let r = v * value_scale + 0.5f32;
+            let r = if T::FINITE {
+                v * value_scale + 0.5f32
+            } else {
+                v
+            };
             dst[0] = r.v[0].min(value_scale).max(0f32).as_();
             dst[1] = r.v[1].min(value_scale).max(0f32).as_();
             dst[2] = r.v[2].min(value_scale).max(0f32).as_();
@@ -94,7 +99,7 @@ where
 }
 
 impl<
-    T: Copy + AsPrimitive<f32> + Default + CompressForLut,
+    T: Copy + AsPrimitive<f32> + Default + CompressForLut + PointeeSizeExpressible,
     const LAYOUT: u8,
     const GRID_SIZE: usize,
     const BIT_DEPTH: usize,

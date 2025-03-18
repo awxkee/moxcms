@@ -26,7 +26,7 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-use crate::transform::PointeeExpressible;
+use crate::transform::PointeeSizeExpressible;
 use crate::{TransferCharacteristics, exp, pow, powf};
 use num_traits::AsPrimitive;
 
@@ -418,7 +418,7 @@ impl TransferCharacteristics {
     }
 
     pub(crate) fn make_linear_table<
-        T: PointeeExpressible,
+        T: PointeeSizeExpressible,
         const N: usize,
         const BIT_DEPTH: usize,
     >(
@@ -444,7 +444,7 @@ impl TransferCharacteristics {
     }
 
     pub(crate) fn make_gamma_table<
-        T: Default + Copy + 'static + PointeeExpressible,
+        T: Default + Copy + 'static + PointeeSizeExpressible,
         const BUCKET: usize,
         const N: usize,
         const BIT_DEPTH: usize,

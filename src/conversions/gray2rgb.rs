@@ -26,7 +26,7 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-use crate::transform::PointeeExpressible;
+use crate::transform::PointeeSizeExpressible;
 use crate::{CmsError, Layout, TransformExecutor};
 use num_traits::AsPrimitive;
 
@@ -44,7 +44,7 @@ struct TransformProfileGrayToRgb<
 }
 
 pub(crate) fn make_gray_to_x<
-    T: Copy + Default + PointeeExpressible + 'static + Send + Sync,
+    T: Copy + Default + PointeeSizeExpressible + 'static + Send + Sync,
     const BUCKET: usize,
     const BIT_DEPTH: usize,
     const GAMMA_LUT: usize,
@@ -159,7 +159,7 @@ where
 }
 
 impl<
-    T: Copy + Default + PointeeExpressible + 'static,
+    T: Copy + Default + PointeeSizeExpressible + 'static,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
     const BUCKET: usize,

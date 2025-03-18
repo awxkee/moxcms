@@ -58,7 +58,7 @@ struct TransformProfilePcsXYZRgbQ4_12<
 
 #[allow(unused)]
 impl<
-    T: Clone + PointeeExpressible + Copy + Default + 'static,
+    T: Clone + PointeeSizeExpressible + Copy + Default + 'static,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
     const LINEAR_CAP: usize,
@@ -148,7 +148,7 @@ where
 macro_rules! create_rgb_xyz_dependant_q4_12_executor {
     ($dep_name: ident, $dependant: ident, $resolution: ident) => {
         pub(crate) fn $dep_name<
-            T: Clone + Send + Sync + AsPrimitive<usize> + Default + PointeeExpressible,
+            T: Clone + Send + Sync + AsPrimitive<usize> + Default + PointeeSizeExpressible,
             const LINEAR_CAP: usize,
             const GAMMA_LUT: usize,
             const BIT_DEPTH: usize,
@@ -161,7 +161,8 @@ macro_rules! create_rgb_xyz_dependant_q4_12_executor {
         where
             u32: AsPrimitive<T>,
         {
-            let q4_12_profile = profile.to_q4_n::<$resolution, PRECISION>();
+            let q4_12_profile =
+                profile.to_q4_n::<$resolution, PRECISION, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>();
             if (src_layout == Layout::Rgba) && (dst_layout == Layout::Rgba) {
                 return Ok(Box::new($dependant::<
                     T,
@@ -237,7 +238,7 @@ create_rgb_xyz_dependant_q4_12_executor!(
 
 #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "avx"))]
 use crate::conversions::avx::TransformProfilePcsXYZRgbQ12Avx;
-use crate::transform::PointeeExpressible;
+use crate::transform::PointeeSizeExpressible;
 
 #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "avx"))]
 create_rgb_xyz_dependant_q4_12_executor!(

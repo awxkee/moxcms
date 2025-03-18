@@ -27,7 +27,7 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::conversions::TransformProfileRgb;
-use crate::transform::PointeeExpressible;
+use crate::transform::PointeeSizeExpressible;
 use crate::{CmsError, Layout, Matrix3f, TransformExecutor};
 use num_traits::AsPrimitive;
 use std::arch::aarch64::*;
@@ -39,7 +39,7 @@ pub(crate) struct NeonAlignedU16([u16; 8]);
 pub(crate) struct NeonAlignedU32(pub(crate) [u32; 4]);
 
 pub(crate) struct TransformProfilePcsXYZRgbNeon<
-    T: Clone + PointeeExpressible + Copy + Default + 'static,
+    T: Clone + PointeeSizeExpressible + Copy + Default + 'static,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
     const LINEAR_CAP: usize,
@@ -50,7 +50,7 @@ pub(crate) struct TransformProfilePcsXYZRgbNeon<
 }
 
 impl<
-    T: Clone + PointeeExpressible + Copy + Default + 'static,
+    T: Clone + PointeeSizeExpressible + Copy + Default + 'static,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
     const LINEAR_CAP: usize,

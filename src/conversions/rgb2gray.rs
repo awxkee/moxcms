@@ -27,7 +27,7 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::mlaf::mlaf;
-use crate::transform::PointeeExpressible;
+use crate::transform::PointeeSizeExpressible;
 use crate::{CmsError, Layout, TransformExecutor, Vector3f};
 use num_traits::AsPrimitive;
 
@@ -53,7 +53,7 @@ struct TransformProfileRgbToGray<
 }
 
 pub(crate) fn make_rgb_to_gray<
-    T: Copy + Default + PointeeExpressible + Send + Sync + 'static,
+    T: Copy + Default + PointeeSizeExpressible + Send + Sync + 'static,
     const BUCKET: usize,
     const BIT_DEPTH: usize,
     const GAMMA_LUT: usize,
@@ -125,7 +125,7 @@ where
 }
 
 impl<
-    T: Copy + Default + PointeeExpressible + 'static,
+    T: Copy + Default + PointeeSizeExpressible + 'static,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
     const BUCKET: usize,

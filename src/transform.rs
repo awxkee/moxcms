@@ -184,14 +184,14 @@ impl Layout {
     }
 }
 
-pub trait PointeeExpressible {
+pub trait PointeeSizeExpressible {
     fn _as_usize(self) -> usize;
     const FINITE: bool;
     const NOT_FINITE_GAMMA_TABLE_SIZE: usize;
     const NOT_FINITE_LINEAR_TABLE_SIZE: usize;
 }
 
-impl PointeeExpressible for u8 {
+impl PointeeSizeExpressible for u8 {
     #[inline(always)]
     fn _as_usize(self) -> usize {
         self as usize
@@ -202,7 +202,7 @@ impl PointeeExpressible for u8 {
     const NOT_FINITE_LINEAR_TABLE_SIZE: usize = 1;
 }
 
-impl PointeeExpressible for u16 {
+impl PointeeSizeExpressible for u16 {
     #[inline(always)]
     fn _as_usize(self) -> usize {
         self as usize
@@ -214,20 +214,20 @@ impl PointeeExpressible for u16 {
     const NOT_FINITE_LINEAR_TABLE_SIZE: usize = 1;
 }
 
-impl PointeeExpressible for f32 {
+impl PointeeSizeExpressible for f32 {
     #[inline(always)]
     fn _as_usize(self) -> usize {
-        const MAX_12_BIT: f32 = ((1 << 12u32) - 1) as f32;
-        ((self * MAX_12_BIT).max(0f32).min(MAX_12_BIT) as u16) as usize
+        const MAX_14_BIT: f32 = ((1 << 14u32) - 1) as f32;
+        ((self * MAX_14_BIT).max(0f32).min(MAX_14_BIT) as u16) as usize
     }
 
     const FINITE: bool = false;
 
-    const NOT_FINITE_GAMMA_TABLE_SIZE: usize = 16384;
-    const NOT_FINITE_LINEAR_TABLE_SIZE: usize = 1 << 12u32;
+    const NOT_FINITE_GAMMA_TABLE_SIZE: usize = 32768;
+    const NOT_FINITE_LINEAR_TABLE_SIZE: usize = 1 << 14u32;
 }
 
-impl PointeeExpressible for f64 {
+impl PointeeSizeExpressible for f64 {
     #[inline(always)]
     fn _as_usize(self) -> usize {
         const MAX_16_BIT: f64 = ((1 << 16u32) - 1) as f64;
@@ -288,6 +288,8 @@ impl ColorProfile {
 
     /// Creates transform between source and destination profile
     /// Data has to be normalized into [0, 1] range.
+    /// ICC profiles and LUT tables do not exist in infinite precision.
+    /// Thus, this implementation considers `f32` as 14-bit values.
     pub fn create_transform_f32(
         &self,
         src_layout: Layout,
@@ -295,11 +297,13 @@ impl ColorProfile {
         dst_layout: Layout,
         options: TransformOptions,
     ) -> Result<Box<TransformF32BitExecutor>, CmsError> {
-        self.create_transform_nbit::<f32, 1, 65536, 16384>(src_layout, dst_pr, dst_layout, options)
+        self.create_transform_nbit::<f32, 1, 65536, 32768>(src_layout, dst_pr, dst_layout, options)
     }
 
     /// Creates transform between source and destination profile
     /// Data has to be normalized into [0, 1] range.
+    /// ICC profiles and LUT tables do not exist in infinite precision.
+    /// Thus, this implementation considers `f64` as 16-bit values.
     pub fn create_transform_f64(
         &self,
         src_layout: Layout,
@@ -314,7 +318,7 @@ impl ColorProfile {
         T: Copy
             + Default
             + AsPrimitive<usize>
-            + PointeeExpressible
+            + PointeeSizeExpressible
             + Send
             + Sync
             + AsPrimitive<f32>

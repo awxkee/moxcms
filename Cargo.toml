@@ -24,7 +24,7 @@ num-traits = "0.2"
 rand = "0.9"
 
 [features]
-# If no unsafe intrinsics active `forbid(unsafe)` will be used.
+# If no unsafe intrinsics active then `forbid(unsafe)` will be used.
 default = ["avx", "sse", "neon"]
 # Enables AVX2 acceleration where possible
 avx = []
