@@ -28,7 +28,6 @@
  */
 use crate::conversions::CompressForLut;
 use crate::conversions::avx::TetrahedralAvxFma;
-use crate::conversions::avx::transform_lut3_to_3::SseAlignedU32;
 use crate::conversions::tetrahedral::TetrhedralInterpolation;
 use crate::transform::PointeeSizeExpressible;
 use crate::{CmsError, Layout, TransformExecutor, rounding_div_ceil};
@@ -70,8 +69,6 @@ where
         let value_scale = unsafe { _mm_set1_ps(((1 << BIT_DEPTH) - 1) as f32) };
         let max_value = ((1 << BIT_DEPTH) - 1u32).as_();
 
-        let mut temporary0 = SseAlignedU32([0; 4]);
-
         for (src, dst) in src.chunks_exact(4).zip(dst.chunks_exact_mut(channels)) {
             let c = src[0].compress_lut::<BIT_DEPTH>();
             let m = src[1].compress_lut::<BIT_DEPTH>();
@@ -99,12 +96,16 @@ where
                     v = _mm_max_ps(v, _mm_setzero_ps());
                     v = _mm_mul_ps(v, value_scale);
                     v = _mm_min_ps(v, value_scale);
-                    _mm_store_si128(temporary0.0.as_mut_ptr() as *mut _, _mm_cvtps_epi32(v));
-                }
+                    let jvz = _mm_cvtps_epi32(v);
 
-                dst[cn.r_i()] = temporary0.0[0].as_();
-                dst[cn.g_i()] = temporary0.0[1].as_();
-                dst[cn.b_i()] = temporary0.0[2].as_();
+                    let x = _mm_extract_epi32::<0>(jvz);
+                    let y = _mm_extract_epi32::<1>(jvz);
+                    let z = _mm_extract_epi32::<2>(jvz);
+
+                    dst[cn.r_i()] = x.as_();
+                    dst[cn.g_i()] = y.as_();
+                    dst[cn.b_i()] = z.as_();
+                }
             } else {
                 unsafe {
                     let t0 = _mm_set1_ps(t);
