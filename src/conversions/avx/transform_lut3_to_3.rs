@@ -28,7 +28,8 @@
  */
 use crate::conversions::CompressForLut;
 use crate::conversions::avx::TetrahedralAvxFma;
-use crate::conversions::tetrahedral::TetrhedralInterpolation;
+use crate::conversions::avx::tetrahedral::SseAlignedF32;
+use crate::conversions::lut_transforms::Lut3x3Factory;
 use crate::transform::PointeeSizeExpressible;
 use crate::{CmsError, Layout, TransformExecutor};
 use num_traits::AsPrimitive;
@@ -38,18 +39,15 @@ use std::arch::x86::*;
 use std::arch::x86_64::*;
 use std::marker::PhantomData;
 
-#[repr(align(16), C)]
-pub(crate) struct SseAlignedU32(pub(crate) [u32; 4]);
-
-pub(crate) struct TransformLut3x3AvxFma<
+struct TransformLut3x3AvxFma<
     T,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
     const GRID_SIZE: usize,
     const BIT_DEPTH: usize,
 > {
-    pub(crate) lut: Vec<f32>,
-    pub(crate) _phantom: PhantomData<T>,
+    lut: Vec<SseAlignedF32>,
+    _phantom: PhantomData<T>,
 }
 
 impl<
@@ -75,8 +73,6 @@ where
         let value_scale = unsafe { _mm_set1_ps(((1 << BIT_DEPTH) - 1) as f32) };
         let max_value = ((1u32 << BIT_DEPTH) - 1).as_();
 
-        let mut temporary0 = SseAlignedU32([0; 4]);
-
         for (src, dst) in src
             .chunks_exact(src_channels)
             .zip(dst.chunks_exact_mut(dst_channels))
@@ -98,11 +94,16 @@ where
                     let mut r = _mm_mul_ps(v.v, value_scale);
                     r = _mm_max_ps(r, _mm_setzero_ps());
                     r = _mm_min_ps(r, value_scale);
-                    _mm_store_si128(temporary0.0.as_mut_ptr() as *mut _, _mm_cvtps_epi32(r));
+                    let jvz = _mm_cvtps_epi32(r);
+
+                    let x = _mm_extract_epi32::<0>(jvz);
+                    let y = _mm_extract_epi32::<1>(jvz);
+                    let z = _mm_extract_epi32::<2>(jvz);
+
+                    dst[dst_cn.r_i()] = (x as u32).as_();
+                    dst[dst_cn.g_i()] = (y as u32).as_();
+                    dst[dst_cn.b_i()] = (z as u32).as_();
                 }
-                dst[dst_cn.r_i()] = temporary0.0[0].as_();
-                dst[dst_cn.g_i()] = temporary0.0[1].as_();
-                dst[dst_cn.b_i()] = temporary0.0[2].as_();
             } else {
                 unsafe {
                     let mut r = _mm_max_ps(v.v, _mm_setzero_ps());
@@ -152,5 +153,32 @@ where
             self.transform_chunk(src, dst);
         }
         Ok(())
+    }
+}
+
+pub(crate) struct AvxLut3x3Factory {}
+
+impl Lut3x3Factory for AvxLut3x3Factory {
+    fn make_transform_3x3<
+        T: Copy + AsPrimitive<f32> + Default + CompressForLut + PointeeSizeExpressible + 'static,
+        const SRC_LAYOUT: u8,
+        const DST_LAYOUT: u8,
+        const GRID_SIZE: usize,
+        const BIT_DEPTH: usize,
+    >(
+        lut: Vec<f32>,
+    ) -> impl TransformExecutor<T>
+    where
+        f32: AsPrimitive<T>,
+        u32: AsPrimitive<T>,
+    {
+        let lut = lut
+            .chunks_exact(3)
+            .map(|x| SseAlignedF32([x[0], x[1], x[2], 0f32]))
+            .collect::<Vec<_>>();
+        TransformLut3x3AvxFma::<T, SRC_LAYOUT, DST_LAYOUT, GRID_SIZE, BIT_DEPTH> {
+            lut,
+            _phantom: PhantomData,
+        }
     }
 }

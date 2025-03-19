@@ -27,22 +27,22 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 #![allow(dead_code)]
-use crate::conversions::tetrahedral::TetrhedralInterpolation;
+use crate::conversions::neon::stages::NeonAlignedF32;
 use crate::math::FusedMultiplyAdd;
-use crate::{Vector3f, Vector4f, rounding_div_ceil};
+use crate::{Vector4f, rounding_div_ceil};
 use std::arch::aarch64::*;
 use std::ops::Sub;
 
 pub(crate) struct TetrahedralNeon<'a, const GRID_SIZE: usize> {
-    pub(crate) cube: &'a [f32],
+    pub(crate) cube: &'a [NeonAlignedF32],
 }
 
 trait Fetcher<T> {
     fn fetch(&self, x: i32, y: i32, z: i32) -> T;
 }
 
-struct TetrahedralNeonFetchVector3f<'a, const GRID_SIZE: usize> {
-    cube: &'a [f32],
+struct TetrahedralNeonFetchVector<'a, const GRID_SIZE: usize> {
+    cube: &'a [NeonAlignedF32],
 }
 
 #[derive(Copy, Clone)]
@@ -78,33 +78,14 @@ impl FusedMultiplyAdd<NeonVector> for NeonVector {
     }
 }
 
-impl<const GRID_SIZE: usize> Fetcher<NeonVector> for TetrahedralNeonFetchVector3f<'_, GRID_SIZE> {
+impl<const GRID_SIZE: usize> Fetcher<NeonVector> for TetrahedralNeonFetchVector<'_, GRID_SIZE> {
     fn fetch(&self, x: i32, y: i32, z: i32) -> NeonVector {
         let offset = (x as u32 * (GRID_SIZE as u32 * GRID_SIZE as u32)
             + y as u32 * GRID_SIZE as u32
-            + z as u32) as usize
-            * 3;
-        let jx = unsafe { self.cube.get_unchecked(offset..) };
-        let v0 = unsafe { vcombine_f32(vld1_f32(jx.as_ptr()), vdup_n_f32(0.0f32)) };
-        let v1 = unsafe { vld1q_lane_f32::<2>(jx.get_unchecked(2..).as_ptr(), v0) };
-        NeonVector { v: v1 }
-    }
-}
-
-struct TetrahedralNeonFetchVector4f<'a, const GRID_SIZE: usize> {
-    cube: &'a [f32],
-}
-
-impl<const GRID_SIZE: usize> Fetcher<NeonVector> for TetrahedralNeonFetchVector4f<'_, GRID_SIZE> {
-    #[inline(always)]
-    fn fetch(&self, x: i32, y: i32, z: i32) -> NeonVector {
-        let offset = (x as u32 * (GRID_SIZE as u32 * GRID_SIZE as u32)
-            + y as u32 * GRID_SIZE as u32
-            + z as u32) as usize
-            * 4;
+            + z as u32) as usize;
         let jx = unsafe { self.cube.get_unchecked(offset..) };
         NeonVector {
-            v: unsafe { vld1q_f32(jx.as_ptr()) },
+            v: unsafe { vld1q_f32(jx.as_ptr() as *const f32) },
         }
     }
 }
@@ -175,41 +156,33 @@ impl<const GRID_SIZE: usize> TetrahedralNeon<'_, GRID_SIZE> {
             in_r,
             in_g,
             in_b,
-            TetrahedralNeonFetchVector3f::<GRID_SIZE> { cube: self.cube },
+            TetrahedralNeonFetchVector::<GRID_SIZE> { cube: self.cube },
         )
     }
 }
 
-impl<'a, const GRID_SIZE: usize> TetrhedralInterpolation<'a, GRID_SIZE>
-    for TetrahedralNeon<'a, GRID_SIZE>
-{
-    fn new(table: &'a [f32]) -> Self {
+impl<'a, const GRID_SIZE: usize> TetrahedralNeon<'a, GRID_SIZE> {
+    pub(crate) fn new(table: &'a [NeonAlignedF32]) -> Self {
         Self { cube: table }
     }
 
     #[inline(always)]
-    fn inter3(&self, in_r: u8, in_g: u8, in_b: u8) -> Vector3f {
-        let v = self.interpolate(
+    pub(crate) fn inter3(&self, in_r: u8, in_g: u8, in_b: u8) -> NeonVector {
+        self.interpolate(
             in_r,
             in_g,
             in_b,
-            TetrahedralNeonFetchVector3f::<GRID_SIZE> { cube: self.cube },
-        );
-        let mut vector3 = Vector3f { v: [0f32; 3] };
-        unsafe {
-            vst1_f32(vector3.v.as_mut_ptr(), vget_low_f32(v.v));
-            vst1q_lane_f32::<2>(vector3.v.as_mut_ptr().add(2), v.v);
-        }
-        vector3
+            TetrahedralNeonFetchVector::<GRID_SIZE> { cube: self.cube },
+        )
     }
 
     #[inline(always)]
-    fn inter4(&self, in_r: u8, in_g: u8, in_b: u8) -> Vector4f {
+    pub(crate) fn inter4(&self, in_r: u8, in_g: u8, in_b: u8) -> Vector4f {
         let v = self.interpolate(
             in_r,
             in_g,
             in_b,
-            TetrahedralNeonFetchVector4f::<GRID_SIZE> { cube: self.cube },
+            TetrahedralNeonFetchVector::<GRID_SIZE> { cube: self.cube },
         );
         let mut vector4 = Vector4f { v: [0f32; 4] };
         unsafe {
