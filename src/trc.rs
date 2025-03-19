@@ -480,54 +480,71 @@ pub trait GammaLutInterpolate {
         f32: AsPrimitive<T>;
 }
 
-macro_rules! gamma_lut_interp_fixed {
-    ($i_type: ident) => {
-        impl GammaLutInterpolate for $i_type {
-            #[inline]
-            fn gamma_lut_interp<
-                T: Default + Copy + 'static + PointeeSizeExpressible,
-                const N: usize,
-                const BIT_DEPTH: usize,
-            >(
-                input_value: u32,
-                table: &[u16],
-            ) -> T
-            where
-                u32: AsPrimitive<T>,
-            {
-                lut_interp_linear_gamma_impl::<T, N, BIT_DEPTH>(input_value, table)
-            }
-        }
-    };
+impl GammaLutInterpolate for u8 {
+    fn gamma_lut_interp<
+        T: Default + Copy + 'static + PointeeSizeExpressible,
+        const N: usize,
+        const BIT_DEPTH: usize,
+    >(
+        input_value: u32,
+        table: &[u16],
+    ) -> T
+    where
+        u32: AsPrimitive<T>,
+    {
+        lut_interp_linear_gamma_impl::<T, N, BIT_DEPTH>(input_value, table)
+    }
 }
 
-gamma_lut_interp_fixed!(u8);
-gamma_lut_interp_fixed!(u16);
-
-macro_rules! gammu_lut_interp_float {
-    ($f_type: ident) => {
-        impl GammaLutInterpolate for $f_type {
-            #[inline]
-            fn gamma_lut_interp<
-                T: Default + Copy + 'static + PointeeSizeExpressible,
-                const N: usize,
-                const BIT_DEPTH: usize,
-            >(
-                input_value: u32,
-                table: &[u16],
-            ) -> T
-            where
-                f32: AsPrimitive<T>,
-                u32: AsPrimitive<T>,
-            {
-                lut_interp_linear_gamma_impl_f32::<T, N, BIT_DEPTH>(input_value, table)
-            }
-        }
-    };
+impl GammaLutInterpolate for u16 {
+    fn gamma_lut_interp<
+        T: Default + Copy + 'static + PointeeSizeExpressible,
+        const N: usize,
+        const BIT_DEPTH: usize,
+    >(
+        input_value: u32,
+        table: &[u16],
+    ) -> T
+    where
+        u32: AsPrimitive<T>,
+    {
+        lut_interp_linear_gamma_impl::<T, N, BIT_DEPTH>(input_value, table)
+    }
 }
 
-gammu_lut_interp_float!(f32);
-gammu_lut_interp_float!(f64);
+impl GammaLutInterpolate for f32 {
+    fn gamma_lut_interp<
+        T: Default + Copy + 'static + PointeeSizeExpressible,
+        const N: usize,
+        const BIT_DEPTH: usize,
+    >(
+        input_value: u32,
+        table: &[u16],
+    ) -> T
+    where
+        f32: AsPrimitive<T>,
+        u32: AsPrimitive<T>,
+    {
+        lut_interp_linear_gamma_impl_f32::<T, N, BIT_DEPTH>(input_value, table)
+    }
+}
+
+impl GammaLutInterpolate for f64 {
+    fn gamma_lut_interp<
+        T: Default + Copy + 'static + PointeeSizeExpressible,
+        const N: usize,
+        const BIT_DEPTH: usize,
+    >(
+        input_value: u32,
+        table: &[u16],
+    ) -> T
+    where
+        f32: AsPrimitive<T>,
+        u32: AsPrimitive<T>,
+    {
+        lut_interp_linear_gamma_impl_f32::<T, N, BIT_DEPTH>(input_value, table)
+    }
+}
 
 pub(crate) fn make_gamma_lut<
     T: Default + Copy + 'static + PointeeSizeExpressible + GammaLutInterpolate,

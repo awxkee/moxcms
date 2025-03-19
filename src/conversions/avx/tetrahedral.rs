@@ -92,7 +92,12 @@ impl<const GRID_SIZE: usize> Fetcher<AvxVectorSse>
             * 3;
         let jx = unsafe { self.cube.get_unchecked(offset..) };
         let v0 = unsafe { _mm_loadu_si64(jx.as_ptr() as *const _) };
-        let v1 = unsafe { _mm_insert_epi32::<2>(v0, *jx.get_unchecked(2) as i32) };
+        let v1 = unsafe {
+            _mm_insert_epi32::<2>(
+                v0,
+                (jx.get_unchecked(2..).as_ptr() as *const i32).read_unaligned(),
+            )
+        };
         AvxVectorSse {
             v: unsafe { _mm_castsi128_ps(v1) },
         }
