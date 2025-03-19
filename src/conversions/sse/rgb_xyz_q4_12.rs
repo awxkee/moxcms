@@ -28,6 +28,7 @@
  */
 use crate::conversions::rgbxyz_fixed::TransformProfileRgbFixedPoint;
 use crate::conversions::sse::stages::SseAlignedU16;
+use crate::transform::PointeeSizeExpressible;
 use crate::{CmsError, Layout, TransformExecutor};
 use num_traits::AsPrimitive;
 #[cfg(target_arch = "x86")]
@@ -54,7 +55,7 @@ unsafe fn _xmm_load_epi32(f: &i32) -> __m128i {
 }
 
 impl<
-    T: Copy + AsPrimitive<usize> + 'static,
+    T: Copy + PointeeSizeExpressible + 'static,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
     const LINEAR_CAP: usize,
@@ -103,9 +104,9 @@ where
                 .chunks_exact(src_channels)
                 .zip(dst.chunks_exact_mut(dst_channels))
             {
-                let rp = &self.profile.r_linear[src[src_cn.r_i()].as_()];
-                let gp = &self.profile.g_linear[src[src_cn.g_i()].as_()];
-                let bp = &self.profile.b_linear[src[src_cn.b_i()].as_()];
+                let rp = &self.profile.r_linear[src[src_cn.r_i()]._as_usize()];
+                let gp = &self.profile.g_linear[src[src_cn.g_i()]._as_usize()];
+                let bp = &self.profile.b_linear[src[src_cn.b_i()]._as_usize()];
 
                 let mut r = _xmm_load_epi32(rp);
                 let mut g = _xmm_load_epi32(gp);
@@ -148,7 +149,7 @@ where
 }
 
 impl<
-    T: Copy + AsPrimitive<usize> + 'static + Default,
+    T: Copy + PointeeSizeExpressible + 'static + Default,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
     const LINEAR_CAP: usize,

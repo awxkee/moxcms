@@ -655,6 +655,7 @@ impl PartialEq<Self> for Xyz {
 }
 
 impl Xyz {
+    #[inline]
     pub const fn new(x: f32, y: f32, z: f32) -> Self {
         Self { x, y, z }
     }
@@ -786,6 +787,11 @@ pub struct XyY {
 }
 
 impl XyY {
+    #[inline]
+    pub const fn new(x: f32, y: f32, yb: f32) -> Self {
+        Self { x, y, yb }
+    }
+
     #[inline]
     pub const fn to_xyz(self) -> Xyz {
         Xyz {

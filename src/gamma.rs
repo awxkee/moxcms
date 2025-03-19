@@ -26,6 +26,7 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+use crate::transform::PointeeSizeExpressible;
 use crate::{TransferCharacteristics, exp, pow, powf};
 use num_traits::AsPrimitive;
 
@@ -416,12 +417,24 @@ impl TransferCharacteristics {
         }
     }
 
-    pub(crate) fn make_linear_table<const N: usize, const BIT_DEPTH: usize>(
+    pub(crate) fn make_linear_table<
+        T: PointeeSizeExpressible,
+        const N: usize,
+        const BIT_DEPTH: usize,
+    >(
         &self,
     ) -> Box<[f32; N]> {
         let mut gamma_table = Box::new([0f32; N]);
-        let max_value = (1 << BIT_DEPTH) - 1;
-        let cap_values = (1u32 << BIT_DEPTH) as usize;
+        let max_value = if T::FINITE {
+            (1 << BIT_DEPTH) - 1
+        } else {
+            T::NOT_FINITE_LINEAR_TABLE_SIZE - 1
+        };
+        let cap_values = if T::FINITE {
+            (1u32 << BIT_DEPTH) as usize
+        } else {
+            T::NOT_FINITE_LINEAR_TABLE_SIZE
+        };
         assert!(cap_values <= N, "Invalid lut table construction");
         let scale_value = 1f64 / max_value as f64;
         for (i, g) in gamma_table.iter_mut().enumerate().take(cap_values) {
@@ -431,7 +444,7 @@ impl TransferCharacteristics {
     }
 
     pub(crate) fn make_gamma_table<
-        T: Default + Copy + 'static,
+        T: Default + Copy + 'static + PointeeSizeExpressible,
         const BUCKET: usize,
         const N: usize,
         const BIT_DEPTH: usize,
@@ -445,9 +458,13 @@ impl TransferCharacteristics {
         let max_range = 1f64 / (N - 1) as f64;
         let max_value = ((1 << BIT_DEPTH) - 1) as f64;
         for (v, output) in table.iter_mut().take(N).enumerate() {
-            *output = ((self.gamma(v as f64 * max_range) * max_value) as f32)
-                .round()
-                .as_();
+            if T::FINITE {
+                *output = ((self.gamma(v as f64 * max_range) * max_value) as f32)
+                    .round()
+                    .as_();
+            } else {
+                *output = (self.gamma(v as f64 * max_range) as f32).as_();
+            }
         }
         table
     }

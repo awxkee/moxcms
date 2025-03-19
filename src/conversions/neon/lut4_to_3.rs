@@ -30,6 +30,7 @@ use crate::conversions::CompressForLut;
 use crate::conversions::neon::TetrahedralNeon;
 use crate::conversions::neon::stages::NeonAlignedU32;
 use crate::conversions::tetrahedral::TetrhedralInterpolation;
+use crate::transform::PointeeSizeExpressible;
 use crate::{CmsError, Layout, TransformExecutor, rounding_div_ceil};
 use num_traits::AsPrimitive;
 use std::arch::aarch64::*;
@@ -50,7 +51,7 @@ pub(crate) struct TransformLut4XyzToRgbNeon<
 }
 
 impl<
-    T: Copy + AsPrimitive<f32> + Default + CompressForLut,
+    T: Copy + AsPrimitive<f32> + Default + CompressForLut + PointeeSizeExpressible,
     const LAYOUT: u8,
     const GRID_SIZE: usize,
     const BIT_DEPTH: usize,
@@ -89,19 +90,33 @@ where
             let a0 = tetrahedral1.inter3_neon(c, m, y).v;
             let b0 = tetrahedral2.inter3_neon(c, m, y).v;
 
-            unsafe {
-                let t0 = vdupq_n_f32(t);
-                let ones = vdupq_n_f32(1f32);
-                let hp = vmulq_f32(a0, vsubq_f32(ones, t0));
-                let mut v = vfmaq_f32(hp, b0, t0);
-                v = vmulq_f32(v, value_scale);
-                v = vminq_f32(v, value_scale);
-                vst1q_u32(temporary0.0.as_mut_ptr() as *mut _, vcvtaq_u32_f32(v));
-            }
+            if T::FINITE {
+                unsafe {
+                    let t0 = vdupq_n_f32(t);
+                    let ones = vdupq_n_f32(1f32);
+                    let hp = vmulq_f32(a0, vsubq_f32(ones, t0));
+                    let mut v = vfmaq_f32(hp, b0, t0);
+                    v = vmulq_f32(v, value_scale);
+                    v = vminq_f32(v, value_scale);
+                    vst1q_u32(temporary0.0.as_mut_ptr() as *mut _, vcvtaq_u32_f32(v));
+                }
 
-            dst[cn.r_i()] = temporary0.0[0].as_();
-            dst[cn.g_i()] = temporary0.0[1].as_();
-            dst[cn.b_i()] = temporary0.0[2].as_();
+                dst[cn.r_i()] = temporary0.0[0].as_();
+                dst[cn.g_i()] = temporary0.0[1].as_();
+                dst[cn.b_i()] = temporary0.0[2].as_();
+            } else {
+                unsafe {
+                    let t0 = vdupq_n_f32(t);
+                    let ones = vdupq_n_f32(1f32);
+                    let hp = vmulq_f32(a0, vsubq_f32(ones, t0));
+                    let mut v = vfmaq_f32(hp, b0, t0);
+                    v = vminq_f32(v, value_scale);
+
+                    dst[cn.r_i()] = vgetq_lane_f32::<0>(v).as_();
+                    dst[cn.g_i()] = vgetq_lane_f32::<1>(v).as_();
+                    dst[cn.b_i()] = vgetq_lane_f32::<2>(v).as_();
+                }
+            }
             if channels == 4 {
                 dst[cn.a_i()] = max_value;
             }
@@ -110,7 +125,7 @@ where
 }
 
 impl<
-    T: Copy + AsPrimitive<f32> + Default + CompressForLut,
+    T: Copy + AsPrimitive<f32> + Default + CompressForLut + PointeeSizeExpressible,
     const LAYOUT: u8,
     const GRID_SIZE: usize,
     const BIT_DEPTH: usize,

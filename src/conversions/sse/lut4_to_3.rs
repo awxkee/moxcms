@@ -30,6 +30,7 @@ use crate::conversions::CompressForLut;
 use crate::conversions::sse::TetrahedralSse;
 use crate::conversions::sse::transform_lut3_to_3::SseAlignedU32;
 use crate::conversions::tetrahedral::TetrhedralInterpolation;
+use crate::transform::PointeeSizeExpressible;
 use crate::{CmsError, Layout, TransformExecutor, rounding_div_ceil};
 use num_traits::AsPrimitive;
 #[cfg(target_arch = "x86")]
@@ -49,7 +50,7 @@ pub(crate) struct TransformLut4XyzToRgbSse<
 }
 
 impl<
-    T: Copy + AsPrimitive<f32> + Default + CompressForLut,
+    T: Copy + AsPrimitive<f32> + Default + CompressForLut + PointeeSizeExpressible,
     const LAYOUT: u8,
     const GRID_SIZE: usize,
     const BIT_DEPTH: usize,
@@ -89,20 +90,35 @@ where
             let a0 = tetrahedral1.inter3_sse(c, m, y).v;
             let b0 = tetrahedral2.inter3_sse(c, m, y).v;
 
-            unsafe {
-                let t0 = _mm_set1_ps(t);
-                let ones = _mm_set1_ps(1f32);
-                let hp = _mm_mul_ps(a0, _mm_sub_ps(ones, t0));
-                let mut v = _mm_add_ps(_mm_mul_ps(b0, t0), hp);
-                v = _mm_max_ps(v, _mm_setzero_ps());
-                v = _mm_mul_ps(v, value_scale);
-                v = _mm_min_ps(v, value_scale);
-                _mm_store_si128(temporary0.0.as_mut_ptr() as *mut _, _mm_cvtps_epi32(v));
-            }
+            if T::FINITE {
+                unsafe {
+                    let t0 = _mm_set1_ps(t);
+                    let ones = _mm_set1_ps(1f32);
+                    let hp = _mm_mul_ps(a0, _mm_sub_ps(ones, t0));
+                    let mut v = _mm_add_ps(_mm_mul_ps(b0, t0), hp);
+                    v = _mm_max_ps(v, _mm_setzero_ps());
+                    v = _mm_mul_ps(v, value_scale);
+                    v = _mm_min_ps(v, value_scale);
+                    _mm_store_si128(temporary0.0.as_mut_ptr() as *mut _, _mm_cvtps_epi32(v));
+                }
 
-            dst[cn.r_i()] = temporary0.0[0].as_();
-            dst[cn.g_i()] = temporary0.0[1].as_();
-            dst[cn.b_i()] = temporary0.0[2].as_();
+                dst[cn.r_i()] = temporary0.0[0].as_();
+                dst[cn.g_i()] = temporary0.0[1].as_();
+                dst[cn.b_i()] = temporary0.0[2].as_();
+            } else {
+                unsafe {
+                    let t0 = _mm_set1_ps(t);
+                    let ones = _mm_set1_ps(1f32);
+                    let hp = _mm_mul_ps(a0, _mm_sub_ps(ones, t0));
+                    let mut v = _mm_add_ps(_mm_mul_ps(b0, t0), hp);
+                    v = _mm_max_ps(v, _mm_setzero_ps());
+                    v = _mm_min_ps(v, value_scale);
+
+                    dst[cn.r_i()] = f32::from_bits(_mm_extract_ps::<0>(v) as u32).as_();
+                    dst[cn.g_i()] = f32::from_bits(_mm_extract_ps::<1>(v) as u32).as_();
+                    dst[cn.b_i()] = f32::from_bits(_mm_extract_ps::<2>(v) as u32).as_();
+                }
+            }
             if channels == 4 {
                 dst[cn.a_i()] = max_value;
             }
@@ -111,7 +127,7 @@ where
 }
 
 impl<
-    T: Copy + AsPrimitive<f32> + Default + CompressForLut,
+    T: Copy + AsPrimitive<f32> + Default + CompressForLut + PointeeSizeExpressible,
     const LAYOUT: u8,
     const GRID_SIZE: usize,
     const BIT_DEPTH: usize,

@@ -198,7 +198,7 @@ impl<'a, const GRID_SIZE: usize> TetrhedralInterpolation<'a, GRID_SIZE>
         let mut vector3 = Vector3f { v: [0f32; 3] };
         unsafe {
             vst1_f32(vector3.v.as_mut_ptr(), vget_low_f32(v.v));
-            vst1q_lane_f32::<2>((vector3.v.as_mut_ptr()).add(2), v.v);
+            vst1q_lane_f32::<2>(vector3.v.as_mut_ptr().add(2), v.v);
         }
         vector3
     }

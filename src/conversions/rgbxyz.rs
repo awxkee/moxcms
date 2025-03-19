@@ -45,7 +45,7 @@ impl RgbXyzFactory<u16> for u16 {
         profile: TransformProfileRgb<u16, LINEAR_CAP>,
         transform_options: TransformOptions,
     ) -> Result<Box<dyn TransformExecutor<u16> + Send + Sync>, CmsError> {
-        if BIT_DEPTH == 10 && transform_options.prefer_fixed_point {
+        if (BIT_DEPTH == 10 || BIT_DEPTH == 14) && transform_options.prefer_fixed_point {
             #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "avx"))]
             {
                 use crate::conversions::rgbxyz_fixed::make_rgb_xyz_q4_12_transform_avx2;
@@ -55,7 +55,7 @@ impl RgbXyzFactory<u16> for u16 {
                         LINEAR_CAP,
                         GAMMA_LUT,
                         BIT_DEPTH,
-                        13,
+                        12,
                     >(src_layout, dst_layout, profile);
                 }
             }
@@ -68,51 +68,78 @@ impl RgbXyzFactory<u16> for u16 {
                         LINEAR_CAP,
                         GAMMA_LUT,
                         BIT_DEPTH,
-                        13,
+                        12,
                     >(src_layout, dst_layout, profile);
                 }
             }
             #[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
             {
-                return make_rgb_xyz_q4_12::<u16, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH, 13>(
-                    src_layout, dst_layout, profile,
-                );
-            }
-        } else if BIT_DEPTH == 14 && transform_options.prefer_fixed_point {
-            #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "avx"))]
-            {
-                use crate::conversions::rgbxyz_fixed::make_rgb_xyz_q4_12_transform_avx2;
-                if std::arch::is_x86_feature_detected!("avx2") {
-                    return make_rgb_xyz_q4_12_transform_avx2::<
-                        u16,
-                        LINEAR_CAP,
-                        GAMMA_LUT,
-                        BIT_DEPTH,
-                        14,
-                    >(src_layout, dst_layout, profile);
-                }
-            }
-            #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"))]
-            {
-                use crate::conversions::rgbxyz_fixed::make_rgb_xyz_q4_12_transform_sse_41;
-                if std::arch::is_x86_feature_detected!("sse4.1") {
-                    return make_rgb_xyz_q4_12_transform_sse_41::<
-                        u16,
-                        LINEAR_CAP,
-                        GAMMA_LUT,
-                        BIT_DEPTH,
-                        14,
-                    >(src_layout, dst_layout, profile);
-                }
-            }
-            #[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
-            {
-                return make_rgb_xyz_q4_12::<u16, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH, 14>(
+                return make_rgb_xyz_q4_12::<u16, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH, 12>(
                     src_layout, dst_layout, profile,
                 );
             }
         }
         make_rgb_xyz_rgb_transform::<u16, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>(
+            src_layout, dst_layout, profile,
+        )
+    }
+}
+
+impl RgbXyzFactory<f32> for f32 {
+    fn make_transform<const LINEAR_CAP: usize, const GAMMA_LUT: usize, const BIT_DEPTH: usize>(
+        src_layout: Layout,
+        dst_layout: Layout,
+        profile: TransformProfileRgb<f32, LINEAR_CAP>,
+        transform_options: TransformOptions,
+    ) -> Result<Box<dyn TransformExecutor<f32> + Send + Sync>, CmsError> {
+        if transform_options.prefer_fixed_point {
+            #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "avx"))]
+            {
+                use crate::conversions::rgbxyz_fixed::make_rgb_xyz_q4_12_transform_avx2;
+                if std::arch::is_x86_feature_detected!("avx2") {
+                    return make_rgb_xyz_q4_12_transform_avx2::<
+                        f32,
+                        LINEAR_CAP,
+                        GAMMA_LUT,
+                        BIT_DEPTH,
+                        12,
+                    >(src_layout, dst_layout, profile);
+                }
+            }
+            #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"))]
+            {
+                use crate::conversions::rgbxyz_fixed::make_rgb_xyz_q4_12_transform_sse_41;
+                if std::arch::is_x86_feature_detected!("sse4.1") {
+                    return make_rgb_xyz_q4_12_transform_sse_41::<
+                        f32,
+                        LINEAR_CAP,
+                        GAMMA_LUT,
+                        BIT_DEPTH,
+                        12,
+                    >(src_layout, dst_layout, profile);
+                }
+            }
+            #[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
+            {
+                return make_rgb_xyz_q4_12::<f32, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH, 12>(
+                    src_layout, dst_layout, profile,
+                );
+            }
+        }
+        make_rgb_xyz_rgb_transform::<f32, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>(
+            src_layout, dst_layout, profile,
+        )
+    }
+}
+
+impl RgbXyzFactory<f64> for f64 {
+    fn make_transform<const LINEAR_CAP: usize, const GAMMA_LUT: usize, const BIT_DEPTH: usize>(
+        src_layout: Layout,
+        dst_layout: Layout,
+        profile: TransformProfileRgb<f64, LINEAR_CAP>,
+        _: TransformOptions,
+    ) -> Result<Box<dyn TransformExecutor<f64> + Send + Sync>, CmsError> {
+        make_rgb_xyz_rgb_transform::<f64, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>(
             src_layout, dst_layout, profile,
         )
     }
@@ -163,26 +190,39 @@ pub(crate) struct TransformProfileRgb<T: Clone, const BUCKET: usize> {
     pub(crate) adaptation_matrix: Option<Matrix3f>,
 }
 
-impl<T: Clone, const BUCKET: usize> TransformProfileRgb<T, BUCKET> {
-    pub(crate) fn to_q4_n<R: Copy + 'static + Default, const PRECISION: i32>(
+impl<T: Clone + PointeeSizeExpressible, const BUCKET: usize> TransformProfileRgb<T, BUCKET> {
+    pub(crate) fn to_q4_n<
+        R: Copy + 'static + Default,
+        const PRECISION: i32,
+        const LINEAR_CAP: usize,
+        const GAMMA_LUT: usize,
+        const BIT_DEPTH: usize,
+    >(
         &self,
     ) -> TransformProfileRgbFixedPoint<R, T, BUCKET>
     where
         f32: AsPrimitive<R>,
     {
-        let scale: f32 = ((1 << PRECISION as i16) - 1) as f32;
+        let linear_scale = if T::FINITE {
+            let lut_scale = (GAMMA_LUT - 1) as f32 / ((1 << BIT_DEPTH) - 1) as f32;
+            ((1 << BIT_DEPTH) - 1) as f32 * lut_scale
+        } else {
+            let lut_scale = (GAMMA_LUT - 1) as f32 / (T::NOT_FINITE_LINEAR_TABLE_SIZE - 1) as f32;
+            (T::NOT_FINITE_LINEAR_TABLE_SIZE - 1) as f32 * lut_scale
+        };
         let mut new_box_r = Box::new([R::default(); BUCKET]);
         let mut new_box_g = Box::new([R::default(); BUCKET]);
         let mut new_box_b = Box::new([R::default(); BUCKET]);
         for (dst, src) in new_box_r.iter_mut().zip(self.r_linear.iter()) {
-            *dst = (*src * scale).round().as_();
+            *dst = (*src * linear_scale).round().as_();
         }
         for (dst, src) in new_box_g.iter_mut().zip(self.g_linear.iter()) {
-            *dst = (*src * scale).round().as_();
+            *dst = (*src * linear_scale).round().as_();
         }
         for (dst, src) in new_box_b.iter_mut().zip(self.b_linear.iter()) {
-            *dst = (*src * scale).round().as_();
+            *dst = (*src * linear_scale).round().as_();
         }
+        let scale: f32 = ((1 << PRECISION as i16) - 1) as f32;
         let source_matrix = self.adaptation_matrix.unwrap_or(Matrix3f::IDENTITY);
         let mut dst_matrix = Matrix3::<i16> { v: [[0i16; 3]; 3] };
         for i in 0..3 {
@@ -202,7 +242,7 @@ impl<T: Clone, const BUCKET: usize> TransformProfileRgb<T, BUCKET> {
     }
 }
 
-#[cfg(not(all(target_arch = "aarch64", target_feature = "neon", feature = "neon")))]
+#[allow(unused)]
 struct TransformProfilePcsXYZRgb<
     T: Clone,
     const SRC_LAYOUT: u8,
@@ -222,7 +262,7 @@ struct TransformProfilePcsXYZRgb<
 macro_rules! create_rgb_xyz_dependant_executor {
     ($dep_name: ident, $dependant: ident) => {
         pub(crate) fn $dep_name<
-            T: Clone + Send + Sync + AsPrimitive<usize> + Default,
+            T: Clone + Send + Sync + Default + PointeeSizeExpressible + Copy + 'static,
             const LINEAR_CAP: usize,
             const GAMMA_LUT: usize,
             const BIT_DEPTH: usize,
@@ -304,7 +344,7 @@ create_rgb_xyz_dependant_executor!(
 
 #[cfg(not(all(target_arch = "aarch64", target_feature = "neon", feature = "neon")))]
 pub(crate) fn make_rgb_xyz_rgb_transform<
-    T: Clone + Send + Sync + AsPrimitive<usize> + Default,
+    T: Clone + Send + Sync + PointeeSizeExpressible + 'static + Copy + Default,
     const LINEAR_CAP: usize,
     const GAMMA_LUT: usize,
     const BIT_DEPTH: usize,
@@ -383,13 +423,14 @@ where
 use crate::conversions::neon::TransformProfilePcsXYZRgbNeon;
 use crate::conversions::rgbxyz_fixed::{TransformProfileRgbFixedPoint, make_rgb_xyz_q4_12};
 use crate::matrix::Matrix3;
+use crate::transform::PointeeSizeExpressible;
 
 #[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
 create_rgb_xyz_dependant_executor!(make_rgb_xyz_rgb_transform, TransformProfilePcsXYZRgbNeon);
 
-#[cfg(not(all(target_arch = "aarch64", target_feature = "neon", feature = "neon")))]
+#[allow(unused)]
 impl<
-    T: Clone + AsPrimitive<usize> + Default,
+    T: Clone + PointeeSizeExpressible + Copy + Default + 'static,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
     const LINEAR_CAP: usize,
@@ -425,9 +466,9 @@ where
             .chunks_exact(src_channels)
             .zip(dst.chunks_exact_mut(dst_channels))
         {
-            let r = self.profile.r_linear[src[src_cn.r_i()].as_()];
-            let g = self.profile.g_linear[src[src_cn.g_i()].as_()];
-            let b = self.profile.b_linear[src[src_cn.b_i()].as_()];
+            let r = self.profile.r_linear[src[src_cn.r_i()]._as_usize()];
+            let g = self.profile.g_linear[src[src_cn.g_i()]._as_usize()];
+            let b = self.profile.b_linear[src[src_cn.b_i()]._as_usize()];
             let a = if src_channels == 4 {
                 src[src_cn.a_i()]
             } else {

@@ -30,9 +30,10 @@ use crate::conversions::CompressForLut;
 use crate::conversions::neon::TetrahedralNeon;
 use crate::conversions::neon::stages::NeonAlignedU32;
 use crate::conversions::tetrahedral::TetrhedralInterpolation;
+use crate::transform::PointeeSizeExpressible;
 use crate::{CmsError, Layout, TransformExecutor};
 use num_traits::AsPrimitive;
-use std::arch::aarch64::{vcvtq_u32_f32, vdupq_n_f32, vfmaq_f32, vminq_f32, vst1q_u32};
+use std::arch::aarch64::*;
 use std::marker::PhantomData;
 
 pub(crate) struct TransformLut3x3Neon<
@@ -47,7 +48,7 @@ pub(crate) struct TransformLut3x3Neon<
 }
 
 impl<
-    T: Copy + AsPrimitive<f32> + Default + CompressForLut,
+    T: Copy + AsPrimitive<f32> + Default + CompressForLut + PointeeSizeExpressible,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
     const GRID_SIZE: usize,
@@ -86,14 +87,23 @@ where
 
             let tetrahedral = TetrahedralNeon::<GRID_SIZE>::new(&self.lut);
             let v = tetrahedral.inter3_neon(x, y, z);
-            unsafe {
-                let mut r = vfmaq_f32(vdupq_n_f32(0.5f32), v.v, value_scale);
-                r = vminq_f32(r, value_scale);
-                vst1q_u32(temporary0.0.as_mut_ptr() as *mut _, vcvtq_u32_f32(r));
+            if T::FINITE {
+                unsafe {
+                    let mut r = vfmaq_f32(vdupq_n_f32(0.5f32), v.v, value_scale);
+                    r = vminq_f32(r, value_scale);
+                    vst1q_u32(temporary0.0.as_mut_ptr() as *mut _, vcvtq_u32_f32(r));
+                }
+                dst[dst_cn.r_i()] = temporary0.0[0].as_();
+                dst[dst_cn.g_i()] = temporary0.0[1].as_();
+                dst[dst_cn.b_i()] = temporary0.0[2].as_();
+            } else {
+                unsafe {
+                    let r = vminq_f32(v.v, value_scale);
+                    dst[dst_cn.r_i()] = vgetq_lane_f32::<0>(r).as_();
+                    dst[dst_cn.g_i()] = vgetq_lane_f32::<1>(r).as_();
+                    dst[dst_cn.b_i()] = vgetq_lane_f32::<2>(r).as_();
+                }
             }
-            dst[dst_cn.r_i()] = temporary0.0[0].as_();
-            dst[dst_cn.g_i()] = temporary0.0[1].as_();
-            dst[dst_cn.b_i()] = temporary0.0[2].as_();
             if dst_channels == 4 {
                 dst[dst_cn.a_i()] = a;
             }
@@ -102,7 +112,7 @@ where
 }
 
 impl<
-    T: Copy + AsPrimitive<f32> + Default + CompressForLut,
+    T: Copy + AsPrimitive<f32> + Default + CompressForLut + PointeeSizeExpressible,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
     const GRID_SIZE: usize,

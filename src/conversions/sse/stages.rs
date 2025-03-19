@@ -27,6 +27,7 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::conversions::TransformProfileRgb;
+use crate::transform::PointeeSizeExpressible;
 use crate::{CmsError, Layout, Matrix3f, TransformExecutor};
 use num_traits::AsPrimitive;
 #[cfg(target_arch = "x86")]
@@ -38,7 +39,7 @@ use std::arch::x86_64::*;
 pub(crate) struct SseAlignedU16(pub(crate) [u16; 8]);
 
 pub(crate) struct TransformProfilePcsXYZRgbSse<
-    T: Clone + AsPrimitive<usize> + Default,
+    T: Clone + Copy + 'static + PointeeSizeExpressible + Default,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
     const LINEAR_CAP: usize,
@@ -49,7 +50,7 @@ pub(crate) struct TransformProfilePcsXYZRgbSse<
 }
 
 impl<
-    T: Clone + AsPrimitive<usize> + Default,
+    T: Clone + Copy + 'static + PointeeSizeExpressible + Default,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
     const LINEAR_CAP: usize,
@@ -100,9 +101,9 @@ where
                 .chunks_exact(src_channels)
                 .zip(dst.chunks_exact_mut(dst_channels))
             {
-                let rp = &self.profile.r_linear[src[src_cn.r_i()].as_()];
-                let gp = &self.profile.g_linear[src[src_cn.g_i()].as_()];
-                let bp = &self.profile.b_linear[src[src_cn.b_i()].as_()];
+                let rp = &self.profile.r_linear[src[src_cn.r_i()]._as_usize()];
+                let gp = &self.profile.g_linear[src[src_cn.g_i()]._as_usize()];
+                let bp = &self.profile.b_linear[src[src_cn.b_i()]._as_usize()];
 
                 let mut r = _mm_load_ss(rp);
                 let mut g = _mm_load_ss(gp);
@@ -143,7 +144,7 @@ where
 }
 
 impl<
-    T: Clone + AsPrimitive<usize> + Default,
+    T: Clone + Copy + 'static + PointeeSizeExpressible + Default,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
     const LINEAR_CAP: usize,

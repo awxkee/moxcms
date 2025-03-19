@@ -27,6 +27,7 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::conversions::TransformProfileRgb;
+use crate::transform::PointeeSizeExpressible;
 use crate::{CmsError, Layout, Matrix3f, TransformExecutor};
 use num_traits::AsPrimitive;
 #[cfg(target_arch = "x86")]
@@ -38,7 +39,7 @@ use std::arch::x86_64::*;
 pub(crate) struct AvxAlignedU16(pub(crate) [u16; 16]);
 
 pub(crate) struct TransformProfilePcsXYZRgbAvx<
-    T: Clone + AsPrimitive<usize> + Default,
+    T: Clone + Copy + 'static + PointeeSizeExpressible + Default,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
     const LINEAR_CAP: usize,
@@ -49,7 +50,7 @@ pub(crate) struct TransformProfilePcsXYZRgbAvx<
 }
 
 impl<
-    T: Clone + AsPrimitive<usize> + Default,
+    T: Clone + Copy + 'static + PointeeSizeExpressible + Default,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
     const LINEAR_CAP: usize,
@@ -116,17 +117,17 @@ where
             let (mut r1, mut g1, mut b1, mut a1);
 
             if let Some(src) = src_iter.next() {
-                r0 = _mm_broadcast_ss(&self.profile.r_linear[src[src_cn.r_i()].as_()]);
-                g0 = _mm_broadcast_ss(&self.profile.g_linear[src[src_cn.g_i()].as_()]);
-                b0 = _mm_broadcast_ss(&self.profile.b_linear[src[src_cn.b_i()].as_()]);
+                r0 = _mm_broadcast_ss(&self.profile.r_linear[src[src_cn.r_i()]._as_usize()]);
+                g0 = _mm_broadcast_ss(&self.profile.g_linear[src[src_cn.g_i()]._as_usize()]);
+                b0 = _mm_broadcast_ss(&self.profile.b_linear[src[src_cn.b_i()]._as_usize()]);
                 r1 = _mm_broadcast_ss(
-                    &self.profile.r_linear[src[src_cn.r_i() + src_channels].as_()],
+                    &self.profile.r_linear[src[src_cn.r_i() + src_channels]._as_usize()],
                 );
                 g1 = _mm_broadcast_ss(
-                    &self.profile.g_linear[src[src_cn.g_i() + src_channels].as_()],
+                    &self.profile.g_linear[src[src_cn.g_i() + src_channels]._as_usize()],
                 );
                 b1 = _mm_broadcast_ss(
-                    &self.profile.b_linear[src[src_cn.b_i() + src_channels].as_()],
+                    &self.profile.b_linear[src[src_cn.b_i() + src_channels]._as_usize()],
                 );
                 a0 = if src_channels == 4 {
                     src[src_cn.a_i()]
@@ -173,17 +174,17 @@ where
                 let zx = _mm256_cvtps_epi32(v);
                 _mm256_store_si256(temporary0.0.as_mut_ptr() as *mut _, zx);
 
-                r0 = _mm_broadcast_ss(&self.profile.r_linear[src[src_cn.r_i()].as_()]);
-                g0 = _mm_broadcast_ss(&self.profile.g_linear[src[src_cn.g_i()].as_()]);
-                b0 = _mm_broadcast_ss(&self.profile.b_linear[src[src_cn.b_i()].as_()]);
+                r0 = _mm_broadcast_ss(&self.profile.r_linear[src[src_cn.r_i()]._as_usize()]);
+                g0 = _mm_broadcast_ss(&self.profile.g_linear[src[src_cn.g_i()]._as_usize()]);
+                b0 = _mm_broadcast_ss(&self.profile.b_linear[src[src_cn.b_i()]._as_usize()]);
                 r1 = _mm_broadcast_ss(
-                    &self.profile.r_linear[src[src_cn.r_i() + src_channels].as_()],
+                    &self.profile.r_linear[src[src_cn.r_i() + src_channels]._as_usize()],
                 );
                 g1 = _mm_broadcast_ss(
-                    &self.profile.g_linear[src[src_cn.g_i() + src_channels].as_()],
+                    &self.profile.g_linear[src[src_cn.g_i() + src_channels]._as_usize()],
                 );
                 b1 = _mm_broadcast_ss(
-                    &self.profile.b_linear[src[src_cn.b_i() + src_channels].as_()],
+                    &self.profile.b_linear[src[src_cn.b_i() + src_channels]._as_usize()],
                 );
 
                 dst[dst_cn.r_i()] = self.profile.r_gamma[temporary0.0[0] as usize];
@@ -258,9 +259,9 @@ where
                 .chunks_exact(src_channels)
                 .zip(dst.chunks_exact_mut(dst_channels))
             {
-                let r = _mm_broadcast_ss(&self.profile.r_linear[src[src_cn.r_i()].as_()]);
-                let g = _mm_broadcast_ss(&self.profile.g_linear[src[src_cn.g_i()].as_()]);
-                let b = _mm_broadcast_ss(&self.profile.b_linear[src[src_cn.b_i()].as_()]);
+                let r = _mm_broadcast_ss(&self.profile.r_linear[src[src_cn.r_i()]._as_usize()]);
+                let g = _mm_broadcast_ss(&self.profile.g_linear[src[src_cn.g_i()]._as_usize()]);
+                let b = _mm_broadcast_ss(&self.profile.b_linear[src[src_cn.b_i()]._as_usize()]);
                 let a = if src_channels == 4 {
                     src[src_cn.a_i()]
                 } else {
@@ -310,7 +311,7 @@ where
 }
 
 impl<
-    T: Clone + AsPrimitive<usize> + Default,
+    T: Clone + Copy + 'static + PointeeSizeExpressible + Default,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
     const LINEAR_CAP: usize,

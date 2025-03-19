@@ -2,7 +2,7 @@ workspace = { members = ["app", "fuzz"] }
 
 [package]
 name = "moxcms"
-version = "0.4.1"
+version = "0.5.0"
 edition = "2024"
 description = "Simple Color Management in Rust"
 readme = "./README.md"
@@ -24,7 +24,7 @@ num-traits = "0.2"
 rand = "0.9"
 
 [features]
-# If no unsafe intrinsics active `forbid(unsafe)` will be used.
+# If no unsafe intrinsics active then `forbid(unsafe)` will be used.
 default = ["avx", "sse", "neon"]
 # Enables AVX2 acceleration where possible
 avx = []

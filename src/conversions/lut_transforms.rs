@@ -62,6 +62,22 @@ impl Vector3fCmykLerp for DefaultVector3fLerp {
     }
 }
 
+#[allow(unused)]
+#[derive(Copy, Clone, Default)]
+struct NonFiniteVector3fLerp;
+
+impl Vector3fCmykLerp for NonFiniteVector3fLerp {
+    #[inline(always)]
+    fn interpolate(a: Vector3f, b: Vector3f, t: f32, _: f32) -> Vector3f {
+        let t = Vector3f::from(t);
+        let mut new_vec = (a * (Vector3f::from(1.0) - t)).mla(b, t);
+        new_vec.v[0] = new_vec.v[0].min(1f32).max(0f32);
+        new_vec.v[1] = new_vec.v[1].min(1f32).max(0f32);
+        new_vec.v[2] = new_vec.v[2].min(1f32).max(0f32);
+        new_vec
+    }
+}
+
 #[derive(Default)]
 pub(crate) struct StageLabToXyz {}
 
@@ -111,7 +127,7 @@ impl<T: Clone + AsPrimitive<f32>, const BIT_DEPTH: usize, const GAMMA_LUT: usize
     for XyzToRgbStage<T, BIT_DEPTH, GAMMA_LUT>
 {
     fn transform(&self, dst: &mut [f32]) -> Result<(), CmsError> {
-        assert!(BIT_DEPTH >= 8);
+        assert!(BIT_DEPTH > 0);
         if !self.matrices.is_empty() {
             let m = self.matrices[0];
             for dst in dst.chunks_exact_mut(3) {
@@ -204,6 +220,20 @@ impl CompressForLut for u16 {
     }
 }
 
+impl CompressForLut for f32 {
+    #[inline(always)]
+    fn compress_lut<const BIT_DEPTH: usize>(self) -> u8 {
+        (self * 255.).max(0f32).min(255.) as u8
+    }
+}
+
+impl CompressForLut for f64 {
+    #[inline(always)]
+    fn compress_lut<const BIT_DEPTH: usize>(self) -> u8 {
+        (self * 255.).max(0.).min(255.) as u8
+    }
+}
+
 #[allow(unused)]
 impl<
     T: Copy + AsPrimitive<f32> + Default + CompressForLut,
@@ -263,7 +293,7 @@ where
 
 #[allow(unused)]
 impl<
-    T: Copy + AsPrimitive<f32> + Default + CompressForLut,
+    T: Copy + AsPrimitive<f32> + Default + CompressForLut + PointeeSizeExpressible,
     const LAYOUT: u8,
     const GRID_SIZE: usize,
     const BIT_DEPTH: usize,
@@ -287,7 +317,11 @@ where
             return Err(CmsError::LaneSizeMismatch);
         }
 
-        self.transform_chunk::<Tetrahedral<GRID_SIZE>, DefaultVector3fLerp>(src, dst);
+        if T::FINITE {
+            self.transform_chunk::<Tetrahedral<GRID_SIZE>, DefaultVector3fLerp>(src, dst);
+        } else {
+            self.transform_chunk::<Tetrahedral<GRID_SIZE>, NonFiniteVector3fLerp>(src, dst);
+        }
 
         Ok(())
     }
@@ -306,7 +340,7 @@ struct RgbLinearizationStage<
 }
 
 impl<
-    T: Clone + AsPrimitive<usize>,
+    T: Clone + AsPrimitive<usize> + PointeeSizeExpressible,
     const BIT_DEPTH: usize,
     const LINEAR_CAP: usize,
     const SAMPLES: usize,
@@ -320,15 +354,19 @@ impl<
             return Err(CmsError::LaneMultipleOfChannels);
         }
 
-        let scale = ((1 << BIT_DEPTH) - 1) as f32 / (SAMPLES as f32 - 1f32);
+        let scale = if T::FINITE {
+            ((1 << BIT_DEPTH) - 1) as f32 / (SAMPLES as f32 - 1f32)
+        } else {
+            (T::NOT_FINITE_LINEAR_TABLE_SIZE - 1) as f32 / (SAMPLES as f32 - 1f32)
+        };
 
         for (src, dst) in src.chunks_exact(3).zip(dst.chunks_exact_mut(3)) {
             let j_r = src[0].as_() as f32 * scale;
             let j_g = src[1].as_() as f32 * scale;
             let j_b = src[2].as_() as f32 * scale;
-            dst[0] = self.r_lin[(j_r as u16) as usize];
-            dst[1] = self.g_lin[(j_g as u16) as usize];
-            dst[2] = self.b_lin[(j_b as u16) as usize];
+            dst[0] = self.r_lin[(j_r.round() as u16) as usize];
+            dst[1] = self.g_lin[(j_g.round() as u16) as usize];
+            dst[2] = self.b_lin[(j_b.round() as u16) as usize];
         }
         Ok(())
     }
@@ -383,7 +421,14 @@ fn pcs_lab_v2_to_v4(profile: &ColorProfile, lut: &mut [f32]) {
 macro_rules! make_transform_3x3_fn {
     ($method_name: ident, $exec_impl: ident) => {
         fn $method_name<
-            T: Copy + Default + AsPrimitive<f32> + Send + Sync + CompressForLut + AsPrimitive<usize>,
+            T: Copy
+                + Default
+                + AsPrimitive<f32>
+                + Send
+                + Sync
+                + CompressForLut
+                + AsPrimitive<usize>
+                + PointeeSizeExpressible,
             const GRID_SIZE: usize,
             const BIT_DEPTH: usize,
         >(
@@ -451,7 +496,14 @@ macro_rules! make_transform_3x3_fn {
 macro_rules! make_transform_4x3_fn {
     ($method_name: ident, $exec_name: ident) => {
         fn $method_name<
-            T: Copy + Default + AsPrimitive<f32> + Send + Sync + CompressForLut + AsPrimitive<usize>,
+            T: Copy
+                + Default
+                + AsPrimitive<f32>
+                + Send
+                + Sync
+                + CompressForLut
+                + AsPrimitive<usize>
+                + PointeeSizeExpressible,
             const GRID_SIZE: usize,
             const BIT_DEPTH: usize,
         >(
@@ -520,11 +572,22 @@ make_transform_4x3_fn!(make_transformer_4x3, TransformLut4XyzToRgb);
 
 #[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
 use crate::conversions::neon::TransformLut4XyzToRgbNeon;
+use crate::transform::PointeeSizeExpressible;
+use crate::trc::GammaLutInterpolate;
+
 #[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
 make_transform_4x3_fn!(make_transformer_4x3, TransformLut4XyzToRgbNeon);
 
 pub(crate) fn make_lut_transform<
-    T: Copy + Default + AsPrimitive<f32> + Send + Sync + CompressForLut + AsPrimitive<usize>,
+    T: Copy
+        + Default
+        + AsPrimitive<f32>
+        + Send
+        + Sync
+        + CompressForLut
+        + AsPrimitive<usize>
+        + PointeeSizeExpressible
+        + GammaLutInterpolate,
     const BIT_DEPTH: usize,
     const LINEAR_CAP: usize,
     const GAMMA_LUT: usize,
@@ -795,7 +858,14 @@ where
 }
 
 fn create_rgb_lin_lut<
-    T: Copy + Default + AsPrimitive<f32> + Send + Sync + CompressForLut + AsPrimitive<usize>,
+    T: Copy
+        + Default
+        + AsPrimitive<f32>
+        + Send
+        + Sync
+        + CompressForLut
+        + AsPrimitive<usize>
+        + PointeeSizeExpressible,
     const BIT_DEPTH: usize,
     const LINEAR_CAP: usize,
     const GRID_SIZE: usize,
@@ -810,11 +880,11 @@ where
     let lut_origins = create_lut3_samples::<T, GRID_SIZE>();
 
     let lin_r =
-        source.build_r_linearize_table::<LINEAR_CAP, BIT_DEPTH>(opts.allow_use_cicp_transfer)?;
+        source.build_r_linearize_table::<T, LINEAR_CAP, BIT_DEPTH>(opts.allow_use_cicp_transfer)?;
     let lin_g =
-        source.build_g_linearize_table::<LINEAR_CAP, BIT_DEPTH>(opts.allow_use_cicp_transfer)?;
+        source.build_g_linearize_table::<T, LINEAR_CAP, BIT_DEPTH>(opts.allow_use_cicp_transfer)?;
     let lin_b =
-        source.build_b_linearize_table::<LINEAR_CAP, BIT_DEPTH>(opts.allow_use_cicp_transfer)?;
+        source.build_b_linearize_table::<T, LINEAR_CAP, BIT_DEPTH>(opts.allow_use_cicp_transfer)?;
 
     let lin_stage = RgbLinearizationStage::<T, BIT_DEPTH, LINEAR_CAP, GRID_SIZE> {
         r_lin: lin_r,
@@ -847,7 +917,15 @@ where
 }
 
 fn prepare_inverse_lut_rgb_xyz<
-    T: Copy + Default + AsPrimitive<f32> + Send + Sync + CompressForLut + AsPrimitive<usize>,
+    T: Copy
+        + Default
+        + AsPrimitive<f32>
+        + Send
+        + Sync
+        + CompressForLut
+        + AsPrimitive<usize>
+        + PointeeSizeExpressible
+        + GammaLutInterpolate,
     const BIT_DEPTH: usize,
     const GAMMA_LUT: usize,
 >(

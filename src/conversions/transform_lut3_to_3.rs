@@ -29,6 +29,7 @@
 #![cfg(not(all(target_arch = "aarch64", target_feature = "neon", feature = "neon")))]
 use crate::conversions::CompressForLut;
 use crate::conversions::tetrahedral::TetrhedralInterpolation;
+use crate::transform::PointeeSizeExpressible;
 use crate::{CmsError, Layout, TransformExecutor};
 use num_traits::AsPrimitive;
 use std::marker::PhantomData;
@@ -45,7 +46,7 @@ pub(crate) struct TransformLut3x3<
 }
 
 impl<
-    T: Copy + AsPrimitive<f32> + Default + CompressForLut,
+    T: Copy + AsPrimitive<f32> + Default + CompressForLut + PointeeSizeExpressible,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
     const GRID_SIZE: usize,
@@ -86,7 +87,11 @@ where
 
             let tetrahedral = Tetrahedral::new(&self.lut);
             let v = tetrahedral.inter3(x, y, z);
-            let r = v * value_scale + 0.5f32;
+            let r = if T::FINITE {
+                v * value_scale + 0.5f32
+            } else {
+                v
+            };
             dst[dst_cn.r_i()] = r.v[0].min(value_scale).max(0f32).as_();
             dst[dst_cn.g_i()] = r.v[1].min(value_scale).max(0f32).as_();
             dst[dst_cn.b_i()] = r.v[2].min(value_scale).max(0f32).as_();
@@ -98,7 +103,7 @@ where
 }
 
 impl<
-    T: Copy + AsPrimitive<f32> + Default + CompressForLut,
+    T: Copy + AsPrimitive<f32> + Default + CompressForLut + PointeeSizeExpressible,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
     const GRID_SIZE: usize,
