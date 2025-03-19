@@ -29,11 +29,11 @@
 mod lut4_to_3;
 mod rgb_xyz_q4_12;
 mod stages;
+mod t_lut3_to_3;
 mod tetrahedral;
-mod transform_lut3_to_3;
 
 pub(crate) use lut4_to_3::TransformLut4XyzToRgbNeon;
 pub(crate) use rgb_xyz_q4_12::TransformProfileRgbQ12Neon;
 pub(crate) use stages::TransformProfilePcsXYZRgbNeon;
+pub(crate) use t_lut3_to_3::TransformLut3x3Neon;
 pub(crate) use tetrahedral::TetrahedralNeon;
-pub(crate) use transform_lut3_to_3::TransformLut3x3Neon;

@@ -41,7 +41,6 @@ mod rgbxyz;
 mod rgbxyz_fixed;
 #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"))]
 mod sse;
-mod stages;
 mod tetrahedral;
 mod transform_lut3_to_3;
 mod transform_lut3_to_4;
