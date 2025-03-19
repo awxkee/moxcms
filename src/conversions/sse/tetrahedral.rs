@@ -100,19 +100,22 @@ impl<const GRID_SIZE: usize> TetrahedralSse<'_, GRID_SIZE> {
     #[inline(always)]
     fn interpolate(&self, in_r: u8, in_g: u8, in_b: u8, r: impl Fetcher<SseVector>) -> SseVector {
         const SCALE: f32 = 1.0 / 255.0;
-        let linear_r: f32 = in_r as i32 as f32 * SCALE;
-        let linear_g: f32 = in_g as i32 as f32 * SCALE;
-        let linear_b: f32 = in_b as i32 as f32 * SCALE;
         let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / 255;
         let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / 255;
         let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / 255;
+
+        let c0 = r.fetch(x, y, z);
+        
         let x_n: i32 = rounding_div_ceil(in_r as i32 * (GRID_SIZE as i32 - 1), 255);
         let y_n: i32 = rounding_div_ceil(in_g as i32 * (GRID_SIZE as i32 - 1), 255);
         let z_n: i32 = rounding_div_ceil(in_b as i32 * (GRID_SIZE as i32 - 1), 255);
-        let rx = linear_r * (GRID_SIZE as i32 - 1) as f32 - x as f32;
-        let ry = linear_g * (GRID_SIZE as i32 - 1) as f32 - y as f32;
-        let rz = linear_b * (GRID_SIZE as i32 - 1) as f32 - z as f32;
-        let c0 = r.fetch(x, y, z);
+        
+        let scale = (GRID_SIZE as i32 - 1) as f32 * SCALE;
+
+        let rx = in_r as f32 * scale - x as f32;
+        let ry = in_g as f32 * scale - y as f32;
+        let rz = in_b as f32 * scale - z as f32;
+
         let c2;
         let c1;
         let c3;

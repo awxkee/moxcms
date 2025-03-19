@@ -185,6 +185,7 @@ impl Layout {
     }
 }
 
+#[doc(hidden)]
 pub trait PointeeSizeExpressible {
     fn _as_usize(self) -> usize;
     const FINITE: bool;
