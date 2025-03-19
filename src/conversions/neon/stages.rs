@@ -38,6 +38,9 @@ pub(crate) struct NeonAlignedU16([u16; 8]);
 #[repr(align(16), C)]
 pub(crate) struct NeonAlignedU32(pub(crate) [u32; 4]);
 
+#[repr(align(16), C)]
+pub(crate) struct NeonAlignedF32(pub(crate) [f32; 4]);
+
 pub(crate) struct TransformProfilePcsXYZRgbNeon<
     T: Clone + PointeeSizeExpressible + Copy + Default + 'static,
     const SRC_LAYOUT: u8,

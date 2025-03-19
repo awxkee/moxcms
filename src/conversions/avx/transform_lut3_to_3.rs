@@ -28,7 +28,8 @@
  */
 use crate::conversions::CompressForLut;
 use crate::conversions::avx::TetrahedralAvxFma;
-use crate::conversions::tetrahedral::TetrhedralInterpolation;
+use crate::conversions::avx::tetrahedral::SseAlignedF32;
+use crate::conversions::lut_transforms::Lut3x3Factory;
 use crate::transform::PointeeSizeExpressible;
 use crate::{CmsError, Layout, TransformExecutor};
 use num_traits::AsPrimitive;
@@ -38,15 +39,15 @@ use std::arch::x86::*;
 use std::arch::x86_64::*;
 use std::marker::PhantomData;
 
-pub(crate) struct TransformLut3x3AvxFma<
+struct TransformLut3x3AvxFma<
     T,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
     const GRID_SIZE: usize,
     const BIT_DEPTH: usize,
 > {
-    pub(crate) lut: Vec<f32>,
-    pub(crate) _phantom: PhantomData<T>,
+    lut: Vec<SseAlignedF32>,
+    _phantom: PhantomData<T>,
 }
 
 impl<
@@ -152,5 +153,32 @@ where
             self.transform_chunk(src, dst);
         }
         Ok(())
+    }
+}
+
+pub(crate) struct AvxLut3x3Factory {}
+
+impl Lut3x3Factory for AvxLut3x3Factory {
+    fn make_transform_3x3<
+        T: Copy + AsPrimitive<f32> + Default + CompressForLut + PointeeSizeExpressible + 'static,
+        const SRC_LAYOUT: u8,
+        const DST_LAYOUT: u8,
+        const GRID_SIZE: usize,
+        const BIT_DEPTH: usize,
+    >(
+        lut: Vec<f32>,
+    ) -> impl TransformExecutor<T>
+    where
+        f32: AsPrimitive<T>,
+        u32: AsPrimitive<T>,
+    {
+        let lut = lut
+            .chunks_exact(3)
+            .map(|x| SseAlignedF32([x[0], x[1], x[2], 0f32]))
+            .collect::<Vec<_>>();
+        TransformLut3x3AvxFma::<T, SRC_LAYOUT, DST_LAYOUT, GRID_SIZE, BIT_DEPTH> {
+            lut,
+            _phantom: PhantomData,
+        }
     }
 }

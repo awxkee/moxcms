@@ -54,7 +54,7 @@ Test made on the image 1997x1331 size
 | moxcms RGB->RGB     |   2.79ms   |   4.57ms   |
 | moxcms LUT RGB->RGB |  17.93ms   |  29.72ms   |
 | moxcms RGBA->RGBA   |   3.08ms   |   4.87ms   |
-| moxcms CMYK->RGBA   |  23.53ms   |  43.28ms   |
+| moxcms CMYK->RGBA   |  21.18ms   |  43.28ms   |
 | lcms2 RGB->RGB      |   13.1ms   |  27.73ms   |
 | lcms2 RGBA->RGBA    |  21.97ms   |  35.70ms   |
 | lcms2 CMYK->RGBA    |  39.71ms   |  79.40ms   |

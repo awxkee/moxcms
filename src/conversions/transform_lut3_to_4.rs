@@ -82,20 +82,6 @@ where
             dst[3] = r.v[3].min(value_scale).max(0f32).as_();
         }
     }
-
-    #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "avx"))]
-    #[target_feature(enable = "avx2", enable = "fma")]
-    unsafe fn transform_avx2_fma(&self, src: &[T], dst: &mut [T]) {
-        use crate::conversions::avx::TetrahedralAvxFma;
-        self.transform_chunk::<TetrahedralAvxFma<GRID_SIZE>>(src, dst);
-    }
-
-    #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"))]
-    #[target_feature(enable = "sse4.1")]
-    unsafe fn transform_sse41(&self, src: &[T], dst: &mut [T]) {
-        use crate::conversions::sse::TetrahedralSse;
-        self.transform_chunk::<TetrahedralSse<GRID_SIZE>>(src, dst);
-    }
 }
 
 impl<
@@ -123,38 +109,8 @@ where
             return Err(CmsError::LaneSizeMismatch);
         }
 
-        #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-        {
-            #[cfg(feature = "avx")]
-            if std::is_x86_feature_detected!("avx2") && std::is_x86_feature_detected!("fma") {
-                unsafe {
-                    self.transform_avx2_fma(src, dst);
-                }
-                return Ok(());
-            }
-            #[cfg(feature = "sse")]
-            if std::is_x86_feature_detected!("sse4.1") {
-                unsafe {
-                    self.transform_sse41(src, dst);
-                }
-                return Ok(());
-            }
-            use crate::conversions::tetrahedral::Tetrahedral;
-            self.transform_chunk::<Tetrahedral<GRID_SIZE>>(src, dst);
-        }
-        #[cfg(not(any(
-            any(target_arch = "x86", target_arch = "x86_64"),
-            all(target_arch = "aarch64", target_feature = "neon", feature = "neon")
-        )))]
-        {
-            use crate::conversions::tetrahedral::Tetrahedral;
-            self.transform_chunk::<Tetrahedral<GRID_SIZE>>(src, dst);
-        }
-        #[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
-        {
-            use crate::conversions::neon::TetrahedralNeon;
-            self.transform_chunk::<TetrahedralNeon<GRID_SIZE>>(src, dst);
-        }
+        use crate::conversions::tetrahedral::Tetrahedral;
+        self.transform_chunk::<Tetrahedral<GRID_SIZE>>(src, dst);
 
         Ok(())
     }

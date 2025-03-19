@@ -27,8 +27,9 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::conversions::CompressForLut;
+use crate::conversions::lut_transforms::Lut4x3Factory;
 use crate::conversions::sse::TetrahedralSse;
-use crate::conversions::tetrahedral::TetrhedralInterpolation;
+use crate::conversions::sse::tetrahedral::SseAlignedF32;
 use crate::transform::PointeeSizeExpressible;
 use crate::{CmsError, Layout, TransformExecutor, rounding_div_ceil};
 use num_traits::AsPrimitive;
@@ -38,14 +39,10 @@ use std::arch::x86::*;
 use std::arch::x86_64::*;
 use std::marker::PhantomData;
 
-pub(crate) struct TransformLut4XyzToRgbSse<
-    T,
-    const LAYOUT: u8,
-    const GRID_SIZE: usize,
-    const BIT_DEPTH: usize,
-> {
-    pub(crate) lut: Vec<f32>,
-    pub(crate) _phantom: PhantomData<T>,
+struct TransformLut4XyzToRgbSse<T, const LAYOUT: u8, const GRID_SIZE: usize, const BIT_DEPTH: usize>
+{
+    lut: Vec<SseAlignedF32>,
+    _phantom: PhantomData<T>,
 }
 
 impl<
@@ -79,8 +76,8 @@ where
             let w_n: i32 = rounding_div_ceil(k as i32 * (GRID_SIZE as i32 - 1), 255);
             let t: f32 = linear_k * (GRID_SIZE as i32 - 1) as f32 - w as f32;
 
-            let table1 = &self.lut[(w * grid_size3 * 3) as usize..];
-            let table2 = &self.lut[(w_n * grid_size3 * 3) as usize..];
+            let table1 = &self.lut[(w * grid_size3) as usize..];
+            let table2 = &self.lut[(w_n * grid_size3) as usize..];
 
             let tetrahedral1 = TetrahedralSse::<GRID_SIZE>::new(table1);
             let tetrahedral2 = TetrahedralSse::<GRID_SIZE>::new(table2);
@@ -157,5 +154,31 @@ where
         }
 
         Ok(())
+    }
+}
+
+pub(crate) struct SseLut4x3Factory {}
+
+impl Lut4x3Factory for SseLut4x3Factory {
+    fn make_transform_4x3<
+        T: Copy + AsPrimitive<f32> + Default + CompressForLut + PointeeSizeExpressible + 'static,
+        const LAYOUT: u8,
+        const GRID_SIZE: usize,
+        const BIT_DEPTH: usize,
+    >(
+        lut: Vec<f32>,
+    ) -> impl TransformExecutor<T>
+    where
+        f32: AsPrimitive<T>,
+        u32: AsPrimitive<T>,
+    {
+        let lut = lut
+            .chunks_exact(3)
+            .map(|x| SseAlignedF32([x[0], x[1], x[2], 0f32]))
+            .collect::<Vec<_>>();
+        TransformLut4XyzToRgbSse::<T, LAYOUT, GRID_SIZE, BIT_DEPTH> {
+            lut,
+            _phantom: PhantomData,
+        }
     }
 }

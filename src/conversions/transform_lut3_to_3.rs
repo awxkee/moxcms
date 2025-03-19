@@ -28,6 +28,7 @@
  */
 #![cfg(not(all(target_arch = "aarch64", target_feature = "neon", feature = "neon")))]
 use crate::conversions::CompressForLut;
+use crate::conversions::lut_transforms::Lut3x3Factory;
 use crate::conversions::tetrahedral::TetrhedralInterpolation;
 use crate::transform::PointeeSizeExpressible;
 use crate::{CmsError, Layout, TransformExecutor};
@@ -135,5 +136,28 @@ where
         self.transform_chunk::<Tetrahedral<GRID_SIZE>>(src, dst);
 
         Ok(())
+    }
+}
+
+pub(crate) struct DefaultLut3x3Factory {}
+
+impl Lut3x3Factory for DefaultLut3x3Factory {
+    fn make_transform_3x3<
+        T: Copy + AsPrimitive<f32> + Default + CompressForLut + PointeeSizeExpressible + 'static,
+        const SRC_LAYOUT: u8,
+        const DST_LAYOUT: u8,
+        const GRID_SIZE: usize,
+        const BIT_DEPTH: usize,
+    >(
+        lut: Vec<f32>,
+    ) -> impl TransformExecutor<T>
+    where
+        f32: AsPrimitive<T>,
+        u32: AsPrimitive<T>,
+    {
+        TransformLut3x3::<T, SRC_LAYOUT, DST_LAYOUT, GRID_SIZE, BIT_DEPTH> {
+            lut,
+            _phantom: PhantomData,
+        }
     }
 }

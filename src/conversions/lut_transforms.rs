@@ -116,6 +116,28 @@ struct TransformLut4XyzToRgb<T, const LAYOUT: u8, const GRID_SIZE: usize, const 
     _phantom: PhantomData<T>,
 }
 
+pub(crate) struct DefaultLut4x3Factory {}
+
+impl Lut4x3Factory for DefaultLut4x3Factory {
+    fn make_transform_4x3<
+        T: Copy + AsPrimitive<f32> + Default + CompressForLut + PointeeSizeExpressible + 'static,
+        const LAYOUT: u8,
+        const GRID_SIZE: usize,
+        const BIT_DEPTH: usize,
+    >(
+        lut: Vec<f32>,
+    ) -> impl TransformExecutor<T>
+    where
+        f32: AsPrimitive<T>,
+        u32: AsPrimitive<T>,
+    {
+        TransformLut4XyzToRgb::<T, LAYOUT, GRID_SIZE, BIT_DEPTH> {
+            lut,
+            _phantom: PhantomData,
+        }
+    }
+}
+
 struct XyzToRgbStage<T: Clone, const BIT_DEPTH: usize, const GAMMA_LUT: usize> {
     r_gamma: Box<[T; 65536]>,
     g_gamma: Box<[T; 65536]>,
@@ -232,6 +254,35 @@ impl CompressForLut for f64 {
     fn compress_lut<const BIT_DEPTH: usize>(self) -> u8 {
         (self * 255.).max(0.).min(255.) as u8
     }
+}
+
+pub(crate) trait Lut3x3Factory {
+    fn make_transform_3x3<
+        T: Copy + AsPrimitive<f32> + Default + CompressForLut + PointeeSizeExpressible + 'static,
+        const SRC_LAYOUT: u8,
+        const DST_LAYOUT: u8,
+        const GRID_SIZE: usize,
+        const BIT_DEPTH: usize,
+    >(
+        lut: Vec<f32>,
+    ) -> impl TransformExecutor<T>
+    where
+        f32: AsPrimitive<T>,
+        u32: AsPrimitive<T>;
+}
+
+pub(crate) trait Lut4x3Factory {
+    fn make_transform_4x3<
+        T: Copy + AsPrimitive<f32> + Default + CompressForLut + PointeeSizeExpressible + 'static,
+        const LAYOUT: u8,
+        const GRID_SIZE: usize,
+        const BIT_DEPTH: usize,
+    >(
+        lut: Vec<f32>,
+    ) -> impl TransformExecutor<T>
+    where
+        f32: AsPrimitive<T>,
+        u32: AsPrimitive<T>;
 }
 
 #[allow(unused)]
@@ -442,49 +493,37 @@ macro_rules! make_transform_3x3_fn {
         {
             match src_layout {
                 Layout::Rgb => match dst_layout {
-                    Layout::Rgb => Box::new($exec_impl::<
+                    Layout::Rgb => Box::new($exec_impl::make_transform_3x3::<
                         T,
                         { Layout::Rgb as u8 },
                         { Layout::Rgb as u8 },
                         GRID_SIZE,
                         BIT_DEPTH,
-                    > {
-                        lut,
-                        _phantom: PhantomData,
-                    }),
-                    Layout::Rgba => Box::new($exec_impl::<
+                    >(lut)),
+                    Layout::Rgba => Box::new($exec_impl::make_transform_3x3::<
                         T,
                         { Layout::Rgb as u8 },
                         { Layout::Rgba as u8 },
                         GRID_SIZE,
                         BIT_DEPTH,
-                    > {
-                        lut,
-                        _phantom: PhantomData,
-                    }),
+                    >(lut)),
                     _ => unimplemented!(),
                 },
                 Layout::Rgba => match dst_layout {
-                    Layout::Rgb => Box::new($exec_impl::<
+                    Layout::Rgb => Box::new($exec_impl::make_transform_3x3::<
                         T,
                         { Layout::Rgba as u8 },
                         { Layout::Rgb as u8 },
                         GRID_SIZE,
                         BIT_DEPTH,
-                    > {
-                        lut,
-                        _phantom: PhantomData,
-                    }),
-                    Layout::Rgba => Box::new($exec_impl::<
+                    >(lut)),
+                    Layout::Rgba => Box::new($exec_impl::make_transform_3x3::<
                         T,
                         { Layout::Rgba as u8 },
                         { Layout::Rgba as u8 },
                         GRID_SIZE,
                         BIT_DEPTH,
-                    > {
-                        lut,
-                        _phantom: PhantomData,
-                    }),
+                    >(lut)),
                     _ => unimplemented!(),
                 },
                 _ => unimplemented!(),
@@ -515,22 +554,18 @@ macro_rules! make_transform_4x3_fn {
             u32: AsPrimitive<T>,
         {
             match dst_layout {
-                Layout::Rgb => {
-                    Box::new(
-                        $exec_name::<T, { Layout::Rgb as u8 }, GRID_SIZE, BIT_DEPTH> {
-                            lut,
-                            _phantom: PhantomData,
-                        },
-                    )
-                }
-                Layout::Rgba => {
-                    Box::new(
-                        $exec_name::<T, { Layout::Rgba as u8 }, GRID_SIZE, BIT_DEPTH> {
-                            lut,
-                            _phantom: PhantomData,
-                        },
-                    )
-                }
+                Layout::Rgb => Box::new($exec_name::make_transform_4x3::<
+                    T,
+                    { Layout::Rgb as u8 },
+                    GRID_SIZE,
+                    BIT_DEPTH,
+                >(lut)),
+                Layout::Rgba => Box::new($exec_name::make_transform_4x3::<
+                    T,
+                    { Layout::Rgba as u8 },
+                    GRID_SIZE,
+                    BIT_DEPTH,
+                >(lut)),
                 _ => unimplemented!(),
             }
         }
@@ -538,45 +573,45 @@ macro_rules! make_transform_4x3_fn {
 }
 
 #[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
-use crate::conversions::neon::TransformLut3x3Neon;
+use crate::conversions::neon::NeonLut3x3Factory;
 #[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
-make_transform_3x3_fn!(make_transformer_3x3, TransformLut3x3Neon);
+make_transform_3x3_fn!(make_transformer_3x3, NeonLut3x3Factory);
 
 #[cfg(not(all(target_arch = "aarch64", target_feature = "neon", feature = "neon")))]
-use crate::conversions::transform_lut3_to_3::TransformLut3x3;
+use crate::conversions::transform_lut3_to_3::DefaultLut3x3Factory;
 #[cfg(not(all(target_arch = "aarch64", target_feature = "neon", feature = "neon")))]
-make_transform_3x3_fn!(make_transformer_3x3, TransformLut3x3);
+make_transform_3x3_fn!(make_transformer_3x3, DefaultLut3x3Factory);
 
 #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "avx"))]
-use crate::conversions::avx::TransformLut3x3AvxFma;
+use crate::conversions::avx::AvxLut3x3Factory;
 #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "avx"))]
-make_transform_3x3_fn!(make_transformer_3x3_avx_fma, TransformLut3x3AvxFma);
+make_transform_3x3_fn!(make_transformer_3x3_avx_fma, AvxLut3x3Factory);
 
 #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"))]
-use crate::conversions::sse::TransformLut3x3Sse;
+use crate::conversions::sse::SseLut3x3Factory;
 #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"))]
-make_transform_3x3_fn!(make_transformer_3x3_sse41, TransformLut3x3Sse);
+make_transform_3x3_fn!(make_transformer_3x3_sse41, SseLut3x3Factory);
 
 #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "avx"))]
-use crate::conversions::avx::TransformLut4XyzToRgbAvx;
+use crate::conversions::avx::AvxLut4x3Factory;
 #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "avx"))]
-make_transform_4x3_fn!(make_transformer_4x3_avx_fma, TransformLut4XyzToRgbAvx);
+make_transform_4x3_fn!(make_transformer_4x3_avx_fma, AvxLut4x3Factory);
 
 #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"))]
-use crate::conversions::sse::TransformLut4XyzToRgbSse;
+use crate::conversions::sse::SseLut4x3Factory;
 #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"))]
-make_transform_4x3_fn!(make_transformer_4x3_sse41, TransformLut4XyzToRgbSse);
+make_transform_4x3_fn!(make_transformer_4x3_sse41, SseLut4x3Factory);
 
 #[cfg(not(all(target_arch = "aarch64", target_feature = "neon", feature = "neon")))]
-make_transform_4x3_fn!(make_transformer_4x3, TransformLut4XyzToRgb);
+make_transform_4x3_fn!(make_transformer_4x3, DefaultLut4x3Factory);
 
 #[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
-use crate::conversions::neon::TransformLut4XyzToRgbNeon;
+use crate::conversions::neon::NeonLut4x3Factory;
 use crate::transform::PointeeSizeExpressible;
 use crate::trc::GammaLutInterpolate;
 
 #[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
-make_transform_4x3_fn!(make_transformer_4x3, TransformLut4XyzToRgbNeon);
+make_transform_4x3_fn!(make_transformer_4x3, NeonLut4x3Factory);
 
 pub(crate) fn make_lut_transform<
     T: Copy

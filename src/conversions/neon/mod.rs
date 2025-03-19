@@ -32,8 +32,8 @@ mod stages;
 mod t_lut3_to_3;
 mod tetrahedral;
 
-pub(crate) use lut4_to_3::TransformLut4XyzToRgbNeon;
+pub(crate) use lut4_to_3::NeonLut4x3Factory;
 pub(crate) use rgb_xyz_q4_12::TransformProfileRgbQ12Neon;
 pub(crate) use stages::TransformProfilePcsXYZRgbNeon;
-pub(crate) use t_lut3_to_3::TransformLut3x3Neon;
+pub(crate) use t_lut3_to_3::NeonLut3x3Factory;
 pub(crate) use tetrahedral::TetrahedralNeon;

@@ -26,26 +26,23 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-#![allow(dead_code)]
-use crate::conversions::tetrahedral::TetrhedralInterpolation;
 use crate::math::FusedMultiplyAdd;
-use crate::{Vector3f, Vector4f, rounding_div_ceil};
+use crate::rounding_div_ceil;
 #[cfg(target_arch = "x86")]
 use std::arch::x86::*;
 #[cfg(target_arch = "x86_64")]
 use std::arch::x86_64::*;
 use std::ops::Sub;
 
+#[repr(align(16), C)]
+pub(crate) struct SseAlignedF32(pub(crate) [f32; 4]);
+
 pub(crate) struct TetrahedralSse<'a, const GRID_SIZE: usize> {
-    pub(crate) cube: &'a [f32],
+    pub(crate) cube: &'a [SseAlignedF32],
 }
 
 trait Fetcher<T> {
     fn fetch(&self, x: i32, y: i32, z: i32) -> T;
-}
-
-struct TetrahedralSseFetchVector3f<'a, const GRID_SIZE: usize> {
-    cube: &'a [f32],
 }
 
 #[derive(Copy, Clone)]
@@ -82,28 +79,8 @@ impl FusedMultiplyAdd<SseVector> for SseVector {
     }
 }
 
-impl<const GRID_SIZE: usize> Fetcher<SseVector> for TetrahedralSseFetchVector3f<'_, GRID_SIZE> {
-    fn fetch(&self, x: i32, y: i32, z: i32) -> SseVector {
-        let offset = (x as u32 * (GRID_SIZE as u32 * GRID_SIZE as u32)
-            + y as u32 * GRID_SIZE as u32
-            + z as u32) as usize
-            * 3;
-        let jx = unsafe { self.cube.get_unchecked(offset..) };
-        let v0 = unsafe { _mm_loadu_si64(jx.as_ptr() as *const _) };
-        let v1 = unsafe {
-            _mm_insert_epi32::<2>(
-                v0,
-                (jx.get_unchecked(2..).as_ptr() as *const i32).read_unaligned(),
-            )
-        };
-        SseVector {
-            v: unsafe { _mm_castsi128_ps(v1) },
-        }
-    }
-}
-
 struct TetrahedralSseFetchVector4f<'a, const GRID_SIZE: usize> {
-    cube: &'a [f32],
+    cube: &'a [SseAlignedF32],
 }
 
 impl<const GRID_SIZE: usize> Fetcher<SseVector> for TetrahedralSseFetchVector4f<'_, GRID_SIZE> {
@@ -111,11 +88,10 @@ impl<const GRID_SIZE: usize> Fetcher<SseVector> for TetrahedralSseFetchVector4f<
     fn fetch(&self, x: i32, y: i32, z: i32) -> SseVector {
         let offset = (x as u32 * (GRID_SIZE as u32 * GRID_SIZE as u32)
             + y as u32 * GRID_SIZE as u32
-            + z as u32) as usize
-            * 4;
+            + z as u32) as usize;
         let jx = unsafe { self.cube.get_unchecked(offset..) };
         SseVector {
-            v: unsafe { _mm_loadu_ps(jx.as_ptr()) },
+            v: unsafe { _mm_load_ps(jx.as_ptr() as *const _) },
         }
     }
 }
@@ -186,46 +162,13 @@ impl<const GRID_SIZE: usize> TetrahedralSse<'_, GRID_SIZE> {
             in_r,
             in_g,
             in_b,
-            TetrahedralSseFetchVector3f::<GRID_SIZE> { cube: self.cube },
+            TetrahedralSseFetchVector4f::<GRID_SIZE> { cube: self.cube },
         )
     }
 }
 
-impl<'a, const GRID_SIZE: usize> TetrhedralInterpolation<'a, GRID_SIZE>
-    for TetrahedralSse<'a, GRID_SIZE>
-{
-    fn new(table: &'a [f32]) -> Self {
+impl<'a, const GRID_SIZE: usize> TetrahedralSse<'a, GRID_SIZE> {
+    pub(crate) fn new(table: &'a [SseAlignedF32]) -> Self {
         Self { cube: table }
-    }
-
-    #[inline(always)]
-    fn inter3(&self, in_r: u8, in_g: u8, in_b: u8) -> Vector3f {
-        let v = self.interpolate(
-            in_r,
-            in_g,
-            in_b,
-            TetrahedralSseFetchVector3f::<GRID_SIZE> { cube: self.cube },
-        );
-        let mut vector3 = Vector3f { v: [0f32; 3] };
-        unsafe {
-            _mm_storeu_si64(vector3.v.as_mut_ptr() as *mut u8, _mm_castps_si128(v.v));
-            vector3.v[2] = f32::from_bits(_mm_extract_ps::<2>(v.v) as u32);
-        }
-        vector3
-    }
-
-    #[inline(always)]
-    fn inter4(&self, in_r: u8, in_g: u8, in_b: u8) -> Vector4f {
-        let v = self.interpolate(
-            in_r,
-            in_g,
-            in_b,
-            TetrahedralSseFetchVector4f::<GRID_SIZE> { cube: self.cube },
-        );
-        let mut vector4 = Vector4f { v: [0f32; 4] };
-        unsafe {
-            _mm_storeu_ps(vector4.v.as_mut_ptr(), v.v);
-        }
-        vector4
     }
 }

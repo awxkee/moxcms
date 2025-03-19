@@ -32,8 +32,8 @@ mod stages;
 mod tetrahedral;
 mod transform_lut3_to_3;
 
-pub(crate) use lut4_to_3::TransformLut4XyzToRgbSse;
+pub(crate) use lut4_to_3::SseLut4x3Factory;
 pub(crate) use rgb_xyz_q4_12::TransformProfileRgbQ12Sse;
 pub(crate) use stages::TransformProfilePcsXYZRgbSse;
 pub(crate) use tetrahedral::TetrahedralSse;
-pub(crate) use transform_lut3_to_3::TransformLut3x3Sse;
+pub(crate) use transform_lut3_to_3::SseLut3x3Factory;
