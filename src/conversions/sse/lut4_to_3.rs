@@ -102,9 +102,9 @@ where
                     let y = _mm_extract_epi32::<1>(jvz);
                     let z = _mm_extract_epi32::<2>(jvz);
 
-                    dst[cn.r_i()] = (x as u32).as_();
-                    dst[cn.g_i()] = (y as u32).as_();
-                    dst[cn.b_i()] = (z as u32).as_();
+                    dst[cn.r_i()] = x.as_();
+                    dst[cn.g_i()] = y.as_();
+                    dst[cn.b_i()] = z.as_();
                 }
             } else {
                 unsafe {
