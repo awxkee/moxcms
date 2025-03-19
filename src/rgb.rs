@@ -1,14 +1,35 @@
 /*
- * // Copyright 2024 (c) the Radzivon Bartoshyk. All rights reserved.
+ * // Copyright (c) Radzivon Bartoshyk 3/2025. All rights reserved.
  * //
- * // Use of this source code is governed by a BSD-style
- * // license that can be found in the LICENSE file.
+ * // Redistribution and use in source and binary forms, with or without modification,
+ * // are permitted provided that the following conditions are met:
+ * //
+ * // 1.  Redistributions of source code must retain the above copyright notice, this
+ * // list of conditions and the following disclaimer.
+ * //
+ * // 2.  Redistributions in binary form must reproduce the above copyright notice,
+ * // this list of conditions and the following disclaimer in the documentation
+ * // and/or other materials provided with the distribution.
+ * //
+ * // 3.  Neither the name of the copyright holder nor the names of its
+ * // contributors may be used to endorse or promote products derived from
+ * // this software without specific prior written permission.
+ * //
+ * // THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * // AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * // IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * // DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * // FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * // DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * // SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * // CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::math::{m_clamp, m_max, m_min};
 use crate::mlaf::mlaf;
 use crate::{Matrix3f, Vector3, Xyz};
 use num_traits::{AsPrimitive, Bounded, Float, Num, Pow};
-use std::cmp::Ordering;
 use std::ops::{Add, AddAssign, Div, DivAssign, Index, IndexMut, Mul, MulAssign, Neg, Sub};
 
 #[repr(C)]
@@ -181,6 +202,7 @@ impl<T> Rgb<T>
 where
     T: Copy + AsPrimitive<f32>,
 {
+    #[inline]
     pub fn euclidean_distance(&self, other: Rgb<T>) -> f32 {
         let dr = self.r.as_() - other.r.as_();
         let dg = self.g.as_() - other.g.as_();
@@ -193,6 +215,7 @@ impl<T> Rgb<T>
 where
     T: Copy + AsPrimitive<f32>,
 {
+    #[inline]
     pub fn taxicab_distance(&self, other: Self) -> f32 {
         let dr = self.r.as_() - other.r.as_();
         let dg = self.g.as_() - other.g.as_();
@@ -482,24 +505,7 @@ where
 {
     #[inline]
     pub fn sqrt(&self) -> Rgb<T> {
-        let zeros = 0f32.as_();
-        Rgb::new(
-            if self.r.partial_cmp(&zeros).unwrap_or(Ordering::Less) == Ordering::Less {
-                0f32.as_()
-            } else {
-                self.r.sqrt()
-            },
-            if self.g.partial_cmp(&zeros).unwrap_or(Ordering::Less) == Ordering::Less {
-                0f32.as_()
-            } else {
-                self.g.sqrt()
-            },
-            if self.b.partial_cmp(&zeros).unwrap_or(Ordering::Less) == Ordering::Less {
-                0f32.as_()
-            } else {
-                self.b.sqrt()
-            },
-        )
+        Rgb::new(self.r.sqrt(), self.g.sqrt(), self.b.sqrt())
     }
 
     #[inline]
@@ -533,6 +539,7 @@ where
 }
 
 impl<T> Rgb<T> {
+    #[inline(always)]
     pub fn cast<V>(self) -> Rgb<V>
     where
         T: AsPrimitive<V>,
@@ -546,6 +553,7 @@ impl<T> Rgb<T>
 where
     T: Float + 'static,
 {
+    #[inline(always)]
     pub fn round(self) -> Rgb<T> {
         Rgb::new(self.r.round(), self.g.round(), self.b.round())
     }

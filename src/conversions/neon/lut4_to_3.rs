@@ -28,7 +28,6 @@
  */
 use crate::conversions::CompressForLut;
 use crate::conversions::neon::TetrahedralNeon;
-use crate::conversions::neon::stages::NeonAlignedU32;
 use crate::conversions::tetrahedral::TetrhedralInterpolation;
 use crate::transform::PointeeSizeExpressible;
 use crate::{CmsError, Layout, TransformExecutor, rounding_div_ceil};
@@ -70,8 +69,6 @@ where
         let value_scale = unsafe { vdupq_n_f32(((1 << BIT_DEPTH) - 1) as f32) };
         let max_value = ((1 << BIT_DEPTH) - 1u32).as_();
 
-        let mut temporary0 = NeonAlignedU32([0; 4]);
-
         for (src, dst) in src.chunks_exact(4).zip(dst.chunks_exact_mut(channels)) {
             let c = src[0].compress_lut::<BIT_DEPTH>();
             let m = src[1].compress_lut::<BIT_DEPTH>();
@@ -98,12 +95,12 @@ where
                     let mut v = vfmaq_f32(hp, b0, t0);
                     v = vmulq_f32(v, value_scale);
                     v = vminq_f32(v, value_scale);
-                    vst1q_u32(temporary0.0.as_mut_ptr() as *mut _, vcvtaq_u32_f32(v));
-                }
 
-                dst[cn.r_i()] = temporary0.0[0].as_();
-                dst[cn.g_i()] = temporary0.0[1].as_();
-                dst[cn.b_i()] = temporary0.0[2].as_();
+                    let jvx = vcvtaq_u32_f32(v);
+                    dst[cn.r_i()] = vgetq_lane_u32::<0>(jvx).as_();
+                    dst[cn.g_i()] = vgetq_lane_u32::<1>(jvx).as_();
+                    dst[cn.b_i()] = vgetq_lane_u32::<2>(jvx).as_();
+                }
             } else {
                 unsafe {
                     let t0 = vdupq_n_f32(t);
