@@ -99,7 +99,7 @@ pub use profile::{
 pub use rgb::Rgb;
 pub use transform::{
     InPlaceStage, Layout, Stage, Transform8BitExecutor, Transform16BitExecutor, TransformExecutor,
-    TransformF32BitExecutor, TransformF64BitExecutor, TransformOptions,
+    TransformF32BitExecutor, TransformF64BitExecutor, TransformOptions, PointeeSizeExpressible,
 };
-pub use trc::{ToneReprCurve, curve_from_gamma};
+pub use trc::{ToneReprCurve, curve_from_gamma, GammaLutInterpolate};
 pub use yrg::{Ych, Yrg, cie_y_1931_to_cie_y_2006};

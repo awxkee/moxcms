@@ -466,6 +466,7 @@ where
     value.as_()
 }
 
+#[doc(hidden)]
 pub trait GammaLutInterpolate {
     fn gamma_lut_interp<
         T: Default + Copy + 'static + PointeeSizeExpressible,
