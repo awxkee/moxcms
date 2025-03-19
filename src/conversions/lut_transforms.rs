@@ -116,8 +116,10 @@ struct TransformLut4XyzToRgb<T, const LAYOUT: u8, const GRID_SIZE: usize, const 
     _phantom: PhantomData<T>,
 }
 
+#[allow(dead_code)]
 pub(crate) struct DefaultLut4x3Factory {}
 
+#[allow(dead_code)]
 impl Lut4x3Factory for DefaultLut4x3Factory {
     fn make_transform_4x3<
         T: Copy + AsPrimitive<f32> + Default + CompressForLut + PointeeSizeExpressible + 'static,
