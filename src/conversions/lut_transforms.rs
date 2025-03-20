@@ -26,18 +26,21 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+use crate::conversions::interpolator::{
+    MultidimensionalInterpolation, Prismatic, Pyramidal, Tetrahedral,
+};
 use crate::conversions::lut3x3::create_lut3x3;
 use crate::conversions::lut3x4::{create_lut3_samples, create_lut3_samples_norm, create_lut3x4};
 use crate::conversions::lut4::create_lut4;
 use crate::conversions::mab::{prepare_mab_3x3, prepare_mba_3x3};
-use crate::conversions::tetrahedral::{Tetrahedral, TetrhedralInterpolation};
 use crate::conversions::transform_lut3_to_4::TransformLut3x4;
 use crate::lab::Lab;
 use crate::math::FusedMultiplyAdd;
 use crate::mlaf::mlaf;
 use crate::{
-    CmsError, ColorProfile, DataColorSpace, InPlaceStage, Layout, LutWarehouse, Matrix3f,
-    ProfileVersion, TransformExecutor, TransformOptions, Vector3f, Xyz, rounding_div_ceil,
+    CmsError, ColorProfile, DataColorSpace, InPlaceStage, InterpolationMethod, Layout,
+    LutWarehouse, Matrix3f, ProfileVersion, TransformExecutor, TransformOptions, Vector3f, Xyz,
+    rounding_div_ceil,
 };
 use num_traits::AsPrimitive;
 use std::marker::PhantomData;
@@ -114,6 +117,7 @@ impl InPlaceStage for StageXyzToLab {
 struct TransformLut4XyzToRgb<T, const LAYOUT: u8, const GRID_SIZE: usize, const BIT_DEPTH: usize> {
     lut: Vec<f32>,
     _phantom: PhantomData<T>,
+    interpolation_method: InterpolationMethod,
 }
 
 #[allow(dead_code)]
@@ -128,6 +132,7 @@ impl Lut4x3Factory for DefaultLut4x3Factory {
         const BIT_DEPTH: usize,
     >(
         lut: Vec<f32>,
+        interpolation_method: InterpolationMethod,
     ) -> impl TransformExecutor<T>
     where
         f32: AsPrimitive<T>,
@@ -136,6 +141,7 @@ impl Lut4x3Factory for DefaultLut4x3Factory {
         TransformLut4XyzToRgb::<T, LAYOUT, GRID_SIZE, BIT_DEPTH> {
             lut,
             _phantom: PhantomData,
+            interpolation_method,
         }
     }
 }
@@ -247,14 +253,14 @@ impl CompressForLut for u16 {
 impl CompressForLut for f32 {
     #[inline(always)]
     fn compress_lut<const BIT_DEPTH: usize>(self) -> u8 {
-        (self * 255.).max(0f32).min(255.) as u8
+        (self * 255.).round().max(0f32).min(255.) as u8
     }
 }
 
 impl CompressForLut for f64 {
     #[inline(always)]
     fn compress_lut<const BIT_DEPTH: usize>(self) -> u8 {
-        (self * 255.).max(0.).min(255.) as u8
+        (self * 255.).round().max(0.).min(255.) as u8
     }
 }
 
@@ -267,6 +273,7 @@ pub(crate) trait Lut3x3Factory {
         const BIT_DEPTH: usize,
     >(
         lut: Vec<f32>,
+        interpolation_method: InterpolationMethod,
     ) -> impl TransformExecutor<T>
     where
         f32: AsPrimitive<T>,
@@ -281,6 +288,7 @@ pub(crate) trait Lut4x3Factory {
         const BIT_DEPTH: usize,
     >(
         lut: Vec<f32>,
+        interpolation_method: InterpolationMethod,
     ) -> impl TransformExecutor<T>
     where
         f32: AsPrimitive<T>,
@@ -301,7 +309,7 @@ where
     #[inline(always)]
     fn transform_chunk<
         'k,
-        Tetrahedral: TetrhedralInterpolation<'k, GRID_SIZE>,
+        Tetrahedral: MultidimensionalInterpolation<'k, GRID_SIZE>,
         Interpolation: Vector3fCmykLerp,
     >(
         &'k self,
@@ -370,10 +378,28 @@ where
             return Err(CmsError::LaneSizeMismatch);
         }
 
-        if T::FINITE {
-            self.transform_chunk::<Tetrahedral<GRID_SIZE>, DefaultVector3fLerp>(src, dst);
-        } else {
-            self.transform_chunk::<Tetrahedral<GRID_SIZE>, NonFiniteVector3fLerp>(src, dst);
+        match self.interpolation_method {
+            InterpolationMethod::Tetrahedral => {
+                if T::FINITE {
+                    self.transform_chunk::<Tetrahedral<GRID_SIZE>, DefaultVector3fLerp>(src, dst);
+                } else {
+                    self.transform_chunk::<Tetrahedral<GRID_SIZE>, NonFiniteVector3fLerp>(src, dst);
+                }
+            }
+            InterpolationMethod::Pyramid => {
+                if T::FINITE {
+                    self.transform_chunk::<Pyramidal<GRID_SIZE>, DefaultVector3fLerp>(src, dst);
+                } else {
+                    self.transform_chunk::<Pyramidal<GRID_SIZE>, NonFiniteVector3fLerp>(src, dst);
+                }
+            }
+            InterpolationMethod::Prism => {
+                if T::FINITE {
+                    self.transform_chunk::<Prismatic<GRID_SIZE>, DefaultVector3fLerp>(src, dst);
+                } else {
+                    self.transform_chunk::<Prismatic<GRID_SIZE>, NonFiniteVector3fLerp>(src, dst);
+                }
+            }
         }
 
         Ok(())
@@ -488,6 +514,7 @@ macro_rules! make_transform_3x3_fn {
             src_layout: Layout,
             dst_layout: Layout,
             lut: Vec<f32>,
+            options: TransformOptions,
         ) -> Box<dyn TransformExecutor<T> + Send + Sync>
         where
             f32: AsPrimitive<T>,
@@ -501,14 +528,14 @@ macro_rules! make_transform_3x3_fn {
                         { Layout::Rgb as u8 },
                         GRID_SIZE,
                         BIT_DEPTH,
-                    >(lut)),
+                    >(lut, options.interpolation_method)),
                     Layout::Rgba => Box::new($exec_impl::make_transform_3x3::<
                         T,
                         { Layout::Rgb as u8 },
                         { Layout::Rgba as u8 },
                         GRID_SIZE,
                         BIT_DEPTH,
-                    >(lut)),
+                    >(lut, options.interpolation_method)),
                     _ => unimplemented!(),
                 },
                 Layout::Rgba => match dst_layout {
@@ -518,14 +545,14 @@ macro_rules! make_transform_3x3_fn {
                         { Layout::Rgb as u8 },
                         GRID_SIZE,
                         BIT_DEPTH,
-                    >(lut)),
+                    >(lut, options.interpolation_method)),
                     Layout::Rgba => Box::new($exec_impl::make_transform_3x3::<
                         T,
                         { Layout::Rgba as u8 },
                         { Layout::Rgba as u8 },
                         GRID_SIZE,
                         BIT_DEPTH,
-                    >(lut)),
+                    >(lut, options.interpolation_method)),
                     _ => unimplemented!(),
                 },
                 _ => unimplemented!(),
@@ -550,6 +577,7 @@ macro_rules! make_transform_4x3_fn {
         >(
             dst_layout: Layout,
             lut: Vec<f32>,
+            options: TransformOptions,
         ) -> Box<dyn TransformExecutor<T> + Send + Sync>
         where
             f32: AsPrimitive<T>,
@@ -561,13 +589,13 @@ macro_rules! make_transform_4x3_fn {
                     { Layout::Rgb as u8 },
                     GRID_SIZE,
                     BIT_DEPTH,
-                >(lut)),
+                >(lut, options.interpolation_method)),
                 Layout::Rgba => Box::new($exec_name::make_transform_4x3::<
                     T,
                     { Layout::Rgba as u8 },
                     GRID_SIZE,
                     BIT_DEPTH,
-                >(lut)),
+                >(lut, options.interpolation_method)),
                 _ => unimplemented!(),
             }
         }
@@ -708,19 +736,19 @@ where
                     && std::arch::is_x86_feature_detected!("fma")
                 {
                     return Ok(make_transformer_4x3_avx_fma::<T, GRID_SIZE, BIT_DEPTH>(
-                        dst_layout, lut,
+                        dst_layout, lut, options,
                     ));
                 }
                 #[cfg(feature = "sse")]
                 if std::arch::is_x86_feature_detected!("sse4.1") {
                     return Ok(make_transformer_4x3_sse41::<T, GRID_SIZE, BIT_DEPTH>(
-                        dst_layout, lut,
+                        dst_layout, lut, options,
                     ));
                 }
             }
 
             return Ok(make_transformer_4x3::<T, GRID_SIZE, BIT_DEPTH>(
-                dst_layout, lut,
+                dst_layout, lut, options,
             ));
         }
     } else if (source.color_space == DataColorSpace::Rgb
@@ -785,6 +813,7 @@ where
                     TransformLut3x4::<T, { Layout::Rgb as u8 }, GRID_SIZE, BIT_DEPTH> {
                         lut,
                         _phantom: PhantomData,
+                        interpolation_method: options.interpolation_method,
                     },
                 )
             }
@@ -793,6 +822,7 @@ where
                     TransformLut3x4::<T, { Layout::Rgba as u8 }, GRID_SIZE, BIT_DEPTH> {
                         lut,
                         _phantom: PhantomData,
+                        interpolation_method: options.interpolation_method,
                     },
                 )
             }
@@ -875,19 +905,19 @@ where
             #[cfg(feature = "avx")]
             if std::arch::is_x86_feature_detected!("avx2") && std::is_x86_feature_detected!("fma") {
                 return Ok(make_transformer_3x3_avx_fma::<T, GRID_SIZE, BIT_DEPTH>(
-                    src_layout, dst_layout, lut,
+                    src_layout, dst_layout, lut, options,
                 ));
             }
             #[cfg(feature = "sse")]
             if std::arch::is_x86_feature_detected!("sse4.1") {
                 return Ok(make_transformer_3x3_sse41::<T, GRID_SIZE, BIT_DEPTH>(
-                    src_layout, dst_layout, lut,
+                    src_layout, dst_layout, lut, options,
                 ));
             }
         }
 
         return Ok(make_transformer_3x3::<T, GRID_SIZE, BIT_DEPTH>(
-            src_layout, dst_layout, lut,
+            src_layout, dst_layout, lut, options,
         ));
     }
 

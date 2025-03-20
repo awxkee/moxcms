@@ -28,7 +28,9 @@
  */
 use image::GenericImageView;
 use lcms2::{Intent, PixelFormat, Profile, Transform};
-use moxcms::{ColorProfile, Layout, RenderingIntent, TransformOptions, pow, powf};
+use moxcms::{
+    ColorProfile, InterpolationMethod, Layout, RenderingIntent, TransformOptions, pow, powf,
+};
 use std::fs;
 use std::fs::File;
 use std::io::{BufReader, Read};
@@ -102,7 +104,7 @@ fn main() {
     // )
     //     .unwrap();
 
-    let mut cmyk = vec![0f64; (decoder.output_buffer_size().unwrap() / 3) * 4];
+    let mut cmyk = vec![0u16; (decoder.output_buffer_size().unwrap() / 3) * 4];
 
     let icc = decoder.icc_profile().unwrap();
     let color_profile = ColorProfile::new_from_slice(&srgb_perceptual_icc).unwrap();
@@ -113,7 +115,7 @@ fn main() {
     // t1.transform_pixels(&real_dst, &mut cmyk);
 
     let transform = dest_profile
-        .create_transform_f64(
+        .create_transform_10bit(
             Layout::Rgba,
             &funny_profile,
             Layout::Rgba,
@@ -121,13 +123,14 @@ fn main() {
                 rendering_intent: RenderingIntent::Perceptual,
                 allow_use_cicp_transfer: true,
                 prefer_fixed_point: false,
+                interpolation_method: InterpolationMethod::Pyramid,
             },
         )
         .unwrap();
 
     let real_dst = real_dst
         .iter()
-        .map(|&x| x as f64 / 255f64)
+        .map(|&x| ((x as u16) << 2) | (x as u16) >> 6)
         .collect::<Vec<_>>();
 
     transform.transform(&real_dst, &mut cmyk).unwrap();
@@ -154,7 +157,7 @@ fn main() {
 
     dest_profile.rendering_intent = RenderingIntent::Perceptual;
     let transform = funny_profile
-        .create_transform_f64(
+        .create_transform_10bit(
             Layout::Rgba,
             &dest_profile,
             Layout::Rgba,
@@ -162,10 +165,11 @@ fn main() {
                 rendering_intent: RenderingIntent::Perceptual,
                 allow_use_cicp_transfer: true,
                 prefer_fixed_point: false,
+                interpolation_method: InterpolationMethod::Pyramid,
             },
         )
         .unwrap();
-    let mut dst = vec![0f64; real_dst.len()];
+    let mut dst = vec![0u16; real_dst.len()];
     // t.transform_pixels(&real_dst)
 
     // let gray_image = rgb
@@ -244,12 +248,9 @@ fn main() {
     // )
     // .unwrap();
 
-    let dst = dst
-        .iter()
-        .map(|&x| (x * 255f64).round() as u8)
-        .collect::<Vec<_>>();
+    let dst = dst.iter().map(|&x| (x >> 2) as u8).collect::<Vec<_>>();
     image::save_buffer(
-        "v_new_sat.png",
+        "v_new_sat_pyram.png",
         &dst,
         img.dimensions().0,
         img.dimensions().1,
@@ -274,7 +275,10 @@ fn main() {
 //             Layout::Rgba,
 //             &dest_profile,
 //             Layout::Rgba,
-//             TransformOptions::default(),
+//             TransformOptions {
+//                 interpolation_method: InterpolationMethod::Prism,
+//                 ..Default::default()
+//             },
 //         )
 //         .unwrap();
 //     transform.transform(&cmyk, &mut dst).unwrap();

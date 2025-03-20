@@ -26,14 +26,13 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+mod interpolator;
 mod lut4_to_3;
 mod rgb_xyz_q4_12;
 mod stages;
 mod t_lut3_to_3;
-mod tetrahedral;
 
 pub(crate) use lut4_to_3::NeonLut4x3Factory;
 pub(crate) use rgb_xyz_q4_12::TransformProfileRgbQ12Neon;
 pub(crate) use stages::TransformProfilePcsXYZRgbNeon;
 pub(crate) use t_lut3_to_3::NeonLut3x3Factory;
-pub(crate) use tetrahedral::TetrahedralNeon;

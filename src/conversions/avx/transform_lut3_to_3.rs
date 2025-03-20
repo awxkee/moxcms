@@ -28,10 +28,12 @@
  */
 use crate::conversions::CompressForLut;
 use crate::conversions::avx::TetrahedralAvxFma;
-use crate::conversions::avx::tetrahedral::SseAlignedF32;
+use crate::conversions::avx::interpolator::{
+    AvxMdInterpolation, PrismaticAvxFma, PyramidalAvxFma, SseAlignedF32,
+};
 use crate::conversions::lut_transforms::Lut3x3Factory;
 use crate::transform::PointeeSizeExpressible;
-use crate::{CmsError, Layout, TransformExecutor};
+use crate::{CmsError, InterpolationMethod, Layout, TransformExecutor};
 use num_traits::AsPrimitive;
 #[cfg(target_arch = "x86")]
 use std::arch::x86::*;
@@ -48,6 +50,7 @@ struct TransformLut3x3AvxFma<
 > {
     lut: Vec<SseAlignedF32>,
     _phantom: PhantomData<T>,
+    interpolation_method: InterpolationMethod,
 }
 
 impl<
@@ -63,7 +66,11 @@ where
 {
     #[allow(unused_unsafe)]
     #[target_feature(enable = "avx2", enable = "fma")]
-    unsafe fn transform_chunk(&self, src: &[T], dst: &mut [T]) {
+    unsafe fn transform_chunk<'b, Interpolator: AvxMdInterpolation<'b, GRID_SIZE>>(
+        &'b self,
+        src: &[T],
+        dst: &mut [T],
+    ) {
         let src_cn = Layout::from(SRC_LAYOUT);
         let src_channels = src_cn.channels();
 
@@ -87,7 +94,7 @@ where
                 max_value
             };
 
-            let tetrahedral = TetrahedralAvxFma::<GRID_SIZE>::new(&self.lut);
+            let tetrahedral = Interpolator::new(&self.lut);
             let v = tetrahedral.inter3_sse(x, y, z);
             if T::FINITE {
                 unsafe {
@@ -150,7 +157,17 @@ where
         }
 
         unsafe {
-            self.transform_chunk(src, dst);
+            match self.interpolation_method {
+                InterpolationMethod::Tetrahedral => {
+                    self.transform_chunk::<TetrahedralAvxFma<GRID_SIZE>>(src, dst);
+                }
+                InterpolationMethod::Pyramid => {
+                    self.transform_chunk::<PyramidalAvxFma<GRID_SIZE>>(src, dst);
+                }
+                InterpolationMethod::Prism => {
+                    self.transform_chunk::<PrismaticAvxFma<GRID_SIZE>>(src, dst);
+                }
+            }
         }
         Ok(())
     }
@@ -167,6 +184,7 @@ impl Lut3x3Factory for AvxLut3x3Factory {
         const BIT_DEPTH: usize,
     >(
         lut: Vec<f32>,
+        interpolation_method: InterpolationMethod,
     ) -> impl TransformExecutor<T>
     where
         f32: AsPrimitive<T>,
@@ -179,6 +197,7 @@ impl Lut3x3Factory for AvxLut3x3Factory {
         TransformLut3x3AvxFma::<T, SRC_LAYOUT, DST_LAYOUT, GRID_SIZE, BIT_DEPTH> {
             lut,
             _phantom: PhantomData,
+            interpolation_method,
         }
     }
 }

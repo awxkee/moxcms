@@ -6,7 +6,7 @@
  */
 use criterion::{Criterion, criterion_group, criterion_main};
 use lcms2::{Intent, PixelFormat, Profile, Transform};
-use moxcms::{ColorProfile, Layout, TransformOptions};
+use moxcms::{ColorProfile, InterpolationMethod, Layout, TransformOptions};
 use std::fs;
 use std::fs::File;
 use std::io::BufReader;
@@ -58,7 +58,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
         })
     });
 
-    c.bench_function("moxcms: LUT RGB -> RGB", |b| {
+    c.bench_function("moxcms: LUT Tetra RGB -> RGB", |b| {
         let color_profile = ColorProfile::new_from_slice(&srgb_perceptual_icc).unwrap();
         let dest_profile = ColorProfile::new_srgb();
         let mut dst = vec![0u8; rgb.len()];
@@ -67,7 +67,50 @@ pub fn criterion_benchmark(c: &mut Criterion) {
                 Layout::Rgb,
                 &dest_profile,
                 Layout::Rgb,
-                TransformOptions::default(),
+                TransformOptions {
+                    interpolation_method: InterpolationMethod::Tetrahedral,
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        b.iter(|| {
+            transform.transform(&rgb, &mut dst).unwrap();
+        })
+    });
+
+    c.bench_function("moxcms: LUT Pyramid RGB -> RGB", |b| {
+        let color_profile = ColorProfile::new_from_slice(&srgb_perceptual_icc).unwrap();
+        let dest_profile = ColorProfile::new_srgb();
+        let mut dst = vec![0u8; rgb.len()];
+        let transform = color_profile
+            .create_transform_8bit(
+                Layout::Rgb,
+                &dest_profile,
+                Layout::Rgb,
+                TransformOptions {
+                    interpolation_method: InterpolationMethod::Pyramid,
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        b.iter(|| {
+            transform.transform(&rgb, &mut dst).unwrap();
+        })
+    });
+
+    c.bench_function("moxcms: LUT Prism RGB -> RGB", |b| {
+        let color_profile = ColorProfile::new_from_slice(&srgb_perceptual_icc).unwrap();
+        let dest_profile = ColorProfile::new_srgb();
+        let mut dst = vec![0u8; rgb.len()];
+        let transform = color_profile
+            .create_transform_8bit(
+                Layout::Rgb,
+                &dest_profile,
+                Layout::Rgb,
+                TransformOptions {
+                    interpolation_method: InterpolationMethod::Prism,
+                    ..Default::default()
+                },
             )
             .unwrap();
         b.iter(|| {
@@ -187,7 +230,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
         })
     });
 
-    c.bench_function("moxcms: CMYK -> RGBA", |b| {
+    c.bench_function("moxcms: CMYK Tetrahedral -> RGBA", |b| {
         let color_profile = ColorProfile::new_from_slice(&us_swop_icc).unwrap();
         let dest_profile = ColorProfile::new_srgb();
         let mut dst = vec![0u8; rgba.len()];
@@ -196,7 +239,50 @@ pub fn criterion_benchmark(c: &mut Criterion) {
                 Layout::Rgba,
                 &dest_profile,
                 Layout::Rgba,
-                TransformOptions::default(),
+                TransformOptions {
+                    interpolation_method: InterpolationMethod::Tetrahedral,
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        b.iter(|| {
+            transform.transform(&cmyk, &mut dst).unwrap();
+        })
+    });
+
+    c.bench_function("moxcms: CMYK Pyramid -> RGBA", |b| {
+        let color_profile = ColorProfile::new_from_slice(&us_swop_icc).unwrap();
+        let dest_profile = ColorProfile::new_srgb();
+        let mut dst = vec![0u8; rgba.len()];
+        let transform = color_profile
+            .create_transform_8bit(
+                Layout::Rgba,
+                &dest_profile,
+                Layout::Rgba,
+                TransformOptions {
+                    interpolation_method: InterpolationMethod::Pyramid,
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        b.iter(|| {
+            transform.transform(&cmyk, &mut dst).unwrap();
+        })
+    });
+
+    c.bench_function("moxcms: CMYK Prism -> RGBA", |b| {
+        let color_profile = ColorProfile::new_from_slice(&us_swop_icc).unwrap();
+        let dest_profile = ColorProfile::new_srgb();
+        let mut dst = vec![0u8; rgba.len()];
+        let transform = color_profile
+            .create_transform_8bit(
+                Layout::Rgba,
+                &dest_profile,
+                Layout::Rgba,
+                TransformOptions {
+                    interpolation_method: InterpolationMethod::Prism,
+                    ..Default::default()
+                },
             )
             .unwrap();
         b.iter(|| {

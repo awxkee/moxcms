@@ -27,11 +27,13 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::conversions::CompressForLut;
-use crate::conversions::avx::TetrahedralAvxFma;
-use crate::conversions::avx::tetrahedral::SseAlignedF32;
+use crate::conversions::avx::interpolator::{
+    AvxMdInterpolationDouble, PrismaticAvxFmaDouble, PyramidAvxFmaDouble, SseAlignedF32,
+    TetrahedralAvxFmaDouble,
+};
 use crate::conversions::lut_transforms::Lut4x3Factory;
 use crate::transform::PointeeSizeExpressible;
-use crate::{CmsError, Layout, TransformExecutor, rounding_div_ceil};
+use crate::{CmsError, InterpolationMethod, Layout, TransformExecutor, rounding_div_ceil};
 use num_traits::AsPrimitive;
 #[cfg(target_arch = "x86")]
 use std::arch::x86::*;
@@ -43,6 +45,7 @@ struct TransformLut4XyzToRgbAvx<T, const LAYOUT: u8, const GRID_SIZE: usize, con
 {
     lut: Vec<SseAlignedF32>,
     _phantom: PhantomData<T>,
+    interpolation_method: InterpolationMethod,
 }
 
 impl<
@@ -57,7 +60,11 @@ where
 {
     #[allow(unused_unsafe)]
     #[target_feature(enable = "avx2", enable = "fma")]
-    unsafe fn transform_chunk(&self, src: &[T], dst: &mut [T]) {
+    unsafe fn transform_chunk<'b, Interpolator: AvxMdInterpolationDouble<'b, GRID_SIZE>>(
+        &'b self,
+        src: &[T],
+        dst: &mut [T],
+    ) {
         let cn = Layout::from(LAYOUT);
         let channels = cn.channels();
         let grid_size = GRID_SIZE as i32;
@@ -79,10 +86,9 @@ where
             let table1 = &self.lut[(w * grid_size3) as usize..];
             let table2 = &self.lut[(w_n * grid_size3) as usize..];
 
-            let tetrahedral1 = TetrahedralAvxFma::<GRID_SIZE>::new(table1);
-            let tetrahedral2 = TetrahedralAvxFma::<GRID_SIZE>::new(table2);
-            let a0 = tetrahedral1.inter3_sse(c, m, y).v;
-            let b0 = tetrahedral2.inter3_sse(c, m, y).v;
+            let interpolator = Interpolator::new(table1, table2);
+            let v = interpolator.inter3_sse(c, m, y);
+            let (a0, b0) = (v.0.v, v.1.v);
 
             if T::FINITE {
                 unsafe {
@@ -149,7 +155,17 @@ where
         }
 
         unsafe {
-            self.transform_chunk(src, dst);
+            match self.interpolation_method {
+                InterpolationMethod::Tetrahedral => {
+                    self.transform_chunk::<TetrahedralAvxFmaDouble<GRID_SIZE>>(src, dst);
+                }
+                InterpolationMethod::Pyramid => {
+                    self.transform_chunk::<PyramidAvxFmaDouble<GRID_SIZE>>(src, dst);
+                }
+                InterpolationMethod::Prism => {
+                    self.transform_chunk::<PrismaticAvxFmaDouble<GRID_SIZE>>(src, dst);
+                }
+            }
         }
 
         Ok(())
@@ -166,6 +182,7 @@ impl Lut4x3Factory for AvxLut4x3Factory {
         const BIT_DEPTH: usize,
     >(
         lut: Vec<f32>,
+        interpolation_method: InterpolationMethod,
     ) -> impl TransformExecutor<T>
     where
         f32: AsPrimitive<T>,
@@ -178,6 +195,7 @@ impl Lut4x3Factory for AvxLut4x3Factory {
         TransformLut4XyzToRgbAvx::<T, LAYOUT, GRID_SIZE, BIT_DEPTH> {
             lut,
             _phantom: PhantomData,
+            interpolation_method,
         }
     }
 }
