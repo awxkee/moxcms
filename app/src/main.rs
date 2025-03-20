@@ -40,7 +40,7 @@ use zune_jpeg::zune_core::colorspace::ColorSpace;
 use zune_jpeg::zune_core::options::DecoderOptions;
 
 fn main() {
-    let funny_icc = fs::read("./assets/fogra39_coated.icc").unwrap();
+    let funny_icc = fs::read("./assets/us_swop_coated.icc").unwrap();
 
     // println!("{:?}", decoded);
 

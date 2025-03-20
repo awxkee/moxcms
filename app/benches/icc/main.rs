@@ -57,7 +57,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     //         transform.transform(&rgb, &mut dst).unwrap();
     //     })
     // });
-    // 
+    //
     // c.bench_function("moxcms: LUT Tetra RGB -> RGB", |b| {
     //     let color_profile = ColorProfile::new_from_slice(&srgb_perceptual_icc).unwrap();
     //     let dest_profile = ColorProfile::new_srgb();
@@ -77,7 +77,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     //         transform.transform(&rgb, &mut dst).unwrap();
     //     })
     // });
-    // 
+    //
     // c.bench_function("moxcms: LUT Pyramid RGB -> RGB", |b| {
     //     let color_profile = ColorProfile::new_from_slice(&srgb_perceptual_icc).unwrap();
     //     let dest_profile = ColorProfile::new_srgb();
@@ -97,7 +97,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     //         transform.transform(&rgb, &mut dst).unwrap();
     //     })
     // });
-    // 
+    //
     // c.bench_function("moxcms: LUT Prism RGB -> RGB", |b| {
     //     let color_profile = ColorProfile::new_from_slice(&srgb_perceptual_icc).unwrap();
     //     let dest_profile = ColorProfile::new_srgb();
