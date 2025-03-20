@@ -184,24 +184,31 @@ impl<const GRID_SIZE: usize> TetrahedralAvxFma<'_, GRID_SIZE> {
     }
 }
 
-impl<'a, const GRID_SIZE: usize> AvxMdInterpolation<'a, GRID_SIZE>
-    for TetrahedralAvxFma<'a, GRID_SIZE>
-{
-    #[inline(always)]
-    fn new(table: &'a [SseAlignedF32]) -> Self {
-        Self { cube: table }
-    }
+macro_rules! define_interp_avx {
+    ($interpolator: ident) => {
+        impl<'a, const GRID_SIZE: usize> AvxMdInterpolation<'a, GRID_SIZE>
+            for $interpolator<'a, GRID_SIZE>
+        {
+            #[inline(always)]
+            fn new(table: &'a [SseAlignedF32]) -> Self {
+                Self { cube: table }
+            }
 
-    #[inline(always)]
-    fn inter3_sse(&self, in_r: u8, in_g: u8, in_b: u8) -> AvxVectorSse {
-        self.interpolate(
-            in_r,
-            in_g,
-            in_b,
-            TetrahedralAvxFmaFetchVector::<GRID_SIZE> { cube: self.cube },
-        )
-    }
+            #[inline(always)]
+            fn inter3_sse(&self, in_r: u8, in_g: u8, in_b: u8) -> AvxVectorSse {
+                self.interpolate(
+                    in_r,
+                    in_g,
+                    in_b,
+                    TetrahedralAvxFmaFetchVector::<GRID_SIZE> { cube: self.cube },
+                )
+            }
+        }
+    };
 }
+
+define_interp_avx!(TetrahedralAvxFma);
+define_interp_avx!(PyramidalAvxFma);
 
 impl<const GRID_SIZE: usize> PyramidalAvxFma<'_, GRID_SIZE> {
     #[inline(always)]
@@ -265,24 +272,5 @@ impl<const GRID_SIZE: usize> PyramidalAvxFma<'_, GRID_SIZE> {
             let s2 = s1.mla(c3, AvxVectorSse::from(dg));
             s2.mla(c4, AvxVectorSse::from(db * dr))
         }
-    }
-}
-
-impl<'a, const GRID_SIZE: usize> AvxMdInterpolation<'a, GRID_SIZE>
-    for PyramidalAvxFma<'a, GRID_SIZE>
-{
-    #[inline(always)]
-    fn new(table: &'a [SseAlignedF32]) -> Self {
-        Self { cube: table }
-    }
-
-    #[inline(always)]
-    fn inter3_sse(&self, in_r: u8, in_g: u8, in_b: u8) -> AvxVectorSse {
-        self.interpolate(
-            in_r,
-            in_g,
-            in_b,
-            TetrahedralAvxFmaFetchVector::<GRID_SIZE> { cube: self.cube },
-        )
     }
 }

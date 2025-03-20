@@ -177,23 +177,31 @@ impl<const GRID_SIZE: usize> TetrahedralSse<'_, GRID_SIZE> {
     }
 }
 
-impl<'a, const GRID_SIZE: usize> SseMdInterpolation<'a, GRID_SIZE>
-    for TetrahedralSse<'a, GRID_SIZE>
-{
-    fn new(table: &'a [SseAlignedF32]) -> Self {
-        Self { cube: table }
-    }
+macro_rules! define_inter_sse {
+    ($interpolator: ident) => {
+        impl<'a, const GRID_SIZE: usize> SseMdInterpolation<'a, GRID_SIZE>
+            for $interpolator<'a, GRID_SIZE>
+        {
+            #[inline]
+            fn new(table: &'a [SseAlignedF32]) -> Self {
+                Self { cube: table }
+            }
 
-    #[inline(always)]
-    fn inter3_sse(&self, in_r: u8, in_g: u8, in_b: u8) -> SseVector {
-        self.interpolate(
-            in_r,
-            in_g,
-            in_b,
-            TetrahedralSseFetchVector::<GRID_SIZE> { cube: self.cube },
-        )
-    }
+            #[inline(always)]
+            fn inter3_sse(&self, in_r: u8, in_g: u8, in_b: u8) -> SseVector {
+                self.interpolate(
+                    in_r,
+                    in_g,
+                    in_b,
+                    TetrahedralSseFetchVector::<GRID_SIZE> { cube: self.cube },
+                )
+            }
+        }
+    };
 }
+
+define_inter_sse!(TetrahedralSse);
+define_inter_sse!(PyramidalSse);
 
 impl<const GRID_SIZE: usize> PyramidalSse<'_, GRID_SIZE> {
     #[inline(always)]
@@ -251,22 +259,5 @@ impl<const GRID_SIZE: usize> PyramidalSse<'_, GRID_SIZE> {
             let s2 = s1.mla(c3, SseVector::from(dg));
             s2.mla(c4, SseVector::from(db * dr))
         }
-    }
-}
-
-impl<'a, const GRID_SIZE: usize> SseMdInterpolation<'a, GRID_SIZE> for PyramidalSse<'a, GRID_SIZE> {
-    #[inline(always)]
-    fn new(table: &'a [SseAlignedF32]) -> Self {
-        Self { cube: table }
-    }
-
-    #[inline(always)]
-    fn inter3_sse(&self, in_r: u8, in_g: u8, in_b: u8) -> SseVector {
-        self.interpolate(
-            in_r,
-            in_g,
-            in_b,
-            TetrahedralSseFetchVector::<GRID_SIZE> { cube: self.cube },
-        )
     }
 }

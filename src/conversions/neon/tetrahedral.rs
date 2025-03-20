@@ -171,24 +171,31 @@ impl<const GRID_SIZE: usize> TetrahedralNeon<'_, GRID_SIZE> {
     }
 }
 
-impl<'a, const GRID_SIZE: usize> NeonMdInterpolation<'a, GRID_SIZE>
-    for TetrahedralNeon<'a, GRID_SIZE>
-{
-    #[inline(always)]
-    fn new(table: &'a [NeonAlignedF32]) -> Self {
-        Self { cube: table }
-    }
+macro_rules! define_md_inter_neon {
+    ($interpolator: ident) => {
+        impl<'a, const GRID_SIZE: usize> NeonMdInterpolation<'a, GRID_SIZE>
+            for $interpolator<'a, GRID_SIZE>
+        {
+            #[inline(always)]
+            fn new(table: &'a [NeonAlignedF32]) -> Self {
+                Self { cube: table }
+            }
 
-    #[inline(always)]
-    fn inter3_neon(&self, in_r: u8, in_g: u8, in_b: u8) -> NeonVector {
-        self.interpolate(
-            in_r,
-            in_g,
-            in_b,
-            TetrahedralNeonFetchVector::<GRID_SIZE> { cube: self.cube },
-        )
-    }
+            #[inline(always)]
+            fn inter3_neon(&self, in_r: u8, in_g: u8, in_b: u8) -> NeonVector {
+                self.interpolate(
+                    in_r,
+                    in_g,
+                    in_b,
+                    TetrahedralNeonFetchVector::<GRID_SIZE> { cube: self.cube },
+                )
+            }
+        }
+    };
 }
+
+define_md_inter_neon!(TetrahedralNeon);
+define_md_inter_neon!(PyramidalNeon);
 
 impl<const GRID_SIZE: usize> PyramidalNeon<'_, GRID_SIZE> {
     #[inline(always)]
@@ -246,24 +253,5 @@ impl<const GRID_SIZE: usize> PyramidalNeon<'_, GRID_SIZE> {
             let s2 = s1.mla(c3, NeonVector::from(dg));
             s2.mla(c4, NeonVector::from(db * dr))
         }
-    }
-}
-
-impl<'a, const GRID_SIZE: usize> NeonMdInterpolation<'a, GRID_SIZE>
-    for PyramidalNeon<'a, GRID_SIZE>
-{
-    #[inline(always)]
-    fn new(table: &'a [NeonAlignedF32]) -> Self {
-        Self { cube: table }
-    }
-
-    #[inline(always)]
-    fn inter3_neon(&self, in_r: u8, in_g: u8, in_b: u8) -> NeonVector {
-        self.interpolate(
-            in_r,
-            in_g,
-            in_b,
-            TetrahedralNeonFetchVector::<GRID_SIZE> { cube: self.cube },
-        )
     }
 }

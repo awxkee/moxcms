@@ -155,33 +155,40 @@ impl<const GRID_SIZE: usize> Tetrahedral<'_, GRID_SIZE> {
     }
 }
 
-impl<'a, const GRID_SIZE: usize> MultidimensionalInterpolation<'a, GRID_SIZE>
-    for Tetrahedral<'a, GRID_SIZE>
-{
-    fn new(table: &'a [f32]) -> Self {
-        Self { cube: table }
-    }
+macro_rules! define_md_inter {
+    ($interpolator: ident) => {
+        impl<'a, const GRID_SIZE: usize> MultidimensionalInterpolation<'a, GRID_SIZE>
+            for $interpolator<'a, GRID_SIZE>
+        {
+            fn new(table: &'a [f32]) -> Self {
+                Self { cube: table }
+            }
 
-    #[inline(always)]
-    fn inter3(&self, in_r: u8, in_g: u8, in_b: u8) -> Vector3f {
-        self.interpolate(
-            in_r,
-            in_g,
-            in_b,
-            TetrahedralFetchVector3f::<GRID_SIZE> { cube: self.cube },
-        )
-    }
+            #[inline(always)]
+            fn inter3(&self, in_r: u8, in_g: u8, in_b: u8) -> Vector3f {
+                self.interpolate(
+                    in_r,
+                    in_g,
+                    in_b,
+                    TetrahedralFetchVector3f::<GRID_SIZE> { cube: self.cube },
+                )
+            }
 
-    #[inline(always)]
-    fn inter4(&self, in_r: u8, in_g: u8, in_b: u8) -> Vector4f {
-        self.interpolate(
-            in_r,
-            in_g,
-            in_b,
-            TetrahedralFetchVector4f::<GRID_SIZE> { cube: self.cube },
-        )
-    }
+            #[inline(always)]
+            fn inter4(&self, in_r: u8, in_g: u8, in_b: u8) -> Vector4f {
+                self.interpolate(
+                    in_r,
+                    in_g,
+                    in_b,
+                    TetrahedralFetchVector4f::<GRID_SIZE> { cube: self.cube },
+                )
+            }
+        }
+    };
 }
+
+define_md_inter!(Tetrahedral);
+define_md_inter!(Pyramidal);
 
 impl<const GRID_SIZE: usize> Pyramidal<'_, GRID_SIZE> {
     #[inline]
@@ -247,34 +254,5 @@ impl<const GRID_SIZE: usize> Pyramidal<'_, GRID_SIZE> {
             let s2 = s1.mla(c3, T::from(dg));
             s2.mla(c4, T::from(db * dr))
         }
-    }
-}
-
-impl<'a, const GRID_SIZE: usize> MultidimensionalInterpolation<'a, GRID_SIZE>
-    for Pyramidal<'a, GRID_SIZE>
-{
-    #[inline]
-    fn new(table: &'a [f32]) -> Self {
-        Self { cube: table }
-    }
-
-    #[inline(always)]
-    fn inter3(&self, in_r: u8, in_g: u8, in_b: u8) -> Vector3f {
-        self.interpolate(
-            in_r,
-            in_g,
-            in_b,
-            TetrahedralFetchVector3f::<GRID_SIZE> { cube: self.cube },
-        )
-    }
-
-    #[inline(always)]
-    fn inter4(&self, in_r: u8, in_g: u8, in_b: u8) -> Vector4f {
-        self.interpolate(
-            in_r,
-            in_g,
-            in_b,
-            TetrahedralFetchVector4f::<GRID_SIZE> { cube: self.cube },
-        )
     }
 }
