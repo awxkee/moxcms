@@ -316,7 +316,7 @@ impl<const GRID_SIZE: usize> PrismaticNeon<'_, GRID_SIZE> {
             let x3 = r.fetch(x_n, y_n, z);
             let x4 = r.fetch(x_n, y_n, z_n);
 
-            let c1 = x0 - x1;
+            let c1 = x1 - x0;
             let c2 = x0 - c0;
             let c3 = x2 - c0;
             let c4 = x0 - x3 - x1 + x4;
