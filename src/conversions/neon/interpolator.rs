@@ -41,6 +41,16 @@ pub(crate) struct PyramidalNeon<'a, const GRID_SIZE: usize> {
     pub(crate) cube: &'a [NeonAlignedF32],
 }
 
+pub(crate) struct PyramidalNeonDouble<'a, const GRID_SIZE: usize> {
+    pub(crate) cube0: &'a [NeonAlignedF32],
+    pub(crate) cube1: &'a [NeonAlignedF32],
+}
+
+pub(crate) struct PrismaticNeonDouble<'a, const GRID_SIZE: usize> {
+    pub(crate) cube0: &'a [NeonAlignedF32],
+    pub(crate) cube1: &'a [NeonAlignedF32],
+}
+
 pub(crate) struct PrismaticNeon<'a, const GRID_SIZE: usize> {
     pub(crate) cube: &'a [NeonAlignedF32],
 }
@@ -111,6 +121,11 @@ impl<const GRID_SIZE: usize> Fetcher<NeonVector> for TetrahedralNeonFetchVector<
 pub(crate) trait NeonMdInterpolation<'a, const GRID_SIZE: usize> {
     fn new(table: &'a [NeonAlignedF32]) -> Self;
     fn inter3_neon(&self, in_r: u8, in_g: u8, in_b: u8) -> NeonVector;
+}
+
+pub(crate) trait NeonMdInterpolationDouble<'a, const GRID_SIZE: usize> {
+    fn new(table0: &'a [NeonAlignedF32], table1: &'a [NeonAlignedF32]) -> Self;
+    fn inter3_neon(&self, in_r: u8, in_g: u8, in_b: u8) -> (NeonVector, NeonVector);
 }
 
 impl<const GRID_SIZE: usize> TetrahedralNeon<'_, GRID_SIZE> {
@@ -198,9 +213,38 @@ macro_rules! define_md_inter_neon {
     };
 }
 
+macro_rules! define_md_inter_neon_d {
+    ($interpolator: ident) => {
+        impl<'a, const GRID_SIZE: usize> NeonMdInterpolationDouble<'a, GRID_SIZE>
+            for $interpolator<'a, GRID_SIZE>
+        {
+            #[inline(always)]
+            fn new(table0: &'a [NeonAlignedF32], table1: &'a [NeonAlignedF32]) -> Self {
+                Self {
+                    cube0: table0,
+                    cube1: table1,
+                }
+            }
+
+            #[inline(always)]
+            fn inter3_neon(&self, in_r: u8, in_g: u8, in_b: u8) -> (NeonVector, NeonVector) {
+                self.interpolate(
+                    in_r,
+                    in_g,
+                    in_b,
+                    TetrahedralNeonFetchVector::<GRID_SIZE> { cube: self.cube0 },
+                    TetrahedralNeonFetchVector::<GRID_SIZE> { cube: self.cube1 },
+                )
+            }
+        }
+    };
+}
+
 define_md_inter_neon!(TetrahedralNeon);
 define_md_inter_neon!(PyramidalNeon);
 define_md_inter_neon!(PrismaticNeon);
+define_md_inter_neon_d!(PrismaticNeonDouble);
+define_md_inter_neon_d!(PyramidalNeonDouble);
 
 impl<const GRID_SIZE: usize> PyramidalNeon<'_, GRID_SIZE> {
     #[inline(always)]
@@ -271,6 +315,141 @@ impl<const GRID_SIZE: usize> PyramidalNeon<'_, GRID_SIZE> {
     }
 }
 
+impl<const GRID_SIZE: usize> PyramidalNeonDouble<'_, GRID_SIZE> {
+    #[inline(always)]
+    fn interpolate(
+        &self,
+        in_r: u8,
+        in_g: u8,
+        in_b: u8,
+        r0: impl Fetcher<NeonVector>,
+        r1: impl Fetcher<NeonVector>,
+    ) -> (NeonVector, NeonVector) {
+        const SCALE: f32 = 1.0 / 255.0;
+        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / 255;
+        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / 255;
+        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / 255;
+
+        let c0_0 = r0.fetch(x, y, z);
+        let c0_1 = r1.fetch(x, y, z);
+
+        let x_n: i32 = rounding_div_ceil(in_r as i32 * (GRID_SIZE as i32 - 1), 255);
+        let y_n: i32 = rounding_div_ceil(in_g as i32 * (GRID_SIZE as i32 - 1), 255);
+        let z_n: i32 = rounding_div_ceil(in_b as i32 * (GRID_SIZE as i32 - 1), 255);
+
+        let scale = (GRID_SIZE as i32 - 1) as f32 * SCALE;
+
+        let dr = in_r as f32 * scale - x as f32;
+        let dg = in_g as f32 * scale - y as f32;
+        let db = in_b as f32 * scale - z as f32;
+
+        let w0 = NeonVector::from(db);
+        let w1 = NeonVector::from(dr);
+        let w2 = NeonVector::from(dg);
+
+        if dr > db && dg > db {
+            let x0_0 = r0.fetch(x_n, y_n, z_n);
+            let x1_0 = r0.fetch(x_n, y_n, z);
+            let x2_0 = r0.fetch(x_n, y, z);
+            let x3_0 = r0.fetch(x, y_n, z);
+
+            let x0_1 = r1.fetch(x_n, y_n, z_n);
+            let x1_1 = r1.fetch(x_n, y_n, z);
+            let x2_1 = r1.fetch(x_n, y, z);
+            let x3_1 = r1.fetch(x, y_n, z);
+
+            let c1_0 = x0_0 - x1_0;
+            let c2_0 = x2_0 - c0_0;
+            let c3_0 = x3_0 - c0_0;
+            let c4_0 = c0_0 - x3_0 - x2_0 + x1_0;
+
+            let c1_1 = x0_1 - x1_1;
+            let c2_1 = x2_1 - c0_1;
+            let c3_1 = x3_1 - c0_1;
+            let c4_1 = c0_1 - x3_1 - x2_1 + x1_1;
+
+            let w3 = NeonVector::from(dr * dg);
+
+            let s0_0 = c0_0.mla(c1_0, w0);
+            let s1_0 = s0_0.mla(c2_0, w1);
+            let s2_0 = s1_0.mla(c3_0, w2);
+            let v0 = s2_0.mla(c4_0, w3);
+
+            let s0_1 = c0_1.mla(c1_1, w0);
+            let s1_1 = s0_1.mla(c2_1, w1);
+            let s2_1 = s1_1.mla(c3_1, w2);
+            let v1 = s2_1.mla(c4_1, w3);
+            (v0, v1)
+        } else if db > dr && dg > dr {
+            let x0_0 = r0.fetch(x, y, z_n);
+            let x1_0 = r0.fetch(x_n, y_n, z_n);
+            let x2_0 = r0.fetch(x, y_n, z_n);
+            let x3_0 = r0.fetch(x, y_n, z);
+
+            let x0_1 = r1.fetch(x, y, z_n);
+            let x1_1 = r1.fetch(x_n, y_n, z_n);
+            let x2_1 = r1.fetch(x, y_n, z_n);
+            let x3_1 = r1.fetch(x, y_n, z);
+
+            let c1_0 = x0_0 - c0_0;
+            let c2_0 = x1_0 - x2_0;
+            let c3_0 = x3_0 - c0_0;
+            let c4_0 = c0_0 - x3_0 - x0_0 + x2_0;
+
+            let c1_1 = x0_1 - c0_1;
+            let c2_1 = x1_1 - x2_1;
+            let c3_1 = x3_1 - c0_1;
+            let c4_1 = c0_1 - x3_1 - x0_1 + x2_1;
+
+            let w3 = NeonVector::from(dg * db);
+
+            let s0_0 = c0_0.mla(c1_0, w0);
+            let s1_0 = s0_0.mla(c2_0, w1);
+            let s2_0 = s1_0.mla(c3_0, w2);
+            let v0 = s2_0.mla(c4_0, w3);
+
+            let s0_1 = c0_1.mla(c1_1, w0);
+            let s1_1 = s0_1.mla(c2_1, w1);
+            let s2_1 = s1_1.mla(c3_1, w2);
+            let v1 = s2_1.mla(c4_1, w3);
+            (v0, v1)
+        } else {
+            let x0_0 = r0.fetch(x, y, z_n);
+            let x1_0 = r0.fetch(x_n, y, z);
+            let x2_0 = r0.fetch(x_n, y_n, z);
+            let x3_0 = r0.fetch(x_n, y, z_n);
+
+            let x0_1 = r1.fetch(x, y, z_n);
+            let x1_1 = r1.fetch(x_n, y, z);
+            let x2_1 = r1.fetch(x_n, y_n, z);
+            let x3_1 = r1.fetch(x_n, y, z_n);
+
+            let c1_0 = x0_0 - c0_0;
+            let c2_0 = x1_0 - c0_0;
+            let c3_0 = x2_0 - x3_0;
+            let c4_0 = c0_0 - x1_0 - x0_0 + x3_0;
+
+            let c1_1 = x0_1 - c0_1;
+            let c2_1 = x1_1 - c0_1;
+            let c3_1 = x2_1 - x3_1;
+            let c4_1 = c0_1 - x1_1 - x0_1 + x3_1;
+
+            let w3 = NeonVector::from(db * dr);
+
+            let s0_0 = c0_0.mla(c1_0, w0);
+            let s1_0 = s0_0.mla(c2_0, w1);
+            let s2_0 = s1_0.mla(c3_0, w2);
+            let v0 = s2_0.mla(c4_0, w3);
+
+            let s0 = c0_1.mla(c1_1, w0);
+            let s1 = s0.mla(c2_1, w1);
+            let s2 = s1.mla(c3_1, w2);
+            let v1 = s2.mla(c4_1, w3);
+            (v0, v1)
+        }
+    }
+}
+
 impl<const GRID_SIZE: usize> PrismaticNeon<'_, GRID_SIZE> {
     #[inline(always)]
     fn interpolate(&self, in_r: u8, in_g: u8, in_b: u8, r: impl Fetcher<NeonVector>) -> NeonVector {
@@ -327,6 +506,118 @@ impl<const GRID_SIZE: usize> PrismaticNeon<'_, GRID_SIZE> {
             let s2 = s1.mla(c3, NeonVector::from(dg));
             let s3 = s2.mla(c4, NeonVector::from(dg * db));
             s3.mla(c5, NeonVector::from(dr * dg))
+        }
+    }
+}
+
+impl<const GRID_SIZE: usize> PrismaticNeonDouble<'_, GRID_SIZE> {
+    #[inline(always)]
+    fn interpolate(
+        &self,
+        in_r: u8,
+        in_g: u8,
+        in_b: u8,
+        r0: impl Fetcher<NeonVector>,
+        r1: impl Fetcher<NeonVector>,
+    ) -> (NeonVector, NeonVector) {
+        const SCALE: f32 = 1.0 / 255.0;
+        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / 255;
+        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / 255;
+        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / 255;
+
+        let c0_0 = r0.fetch(x, y, z);
+        let c0_1 = r1.fetch(x, y, z);
+
+        let x_n: i32 = rounding_div_ceil(in_r as i32 * (GRID_SIZE as i32 - 1), 255);
+        let y_n: i32 = rounding_div_ceil(in_g as i32 * (GRID_SIZE as i32 - 1), 255);
+        let z_n: i32 = rounding_div_ceil(in_b as i32 * (GRID_SIZE as i32 - 1), 255);
+
+        let scale = (GRID_SIZE as i32 - 1) as f32 * SCALE;
+
+        let dr = in_r as f32 * scale - x as f32;
+        let dg = in_g as f32 * scale - y as f32;
+        let db = in_b as f32 * scale - z as f32;
+
+        let w0 = NeonVector::from(db);
+        let w1 = NeonVector::from(dr);
+        let w2 = NeonVector::from(dg);
+        let w3 = NeonVector::from(dg * db);
+        let w4 = NeonVector::from(dr * dg);
+
+        if db > dr {
+            let x0_0 = r0.fetch(x, y, z_n);
+            let x1_0 = r0.fetch(x_n, y, z_n);
+            let x2_0 = r0.fetch(x, y_n, z);
+            let x3_0 = r0.fetch(x, y_n, z_n);
+            let x4_0 = r0.fetch(x_n, y_n, z_n);
+
+            let x0_1 = r1.fetch(x, y, z_n);
+            let x1_1 = r1.fetch(x_n, y, z_n);
+            let x2_1 = r1.fetch(x, y_n, z);
+            let x3_1 = r1.fetch(x, y_n, z_n);
+            let x4_1 = r1.fetch(x_n, y_n, z_n);
+
+            let c1_0 = x0_0 - c0_0;
+            let c2_0 = x1_0 - x0_0;
+            let c3_0 = x2_0 - c0_0;
+            let c4_0 = c0_0 - x2_0 - x0_0 + x3_0;
+            let c5_0 = x0_0 - x3_0 - x1_0 + x4_0;
+
+            let c1_1 = x0_1 - c0_1;
+            let c2_1 = x1_1 - x0_1;
+            let c3_1 = x2_1 - c0_1;
+            let c4_1 = c0_1 - x2_1 - x0_1 + x3_1;
+            let c5_1 = x0_1 - x3_1 - x1_1 + x4_1;
+
+            let s0_0 = c0_0.mla(c1_0, w0);
+            let s1_0 = s0_0.mla(c2_0, w1);
+            let s2_0 = s1_0.mla(c3_0, w2);
+            let s3_0 = s2_0.mla(c4_0, w3);
+            let v0 = s3_0.mla(c5_0, w4);
+
+            let s0_1 = c0_1.mla(c1_1, w0);
+            let s1_1 = s0_1.mla(c2_1, w1);
+            let s2_1 = s1_1.mla(c3_1, w2);
+            let s3_1 = s2_1.mla(c4_1, w3);
+            let v1 = s3_1.mla(c5_1, w4);
+            (v0, v1)
+        } else {
+            let x0_0 = r0.fetch(x_n, y, z);
+            let x1_0 = r0.fetch(x_n, y, z_n);
+            let x2_0 = r0.fetch(x, y_n, z);
+            let x3_0 = r0.fetch(x_n, y_n, z);
+            let x4_0 = r0.fetch(x_n, y_n, z_n);
+
+            let x0_1 = r1.fetch(x_n, y, z);
+            let x1_1 = r1.fetch(x_n, y, z_n);
+            let x2_1 = r1.fetch(x, y_n, z);
+            let x3_1 = r1.fetch(x_n, y_n, z);
+            let x4_1 = r1.fetch(x_n, y_n, z_n);
+
+            let c1_0 = x0_0 - x1_0;
+            let c2_0 = x0_0 - c0_0;
+            let c3_0 = x2_0 - c0_0;
+            let c4_0 = x0_0 - x3_0 - x1_0 + x4_0;
+            let c5_0 = c0_0 - x2_0 - x0_0 + x3_0;
+
+            let c1_1 = x0_1 - x1_1;
+            let c2_1 = x0_1 - c0_1;
+            let c3_1 = x2_1 - c0_1;
+            let c4_1 = x0_1 - x3_1 - x1_1 + x4_1;
+            let c5_1 = c0_1 - x2_1 - x0_1 + x3_1;
+
+            let s0_0 = c0_0.mla(c1_0, w0);
+            let s1_0 = s0_0.mla(c2_0, w1);
+            let s2_0 = s1_0.mla(c3_0, w2);
+            let s3_0 = s2_0.mla(c4_0, w3);
+            let v0 = s3_0.mla(c5_0, w4);
+
+            let s0_1 = c0_1.mla(c1_1, w0);
+            let s1_1 = s0_1.mla(c2_1, w1);
+            let s2_1 = s1_1.mla(c3_1, w2);
+            let s3_1 = s2_1.mla(c4_1, w3);
+            let v1 = s3_1.mla(c5_1, w4);
+            (v0, v1)
         }
     }
 }

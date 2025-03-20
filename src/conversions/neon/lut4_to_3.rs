@@ -28,8 +28,9 @@
  */
 use crate::conversions::CompressForLut;
 use crate::conversions::lut_transforms::Lut4x3Factory;
-use crate::conversions::neon::interpolator::*;
-use crate::conversions::neon::interpolator::{NeonMdInterpolation, PyramidalNeon};
+use crate::conversions::neon::interpolator::{
+    NeonMdInterpolationDouble, PrismaticNeonDouble, PyramidalNeonDouble,
+};
 use crate::conversions::neon::stages::NeonAlignedF32;
 use crate::transform::PointeeSizeExpressible;
 use crate::{CmsError, InterpolationMethod, Layout, TransformExecutor, rounding_div_ceil};
@@ -63,7 +64,7 @@ where
     u32: AsPrimitive<T>,
 {
     #[allow(unused_unsafe)]
-    fn transform_chunk<'b, Interpolator: NeonMdInterpolation<'b, GRID_SIZE>>(
+    fn transform_chunk<'b, Interpolator: NeonMdInterpolationDouble<'b, GRID_SIZE>>(
         &'b self,
         src: &[T],
         dst: &mut [T],
@@ -89,10 +90,9 @@ where
             let table1 = &self.lut[(w * grid_size3) as usize..];
             let table2 = &self.lut[(w_n * grid_size3) as usize..];
 
-            let tetrahedral1 = Interpolator::new(table1);
-            let tetrahedral2 = Interpolator::new(table2);
-            let a0 = tetrahedral1.inter3_neon(c, m, y).v;
-            let b0 = tetrahedral2.inter3_neon(c, m, y).v;
+            let tetrahedral1 = Interpolator::new(table1, table2);
+            let (a0, b0) = tetrahedral1.inter3_neon(c, m, y);
+            let (a0, b0) = (a0.v, b0.v);
 
             if T::FINITE {
                 unsafe {
@@ -156,13 +156,13 @@ where
 
         match self.interpolation_method {
             InterpolationMethod::Tetrahedral => {
-                self.transform_chunk::<TetrahedralNeon<GRID_SIZE>>(src, dst);
+                self.transform_chunk::<PyramidalNeonDouble<GRID_SIZE>>(src, dst);
             }
             InterpolationMethod::Pyramid => {
-                self.transform_chunk::<PyramidalNeon<GRID_SIZE>>(src, dst);
+                self.transform_chunk::<PyramidalNeonDouble<GRID_SIZE>>(src, dst);
             }
             InterpolationMethod::Prism => {
-                self.transform_chunk::<PrismaticNeon<GRID_SIZE>>(src, dst);
+                self.transform_chunk::<PrismaticNeonDouble<GRID_SIZE>>(src, dst);
             }
         }
 
