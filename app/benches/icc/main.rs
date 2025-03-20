@@ -118,7 +118,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
         })
     });
 
-    c.bench_function("moxcms: RGBA -> RGBA", |b| {
+    /*   c.bench_function("moxcms: RGBA -> RGBA", |b| {
         let color_profile = ColorProfile::new_from_slice(&src_icc_profile).unwrap();
         let dest_profile = ColorProfile::new_srgb();
         let mut dst = vec![0u8; rgba.len()];
@@ -228,7 +228,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
         b.iter(|| {
             xfm.convert(&rgba, &mut dst);
         })
-    });
+    });*/
 
     c.bench_function("moxcms: CMYK Tetrahedral -> RGBA", |b| {
         let color_profile = ColorProfile::new_from_slice(&us_swop_icc).unwrap();

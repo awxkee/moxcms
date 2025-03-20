@@ -282,12 +282,17 @@ impl<const GRID_SIZE: usize> PrismaticNeon<'_, GRID_SIZE> {
         let db = in_b as f32 * scale - z as f32;
 
         if db > dr {
-            let c1 = r.fetch(x, y, z_n) - c0;
-            let c2 = r.fetch(x_n, y, z_n) - r.fetch(x, y, z_n);
-            let c3 = r.fetch(x, y_n, z) - c0;
-            let c4 = c0 - r.fetch(x, y_n, z) - r.fetch(x, y, z_n) + r.fetch(x, y_n, z_n);
-            let c5 = r.fetch(x, y, z_n) - r.fetch(x, y_n, z_n) - r.fetch(x_n, y, z_n)
-                + r.fetch(x_n, y_n, z_n);
+            let x0 = r.fetch(x, y, z_n);
+            let x1 = r.fetch(x_n, y, z_n);
+            let x2 = r.fetch(x, y_n, z);
+            let x3 = r.fetch(x, y_n, z_n);
+            let x4 = r.fetch(x_n, y_n, z_n);
+
+            let c1 = x0 - c0;
+            let c2 = x1 - x0;
+            let c3 = x2 - c0;
+            let c4 = c0 - x2 - x0 + x3;
+            let c5 = x0 - x3 - x1 + x4;
 
             let s0 = c0.mla(c1, NeonVector::from(db));
             let s1 = s0.mla(c2, NeonVector::from(dr));
@@ -295,12 +300,17 @@ impl<const GRID_SIZE: usize> PrismaticNeon<'_, GRID_SIZE> {
             let s3 = s2.mla(c4, NeonVector::from(dg * db));
             s3.mla(c5, NeonVector::from(dr * dg))
         } else {
-            let c1 = r.fetch(x_n, y, z) - r.fetch(x_n, y, z_n);
-            let c2 = r.fetch(x_n, y, z) - c0;
-            let c3 = r.fetch(x, y_n, z) - c0;
-            let c4 = r.fetch(x_n, y, z) - r.fetch(x_n, y_n, z) - r.fetch(x_n, y, z_n)
-                + r.fetch(x_n, y_n, z_n);
-            let c5 = c0 - r.fetch(x, y_n, z) - r.fetch(x_n, y, z) + r.fetch(x_n, y_n, z);
+            let x0 = r.fetch(x_n, y, z);
+            let x1 = r.fetch(x_n, y, z_n);
+            let x2 = r.fetch(x, y_n, z);
+            let x3 = r.fetch(x_n, y_n, z);
+            let x4 = r.fetch(x_n, y_n, z_n);
+
+            let c1 = x0 - x1;
+            let c2 = x0 - c0;
+            let c3 = x2 - c0;
+            let c4 = x0 - x3 - x1 + x4;
+            let c5 = c0 - x2 - x0 + x3;
 
             let s0 = c0.mla(c1, NeonVector::from(db));
             let s1 = s0.mla(c2, NeonVector::from(dr));
