@@ -27,9 +27,9 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 #![allow(dead_code)]
+use crate::Vector4f;
 use crate::conversions::neon::stages::NeonAlignedF32;
 use crate::math::FusedMultiplyAdd;
-use crate::{Vector4f, rounding_div_ceil};
 use std::arch::aarch64::*;
 use std::ops::Sub;
 
@@ -99,17 +99,17 @@ impl<const GRID_SIZE: usize> TetrahedralNeon<'_, GRID_SIZE> {
         let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / 255;
 
         let c0 = r.fetch(x, y, z);
-        
-        let x_n: i32 = rounding_div_ceil(in_r as i32 * (GRID_SIZE as i32 - 1), 255);
-        let y_n: i32 = rounding_div_ceil(in_g as i32 * (GRID_SIZE as i32 - 1), 255);
-        let z_n: i32 = rounding_div_ceil(in_b as i32 * (GRID_SIZE as i32 - 1), 255);
-        
+
+        let x_n: i32 = (in_r as f32 * ((GRID_SIZE as i32 - 1) as f32 * SCALE)).ceil() as i32;
+        let y_n: i32 = (in_g as f32 * ((GRID_SIZE as i32 - 1) as f32 * SCALE)).ceil() as i32;
+        let z_n: i32 = (in_b as f32 * ((GRID_SIZE as i32 - 1) as f32 * SCALE)).ceil() as i32;
+
         let scale = (GRID_SIZE as i32 - 1) as f32 * SCALE;
 
         let rx = in_r as f32 * scale - x as f32;
         let ry = in_g as f32 * scale - y as f32;
         let rz = in_b as f32 * scale - z as f32;
-        
+
         let c2;
         let c1;
         let c3;
