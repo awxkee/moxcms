@@ -28,9 +28,9 @@
  */
 use crate::conversions::CompressForLut;
 use crate::conversions::lut_transforms::Lut3x3Factory;
-use crate::conversions::neon::stages::NeonAlignedF32;
 use crate::conversions::neon::interpolator::*;
 use crate::conversions::neon::interpolator::{NeonMdInterpolation, PyramidalNeon};
+use crate::conversions::neon::stages::NeonAlignedF32;
 use crate::transform::PointeeSizeExpressible;
 use crate::{CmsError, InterpolationMethod, Layout, TransformExecutor};
 use num_traits::AsPrimitive;

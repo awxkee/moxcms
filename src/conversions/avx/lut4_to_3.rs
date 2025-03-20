@@ -28,7 +28,9 @@
  */
 use crate::conversions::CompressForLut;
 use crate::conversions::avx::TetrahedralAvxFma;
-use crate::conversions::avx::interpolator::{AvxMdInterpolation, PrismaticAvxFma, PyramidalAvxFma, SseAlignedF32};
+use crate::conversions::avx::interpolator::{
+    AvxMdInterpolation, PrismaticAvxFma, PyramidalAvxFma, SseAlignedF32,
+};
 use crate::conversions::lut_transforms::Lut4x3Factory;
 use crate::transform::PointeeSizeExpressible;
 use crate::{CmsError, InterpolationMethod, Layout, TransformExecutor, rounding_div_ceil};

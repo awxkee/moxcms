@@ -227,7 +227,7 @@ impl<const GRID_SIZE: usize> PyramidalNeon<'_, GRID_SIZE> {
         let c3;
         let c4;
 
-        if db > dr && dg > dr {
+        if dr > db && dg > db {
             c1 = r.fetch(x_n, y_n, z_n) - r.fetch(x_n, y_n, z);
             c2 = r.fetch(x_n, y, z) - c0;
             c3 = r.fetch(x, y_n, z) - c0;

@@ -250,7 +250,7 @@ impl<const GRID_SIZE: usize> PyramidalAvxFma<'_, GRID_SIZE> {
         let w1 = AvxVectorSse::from(dr);
         let w2 = AvxVectorSse::from(dg);
 
-        if db > dr && dg > dr {
+        if dr > db && dg > db {
             let w3 = AvxVectorSse::from(dr * dg);
             c1 = r.fetch(x_n, y_n, z_n) - r.fetch(x_n, y_n, z);
             c2 = r.fetch(x_n, y, z) - c0;
@@ -313,6 +313,12 @@ impl<const GRID_SIZE: usize> PrismaticAvxFma<'_, GRID_SIZE> {
         let dg = in_g as f32 * scale - y as f32;
         let db = in_b as f32 * scale - z as f32;
 
+        let w0 = AvxVectorSse::from(db);
+        let w1 = AvxVectorSse::from(dr);
+        let w2 = AvxVectorSse::from(dg);
+        let w3 = AvxVectorSse::from(dg * db);
+        let w4 = AvxVectorSse::from(dr * dg);
+
         if db > dr {
             let c1 = r.fetch(x, y, z_n) - c0;
             let c2 = r.fetch(x_n, y, z_n) - r.fetch(x, y, z_n);
@@ -321,11 +327,11 @@ impl<const GRID_SIZE: usize> PrismaticAvxFma<'_, GRID_SIZE> {
             let c5 = r.fetch(x, y, z_n) - r.fetch(x, y_n, z_n) - r.fetch(x_n, y, z_n)
                 + r.fetch(x_n, y_n, z_n);
 
-            let s0 = c0.mla(c1, AvxVectorSse::from(db));
-            let s1 = s0.mla(c2, AvxVectorSse::from(dr));
-            let s2 = s1.mla(c3, AvxVectorSse::from(dg));
-            let s3 = s2.mla(c4, AvxVectorSse::from(dg * db));
-            s3.mla(c5, AvxVectorSse::from(dr * dg))
+            let s0 = c0.mla(c1, w0);
+            let s1 = s0.mla(c2, w1);
+            let s2 = s1.mla(c3, w2);
+            let s3 = s2.mla(c4, w3);
+            s3.mla(c5, w4)
         } else {
             let c1 = r.fetch(x_n, y, z) - r.fetch(x_n, y, z_n);
             let c2 = r.fetch(x_n, y, z) - c0;
@@ -334,11 +340,11 @@ impl<const GRID_SIZE: usize> PrismaticAvxFma<'_, GRID_SIZE> {
                 + r.fetch(x_n, y_n, z_n);
             let c5 = c0 - r.fetch(x, y_n, z) - r.fetch(x_n, y, z) + r.fetch(x_n, y_n, z);
 
-            let s0 = c0.mla(c1, AvxVectorSse::from(db));
-            let s1 = s0.mla(c2, AvxVectorSse::from(dr));
-            let s2 = s1.mla(c3, AvxVectorSse::from(dg));
-            let s3 = s2.mla(c4, AvxVectorSse::from(dg * db));
-            s3.mla(c5, AvxVectorSse::from(dr * dg))
+            let s0 = c0.mla(c1, w0);
+            let s1 = s0.mla(c2, w1);
+            let s2 = s1.mla(c3, w2);
+            let s3 = s2.mla(c4, w3);
+            s3.mla(c5, w4)
         }
     }
 }

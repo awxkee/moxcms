@@ -81,14 +81,10 @@ pub enum InterpolationMethod {
     /// Common Tetrahedron interpolation.
     /// This is used in lcms2 and others CMS.
     Tetrahedral,
-    /// Pyramidal can emit better results than tetrahedron,
-    /// with lower computation cost.
-    /// Or at the very least, difference is negligible.
-    #[default]
+    /// Divides cube into a pyramids and interpolate then in the pyramid.
     Pyramid,
     /// Interpolation by dividing cube into prisms.
-    /// Speed of this method somewhere in between of Tetrahedral and Pyramid.
-    /// On x86 this might be faster than pyramid, under uncertain conditions.
+    #[default]
     Prism,
 }
 

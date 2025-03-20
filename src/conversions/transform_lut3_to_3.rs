@@ -28,8 +28,8 @@
  */
 #![allow(dead_code)]
 use crate::conversions::CompressForLut;
-use crate::conversions::lut_transforms::Lut3x3Factory;
 use crate::conversions::interpolator::MultidimensionalInterpolation;
+use crate::conversions::lut_transforms::Lut3x3Factory;
 use crate::transform::PointeeSizeExpressible;
 use crate::{CmsError, InterpolationMethod, Layout, TransformExecutor};
 use num_traits::AsPrimitive;

@@ -123,7 +123,7 @@ fn main() {
                 rendering_intent: RenderingIntent::Perceptual,
                 allow_use_cicp_transfer: true,
                 prefer_fixed_point: false,
-                interpolation_method: InterpolationMethod::Prism,
+                interpolation_method: InterpolationMethod::Pyramid,
             },
         )
         .unwrap();
@@ -165,7 +165,7 @@ fn main() {
                 rendering_intent: RenderingIntent::Perceptual,
                 allow_use_cicp_transfer: true,
                 prefer_fixed_point: false,
-                interpolation_method: InterpolationMethod::Prism,
+                interpolation_method: InterpolationMethod::Pyramid,
             },
         )
         .unwrap();
@@ -248,12 +248,9 @@ fn main() {
     // )
     // .unwrap();
 
-    let dst = dst
-        .iter()
-        .map(|&x| (x >> 2) as u8)
-        .collect::<Vec<_>>();
+    let dst = dst.iter().map(|&x| (x >> 2) as u8).collect::<Vec<_>>();
     image::save_buffer(
-        "v_new_sat_prism.png",
+        "v_new_sat_pyram.png",
         &dst,
         img.dimensions().0,
         img.dimensions().1,
@@ -264,12 +261,12 @@ fn main() {
 
 // fn main() {
 //     let us_swop_icc = fs::read("./assets/us_swop_coated.icc").unwrap();
-// 
+//
 //     let width = 5000;
 //     let height = 5000;
-// 
+//
 //     let cmyk = vec![0u8; width * height * 4];
-// 
+//
 //     let color_profile = ColorProfile::new_from_slice(&us_swop_icc).unwrap();
 //     let dest_profile = ColorProfile::new_srgb();
 //     let mut dst = vec![0u8; width * height * 4];

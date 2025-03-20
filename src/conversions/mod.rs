@@ -29,6 +29,7 @@
 #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "avx"))]
 mod avx;
 mod gray2rgb;
+mod interpolator;
 mod lut3x3;
 mod lut3x4;
 mod lut4;
@@ -41,7 +42,6 @@ mod rgbxyz;
 mod rgbxyz_fixed;
 #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"))]
 mod sse;
-mod interpolator;
 mod transform_lut3_to_3;
 mod transform_lut3_to_4;
 
