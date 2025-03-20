@@ -29,7 +29,7 @@
 use crate::conversions::CompressForLut;
 use crate::conversions::lut_transforms::Lut4x3Factory;
 use crate::conversions::neon::interpolator::{
-    NeonMdInterpolationDouble, PrismaticNeonDouble, PyramidalNeonDouble,
+    NeonMdInterpolationDouble, PrismaticNeonDouble, PyramidalNeonDouble, TetrahedralNeonDouble,
 };
 use crate::conversions::neon::stages::NeonAlignedF32;
 use crate::transform::PointeeSizeExpressible;
@@ -156,7 +156,7 @@ where
 
         match self.interpolation_method {
             InterpolationMethod::Tetrahedral => {
-                self.transform_chunk::<PyramidalNeonDouble<GRID_SIZE>>(src, dst);
+                self.transform_chunk::<TetrahedralNeonDouble<GRID_SIZE>>(src, dst);
             }
             InterpolationMethod::Pyramid => {
                 self.transform_chunk::<PyramidalNeonDouble<GRID_SIZE>>(src, dst);
