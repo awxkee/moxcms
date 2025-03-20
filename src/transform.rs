@@ -67,6 +67,20 @@ pub struct TransformOptions {
     /// in most cases it is a simple way to spend energy to warming up environment
     /// a little.
     pub prefer_fixed_point: bool,
+    /// Interpolation method for 3D LUT
+    pub interpolation_method: InterpolationMethod,
+}
+
+#[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Default)]
+pub enum InterpolationMethod {
+    /// Common Tetrahedral interpolation.
+    /// This is used in lcms2 and others CMS.
+    Tetrahedral,
+    /// Pyramidal can emit better results than tetrahedral,
+    /// with lower computation cost.
+    /// Or at the very least, difference is negligible
+    #[default]
+    Pyramidal,
 }
 
 impl Default for TransformOptions {
@@ -75,6 +89,7 @@ impl Default for TransformOptions {
             rendering_intent: RenderingIntent::default(),
             allow_use_cicp_transfer: true,
             prefer_fixed_point: true,
+            interpolation_method: InterpolationMethod::default(),
         }
     }
 }

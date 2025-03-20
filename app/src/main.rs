@@ -28,7 +28,9 @@
  */
 use image::GenericImageView;
 use lcms2::{Intent, PixelFormat, Profile, Transform};
-use moxcms::{ColorProfile, Layout, RenderingIntent, TransformOptions, pow, powf};
+use moxcms::{
+    ColorProfile, InterpolationMethod, Layout, RenderingIntent, TransformOptions, pow, powf,
+};
 use std::fs;
 use std::fs::File;
 use std::io::{BufReader, Read};
@@ -121,6 +123,7 @@ fn main() {
                 rendering_intent: RenderingIntent::Perceptual,
                 allow_use_cicp_transfer: true,
                 prefer_fixed_point: false,
+                interpolation_method: InterpolationMethod::Tetrahedral,
             },
         )
         .unwrap();
@@ -162,6 +165,7 @@ fn main() {
                 rendering_intent: RenderingIntent::Perceptual,
                 allow_use_cicp_transfer: true,
                 prefer_fixed_point: false,
+                interpolation_method: InterpolationMethod::Tetrahedral,
             },
         )
         .unwrap();
@@ -249,7 +253,7 @@ fn main() {
         .map(|&x| (x * 255f64).round() as u8)
         .collect::<Vec<_>>();
     image::save_buffer(
-        "v_new_sat.png",
+        "v_new_sat_tetra.png",
         &dst,
         img.dimensions().0,
         img.dimensions().1,

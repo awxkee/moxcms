@@ -33,13 +33,22 @@ use crate::rounding_div_ceil;
 use std::arch::x86::*;
 #[cfg(target_arch = "x86_64")]
 use std::arch::x86_64::*;
-use std::ops::Sub;
+use std::ops::{Add, Sub};
 
 #[repr(align(16), C)]
 pub(crate) struct SseAlignedF32(pub(crate) [f32; 4]);
 
 pub(crate) struct TetrahedralAvxFma<'a, const GRID_SIZE: usize> {
     pub(crate) cube: &'a [SseAlignedF32],
+}
+
+pub(crate) struct PyramidalAvxFma<'a, const GRID_SIZE: usize> {
+    pub(crate) cube: &'a [SseAlignedF32],
+}
+
+pub(crate) trait AvxMdInterpolation<'a, const GRID_SIZE: usize> {
+    fn new(table: &'a [SseAlignedF32]) -> Self;
+    fn inter3_sse(&self, in_r: u8, in_g: u8, in_b: u8) -> AvxVectorSse;
 }
 
 trait Fetcher<T> {
@@ -67,6 +76,16 @@ impl Sub<AvxVectorSse> for AvxVectorSse {
     fn sub(self, rhs: AvxVectorSse) -> Self::Output {
         AvxVectorSse {
             v: unsafe { _mm_sub_ps(self.v, rhs.v) },
+        }
+    }
+}
+
+impl Add<AvxVectorSse> for AvxVectorSse {
+    type Output = Self;
+    #[inline(always)]
+    fn add(self, rhs: AvxVectorSse) -> Self::Output {
+        AvxVectorSse {
+            v: unsafe { _mm_add_ps(self.v, rhs.v) },
         }
     }
 }
@@ -118,7 +137,7 @@ impl<const GRID_SIZE: usize> TetrahedralAvxFma<'_, GRID_SIZE> {
         let z_n: i32 = rounding_div_ceil(in_b as i32 * (GRID_SIZE as i32 - 1), 255);
 
         let scale = (GRID_SIZE as i32 - 1) as f32 * SCALE;
-        
+
         let rx = in_r as f32 * scale - x as f32;
         let ry = in_g as f32 * scale - y as f32;
         let rz = in_b as f32 * scale - z as f32;
@@ -165,9 +184,16 @@ impl<const GRID_SIZE: usize> TetrahedralAvxFma<'_, GRID_SIZE> {
     }
 }
 
-impl<const GRID_SIZE: usize> TetrahedralAvxFma<'_, GRID_SIZE> {
+impl<'a, const GRID_SIZE: usize> AvxMdInterpolation<'a, GRID_SIZE>
+    for TetrahedralAvxFma<'a, GRID_SIZE>
+{
     #[inline(always)]
-    pub(crate) fn inter3_sse(&self, in_r: u8, in_g: u8, in_b: u8) -> AvxVectorSse {
+    fn new(table: &'a [SseAlignedF32]) -> Self {
+        Self { cube: table }
+    }
+
+    #[inline(always)]
+    fn inter3_sse(&self, in_r: u8, in_g: u8, in_b: u8) -> AvxVectorSse {
         self.interpolate(
             in_r,
             in_g,
@@ -177,8 +203,86 @@ impl<const GRID_SIZE: usize> TetrahedralAvxFma<'_, GRID_SIZE> {
     }
 }
 
-impl<'a, const GRID_SIZE: usize> TetrahedralAvxFma<'a, GRID_SIZE> {
-    pub(crate) fn new(table: &'a [SseAlignedF32]) -> Self {
+impl<const GRID_SIZE: usize> PyramidalAvxFma<'_, GRID_SIZE> {
+    #[inline(always)]
+    fn interpolate(
+        &self,
+        in_r: u8,
+        in_g: u8,
+        in_b: u8,
+        r: impl Fetcher<AvxVectorSse>,
+    ) -> AvxVectorSse {
+        const SCALE: f32 = 1.0 / 255.0;
+        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / 255;
+        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / 255;
+        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / 255;
+
+        let c0 = r.fetch(x, y, z);
+
+        let x_n: i32 = rounding_div_ceil(in_r as i32 * (GRID_SIZE as i32 - 1), 255);
+        let y_n: i32 = rounding_div_ceil(in_g as i32 * (GRID_SIZE as i32 - 1), 255);
+        let z_n: i32 = rounding_div_ceil(in_b as i32 * (GRID_SIZE as i32 - 1), 255);
+
+        let scale = (GRID_SIZE as i32 - 1) as f32 * SCALE;
+
+        let dr = in_r as f32 * scale - x as f32;
+        let dg = in_g as f32 * scale - y as f32;
+        let db = in_b as f32 * scale - z as f32;
+
+        let c2;
+        let c1;
+        let c3;
+        let c4;
+
+        if db > dr && dg > dr {
+            c1 = r.fetch(x_n, y_n, z_n) - r.fetch(x_n, y_n, z);
+            c2 = r.fetch(x_n, y, z) - c0;
+            c3 = r.fetch(x, y_n, z) - c0;
+            c4 = c0 - r.fetch(x, y_n, z) - r.fetch(x_n, y, z) + r.fetch(x_n, y_n, z);
+
+            let s0 = c0.mla(c1, AvxVectorSse::from(db));
+            let s1 = s0.mla(c2, AvxVectorSse::from(dr));
+            let s2 = s1.mla(c3, AvxVectorSse::from(dg));
+            s2.mla(c4, AvxVectorSse::from(dr * dg))
+        } else if db > dr && dg > dr {
+            c1 = r.fetch(x, y, z_n) - c0;
+            c2 = r.fetch(x_n, y_n, z_n) - r.fetch(x, y_n, z_n);
+            c3 = r.fetch(x, y_n, z) - c0;
+            c4 = c0 - r.fetch(x, y_n, z) - r.fetch(x, y, z_n) + r.fetch(x, y_n, z_n);
+
+            let s0 = c0.mla(c1, AvxVectorSse::from(db));
+            let s1 = s0.mla(c2, AvxVectorSse::from(dr));
+            let s2 = s1.mla(c3, AvxVectorSse::from(dg));
+            s2.mla(c4, AvxVectorSse::from(dg * db))
+        } else {
+            c1 = r.fetch(x, y, z_n) - c0;
+            c2 = r.fetch(x_n, y, z) - c0;
+            c3 = r.fetch(x_n, y_n, z) - r.fetch(x_n, y, z_n);
+            c4 = c0 - r.fetch(x_n, y, z) - r.fetch(x, y, z_n) + r.fetch(x_n, y, z_n);
+
+            let s0 = c0.mla(c1, AvxVectorSse::from(db));
+            let s1 = s0.mla(c2, AvxVectorSse::from(dr));
+            let s2 = s1.mla(c3, AvxVectorSse::from(dg));
+            s2.mla(c4, AvxVectorSse::from(db * dr))
+        }
+    }
+}
+
+impl<'a, const GRID_SIZE: usize> AvxMdInterpolation<'a, GRID_SIZE>
+    for PyramidalAvxFma<'a, GRID_SIZE>
+{
+    #[inline(always)]
+    fn new(table: &'a [SseAlignedF32]) -> Self {
         Self { cube: table }
+    }
+
+    #[inline(always)]
+    fn inter3_sse(&self, in_r: u8, in_g: u8, in_b: u8) -> AvxVectorSse {
+        self.interpolate(
+            in_r,
+            in_g,
+            in_b,
+            TetrahedralAvxFmaFetchVector::<GRID_SIZE> { cube: self.cube },
+        )
     }
 }

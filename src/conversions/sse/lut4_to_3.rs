@@ -29,9 +29,9 @@
 use crate::conversions::CompressForLut;
 use crate::conversions::lut_transforms::Lut4x3Factory;
 use crate::conversions::sse::TetrahedralSse;
-use crate::conversions::sse::tetrahedral::SseAlignedF32;
+use crate::conversions::sse::tetrahedral::{PyramidalSse, SseAlignedF32, SseMdInterpolation};
 use crate::transform::PointeeSizeExpressible;
-use crate::{CmsError, Layout, TransformExecutor, rounding_div_ceil};
+use crate::{CmsError, InterpolationMethod, Layout, TransformExecutor, rounding_div_ceil};
 use num_traits::AsPrimitive;
 #[cfg(target_arch = "x86")]
 use std::arch::x86::*;
@@ -43,6 +43,7 @@ struct TransformLut4XyzToRgbSse<T, const LAYOUT: u8, const GRID_SIZE: usize, con
 {
     lut: Vec<SseAlignedF32>,
     _phantom: PhantomData<T>,
+    interpolation_method: InterpolationMethod,
 }
 
 impl<
@@ -57,7 +58,11 @@ where
 {
     #[allow(unused_unsafe)]
     #[target_feature(enable = "sse4.1")]
-    unsafe fn transform_chunk(&self, src: &[T], dst: &mut [T]) {
+    unsafe fn transform_chunk<'b, Interpolator: SseMdInterpolation<'b, GRID_SIZE>>(
+        &'b self,
+        src: &[T],
+        dst: &mut [T],
+    ) {
         let cn = Layout::from(LAYOUT);
         let channels = cn.channels();
         let grid_size = GRID_SIZE as i32;
@@ -79,8 +84,8 @@ where
             let table1 = &self.lut[(w * grid_size3) as usize..];
             let table2 = &self.lut[(w_n * grid_size3) as usize..];
 
-            let tetrahedral1 = TetrahedralSse::<GRID_SIZE>::new(table1);
-            let tetrahedral2 = TetrahedralSse::<GRID_SIZE>::new(table2);
+            let tetrahedral1 = Interpolator::new(table1);
+            let tetrahedral2 = Interpolator::new(table2);
             let a0 = tetrahedral1.inter3_sse(c, m, y).v;
             let b0 = tetrahedral2.inter3_sse(c, m, y).v;
 
@@ -150,7 +155,14 @@ where
         }
 
         unsafe {
-            self.transform_chunk(src, dst);
+            match self.interpolation_method {
+                InterpolationMethod::Tetrahedral => {
+                    self.transform_chunk::<TetrahedralSse<GRID_SIZE>>(src, dst);
+                }
+                InterpolationMethod::Pyramidal => {
+                    self.transform_chunk::<PyramidalSse<GRID_SIZE>>(src, dst);
+                }
+            }
         }
 
         Ok(())
@@ -167,6 +179,7 @@ impl Lut4x3Factory for SseLut4x3Factory {
         const BIT_DEPTH: usize,
     >(
         lut: Vec<f32>,
+        interpolation_method: InterpolationMethod,
     ) -> impl TransformExecutor<T>
     where
         f32: AsPrimitive<T>,
@@ -179,6 +192,7 @@ impl Lut4x3Factory for SseLut4x3Factory {
         TransformLut4XyzToRgbSse::<T, LAYOUT, GRID_SIZE, BIT_DEPTH> {
             lut,
             _phantom: PhantomData,
+            interpolation_method,
         }
     }
 }

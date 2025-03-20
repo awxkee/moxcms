@@ -27,9 +27,9 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::conversions::CompressForLut;
-use crate::conversions::tetrahedral::TetrhedralInterpolation;
+use crate::conversions::tetrahedral::MultidimensionalInterpolation;
 use crate::transform::PointeeSizeExpressible;
-use crate::{CmsError, Layout, TransformExecutor};
+use crate::{CmsError, InterpolationMethod, Layout, TransformExecutor};
 use num_traits::AsPrimitive;
 use std::marker::PhantomData;
 
@@ -41,6 +41,7 @@ pub(crate) struct TransformLut3x4<
 > {
     pub(crate) lut: Vec<f32>,
     pub(crate) _phantom: PhantomData<T>,
+    pub(crate) interpolation_method: InterpolationMethod,
 }
 
 impl<
@@ -54,7 +55,7 @@ where
     u32: AsPrimitive<T>,
 {
     #[inline(always)]
-    fn transform_chunk<'b, Tetrahedral: TetrhedralInterpolation<'b, GRID_SIZE>>(
+    fn transform_chunk<'b, Tetrahedral: MultidimensionalInterpolation<'b, GRID_SIZE>>(
         &'b self,
         src: &[T],
         dst: &mut [T],
@@ -109,8 +110,16 @@ where
             return Err(CmsError::LaneSizeMismatch);
         }
 
-        use crate::conversions::tetrahedral::Tetrahedral;
-        self.transform_chunk::<Tetrahedral<GRID_SIZE>>(src, dst);
+        match self.interpolation_method {
+            InterpolationMethod::Tetrahedral => {
+                use crate::conversions::tetrahedral::Tetrahedral;
+                self.transform_chunk::<Tetrahedral<GRID_SIZE>>(src, dst);
+            }
+            InterpolationMethod::Pyramidal => {
+                use crate::conversions::tetrahedral::Pyramidal;
+                self.transform_chunk::<Pyramidal<GRID_SIZE>>(src, dst);
+            }
+        }
 
         Ok(())
     }
