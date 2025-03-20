@@ -246,36 +246,43 @@ impl<const GRID_SIZE: usize> PyramidalAvxFma<'_, GRID_SIZE> {
         let c3;
         let c4;
 
+        let w0 = AvxVectorSse::from(db);
+        let w1 = AvxVectorSse::from(dr);
+        let w2 = AvxVectorSse::from(dg);
+
         if db > dr && dg > dr {
+            let w3 = AvxVectorSse::from(dr * dg);
             c1 = r.fetch(x_n, y_n, z_n) - r.fetch(x_n, y_n, z);
             c2 = r.fetch(x_n, y, z) - c0;
             c3 = r.fetch(x, y_n, z) - c0;
             c4 = c0 - r.fetch(x, y_n, z) - r.fetch(x_n, y, z) + r.fetch(x_n, y_n, z);
 
-            let s0 = c0.mla(c1, AvxVectorSse::from(db));
-            let s1 = s0.mla(c2, AvxVectorSse::from(dr));
-            let s2 = s1.mla(c3, AvxVectorSse::from(dg));
-            s2.mla(c4, AvxVectorSse::from(dr * dg))
+            let s0 = c0.mla(c1, w0);
+            let s1 = s0.mla(c2, w1);
+            let s2 = s1.mla(c3, w2);
+            s2.mla(c4, w3)
         } else if db > dr && dg > dr {
+            let w3 = AvxVectorSse::from(dg * db);
             c1 = r.fetch(x, y, z_n) - c0;
             c2 = r.fetch(x_n, y_n, z_n) - r.fetch(x, y_n, z_n);
             c3 = r.fetch(x, y_n, z) - c0;
             c4 = c0 - r.fetch(x, y_n, z) - r.fetch(x, y, z_n) + r.fetch(x, y_n, z_n);
 
-            let s0 = c0.mla(c1, AvxVectorSse::from(db));
-            let s1 = s0.mla(c2, AvxVectorSse::from(dr));
-            let s2 = s1.mla(c3, AvxVectorSse::from(dg));
-            s2.mla(c4, AvxVectorSse::from(dg * db))
+            let s0 = c0.mla(c1, w0);
+            let s1 = s0.mla(c2, w1);
+            let s2 = s1.mla(c3, w2);
+            s2.mla(c4, w3)
         } else {
+            let w3 = AvxVectorSse::from(db * dr);
             c1 = r.fetch(x, y, z_n) - c0;
             c2 = r.fetch(x_n, y, z) - c0;
             c3 = r.fetch(x_n, y_n, z) - r.fetch(x_n, y, z_n);
             c4 = c0 - r.fetch(x_n, y, z) - r.fetch(x, y, z_n) + r.fetch(x_n, y, z_n);
 
-            let s0 = c0.mla(c1, AvxVectorSse::from(db));
-            let s1 = s0.mla(c2, AvxVectorSse::from(dr));
-            let s2 = s1.mla(c3, AvxVectorSse::from(dg));
-            s2.mla(c4, AvxVectorSse::from(db * dr))
+            let s0 = c0.mla(c1, w0);
+            let s1 = s0.mla(c2, w1);
+            let s2 = s1.mla(c3, w2);
+            s2.mla(c4, w3)
         }
     }
 }
