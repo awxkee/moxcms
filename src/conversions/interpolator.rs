@@ -223,36 +223,47 @@ impl<const GRID_SIZE: usize> Pyramidal<'_, GRID_SIZE> {
         let dg = in_g as f32 * ((GRID_SIZE as i32 - 1) as f32 * SCALE) - y as f32;
         let db = in_b as f32 * ((GRID_SIZE as i32 - 1) as f32 * SCALE) - z as f32;
         let c0 = r.fetch(x, y, z);
-        let c2;
-        let c1;
-        let c3;
-        let c4;
 
         if db > dr && dg > dr {
-            c1 = r.fetch(x_n, y_n, z_n) - r.fetch(x_n, y_n, z);
-            c2 = r.fetch(x_n, y, z) - c0;
-            c3 = r.fetch(x, y_n, z) - c0;
-            c4 = c0 - r.fetch(x, y_n, z) - r.fetch(x_n, y, z) + r.fetch(x_n, y_n, z);
+            let x0 = r.fetch(x_n, y_n, z_n);
+            let x1 = r.fetch(x_n, y_n, z);
+            let x2 = r.fetch(x_n, y, z);
+            let x3 = r.fetch(x, y_n, z);
+
+            let c1 = x0 - x1;
+            let c2 = x2 - c0;
+            let c3 = x3 - c0;
+            let c4 = c0 - x3 - x2 + x1;
 
             let s0 = c0.mla(c1, T::from(db));
             let s1 = s0.mla(c2, T::from(dr));
             let s2 = s1.mla(c3, T::from(dg));
             s2.mla(c4, T::from(dr * dg))
         } else if db > dr && dg > dr {
-            c1 = r.fetch(x, y, z_n) - c0;
-            c2 = r.fetch(x_n, y_n, z_n) - r.fetch(x, y_n, z_n);
-            c3 = r.fetch(x, y_n, z) - c0;
-            c4 = c0 - r.fetch(x, y_n, z) - r.fetch(x, y, z_n) + r.fetch(x, y_n, z_n);
+            let x0 = r.fetch(x, y, z_n);
+            let x1 = r.fetch(x_n, y_n, z_n);
+            let x2 = r.fetch(x, y_n, z_n);
+            let x3 = r.fetch(x, y_n, z);
+
+            let c1 = x0 - c0;
+            let c2 = x1 - x2;
+            let c3 = x3 - c0;
+            let c4 = c0 - x3 - x0 + x2;
 
             let s0 = c0.mla(c1, T::from(db));
             let s1 = s0.mla(c2, T::from(dr));
             let s2 = s1.mla(c3, T::from(dg));
             s2.mla(c4, T::from(dg * db))
         } else {
-            c1 = r.fetch(x, y, z_n) - c0;
-            c2 = r.fetch(x_n, y, z) - c0;
-            c3 = r.fetch(x_n, y_n, z) - r.fetch(x_n, y, z_n);
-            c4 = c0 - r.fetch(x_n, y, z) - r.fetch(x, y, z_n) + r.fetch(x_n, y, z_n);
+            let x0 = r.fetch(x, y, z_n);
+            let x1 = r.fetch(x_n, y, z);
+            let x2 = r.fetch(x_n, y_n, z);
+            let x3 = r.fetch(x_n, y, z_n);
+
+            let c1 = x0 - c0;
+            let c2 = x1 - c0;
+            let c3 = x2 - x3;
+            let c4 = c0 - x1 - x0 + x3;
 
             let s0 = c0.mla(c1, T::from(db));
             let s1 = s0.mla(c2, T::from(dr));
@@ -292,12 +303,17 @@ impl<const GRID_SIZE: usize> Prismatic<'_, GRID_SIZE> {
         let c0 = r.fetch(x, y, z);
 
         if db > dr {
-            let c1 = r.fetch(x, y, z_n) - c0;
-            let c2 = r.fetch(x_n, y, z_n) - r.fetch(x, y, z_n);
-            let c3 = r.fetch(x, y_n, z) - c0;
-            let c4 = c0 - r.fetch(x, y_n, z) - r.fetch(x, y, z_n) + r.fetch(x, y_n, z_n);
-            let c5 = r.fetch(x, y, z_n) - r.fetch(x, y_n, z_n) - r.fetch(x_n, y, z_n)
-                + r.fetch(x_n, y_n, z_n);
+            let x0 = r.fetch(x, y, z_n);
+            let x1 = r.fetch(x_n, y, z_n);
+            let x2 = r.fetch(x, y_n, z);
+            let x3 = r.fetch(x, y_n, z_n);
+            let x4 = r.fetch(x_n, y_n, z_n);
+
+            let c1 = x0 - c0;
+            let c2 = x1 - x0;
+            let c3 = x2 - c0;
+            let c4 = c0 - x2 - x0 + x3;
+            let c5 = x0 - x3 - x1 + x4;
 
             let s0 = c0.mla(c1, T::from(db));
             let s1 = s0.mla(c2, T::from(dr));
@@ -305,12 +321,17 @@ impl<const GRID_SIZE: usize> Prismatic<'_, GRID_SIZE> {
             let s3 = s2.mla(c4, T::from(dg * db));
             s3.mla(c5, T::from(dr * dg))
         } else {
-            let c1 = r.fetch(x_n, y, z) - r.fetch(x_n, y, z_n);
-            let c2 = r.fetch(x_n, y, z) - c0;
-            let c3 = r.fetch(x, y_n, z) - c0;
-            let c4 = r.fetch(x_n, y, z) - r.fetch(x_n, y_n, z) - r.fetch(x_n, y, z_n)
-                + r.fetch(x_n, y_n, z_n);
-            let c5 = c0 - r.fetch(x, y_n, z) - r.fetch(x_n, y, z) + r.fetch(x_n, y_n, z);
+            let x0 = r.fetch(x_n, y, z);
+            let x1 = r.fetch(x_n, y, z_n);
+            let x2 = r.fetch(x, y_n, z);
+            let x3 = r.fetch(x_n, y_n, z);
+            let x4 = r.fetch(x_n, y_n, z_n);
+
+            let c1 = x0 - x1;
+            let c2 = x0 - c0;
+            let c3 = x2 - c0;
+            let c4 = x0 - x3 - x1 + x4;
+            let c5 = c0 - x2 - x0 + x3;
 
             let s0 = c0.mla(c1, T::from(db));
             let s1 = s0.mla(c2, T::from(dr));
