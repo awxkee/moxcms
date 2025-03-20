@@ -72,15 +72,23 @@ pub struct TransformOptions {
 }
 
 #[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Default)]
+/// Defines the interpolation method.
+///
+/// In some cases, tetrahedral interpolation produces more accurate results.  
+///
+/// However, this implementation prioritizes speed over accuracy as default.
 pub enum InterpolationMethod {
-    /// Common Tetrahedral interpolation.
+    /// Common Tetrahedron interpolation.
     /// This is used in lcms2 and others CMS.
     Tetrahedral,
-    /// Pyramidal can emit better results than tetrahedral,
+    /// Pyramidal can emit better results than tetrahedron,
     /// with lower computation cost.
-    /// Or at the very least, difference is negligible
+    /// Or at the very least, difference is negligible.
     #[default]
-    Pyramidal,
+    Pyramid,
+    /// Interpolation by dividing cube into prisms.
+    /// Speed of this method somewhere in between of Tetrahedral and Pyramid.
+    Prism,
 }
 
 impl Default for TransformOptions {

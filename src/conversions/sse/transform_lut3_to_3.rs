@@ -29,7 +29,9 @@
 use crate::conversions::CompressForLut;
 use crate::conversions::lut_transforms::Lut3x3Factory;
 use crate::conversions::sse::TetrahedralSse;
-use crate::conversions::sse::tetrahedral::{PyramidalSse, SseAlignedF32, SseMdInterpolation};
+use crate::conversions::sse::tetrahedral::{
+    PrismaticSse, PyramidalSse, SseAlignedF32, SseMdInterpolation,
+};
 use crate::transform::PointeeSizeExpressible;
 use crate::{CmsError, InterpolationMethod, Layout, TransformExecutor};
 use num_traits::AsPrimitive;
@@ -159,8 +161,11 @@ where
                 InterpolationMethod::Tetrahedral => {
                     self.transform_chunk::<TetrahedralSse<GRID_SIZE>>(src, dst);
                 }
-                InterpolationMethod::Pyramidal => {
+                InterpolationMethod::Pyramid => {
                     self.transform_chunk::<PyramidalSse<GRID_SIZE>>(src, dst);
+                }
+                InterpolationMethod::Prism => {
+                    self.transform_chunk::<PrismaticSse<GRID_SIZE>>(src, dst);
                 }
             }
         }

@@ -30,7 +30,9 @@ use crate::conversions::lut3x3::create_lut3x3;
 use crate::conversions::lut3x4::{create_lut3_samples, create_lut3_samples_norm, create_lut3x4};
 use crate::conversions::lut4::create_lut4;
 use crate::conversions::mab::{prepare_mab_3x3, prepare_mba_3x3};
-use crate::conversions::tetrahedral::{MultidimensionalInterpolation, Pyramidal, Tetrahedral};
+use crate::conversions::tetrahedral::{
+    MultidimensionalInterpolation, Prismatic, Pyramidal, Tetrahedral,
+};
 use crate::conversions::transform_lut3_to_4::TransformLut3x4;
 use crate::lab::Lab;
 use crate::math::FusedMultiplyAdd;
@@ -384,11 +386,18 @@ where
                     self.transform_chunk::<Tetrahedral<GRID_SIZE>, NonFiniteVector3fLerp>(src, dst);
                 }
             }
-            InterpolationMethod::Pyramidal => {
+            InterpolationMethod::Pyramid => {
                 if T::FINITE {
                     self.transform_chunk::<Pyramidal<GRID_SIZE>, DefaultVector3fLerp>(src, dst);
                 } else {
                     self.transform_chunk::<Pyramidal<GRID_SIZE>, NonFiniteVector3fLerp>(src, dst);
+                }
+            }
+            InterpolationMethod::Prism => {
+                if T::FINITE {
+                    self.transform_chunk::<Prismatic<GRID_SIZE>, DefaultVector3fLerp>(src, dst);
+                } else {
+                    self.transform_chunk::<Prismatic<GRID_SIZE>, NonFiniteVector3fLerp>(src, dst);
                 }
             }
         }

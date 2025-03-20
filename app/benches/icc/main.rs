@@ -78,7 +78,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
         })
     });
 
-    c.bench_function("moxcms: LUT Pyramidal RGB -> RGB", |b| {
+    c.bench_function("moxcms: LUT Pyramid RGB -> RGB", |b| {
         let color_profile = ColorProfile::new_from_slice(&srgb_perceptual_icc).unwrap();
         let dest_profile = ColorProfile::new_srgb();
         let mut dst = vec![0u8; rgb.len()];
@@ -88,7 +88,27 @@ pub fn criterion_benchmark(c: &mut Criterion) {
                 &dest_profile,
                 Layout::Rgb,
                 TransformOptions {
-                    interpolation_method: InterpolationMethod::Pyramidal,
+                    interpolation_method: InterpolationMethod::Pyramid,
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        b.iter(|| {
+            transform.transform(&rgb, &mut dst).unwrap();
+        })
+    });
+
+    c.bench_function("moxcms: LUT Prism RGB -> RGB", |b| {
+        let color_profile = ColorProfile::new_from_slice(&srgb_perceptual_icc).unwrap();
+        let dest_profile = ColorProfile::new_srgb();
+        let mut dst = vec![0u8; rgb.len()];
+        let transform = color_profile
+            .create_transform_8bit(
+                Layout::Rgb,
+                &dest_profile,
+                Layout::Rgb,
+                TransformOptions {
+                    interpolation_method: InterpolationMethod::Prism,
                     ..Default::default()
                 },
             )
@@ -230,7 +250,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
         })
     });
 
-    c.bench_function("moxcms: CMYK Pyramidal -> RGBA", |b| {
+    c.bench_function("moxcms: CMYK Pyramid -> RGBA", |b| {
         let color_profile = ColorProfile::new_from_slice(&us_swop_icc).unwrap();
         let dest_profile = ColorProfile::new_srgb();
         let mut dst = vec![0u8; rgba.len()];
@@ -240,7 +260,27 @@ pub fn criterion_benchmark(c: &mut Criterion) {
                 &dest_profile,
                 Layout::Rgba,
                 TransformOptions {
-                    interpolation_method: InterpolationMethod::Pyramidal,
+                    interpolation_method: InterpolationMethod::Pyramid,
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        b.iter(|| {
+            transform.transform(&cmyk, &mut dst).unwrap();
+        })
+    });
+
+    c.bench_function("moxcms: CMYK Prism -> RGBA", |b| {
+        let color_profile = ColorProfile::new_from_slice(&us_swop_icc).unwrap();
+        let dest_profile = ColorProfile::new_srgb();
+        let mut dst = vec![0u8; rgba.len()];
+        let transform = color_profile
+            .create_transform_8bit(
+                Layout::Rgba,
+                &dest_profile,
+                Layout::Rgba,
+                TransformOptions {
+                    interpolation_method: InterpolationMethod::Prism,
                     ..Default::default()
                 },
             )

@@ -28,7 +28,9 @@
  */
 use crate::conversions::CompressForLut;
 use crate::conversions::avx::TetrahedralAvxFma;
-use crate::conversions::avx::tetrahedral::{AvxMdInterpolation, PyramidalAvxFma, SseAlignedF32};
+use crate::conversions::avx::tetrahedral::{
+    AvxMdInterpolation, PrismaticAvxFma, PyramidalAvxFma, SseAlignedF32,
+};
 use crate::conversions::lut_transforms::Lut3x3Factory;
 use crate::transform::PointeeSizeExpressible;
 use crate::{CmsError, InterpolationMethod, Layout, TransformExecutor};
@@ -159,8 +161,11 @@ where
                 InterpolationMethod::Tetrahedral => {
                     self.transform_chunk::<TetrahedralAvxFma<GRID_SIZE>>(src, dst);
                 }
-                InterpolationMethod::Pyramidal => {
+                InterpolationMethod::Pyramid => {
                     self.transform_chunk::<PyramidalAvxFma<GRID_SIZE>>(src, dst);
+                }
+                InterpolationMethod::Prism => {
+                    self.transform_chunk::<PrismaticAvxFma<GRID_SIZE>>(src, dst);
                 }
             }
         }

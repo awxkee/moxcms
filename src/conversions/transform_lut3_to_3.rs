@@ -138,9 +138,13 @@ where
                 use crate::conversions::tetrahedral::Tetrahedral;
                 self.transform_chunk::<Tetrahedral<GRID_SIZE>>(src, dst);
             }
-            InterpolationMethod::Pyramidal => {
+            InterpolationMethod::Pyramid => {
                 use crate::conversions::tetrahedral::Pyramidal;
                 self.transform_chunk::<Pyramidal<GRID_SIZE>>(src, dst);
+            }
+            InterpolationMethod::Prism => {
+                use crate::conversions::tetrahedral::Prismatic;
+                self.transform_chunk::<Prismatic<GRID_SIZE>>(src, dst);
             }
         }
 

@@ -45,6 +45,10 @@ pub(crate) struct PyramidalSse<'a, const GRID_SIZE: usize> {
     pub(crate) cube: &'a [SseAlignedF32],
 }
 
+pub(crate) struct PrismaticSse<'a, const GRID_SIZE: usize> {
+    pub(crate) cube: &'a [SseAlignedF32],
+}
+
 trait Fetcher<T> {
     fn fetch(&self, x: i32, y: i32, z: i32) -> T;
 }
@@ -202,6 +206,7 @@ macro_rules! define_inter_sse {
 
 define_inter_sse!(TetrahedralSse);
 define_inter_sse!(PyramidalSse);
+define_inter_sse!(PrismaticSse);
 
 impl<const GRID_SIZE: usize> PyramidalSse<'_, GRID_SIZE> {
     #[inline(always)]
@@ -258,6 +263,56 @@ impl<const GRID_SIZE: usize> PyramidalSse<'_, GRID_SIZE> {
             let s1 = s0.mla(c2, SseVector::from(dr));
             let s2 = s1.mla(c3, SseVector::from(dg));
             s2.mla(c4, SseVector::from(db * dr))
+        }
+    }
+}
+
+impl<const GRID_SIZE: usize> PrismaticSse<'_, GRID_SIZE> {
+    #[inline(always)]
+    fn interpolate(&self, in_r: u8, in_g: u8, in_b: u8, r: impl Fetcher<SseVector>) -> SseVector {
+        const SCALE: f32 = 1.0 / 255.0;
+        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / 255;
+        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / 255;
+        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / 255;
+
+        let c0 = r.fetch(x, y, z);
+
+        let x_n: i32 = rounding_div_ceil(in_r as i32 * (GRID_SIZE as i32 - 1), 255);
+        let y_n: i32 = rounding_div_ceil(in_g as i32 * (GRID_SIZE as i32 - 1), 255);
+        let z_n: i32 = rounding_div_ceil(in_b as i32 * (GRID_SIZE as i32 - 1), 255);
+
+        let scale = (GRID_SIZE as i32 - 1) as f32 * SCALE;
+
+        let dr = in_r as f32 * scale - x as f32;
+        let dg = in_g as f32 * scale - y as f32;
+        let db = in_b as f32 * scale - z as f32;
+
+        if db > dr {
+            let c1 = r.fetch(x, y, z_n) - c0;
+            let c2 = r.fetch(x_n, y, z_n) - r.fetch(x, y, z_n);
+            let c3 = r.fetch(x, y_n, z) - c0;
+            let c4 = c0 - r.fetch(x, y_n, z) - r.fetch(x, y, z_n) + r.fetch(x, y_n, z_n);
+            let c5 = r.fetch(x, y, z_n) - r.fetch(x, y_n, z_n) - r.fetch(x_n, y, z_n)
+                + r.fetch(x_n, y_n, z_n);
+
+            let s0 = c0.mla(c1, SseVector::from(db));
+            let s1 = s0.mla(c2, SseVector::from(dr));
+            let s2 = s1.mla(c3, SseVector::from(dg));
+            let s3 = s2.mla(c4, SseVector::from(dg * db));
+            s3.mla(c5, SseVector::from(dr * dg))
+        } else {
+            let c1 = r.fetch(x_n, y, z) - r.fetch(x_n, y, z_n);
+            let c2 = r.fetch(x_n, y, z) - c0;
+            let c3 = r.fetch(x, y_n, z) - c0;
+            let c4 = r.fetch(x_n, y, z) - r.fetch(x_n, y_n, z) - r.fetch(x_n, y, z_n)
+                + r.fetch(x_n, y_n, z_n);
+            let c5 = c0 - r.fetch(x, y_n, z) - r.fetch(x_n, y, z) + r.fetch(x_n, y_n, z);
+
+            let s0 = c0.mla(c1, SseVector::from(db));
+            let s1 = s0.mla(c2, SseVector::from(dr));
+            let s2 = s1.mla(c3, SseVector::from(dg));
+            let s3 = s2.mla(c4, SseVector::from(dg * db));
+            s3.mla(c5, SseVector::from(dr * dg))
         }
     }
 }

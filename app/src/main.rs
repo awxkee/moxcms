@@ -123,7 +123,7 @@ fn main() {
                 rendering_intent: RenderingIntent::Perceptual,
                 allow_use_cicp_transfer: true,
                 prefer_fixed_point: false,
-                interpolation_method: InterpolationMethod::Pyramidal,
+                interpolation_method: InterpolationMethod::Prism,
             },
         )
         .unwrap();
@@ -165,7 +165,7 @@ fn main() {
                 rendering_intent: RenderingIntent::Perceptual,
                 allow_use_cicp_transfer: true,
                 prefer_fixed_point: false,
-                interpolation_method: InterpolationMethod::Pyramidal,
+                interpolation_method: InterpolationMethod::Prism,
             },
         )
         .unwrap();
@@ -253,7 +253,7 @@ fn main() {
         .map(|&x| (x * 255f64).round() as u8)
         .collect::<Vec<_>>();
     image::save_buffer(
-        "v_new_sat.png",
+        "v_new_sat_prism.png",
         &dst,
         img.dimensions().0,
         img.dimensions().1,

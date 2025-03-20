@@ -39,6 +39,10 @@ pub(crate) struct Pyramidal<'a, const GRID_SIZE: usize> {
     pub(crate) cube: &'a [f32],
 }
 
+pub(crate) struct Prismatic<'a, const GRID_SIZE: usize> {
+    pub(crate) cube: &'a [f32],
+}
+
 trait Fetcher<T> {
     fn fetch(&self, x: i32, y: i32, z: i32) -> T;
 }
@@ -189,6 +193,7 @@ macro_rules! define_md_inter {
 
 define_md_inter!(Tetrahedral);
 define_md_inter!(Pyramidal);
+define_md_inter!(Prismatic);
 
 impl<const GRID_SIZE: usize> Pyramidal<'_, GRID_SIZE> {
     #[inline]
@@ -253,6 +258,65 @@ impl<const GRID_SIZE: usize> Pyramidal<'_, GRID_SIZE> {
             let s1 = s0.mla(c2, T::from(dr));
             let s2 = s1.mla(c3, T::from(dg));
             s2.mla(c4, T::from(db * dr))
+        }
+    }
+}
+
+impl<const GRID_SIZE: usize> Prismatic<'_, GRID_SIZE> {
+    #[inline]
+    fn interpolate<
+        T: Copy
+            + Sub<T, Output = T>
+            + Mul<T, Output = T>
+            + Mul<f32, Output = T>
+            + Add<T, Output = T>
+            + From<f32>
+            + FusedMultiplyAdd<T>,
+    >(
+        &self,
+        in_r: u8,
+        in_g: u8,
+        in_b: u8,
+        r: impl Fetcher<T>,
+    ) -> T {
+        const SCALE: f32 = 1.0 / 255.0;
+        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / 255;
+        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / 255;
+        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / 255;
+        let x_n: i32 = rounding_div_ceil(in_r as i32 * (GRID_SIZE as i32 - 1), 255);
+        let y_n: i32 = rounding_div_ceil(in_g as i32 * (GRID_SIZE as i32 - 1), 255);
+        let z_n: i32 = rounding_div_ceil(in_b as i32 * (GRID_SIZE as i32 - 1), 255);
+        let dr = in_r as f32 * ((GRID_SIZE as i32 - 1) as f32 * SCALE) - x as f32;
+        let dg = in_g as f32 * ((GRID_SIZE as i32 - 1) as f32 * SCALE) - y as f32;
+        let db = in_b as f32 * ((GRID_SIZE as i32 - 1) as f32 * SCALE) - z as f32;
+        let c0 = r.fetch(x, y, z);
+
+        if db > dr {
+            let c1 = r.fetch(x, y, z_n) - c0;
+            let c2 = r.fetch(x_n, y, z_n) - r.fetch(x, y, z_n);
+            let c3 = r.fetch(x, y_n, z) - c0;
+            let c4 = c0 - r.fetch(x, y_n, z) - r.fetch(x, y, z_n) + r.fetch(x, y_n, z_n);
+            let c5 = r.fetch(x, y, z_n) - r.fetch(x, y_n, z_n) - r.fetch(x_n, y, z_n)
+                + r.fetch(x_n, y_n, z_n);
+
+            let s0 = c0.mla(c1, T::from(db));
+            let s1 = s0.mla(c2, T::from(dr));
+            let s2 = s1.mla(c3, T::from(dg));
+            let s3 = s2.mla(c4, T::from(dg * db));
+            s3.mla(c5, T::from(dr * dg))
+        } else {
+            let c1 = r.fetch(x_n, y, z) - r.fetch(x_n, y, z_n);
+            let c2 = r.fetch(x_n, y, z) - c0;
+            let c3 = r.fetch(x, y_n, z) - c0;
+            let c4 = r.fetch(x_n, y, z) - r.fetch(x_n, y_n, z) - r.fetch(x_n, y, z_n)
+                + r.fetch(x_n, y_n, z_n);
+            let c5 = c0 - r.fetch(x, y_n, z) - r.fetch(x_n, y, z) + r.fetch(x_n, y_n, z);
+
+            let s0 = c0.mla(c1, T::from(db));
+            let s1 = s0.mla(c2, T::from(dr));
+            let s2 = s1.mla(c3, T::from(dg));
+            let s3 = s2.mla(c4, T::from(dg * db));
+            s3.mla(c5, T::from(dr * dg))
         }
     }
 }
