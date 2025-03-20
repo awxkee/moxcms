@@ -29,7 +29,7 @@
 use crate::conversions::CompressForLut;
 use crate::conversions::lut_transforms::Lut4x3Factory;
 use crate::conversions::sse::TetrahedralSse;
-use crate::conversions::sse::tetrahedral::{
+use crate::conversions::sse::interpolator::{
     PrismaticSse, PyramidalSse, SseAlignedF32, SseMdInterpolation,
 };
 use crate::transform::PointeeSizeExpressible;

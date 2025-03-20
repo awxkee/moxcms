@@ -104,7 +104,7 @@ fn main() {
     // )
     //     .unwrap();
 
-    let mut cmyk = vec![0f64; (decoder.output_buffer_size().unwrap() / 3) * 4];
+    let mut cmyk = vec![0u16; (decoder.output_buffer_size().unwrap() / 3) * 4];
 
     let icc = decoder.icc_profile().unwrap();
     let color_profile = ColorProfile::new_from_slice(&srgb_perceptual_icc).unwrap();
@@ -115,7 +115,7 @@ fn main() {
     // t1.transform_pixels(&real_dst, &mut cmyk);
 
     let transform = dest_profile
-        .create_transform_f64(
+        .create_transform_10bit(
             Layout::Rgba,
             &funny_profile,
             Layout::Rgba,
@@ -130,7 +130,7 @@ fn main() {
 
     let real_dst = real_dst
         .iter()
-        .map(|&x| x as f64 / 255f64)
+        .map(|&x| ((x as u16) << 2) | (x as u16) >> 6)
         .collect::<Vec<_>>();
 
     transform.transform(&real_dst, &mut cmyk).unwrap();
@@ -157,7 +157,7 @@ fn main() {
 
     dest_profile.rendering_intent = RenderingIntent::Perceptual;
     let transform = funny_profile
-        .create_transform_f64(
+        .create_transform_10bit(
             Layout::Rgba,
             &dest_profile,
             Layout::Rgba,
@@ -169,7 +169,7 @@ fn main() {
             },
         )
         .unwrap();
-    let mut dst = vec![0f64; real_dst.len()];
+    let mut dst = vec![0u16; real_dst.len()];
     // t.transform_pixels(&real_dst)
 
     // let gray_image = rgb
@@ -250,7 +250,7 @@ fn main() {
 
     let dst = dst
         .iter()
-        .map(|&x| (x * 255f64).round() as u8)
+        .map(|&x| (x >> 2) as u8)
         .collect::<Vec<_>>();
     image::save_buffer(
         "v_new_sat_prism.png",
@@ -264,12 +264,12 @@ fn main() {
 
 // fn main() {
 //     let us_swop_icc = fs::read("./assets/us_swop_coated.icc").unwrap();
-//
+// 
 //     let width = 5000;
 //     let height = 5000;
-//
+// 
 //     let cmyk = vec![0u8; width * height * 4];
-//
+// 
 //     let color_profile = ColorProfile::new_from_slice(&us_swop_icc).unwrap();
 //     let dest_profile = ColorProfile::new_srgb();
 //     let mut dst = vec![0u8; width * height * 4];
@@ -278,7 +278,10 @@ fn main() {
 //             Layout::Rgba,
 //             &dest_profile,
 //             Layout::Rgba,
-//             TransformOptions::default(),
+//             TransformOptions {
+//                 interpolation_method: InterpolationMethod::Prism,
+//                 ..Default::default()
+//             },
 //         )
 //         .unwrap();
 //     transform.transform(&cmyk, &mut dst).unwrap();

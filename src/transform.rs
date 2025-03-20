@@ -88,6 +88,7 @@ pub enum InterpolationMethod {
     Pyramid,
     /// Interpolation by dividing cube into prisms.
     /// Speed of this method somewhere in between of Tetrahedral and Pyramid.
+    /// On x86 this might be faster than pyramid, under uncertain conditions.
     Prism,
 }
 

@@ -29,7 +29,7 @@
 #![allow(dead_code)]
 use crate::conversions::CompressForLut;
 use crate::conversions::lut_transforms::Lut3x3Factory;
-use crate::conversions::tetrahedral::MultidimensionalInterpolation;
+use crate::conversions::interpolator::MultidimensionalInterpolation;
 use crate::transform::PointeeSizeExpressible;
 use crate::{CmsError, InterpolationMethod, Layout, TransformExecutor};
 use num_traits::AsPrimitive;
@@ -135,15 +135,15 @@ where
 
         match self.interpolation_method {
             InterpolationMethod::Tetrahedral => {
-                use crate::conversions::tetrahedral::Tetrahedral;
+                use crate::conversions::interpolator::Tetrahedral;
                 self.transform_chunk::<Tetrahedral<GRID_SIZE>>(src, dst);
             }
             InterpolationMethod::Pyramid => {
-                use crate::conversions::tetrahedral::Pyramidal;
+                use crate::conversions::interpolator::Pyramidal;
                 self.transform_chunk::<Pyramidal<GRID_SIZE>>(src, dst);
             }
             InterpolationMethod::Prism => {
-                use crate::conversions::tetrahedral::Prismatic;
+                use crate::conversions::interpolator::Prismatic;
                 self.transform_chunk::<Prismatic<GRID_SIZE>>(src, dst);
             }
         }

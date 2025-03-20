@@ -28,7 +28,7 @@
  */
 use crate::conversions::CompressForLut;
 use crate::conversions::avx::TetrahedralAvxFma;
-use crate::conversions::avx::tetrahedral::{
+use crate::conversions::avx::interpolator::{
     AvxMdInterpolation, PrismaticAvxFma, PyramidalAvxFma, SseAlignedF32,
 };
 use crate::conversions::lut_transforms::Lut3x3Factory;
