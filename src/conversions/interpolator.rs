@@ -302,7 +302,7 @@ impl<const GRID_SIZE: usize> Prismatic<'_, GRID_SIZE> {
         let db = in_b as f32 * ((GRID_SIZE as i32 - 1) as f32 * SCALE) - z as f32;
         let c0 = r.fetch(x, y, z);
 
-        if db > dr {
+        if db >= dr {
             let x0 = r.fetch(x, y, z_n);
             let x1 = r.fetch(x_n, y, z_n);
             let x2 = r.fetch(x, y_n, z);
@@ -327,7 +327,7 @@ impl<const GRID_SIZE: usize> Prismatic<'_, GRID_SIZE> {
             let x3 = r.fetch(x_n, y_n, z);
             let x4 = r.fetch(x_n, y_n, z_n);
 
-            let c1 = x0 - x1;
+            let c1 = x1 - x0;
             let c2 = x0 - c0;
             let c3 = x2 - c0;
             let c4 = x0 - x3 - x1 + x4;
