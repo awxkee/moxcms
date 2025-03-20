@@ -78,7 +78,7 @@ pub enum InterpolationMethod {
     Tetrahedral,
     /// Pyramidal can emit better results than tetrahedral,
     /// with lower computation cost.
-    /// Or at the very least, difference is negligible
+    /// Or at the very least, difference is negligible.
     #[default]
     Pyramidal,
 }
