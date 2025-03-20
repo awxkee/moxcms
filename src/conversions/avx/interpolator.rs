@@ -452,13 +452,13 @@ impl<const GRID_SIZE: usize> PyramidalAvxFma<'_, GRID_SIZE> {
 
             let x0 = r.fetch(x, y, z_n);
             let x1 = r.fetch(x_n, y, z);
-            let x2 = r.fetch(x_n, y_n, z);
-            let x3 = r.fetch(x_n, y, z_n);
+            let x2 = r.fetch(x_n, y, z_n);
+            let x3 = r.fetch(x_n, y_n, z_n);
 
             let c1 = x0 - c0;
             let c2 = x1 - c0;
-            let c3 = x2 - x3;
-            let c4 = c0 - x1 - x0 + x3;
+            let c3 = x3 - x2;
+            let c4 = c0 - x1 - x0 + x2;
 
             let s0 = c0.mla(c1, w0);
             let s1 = s0.mla(c2, w1);
@@ -733,13 +733,13 @@ impl<const GRID_SIZE: usize> PyramidAvxFmaDouble<'_, GRID_SIZE> {
 
             let x0_0 = r0.fetch(x, y, z_n);
             let x1_0 = r0.fetch(x_n, y, z);
-            let x2_0 = r0.fetch(x_n, y_n, z);
-            let x3_0 = r0.fetch(x_n, y, z_n);
+            let x2_0 = r0.fetch(x_n, y, z_n);
+            let x3_0 = r0.fetch(x_n, y_n, z_n);
 
             let x0_1 = r1.fetch(x, y, z_n);
             let x1_1 = r1.fetch(x_n, y, z);
-            let x2_1 = r1.fetch(x_n, y_n, z);
-            let x3_1 = r1.fetch(x_n, y, z_n);
+            let x2_1 = r1.fetch(x_n, y, z_n);
+            let x3_1 = r1.fetch(x_n, y_n, z_n);
 
             let x0 = AvxVector::from_sse(x0_0, x0_1);
             let x1 = AvxVector::from_sse(x1_0, x1_1);
@@ -748,8 +748,8 @@ impl<const GRID_SIZE: usize> PyramidAvxFmaDouble<'_, GRID_SIZE> {
 
             let c1 = x0 - c0;
             let c2 = x1 - c0;
-            let c3 = x2 - x3;
-            let c4 = c0 - x1 - x0 + x3;
+            let c3 = x3 - x2;
+            let c4 = c0 - x1 - x0 + x2;
 
             let s0 = c0.mla(c1, w0);
             let s1 = s0.mla(c2, w1);
