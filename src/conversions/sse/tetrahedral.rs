@@ -138,60 +138,42 @@ impl<const GRID_SIZE: usize> TetrahedralSse<'_, GRID_SIZE> {
         let c2;
         let c1;
         let c3;
-
-        // This is stupid to return the same in each branch but Rust is not able
-        // to optimize this appropriately.
         if rx >= ry {
             if ry >= rz {
                 //rx >= ry && ry >= rz
                 c1 = r.fetch(x_n, y, z) - c0;
                 c2 = r.fetch(x_n, y_n, z) - r.fetch(x_n, y, z);
                 c3 = r.fetch(x_n, y_n, z_n) - r.fetch(x_n, y_n, z);
-                let s0 = c0.mla(c1, SseVector::from(rx));
-                let s1 = s0.mla(c2, SseVector::from(ry));
-                s1.mla(c3, SseVector::from(rz))
             } else if rx >= rz {
                 //rx >= rz && rz >= ry
                 c1 = r.fetch(x_n, y, z) - c0;
                 c2 = r.fetch(x_n, y_n, z_n) - r.fetch(x_n, y, z_n);
                 c3 = r.fetch(x_n, y, z_n) - r.fetch(x_n, y, z);
-                let s0 = c0.mla(c1, SseVector::from(rx));
-                let s1 = s0.mla(c2, SseVector::from(ry));
-                s1.mla(c3, SseVector::from(rz))
             } else {
                 //rz > rx && rx >= ry
                 c1 = r.fetch(x_n, y, z_n) - r.fetch(x, y, z_n);
                 c2 = r.fetch(x_n, y_n, z_n) - r.fetch(x_n, y, z_n);
                 c3 = r.fetch(x, y, z_n) - c0;
-                let s0 = c0.mla(c1, SseVector::from(rx));
-                let s1 = s0.mla(c2, SseVector::from(ry));
-                s1.mla(c3, SseVector::from(rz))
             }
         } else if rx >= rz {
             //ry > rx && rx >= rz
             c1 = r.fetch(x_n, y_n, z) - r.fetch(x, y_n, z);
             c2 = r.fetch(x, y_n, z) - c0;
             c3 = r.fetch(x_n, y_n, z_n) - r.fetch(x_n, y_n, z);
-            let s0 = c0.mla(c1, SseVector::from(rx));
-            let s1 = s0.mla(c2, SseVector::from(ry));
-            s1.mla(c3, SseVector::from(rz))
         } else if ry >= rz {
             //ry >= rz && rz > rx
             c1 = r.fetch(x_n, y_n, z_n) - r.fetch(x, y_n, z_n);
             c2 = r.fetch(x, y_n, z) - c0;
             c3 = r.fetch(x, y_n, z_n) - r.fetch(x, y_n, z);
-            let s0 = c0.mla(c1, SseVector::from(rx));
-            let s1 = s0.mla(c2, SseVector::from(ry));
-            s1.mla(c3, SseVector::from(rz))
         } else {
             //rz > ry && ry > rx
             c1 = r.fetch(x_n, y_n, z_n) - r.fetch(x, y_n, z_n);
             c2 = r.fetch(x, y_n, z_n) - r.fetch(x, y, z_n);
             c3 = r.fetch(x, y, z_n) - c0;
-            let s0 = c0.mla(c1, SseVector::from(rx));
-            let s1 = s0.mla(c2, SseVector::from(ry));
-            s1.mla(c3, SseVector::from(rz))
         }
+        let s0 = c0.mla(c1, SseVector::from(rx));
+        let s1 = s0.mla(c2, SseVector::from(ry));
+        s1.mla(c3, SseVector::from(rz))
     }
 }
 
