@@ -27,9 +27,9 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::conversions::CompressForLut;
-use crate::conversions::avx::TetrahedralAvxFma;
 use crate::conversions::avx::interpolator::{
-    AvxMdInterpolation, PrismaticAvxFma, PyramidalAvxFma, SseAlignedF32,
+    AvxMdInterpolationDouble, PrismaticAvxFmaDouble, PyramidAvxFmaDouble, SseAlignedF32,
+    TetrahedralAvxFmaDouble,
 };
 use crate::conversions::lut_transforms::Lut4x3Factory;
 use crate::transform::PointeeSizeExpressible;
@@ -60,7 +60,7 @@ where
 {
     #[allow(unused_unsafe)]
     #[target_feature(enable = "avx2", enable = "fma")]
-    unsafe fn transform_chunk<'b, Interpolator: AvxMdInterpolation<'b, GRID_SIZE>>(
+    unsafe fn transform_chunk<'b, Interpolator: AvxMdInterpolationDouble<'b, GRID_SIZE>>(
         &'b self,
         src: &[T],
         dst: &mut [T],
@@ -86,10 +86,9 @@ where
             let table1 = &self.lut[(w * grid_size3) as usize..];
             let table2 = &self.lut[(w_n * grid_size3) as usize..];
 
-            let tetrahedral1 = Interpolator::new(table1);
-            let tetrahedral2 = Interpolator::new(table2);
-            let a0 = tetrahedral1.inter3_sse(c, m, y).v;
-            let b0 = tetrahedral2.inter3_sse(c, m, y).v;
+            let interpolator = Interpolator::new(table1, table2);
+            let v = interpolator.inter3_sse(c, m, y);
+            let (a0, b0) = (v.0.v, v.1.v);
 
             if T::FINITE {
                 unsafe {
@@ -158,13 +157,13 @@ where
         unsafe {
             match self.interpolation_method {
                 InterpolationMethod::Tetrahedral => {
-                    self.transform_chunk::<TetrahedralAvxFma<GRID_SIZE>>(src, dst);
+                    self.transform_chunk::<TetrahedralAvxFmaDouble<GRID_SIZE>>(src, dst);
                 }
                 InterpolationMethod::Pyramid => {
-                    self.transform_chunk::<PyramidalAvxFma<GRID_SIZE>>(src, dst);
+                    self.transform_chunk::<PyramidAvxFmaDouble<GRID_SIZE>>(src, dst);
                 }
                 InterpolationMethod::Prism => {
-                    self.transform_chunk::<PrismaticAvxFma<GRID_SIZE>>(src, dst);
+                    self.transform_chunk::<PrismaticAvxFmaDouble<GRID_SIZE>>(src, dst);
                 }
             }
         }
