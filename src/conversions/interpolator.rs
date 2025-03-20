@@ -224,7 +224,7 @@ impl<const GRID_SIZE: usize> Pyramidal<'_, GRID_SIZE> {
         let db = in_b as f32 * ((GRID_SIZE as i32 - 1) as f32 * SCALE) - z as f32;
         let c0 = r.fetch(x, y, z);
 
-        if db > dr && dg > dr {
+        if dr > db && dg > db {
             let x0 = r.fetch(x_n, y_n, z_n);
             let x1 = r.fetch(x_n, y_n, z);
             let x2 = r.fetch(x_n, y, z);
