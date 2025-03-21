@@ -365,18 +365,26 @@ fn write_mab_entry(
     }
 
     // Offset to CLUT
-    write_u32_be(into, working_offset as u32);
-    let clut_start = data.len();
-    // Writing CLUT
-    for &pt in lut.grid_points.iter() {
-        data.push(pt);
+    if !lut.clut.is_empty() {
+        write_u32_be(into, working_offset as u32);
+    } else {
+        write_u32_be(into, 0);
     }
-    data.push(2);
-    data.push(0);
-    data.push(0);
-    data.push(0);
-    for element in lut.clut.iter() {
-        write_u16_be(&mut data, element.to_fixed_u16());
+    let clut_start = data.len();
+    if !lut.clut.is_empty() {
+        // Writing CLUT
+        for &pt in lut.grid_points.iter() {
+            data.push(pt);
+        }
+        data.push(2);
+        data.push(0);
+        data.push(0);
+        data.push(0);
+        if !lut.clut.is_empty() {
+            for element in lut.clut.iter() {
+                write_u16_be(&mut data, element.to_fixed_u16());
+            }
+        }
     }
     let clut_size = data.len() - clut_start;
     working_offset += clut_size;

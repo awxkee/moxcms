@@ -264,7 +264,7 @@ impl PointeeSizeExpressible for f64 {
 }
 
 impl ColorProfile {
-    fn has_full_colors_triplet(&self) -> bool {
+    pub(crate) fn has_full_colors_triplet(&self) -> bool {
         self.red_colorant != Xyz::default()
             && self.green_colorant != Xyz::default()
             && self.blue_colorant != Xyz::default()

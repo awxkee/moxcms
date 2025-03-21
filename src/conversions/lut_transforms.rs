@@ -35,7 +35,7 @@ use crate::conversions::lut4::create_lut4;
 use crate::conversions::mab::{prepare_mab_3x3, prepare_mba_3x3};
 use crate::conversions::transform_lut3_to_4::TransformLut3x4;
 use crate::lab::Lab;
-use crate::math::FusedMultiplyAdd;
+use crate::math::{FusedMultiplyAdd, m_clamp};
 use crate::mlaf::mlaf;
 use crate::{
     CmsError, ColorProfile, DataColorSpace, InPlaceStage, InterpolationMethod, Layout,
@@ -253,14 +253,14 @@ impl CompressForLut for u16 {
 impl CompressForLut for f32 {
     #[inline(always)]
     fn compress_lut<const BIT_DEPTH: usize>(self) -> u8 {
-        (self * 255.).round().max(0f32).min(255.) as u8
+        m_clamp((self * 255.).round(), 0.0, 255.0) as u8
     }
 }
 
 impl CompressForLut for f64 {
     #[inline(always)]
     fn compress_lut<const BIT_DEPTH: usize>(self) -> u8 {
-        (self * 255.).round().max(0.).min(255.) as u8
+        m_clamp((self * 255.).round(), 0.0, 255.0) as u8
     }
 }
 
@@ -667,12 +667,11 @@ where
     f32: AsPrimitive<T>,
     u32: AsPrimitive<T>,
 {
-    if source.color_space == DataColorSpace::Cmyk
+    if (source.color_space == DataColorSpace::Cmyk || source.color_space == DataColorSpace::Color4)
         && (dest.color_space == DataColorSpace::Rgb || dest.color_space == DataColorSpace::Lab)
     {
-        if src_layout != Layout::Rgba {
-            return Err(CmsError::InvalidLayout);
-        }
+        source.color_space.check_layout(src_layout)?;
+        dest.color_space.check_layout(dst_layout)?;
         if source.pcs != DataColorSpace::Xyz && source.pcs != DataColorSpace::Lab {
             return Err(CmsError::UnsupportedProfileConnection);
         }
@@ -685,18 +684,6 @@ where
             .ok_or(CmsError::UnsupportedLutRenderingIntent(
                 source.rendering_intent,
             ))?;
-
-        if dest.color_space == DataColorSpace::Rgb {
-            if dst_layout != Layout::Rgb && dst_layout != Layout::Rgba {
-                return Err(CmsError::UnsupportedProfileConnection);
-            }
-        } else if dest.color_space == DataColorSpace::Lab {
-            if dst_layout != Layout::Rgb {
-                return Err(CmsError::UnsupportedProfileConnection);
-            }
-        } else {
-            unreachable!();
-        }
 
         const GRID_SIZE: usize = 17;
 
@@ -716,55 +703,49 @@ where
 
         pcs_lab_v4_to_v2(dest, &mut lut);
 
-        if dest.color_space == DataColorSpace::Rgb || dest.color_space == DataColorSpace::Lab {
-            if dest.pcs == DataColorSpace::Xyz {
-                prepare_inverse_lut_rgb_xyz::<T, BIT_DEPTH, GAMMA_LUT>(&dest, &mut lut, options)?;
-            } else if dest.pcs == DataColorSpace::Lab {
-                let pcs_to_device = dest
-                    .get_pcs_to_device(options.rendering_intent)
-                    .ok_or(CmsError::UnsupportedProfileConnection)?;
-                match pcs_to_device {
-                    LutWarehouse::Lut(lut_data_type) => lut = create_lut3x3(lut_data_type, &lut)?,
-                    LutWarehouse::MCurves(mab) => prepare_mba_3x3(mab, &mut lut)?,
-                }
+        if dest.pcs == DataColorSpace::Xyz {
+            if dest.has_full_colors_triplet() {
+                prepare_inverse_lut_rgb_xyz::<T, BIT_DEPTH, GAMMA_LUT>(dest, &mut lut, options)?;
+            } else {
+                return Err(CmsError::UnsupportedProfileConnection);
             }
-
-            #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-            {
-                #[cfg(feature = "avx")]
-                if std::arch::is_x86_feature_detected!("avx2")
-                    && std::arch::is_x86_feature_detected!("fma")
-                {
-                    return Ok(make_transformer_4x3_avx_fma::<T, GRID_SIZE, BIT_DEPTH>(
-                        dst_layout, lut, options,
-                    ));
-                }
-                #[cfg(feature = "sse")]
-                if std::arch::is_x86_feature_detected!("sse4.1") {
-                    return Ok(make_transformer_4x3_sse41::<T, GRID_SIZE, BIT_DEPTH>(
-                        dst_layout, lut, options,
-                    ));
-                }
+        } else if dest.pcs == DataColorSpace::Lab {
+            let pcs_to_device = dest
+                .get_pcs_to_device(options.rendering_intent)
+                .ok_or(CmsError::UnsupportedProfileConnection)?;
+            match pcs_to_device {
+                LutWarehouse::Lut(lut_data_type) => lut = create_lut3x3(lut_data_type, &lut)?,
+                LutWarehouse::MCurves(mab) => prepare_mba_3x3(mab, &mut lut)?,
             }
-
-            return Ok(make_transformer_4x3::<T, GRID_SIZE, BIT_DEPTH>(
-                dst_layout, lut, options,
-            ));
         }
+
+        #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+        {
+            #[cfg(feature = "avx")]
+            if std::arch::is_x86_feature_detected!("avx2")
+                && std::arch::is_x86_feature_detected!("fma")
+            {
+                return Ok(make_transformer_4x3_avx_fma::<T, GRID_SIZE, BIT_DEPTH>(
+                    dst_layout, lut, options,
+                ));
+            }
+            #[cfg(feature = "sse")]
+            if std::arch::is_x86_feature_detected!("sse4.1") {
+                return Ok(make_transformer_4x3_sse41::<T, GRID_SIZE, BIT_DEPTH>(
+                    dst_layout, lut, options,
+                ));
+            }
+        }
+
+        return Ok(make_transformer_4x3::<T, GRID_SIZE, BIT_DEPTH>(
+            dst_layout, lut, options,
+        ));
     } else if (source.color_space == DataColorSpace::Rgb
         || source.color_space == DataColorSpace::Lab)
-        && dest.color_space == DataColorSpace::Cmyk
+        && (dest.color_space == DataColorSpace::Cmyk || dest.color_space == DataColorSpace::Color4)
     {
-        if source.color_space == DataColorSpace::Rgb {
-            if src_layout != Layout::Rgba && src_layout != Layout::Rgb {
-                return Err(CmsError::InvalidLayout);
-            }
-        } else if source.color_space == DataColorSpace::Lab && src_layout != Layout::Rgb {
-            return Err(CmsError::InvalidLayout);
-        }
-        if dst_layout != Layout::Rgba {
-            return Err(CmsError::InvalidLayout);
-        }
+        source.color_space.check_layout(src_layout)?;
+        dest.color_space.check_layout(dst_layout)?;
         if source.pcs != DataColorSpace::Xyz && source.pcs != DataColorSpace::Lab {
             return Err(CmsError::UnsupportedProfileConnection);
         }
@@ -789,8 +770,10 @@ where
                 }
                 LutWarehouse::MCurves(mab) => prepare_mab_3x3(mab, &mut lut)?,
             }
-        } else {
+        } else if source.has_full_colors_triplet() {
             lut = create_rgb_lin_lut::<T, BIT_DEPTH, LINEAR_CAP, GRID_SIZE>(source, options)?;
+        } else {
+            return Err(CmsError::UnsupportedProfileConnection);
         }
 
         pcs_lab_v2_to_v4(source, &mut lut);
@@ -829,32 +812,14 @@ where
             _ => unimplemented!(),
         });
     } else if (source.color_space == DataColorSpace::Rgb
-        || source.color_space == DataColorSpace::Lab)
-        && (dest.color_space == DataColorSpace::Rgb || dest.color_space == DataColorSpace::Lab)
+        || source.color_space == DataColorSpace::Lab
+        || source.color_space == DataColorSpace::Color3)
+        && (dest.color_space == DataColorSpace::Rgb
+            || dest.color_space == DataColorSpace::Lab
+            || dest.color_space == DataColorSpace::Color3)
     {
-        if source.color_space == DataColorSpace::Rgb {
-            if src_layout != Layout::Rgba && src_layout != Layout::Rgb {
-                return Err(CmsError::InvalidLayout);
-            }
-        } else if source.color_space == DataColorSpace::Lab {
-            if src_layout != Layout::Rgb {
-                return Err(CmsError::InvalidLayout);
-            }
-        } else {
-            unreachable!();
-        }
-
-        if dest.color_space == DataColorSpace::Rgb {
-            if dst_layout != Layout::Rgba && dst_layout != Layout::Rgb {
-                return Err(CmsError::InvalidLayout);
-            }
-        } else if dest.color_space == DataColorSpace::Lab {
-            if dst_layout != Layout::Rgb {
-                return Err(CmsError::InvalidLayout);
-            }
-        } else {
-            unreachable!();
-        }
+        source.color_space.check_layout(src_layout)?;
+        dest.color_space.check_layout(dst_layout)?;
 
         const GRID_SIZE: usize = 33;
 
@@ -872,8 +837,10 @@ where
                 }
                 LutWarehouse::MCurves(mab) => prepare_mab_3x3(mab, &mut lut)?,
             }
-        } else {
+        } else if source.has_full_colors_triplet() {
             lut = create_rgb_lin_lut::<T, BIT_DEPTH, LINEAR_CAP, GRID_SIZE>(source, options)?;
+        } else {
+            return Err(CmsError::UnsupportedProfileConnection);
         }
 
         pcs_lab_v2_to_v4(source, &mut lut);
@@ -896,8 +863,10 @@ where
                 LutWarehouse::Lut(lut_data_type) => lut = create_lut3x3(lut_data_type, &lut)?,
                 LutWarehouse::MCurves(mab) => prepare_mba_3x3(mab, &mut lut)?,
             }
+        } else if dest.has_full_colors_triplet() {
+            prepare_inverse_lut_rgb_xyz::<T, BIT_DEPTH, GAMMA_LUT>(dest, &mut lut, options)?;
         } else {
-            prepare_inverse_lut_rgb_xyz::<T, BIT_DEPTH, GAMMA_LUT>(&dest, &mut lut, options)?;
+            return Err(CmsError::UnsupportedProfileConnection);
         }
 
         #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
@@ -996,7 +965,7 @@ fn prepare_inverse_lut_rgb_xyz<
     const BIT_DEPTH: usize,
     const GAMMA_LUT: usize,
 >(
-    dest: &&ColorProfile,
+    dest: &ColorProfile,
     lut: &mut [f32],
     options: TransformOptions,
 ) -> Result<(), CmsError>
