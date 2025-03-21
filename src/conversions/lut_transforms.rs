@@ -719,28 +719,27 @@ where
             }
         }
 
-            #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+        #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+        {
+            #[cfg(feature = "avx")]
+            if std::arch::is_x86_feature_detected!("avx2")
+                && std::arch::is_x86_feature_detected!("fma")
             {
-                #[cfg(feature = "avx")]
-                if std::arch::is_x86_feature_detected!("avx2")
-                    && std::arch::is_x86_feature_detected!("fma")
-                {
-                    return Ok(make_transformer_4x3_avx_fma::<T, GRID_SIZE, BIT_DEPTH>(
-                        dst_layout, lut, options,
-                    ));
-                }
-                #[cfg(feature = "sse")]
-                if std::arch::is_x86_feature_detected!("sse4.1") {
-                    return Ok(make_transformer_4x3_sse41::<T, GRID_SIZE, BIT_DEPTH>(
-                        dst_layout, lut, options,
-                    ));
-                }
+                return Ok(make_transformer_4x3_avx_fma::<T, GRID_SIZE, BIT_DEPTH>(
+                    dst_layout, lut, options,
+                ));
             }
-
-            return Ok(make_transformer_4x3::<T, GRID_SIZE, BIT_DEPTH>(
-                dst_layout, lut, options,
-            ));
+            #[cfg(feature = "sse")]
+            if std::arch::is_x86_feature_detected!("sse4.1") {
+                return Ok(make_transformer_4x3_sse41::<T, GRID_SIZE, BIT_DEPTH>(
+                    dst_layout, lut, options,
+                ));
+            }
         }
+
+        return Ok(make_transformer_4x3::<T, GRID_SIZE, BIT_DEPTH>(
+            dst_layout, lut, options,
+        ));
     } else if (source.color_space == DataColorSpace::Rgb
         || source.color_space == DataColorSpace::Lab)
         && (dest.color_space == DataColorSpace::Cmyk || dest.color_space == DataColorSpace::Color4)
