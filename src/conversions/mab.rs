@@ -190,10 +190,10 @@ pub(crate) fn prepare_mab_3x3(mab: &LutMCurvesType, lut: &mut [f32]) -> Result<(
     if mab.num_input_channels != 3 && mab.num_output_channels != 3 {
         return Err(CmsError::UnsupportedProfileConnection);
     }
-    if mab.grid_points[0] != mab.grid_points[1] || mab.grid_points[1] != mab.grid_points[2] {
-        return Err(CmsError::UnsupportedProfileConnection);
-    }
-    if mab.a_curves.len() == 3 {
+    if mab.a_curves.len() == 3 && !mab.clut.is_empty() {
+        if mab.grid_points[0] != mab.grid_points[1] || mab.grid_points[1] != mab.grid_points[2] {
+            return Err(CmsError::UnsupportedProfileConnection);
+        }
         let curve0 = mab.a_curves[0]
             .build_linearize_table::<u8, LERP_DEPTH, BP>()
             .ok_or(CmsError::InvalidTrcCurve)?;
@@ -264,10 +264,6 @@ pub(crate) fn prepare_mba_3x3(mab: &LutMCurvesType, lut: &mut [f32]) -> Result<(
     if mab.num_input_channels != 3 && mab.num_output_channels != 3 {
         return Err(CmsError::UnsupportedProfileConnection);
     }
-    if mab.grid_points[0] != mab.grid_points[1] || mab.grid_points[1] != mab.grid_points[2] {
-        return Err(CmsError::UnsupportedProfileConnection);
-    }
-
     const LERP_DEPTH: usize = 256;
     const BP: usize = 8;
 
@@ -314,7 +310,10 @@ pub(crate) fn prepare_mba_3x3(mab: &LutMCurvesType, lut: &mut [f32]) -> Result<(
         m_curves.transform(lut)?;
     }
 
-    if mab.a_curves.len() == 3 {
+    if mab.a_curves.len() == 3 && !mab.clut.is_empty() {
+        if mab.grid_points[0] != mab.grid_points[1] || mab.grid_points[1] != mab.grid_points[2] {
+            return Err(CmsError::UnsupportedProfileConnection);
+        }
         let curve0 = mab.a_curves[0]
             .build_linearize_table::<u8, LERP_DEPTH, BP>()
             .ok_or(CmsError::InvalidTrcCurve)?;

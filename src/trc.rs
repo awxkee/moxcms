@@ -388,12 +388,16 @@ where
 {
     let mut table = Box::new([T::default(); BUCKET]);
     let max_range = if T::FINITE {
-        (1f64 / (N as f64 / (1 << BIT_DEPTH) as f64)) as f32
+        (1f64 / ((N - 1) as f64 / (1 << BIT_DEPTH) as f64)) as f32
     } else {
-        (1f64 / (N as f64)) as f32
+        (1f64 / ((N - 1) as f64)) as f32
     };
     for (v, output) in table.iter_mut().take(N).enumerate() {
-        *output = (v as f32 * max_range).round().as_();
+        if T::FINITE {
+            *output = (v as f32 * max_range).round().as_();
+        } else {
+            *output = (v as f32 * max_range).as_();
+        }
     }
     table
 }

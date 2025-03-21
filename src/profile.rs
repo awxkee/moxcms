@@ -36,7 +36,7 @@ use crate::matrix::{BT2020_MATRIX, DISPLAY_P3_MATRIX, Matrix3f, SRGB_MATRIX, XyY
 use crate::safe_reader::{SafeAdd, SafeMul};
 use crate::tag::{TAG_SIZE, Tag, TagTypeDefinition};
 use crate::trc::ToneReprCurve;
-use crate::{Chromaticity, Vector3f};
+use crate::{Chromaticity, Layout, Vector3f};
 use std::io::Read;
 
 const MAX_PROFILE_SIZE: usize = 1024 * 1024 * 10; // 10 MB max, for Fogra39 etc
@@ -163,6 +163,34 @@ pub enum DataColorSpace {
     Color13,
     Color14,
     Color15,
+}
+
+impl DataColorSpace {
+    #[inline]
+    pub fn check_layout(self, layout: Layout) -> Result<(), CmsError> {
+        let unsupported: bool = match self {
+            DataColorSpace::Xyz => layout != Layout::Rgb,
+            DataColorSpace::Lab => layout != Layout::Rgb,
+            DataColorSpace::Luv => layout != Layout::Rgb,
+            DataColorSpace::YCbr => layout != Layout::Rgb,
+            DataColorSpace::Yxy => layout != Layout::Rgb,
+            DataColorSpace::Rgb => layout != Layout::Rgb && layout != Layout::Rgba,
+            DataColorSpace::Gray => layout != Layout::Gray && layout != Layout::GrayAlpha,
+            DataColorSpace::Hsv => layout != Layout::Rgb,
+            DataColorSpace::Hls => layout != Layout::Rgb,
+            DataColorSpace::Cmyk => layout != Layout::Rgba,
+            DataColorSpace::Cmy => layout != Layout::Rgb,
+            DataColorSpace::Color2 => layout != Layout::GrayAlpha,
+            DataColorSpace::Color3 => layout != Layout::Rgb,
+            DataColorSpace::Color4 => layout != Layout::Rgba,
+            _ => false,
+        };
+        if unsupported {
+            Err(CmsError::InvalidLayout)
+        } else {
+            Ok(())
+        }
+    }
 }
 
 #[repr(u32)]
@@ -1415,108 +1443,122 @@ impl ColorProfile {
         let matrix_offset = u32::from_be_bytes([tag[16], tag[17], tag[18], tag[19]]) as usize;
         let b_curve_offset = u32::from_be_bytes([tag[12], tag[13], tag[14], tag[15]]) as usize;
 
-        let matrix_end = matrix_offset.safe_add(12 * 4)?;
-        if tag.len() < matrix_end {
-            return Err(CmsError::InvalidProfile);
+        let transform: Matrix3f;
+        let bias;
+        if matrix_offset != 0 {
+            let matrix_end = matrix_offset.safe_add(12 * 4)?;
+            if tag.len() < matrix_end {
+                return Err(CmsError::InvalidProfile);
+            }
+
+            let m_tag = &tag[matrix_offset..matrix_end];
+
+            let e00 = i32::from_be_bytes([m_tag[0], m_tag[1], m_tag[2], m_tag[3]]);
+            let e01 = i32::from_be_bytes([m_tag[4], m_tag[5], m_tag[6], m_tag[7]]);
+            let e02 = i32::from_be_bytes([m_tag[8], m_tag[9], m_tag[10], m_tag[11]]);
+
+            let e10 = i32::from_be_bytes([m_tag[12], m_tag[13], m_tag[14], m_tag[15]]);
+            let e11 = i32::from_be_bytes([m_tag[16], m_tag[17], m_tag[18], m_tag[19]]);
+            let e12 = i32::from_be_bytes([m_tag[20], m_tag[21], m_tag[22], m_tag[23]]);
+
+            let e20 = i32::from_be_bytes([m_tag[24], m_tag[25], m_tag[26], m_tag[27]]);
+            let e21 = i32::from_be_bytes([m_tag[28], m_tag[29], m_tag[30], m_tag[31]]);
+            let e22 = i32::from_be_bytes([m_tag[32], m_tag[33], m_tag[34], m_tag[35]]);
+
+            let b0 = i32::from_be_bytes([m_tag[36], m_tag[37], m_tag[38], m_tag[39]]);
+            let b1 = i32::from_be_bytes([m_tag[40], m_tag[41], m_tag[42], m_tag[43]]);
+            let b2 = i32::from_be_bytes([m_tag[44], m_tag[45], m_tag[46], m_tag[47]]);
+
+            transform = Matrix3f {
+                v: [
+                    [
+                        s15_fixed16_number_to_float(e00),
+                        s15_fixed16_number_to_float(e01),
+                        s15_fixed16_number_to_float(e02),
+                    ],
+                    [
+                        s15_fixed16_number_to_float(e10),
+                        s15_fixed16_number_to_float(e11),
+                        s15_fixed16_number_to_float(e12),
+                    ],
+                    [
+                        s15_fixed16_number_to_float(e20),
+                        s15_fixed16_number_to_float(e21),
+                        s15_fixed16_number_to_float(e22),
+                    ],
+                ],
+            };
+
+            bias = Vector3f {
+                v: [
+                    s15_fixed16_number_to_float(b0),
+                    s15_fixed16_number_to_float(b1),
+                    s15_fixed16_number_to_float(b2),
+                ],
+            };
+        } else {
+            transform = Matrix3f::IDENTITY;
+            bias = Vector3f::default();
         }
 
-        let m_tag = &tag[matrix_offset..matrix_end];
-
-        let e00 = i32::from_be_bytes([m_tag[0], m_tag[1], m_tag[2], m_tag[3]]);
-        let e01 = i32::from_be_bytes([m_tag[4], m_tag[5], m_tag[6], m_tag[7]]);
-        let e02 = i32::from_be_bytes([m_tag[8], m_tag[9], m_tag[10], m_tag[11]]);
-
-        let e10 = i32::from_be_bytes([m_tag[12], m_tag[13], m_tag[14], m_tag[15]]);
-        let e11 = i32::from_be_bytes([m_tag[16], m_tag[17], m_tag[18], m_tag[19]]);
-        let e12 = i32::from_be_bytes([m_tag[20], m_tag[21], m_tag[22], m_tag[23]]);
-
-        let e20 = i32::from_be_bytes([m_tag[24], m_tag[25], m_tag[26], m_tag[27]]);
-        let e21 = i32::from_be_bytes([m_tag[28], m_tag[29], m_tag[30], m_tag[31]]);
-        let e22 = i32::from_be_bytes([m_tag[32], m_tag[33], m_tag[34], m_tag[35]]);
-
-        let b0 = i32::from_be_bytes([m_tag[36], m_tag[37], m_tag[38], m_tag[39]]);
-        let b1 = i32::from_be_bytes([m_tag[40], m_tag[41], m_tag[42], m_tag[43]]);
-        let b2 = i32::from_be_bytes([m_tag[44], m_tag[45], m_tag[46], m_tag[47]]);
-
-        let transform = Matrix3f {
-            v: [
-                [
-                    s15_fixed16_number_to_float(e00),
-                    s15_fixed16_number_to_float(e01),
-                    s15_fixed16_number_to_float(e02),
-                ],
-                [
-                    s15_fixed16_number_to_float(e10),
-                    s15_fixed16_number_to_float(e11),
-                    s15_fixed16_number_to_float(e12),
-                ],
-                [
-                    s15_fixed16_number_to_float(e20),
-                    s15_fixed16_number_to_float(e21),
-                    s15_fixed16_number_to_float(e22),
-                ],
-            ],
-        };
-
-        let bias = Vector3f {
-            v: [
-                s15_fixed16_number_to_float(b0),
-                s15_fixed16_number_to_float(b1),
-                s15_fixed16_number_to_float(b2),
-            ],
-        };
-
-        // Check if CLUT formed correctly
-        if clut_offset.safe_add(20)? > tag.len() {
-            return Err(CmsError::InvalidProfile);
-        }
-
-        let clut_sizes_slice = &tag[clut_offset..clut_offset.safe_add(16)?];
         let mut grid_points: [u8; 16] = [0; 16];
-        for (&s, v) in clut_sizes_slice.iter().zip(grid_points.iter_mut()) {
-            *v = s;
-        }
 
-        let mut clut_size = 1u32;
-        for &i in grid_points.iter().take(in_channels as usize) {
-            clut_size *= i as u32;
-        }
-        clut_size *= out_channels as u32;
+        let clut_table = if clut_offset != 0 {
+            // Check if CLUT formed correctly
+            if clut_offset.safe_add(20)? > tag.len() {
+                return Err(CmsError::InvalidProfile);
+            }
 
-        if clut_size == 0 {
-            return Err(CmsError::InvalidProfile);
-        }
+            let clut_sizes_slice = &tag[clut_offset..clut_offset.safe_add(16)?];
+            for (&s, v) in clut_sizes_slice.iter().zip(grid_points.iter_mut()) {
+                *v = s;
+            }
 
-        if clut_size > 10_000_000 {
-            return Err(CmsError::InvalidProfile);
-        }
+            let mut clut_size = 1u32;
+            for &i in grid_points.iter().take(in_channels as usize) {
+                clut_size *= i as u32;
+            }
+            clut_size *= out_channels as u32;
 
-        let clut_offset20 = clut_offset.safe_add(20)?;
+            if clut_size == 0 {
+                return Err(CmsError::InvalidProfile);
+            }
 
-        let clut_header = &tag[clut_offset..clut_offset20];
-        let entry_size = clut_header[16];
-        if entry_size != 1 && entry_size != 2 {
-            return Err(CmsError::InvalidProfile);
-        }
+            if clut_size > 10_000_000 {
+                return Err(CmsError::InvalidProfile);
+            }
 
-        let clut_end = clut_offset20.safe_add(clut_size.safe_mul(entry_size as u32)? as usize)?;
+            let clut_offset20 = clut_offset.safe_add(20)?;
 
-        if tag.len() < clut_end {
-            return Err(CmsError::InvalidProfile);
-        }
+            let clut_header = &tag[clut_offset..clut_offset20];
+            let entry_size = clut_header[16];
+            if entry_size != 1 && entry_size != 2 {
+                return Err(CmsError::InvalidProfile);
+            }
 
-        let mut clut_table = vec![0f32; clut_size as usize];
+            let clut_end =
+                clut_offset20.safe_add(clut_size.safe_mul(entry_size as u32)? as usize)?;
 
-        let shaped_clut_table = &tag[clut_offset20..clut_end];
-        Self::read_lut_table_f32(
-            shaped_clut_table,
-            &mut clut_table,
-            if entry_size == 1 {
-                LutType::Lut8
-            } else {
-                LutType::Lut16
-            },
-        );
+            if tag.len() < clut_end {
+                return Err(CmsError::InvalidProfile);
+            }
+
+            let mut clut_table = vec![0f32; clut_size as usize];
+
+            let shaped_clut_table = &tag[clut_offset20..clut_end];
+            Self::read_lut_table_f32(
+                shaped_clut_table,
+                &mut clut_table,
+                if entry_size == 1 {
+                    LutType::Lut8
+                } else {
+                    LutType::Lut16
+                },
+            );
+            clut_table
+        } else {
+            vec![0f32; 0]
+        };
 
         let a_curves = if a_curve_offset == 0 {
             Vec::new()
