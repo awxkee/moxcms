@@ -53,8 +53,8 @@ struct TetrahedralFetchVector3f<'a, const GRID_SIZE: usize> {
 
 pub(crate) trait MultidimensionalInterpolation<'a, const GRID_SIZE: usize> {
     fn new(table: &'a [f32]) -> Self;
-    fn inter3(&self, in_r: u8, in_g: u8, in_b: u8) -> Vector3f;
-    fn inter4(&self, in_r: u8, in_g: u8, in_b: u8) -> Vector4f;
+    fn inter3(&self, in_r: u16, in_g: u16, in_b: u16) -> Vector3f;
+    fn inter4(&self, in_r: u16, in_g: u16, in_b: u16) -> Vector4f;
 }
 
 impl<const GRID_SIZE: usize> Fetcher<Vector3f> for TetrahedralFetchVector3f<'_, GRID_SIZE> {
@@ -101,18 +101,18 @@ impl<const GRID_SIZE: usize> Tetrahedral<'_, GRID_SIZE> {
             + FusedMultiplyAdd<T>,
     >(
         &self,
-        in_r: u8,
-        in_g: u8,
-        in_b: u8,
+        in_r: u16,
+        in_g: u16,
+        in_b: u16,
         r: impl Fetcher<T>,
     ) -> T {
-        const SCALE: f32 = 1.0 / 255.0;
-        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / 255;
-        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / 255;
-        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / 255;
-        let x_n: i32 = rounding_div_ceil(in_r as i32 * (GRID_SIZE as i32 - 1), 255);
-        let y_n: i32 = rounding_div_ceil(in_g as i32 * (GRID_SIZE as i32 - 1), 255);
-        let z_n: i32 = rounding_div_ceil(in_b as i32 * (GRID_SIZE as i32 - 1), 255);
+        const SCALE: f32 = 1.0 / 65535.0;
+        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / 65535;
+        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / 65535;
+        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / 65535;
+        let x_n: i32 = rounding_div_ceil(in_r as i32 * (GRID_SIZE as i32 - 1), 65535);
+        let y_n: i32 = rounding_div_ceil(in_g as i32 * (GRID_SIZE as i32 - 1), 65535);
+        let z_n: i32 = rounding_div_ceil(in_b as i32 * (GRID_SIZE as i32 - 1), 65535);
         let rx = in_r as f32 * ((GRID_SIZE as i32 - 1) as f32 * SCALE) - x as f32;
         let ry = in_g as f32 * ((GRID_SIZE as i32 - 1) as f32 * SCALE) - y as f32;
         let rz = in_b as f32 * ((GRID_SIZE as i32 - 1) as f32 * SCALE) - z as f32;
@@ -169,7 +169,7 @@ macro_rules! define_md_inter {
             }
 
             #[inline(always)]
-            fn inter3(&self, in_r: u8, in_g: u8, in_b: u8) -> Vector3f {
+            fn inter3(&self, in_r: u16, in_g: u16, in_b: u16) -> Vector3f {
                 self.interpolate(
                     in_r,
                     in_g,
@@ -179,7 +179,7 @@ macro_rules! define_md_inter {
             }
 
             #[inline(always)]
-            fn inter4(&self, in_r: u8, in_g: u8, in_b: u8) -> Vector4f {
+            fn inter4(&self, in_r: u16, in_g: u16, in_b: u16) -> Vector4f {
                 self.interpolate(
                     in_r,
                     in_g,
@@ -207,18 +207,18 @@ impl<const GRID_SIZE: usize> Pyramidal<'_, GRID_SIZE> {
             + FusedMultiplyAdd<T>,
     >(
         &self,
-        in_r: u8,
-        in_g: u8,
-        in_b: u8,
+        in_r: u16,
+        in_g: u16,
+        in_b: u16,
         r: impl Fetcher<T>,
     ) -> T {
-        const SCALE: f32 = 1.0 / 255.0;
-        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / 255;
-        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / 255;
-        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / 255;
-        let x_n: i32 = rounding_div_ceil(in_r as i32 * (GRID_SIZE as i32 - 1), 255);
-        let y_n: i32 = rounding_div_ceil(in_g as i32 * (GRID_SIZE as i32 - 1), 255);
-        let z_n: i32 = rounding_div_ceil(in_b as i32 * (GRID_SIZE as i32 - 1), 255);
+        const SCALE: f32 = 1.0 / 65535.0;
+        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / 65535;
+        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / 65535;
+        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / 65535;
+        let x_n: i32 = rounding_div_ceil(in_r as i32 * (GRID_SIZE as i32 - 1), 65535);
+        let y_n: i32 = rounding_div_ceil(in_g as i32 * (GRID_SIZE as i32 - 1), 65535);
+        let z_n: i32 = rounding_div_ceil(in_b as i32 * (GRID_SIZE as i32 - 1), 65535);
         let dr = in_r as f32 * ((GRID_SIZE as i32 - 1) as f32 * SCALE) - x as f32;
         let dg = in_g as f32 * ((GRID_SIZE as i32 - 1) as f32 * SCALE) - y as f32;
         let db = in_b as f32 * ((GRID_SIZE as i32 - 1) as f32 * SCALE) - z as f32;
@@ -285,18 +285,18 @@ impl<const GRID_SIZE: usize> Prismatic<'_, GRID_SIZE> {
             + FusedMultiplyAdd<T>,
     >(
         &self,
-        in_r: u8,
-        in_g: u8,
-        in_b: u8,
+        in_r: u16,
+        in_g: u16,
+        in_b: u16,
         r: impl Fetcher<T>,
     ) -> T {
-        const SCALE: f32 = 1.0 / 255.0;
-        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / 255;
-        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / 255;
-        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / 255;
-        let x_n: i32 = rounding_div_ceil(in_r as i32 * (GRID_SIZE as i32 - 1), 255);
-        let y_n: i32 = rounding_div_ceil(in_g as i32 * (GRID_SIZE as i32 - 1), 255);
-        let z_n: i32 = rounding_div_ceil(in_b as i32 * (GRID_SIZE as i32 - 1), 255);
+        const SCALE: f32 = 1.0 / 65535.0;
+        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / 65535;
+        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / 65535;
+        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / 65535;
+        let x_n: i32 = rounding_div_ceil(in_r as i32 * (GRID_SIZE as i32 - 1), 65535);
+        let y_n: i32 = rounding_div_ceil(in_g as i32 * (GRID_SIZE as i32 - 1), 65535);
+        let z_n: i32 = rounding_div_ceil(in_b as i32 * (GRID_SIZE as i32 - 1), 65535);
         let dr = in_r as f32 * ((GRID_SIZE as i32 - 1) as f32 * SCALE) - x as f32;
         let dg = in_g as f32 * ((GRID_SIZE as i32 - 1) as f32 * SCALE) - y as f32;
         let db = in_b as f32 * ((GRID_SIZE as i32 - 1) as f32 * SCALE) - z as f32;

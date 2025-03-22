@@ -32,14 +32,9 @@ use std::fs;
 use std::fs::File;
 use std::io::BufReader;
 use std::time::Instant;
-use jxl_oxide::{JxlImage, JxlThreadPool, Moxcms};
-use zune_jpeg::JpegDecoder;
 use zune_jpeg::zune_core::colorspace::ColorSpace;
 use zune_jpeg::zune_core::options::DecoderOptions;
-
-#[repr(C)]
-#[derive(Clone, Copy, Debug)]
-struct RgbaFltPacked([f32; 4]);
+use zune_jpeg::JpegDecoder;
 
 fn compute_abs_diff4(src: &[f32], dst: &[[f32; 4]]) {
     let mut abs_r = f32::MIN;
@@ -212,60 +207,60 @@ fn main() {
     compute_abs_diff4(&dst, &lcms2_src);
 
     // println!("Estimated time: {:?}", instant.elapsed());
-
-    let mut image = JxlImage::builder()
-        .pool(JxlThreadPool::none())
-        .read(std::io::Cursor::new(
-            fs::read("./assets/input(1).jxl").unwrap(),
-        ))
-        .unwrap();
-    image.set_cms(Moxcms);
-    
-    let render = image.render_frame(0).unwrap();
-    let rendered_icc = image.rendered_icc();
-    let image = render.image_all_channels();
-    let img_buf = image.buf();
-    
-    let real_img_data = img_buf
-        .chunks_exact(5)
-        .flat_map(|x| [x[0], x[1], x[2], x[3]])
-        .map(|x| (x * 255.0 + 0.5) as u8)
-        .collect::<Vec<_>>();
-    
-    let jxl_profile = ColorProfile::new_from_slice(&rendered_icc).unwrap();
-
-    // let mut dst2 = vec![0u16; real_img_data.len()];
-    // let transform2 = jxl_profile
-    //     .create_transform_16bit(
-    //         Layout::Rgba,
-    //         &dest_profile,
-    //         Layout::Rgba,
-    //         TransformOptions::default(),
-    //     )
+    // 
+    // let mut image = JxlImage::builder()
+    //     .pool(JxlThreadPool::none())
+    //     .read(std::io::Cursor::new(
+    //         fs::read("./assets/input(1).jxl").unwrap(),
+    //     ))
     //     .unwrap();
+    // image.set_cms(Moxcms);
     // 
-    // for (src, dst) in real_img_data
-    //     .chunks_exact(img.width() as usize * 4)
-    //     .zip(dst2.chunks_exact_mut(image.width() as usize * 4))
-    // {
-    //     // ot.transform_pixels(src, dst);
+    // let render = image.render_frame(0).unwrap();
+    // let rendered_icc = image.rendered_icc();
+    // let image = render.image_all_channels();
+    // let img_buf = image.buf();
     // 
-    //     transform2
-    //         .transform(
-    //             &src[..image.width() as usize * 4],
-    //             &mut dst[..image.height() as usize * 4],
-    //         )
-    //         .unwrap();
-    // }
+    // let real_img_data = img_buf
+    //     .chunks_exact(5)
+    //     .flat_map(|x| [x[0], x[1], x[2], x[3]])
+    //     .map(|x| (x * 255.0 + 0.5) as u8)
+    //     .collect::<Vec<_>>();
     // 
-    image::save_buffer(
-        "moxcms.png",
-        &real_img_data,
-        image.width() as u32,
-        image.height() as u32,
-        image::ExtendedColorType::Rgba8,
-    )
-    .unwrap();
+    // let jxl_profile = ColorProfile::new_from_slice(&rendered_icc).unwrap();
+    // 
+    // // let mut dst2 = vec![0u16; real_img_data.len()];
+    // // let transform2 = jxl_profile
+    // //     .create_transform_16bit(
+    // //         Layout::Rgba,
+    // //         &dest_profile,
+    // //         Layout::Rgba,
+    // //         TransformOptions::default(),
+    // //     )
+    // //     .unwrap();
+    // // 
+    // // for (src, dst) in real_img_data
+    // //     .chunks_exact(img.width() as usize * 4)
+    // //     .zip(dst2.chunks_exact_mut(image.width() as usize * 4))
+    // // {
+    // //     // ot.transform_pixels(src, dst);
+    // // 
+    // //     transform2
+    // //         .transform(
+    // //             &src[..image.width() as usize * 4],
+    // //             &mut dst[..image.height() as usize * 4],
+    // //         )
+    // //         .unwrap();
+    // // }
+    // // 
+    // image::save_buffer(
+    //     "moxcms.png",
+    //     &real_img_data,
+    //     image.width() as u32,
+    //     image.height() as u32,
+    //     image::ExtendedColorType::Rgba8,
+    // )
+    // .unwrap();
 
     // let dst = dst.chunks_exact(4).map(|x| {
     //     [x[0], x[1], x[2], 255]

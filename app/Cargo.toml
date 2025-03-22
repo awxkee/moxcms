@@ -7,7 +7,7 @@ edition = "2024"
 image = "0.25.5"
 moxcms = {path = "../", default-features = true}
 lcms2 = "6.1.0"
-jxl-oxide = {path = "../../../RustroverProjects/jxl-oxide/crates/jxl-oxide", features = ["moxcms"]}
+jxl-oxide = "0.11.3"
 zune-jpeg = "0.5.0-rc2"
 qcms = "0.3.0"
 rand = "0.9.0"

@@ -232,36 +232,36 @@ impl InPlaceStage for MatrixStage {
 }
 
 pub(crate) trait CompressForLut {
-    fn compress_lut<const BIT_DEPTH: usize>(self) -> u8;
+    fn compress_lut<const BIT_DEPTH: usize>(self) -> u16;
 }
 
 impl CompressForLut for u8 {
     #[inline(always)]
-    fn compress_lut<const BIT_DEPTH: usize>(self) -> u8 {
-        self
+    fn compress_lut<const BIT_DEPTH: usize>(self) -> u16 {
+        u16::from_ne_bytes([self, self])
     }
 }
 
 impl CompressForLut for u16 {
     #[inline(always)]
-    fn compress_lut<const BIT_DEPTH: usize>(self) -> u8 {
-        let scale = BIT_DEPTH - 8;
-        let rnd = (1 << (scale - 1)) - 1;
-        ((self as u32 + rnd) >> scale).min(255) as u8
+    fn compress_lut<const BIT_DEPTH: usize>(self) -> u16 {
+        let target_expand_bits = 16u32 - BIT_DEPTH as u32;
+        (((self as u32) << target_expand_bits) | ((self as u32) >> (16 - target_expand_bits)))
+            .min(65535) as u16
     }
 }
 
 impl CompressForLut for f32 {
     #[inline(always)]
-    fn compress_lut<const BIT_DEPTH: usize>(self) -> u8 {
-        m_clamp((self * 255.).round(), 0.0, 255.0) as u8
+    fn compress_lut<const BIT_DEPTH: usize>(self) -> u16 {
+        m_clamp((self * 65535.).round(), 0.0, 65535.0) as u16
     }
 }
 
 impl CompressForLut for f64 {
     #[inline(always)]
-    fn compress_lut<const BIT_DEPTH: usize>(self) -> u8 {
-        m_clamp((self * 255.).round(), 0.0, 255.0) as u8
+    fn compress_lut<const BIT_DEPTH: usize>(self) -> u16 {
+        m_clamp((self * 65535.).round(), 0.0, 65535.0) as u16
     }
 }
 

@@ -50,6 +50,7 @@ pub struct Vector4<T> {
 pub type Vector4f = Vector4<f32>;
 
 pub type Vector3f = Vector3<f32>;
+pub type Vector3d = Vector3<f64>;
 pub type Vector3i = Vector3<i32>;
 pub type Vector3u = Vector3<u32>;
 
@@ -135,6 +136,26 @@ impl Vector3<f32> {
     const fn const_mul_vector(self, v: Vector3f) -> Vector3f {
         Vector3f {
             v: [self.v[0] * v.v[0], self.v[1] * v.v[1], self.v[2] * v.v[2]],
+        }
+    }
+}
+
+impl Vector3d {
+    #[inline]
+    const fn const_mul_vector(self, v: Vector3d) -> Vector3d {
+        Vector3d {
+            v: [self.v[0] * v.v[0], self.v[1] * v.v[1], self.v[2] * v.v[2]],
+        }
+    }
+}
+
+impl<T: 'static> Vector3<T> {
+    pub fn cast<V: Copy + 'static>(&self) -> Vector3<V>
+    where
+        T: AsPrimitive<V>,
+    {
+        Vector3::<V> {
+            v: [self.v[0].as_(), self.v[1].as_(), self.v[2].as_()],
         }
     }
 }
@@ -319,6 +340,13 @@ where
 #[derive(Copy, Clone, Debug, Default)]
 pub struct Matrix3f {
     pub v: [[f32; 3]; 3],
+}
+
+/// Matrix math helper
+#[repr(C)]
+#[derive(Copy, Clone, Debug, Default)]
+pub struct Matrix3d {
+    pub v: [[f64; 3]; 3],
 }
 
 #[repr(C)]
@@ -634,6 +662,228 @@ impl Matrix3f {
     }
 }
 
+impl Matrix3d {
+    #[inline]
+    pub fn transpose(&self) -> Matrix3d {
+        Matrix3d {
+            v: [
+                [self.v[0][0], self.v[1][0], self.v[2][0]],
+                [self.v[0][1], self.v[1][1], self.v[2][1]],
+                [self.v[0][2], self.v[1][2], self.v[2][2]],
+            ],
+        }
+    }
+
+    pub const IDENTITY: Matrix3d = Matrix3d {
+        v: [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+    };
+
+    #[inline]
+    pub const fn test_equality(&self, other: Matrix3d) -> bool {
+        const TOLERANCE: f64 = 0.001f64;
+        let diff_r_x = (self.v[0][0] - other.v[0][0]).abs();
+        let diff_r_y = (self.v[0][1] - other.v[0][1]).abs();
+        let diff_r_z = (self.v[0][2] - other.v[0][2]).abs();
+
+        if diff_r_x > TOLERANCE || diff_r_y > TOLERANCE || diff_r_z > TOLERANCE {
+            return false;
+        }
+
+        let diff_g_x = (self.v[1][0] - other.v[1][0]).abs();
+        let diff_g_y = (self.v[1][1] - other.v[1][1]).abs();
+        let diff_g_z = (self.v[1][2] - other.v[1][2]).abs();
+
+        if diff_g_x > TOLERANCE || diff_g_y > TOLERANCE || diff_g_z > TOLERANCE {
+            return false;
+        }
+
+        let diff_b_x = (self.v[2][0] - other.v[2][0]).abs();
+        let diff_b_y = (self.v[2][1] - other.v[2][1]).abs();
+        let diff_b_z = (self.v[2][2] - other.v[2][2]).abs();
+
+        if diff_b_x > TOLERANCE || diff_b_y > TOLERANCE || diff_b_z > TOLERANCE {
+            return false;
+        }
+
+        true
+    }
+
+    #[inline]
+    pub const fn determinant(&self) -> Option<f64> {
+        let v = self.v;
+        let a0 = v[0][0] * v[1][1] * v[2][2];
+        let a1 = v[0][1] * v[1][2] * v[2][0];
+        let a2 = v[0][2] * v[1][0] * v[2][1];
+
+        let s0 = v[0][2] * v[1][1] * v[2][0];
+        let s1 = v[0][1] * v[1][0] * v[2][2];
+        let s2 = v[0][0] * v[1][2] * v[2][1];
+
+        let j = a0 + a1 + a2 - s0 - s1 - s2;
+        if j == 0. {
+            return None;
+        }
+        Some(j)
+    }
+
+    #[inline]
+    pub const fn inverse(&self) -> Self {
+        let v = self.v;
+        let det = self.determinant();
+        match det {
+            None => Matrix3d::IDENTITY,
+            Some(determinant) => {
+                let det = 1. / determinant;
+                let a = v[0][0];
+                let b = v[0][1];
+                let c = v[0][2];
+                let d = v[1][0];
+                let e = v[1][1];
+                let f = v[1][2];
+                let g = v[2][0];
+                let h = v[2][1];
+                let i = v[2][2];
+
+                Matrix3d {
+                    v: [
+                        [
+                            (e * i - f * h) * det,
+                            (c * h - b * i) * det,
+                            (b * f - c * e) * det,
+                        ],
+                        [
+                            (f * g - d * i) * det,
+                            (a * i - c * g) * det,
+                            (c * d - a * f) * det,
+                        ],
+                        [
+                            (d * h - e * g) * det,
+                            (b * g - a * h) * det,
+                            (a * e - b * d) * det,
+                        ],
+                    ],
+                }
+            }
+        }
+    }
+
+    #[inline]
+    pub fn mul_row<const R: usize>(&self, rhs: f64) -> Self {
+        if R == 0 {
+            Self {
+                v: [(Vector3d { v: self.v[0] } * rhs).v, self.v[1], self.v[2]],
+            }
+        } else if R == 1 {
+            Self {
+                v: [self.v[0], (Vector3d { v: self.v[1] } * rhs).v, self.v[2]],
+            }
+        } else if R == 2 {
+            Self {
+                v: [self.v[0], self.v[1], (Vector3d { v: self.v[2] } * rhs).v],
+            }
+        } else {
+            unimplemented!()
+        }
+    }
+
+    #[inline]
+    pub const fn mul_row_vector<const R: usize>(&self, rhs: Vector3d) -> Self {
+        if R == 0 {
+            Self {
+                v: [
+                    (Vector3d { v: self.v[0] }.const_mul_vector(rhs)).v,
+                    self.v[1],
+                    self.v[2],
+                ],
+            }
+        } else if R == 1 {
+            Self {
+                v: [
+                    self.v[0],
+                    (Vector3d { v: self.v[1] }.const_mul_vector(rhs)).v,
+                    self.v[2],
+                ],
+            }
+        } else if R == 2 {
+            Self {
+                v: [
+                    self.v[0],
+                    self.v[1],
+                    (Vector3d { v: self.v[2] }.const_mul_vector(rhs)).v,
+                ],
+            }
+        } else {
+            unimplemented!()
+        }
+    }
+
+    #[inline]
+    pub const fn mul_vector(&self, other: Vector3d) -> Vector3d {
+        let x = self.v[0][1] * other.v[1] + self.v[0][2] * other.v[2] + self.v[0][0] * other.v[0];
+        let y = self.v[1][0] * other.v[0] + self.v[1][1] * other.v[1] + self.v[1][2] * other.v[2];
+        let z = self.v[2][0] * other.v[0] + self.v[2][1] * other.v[1] + self.v[2][2] * other.v[2];
+        Vector3::<f64> { v: [x, y, z] }
+    }
+
+    #[inline]
+    pub fn mat_mul(&self, other: Matrix3d) -> Self {
+        let mut result = Matrix3d::default();
+
+        for i in 0..3 {
+            for j in 0..3 {
+                result.v[i][j] = mlaf(
+                    mlaf(self.v[i][0] * other.v[0][j], self.v[i][1], other.v[1][j]),
+                    self.v[i][2],
+                    other.v[2][j],
+                );
+            }
+        }
+
+        result
+    }
+
+    #[inline]
+    pub const fn mat_mul_const(&self, other: Matrix3d) -> Self {
+        let mut result = Matrix3d { v: [[0.; 3]; 3] };
+        let mut i = 0usize;
+        while i < 3 {
+            let mut j = 0usize;
+            while j < 3 {
+                result.v[i][j] = self.v[i][0] * other.v[0][j]
+                    + self.v[i][1] * other.v[1][j]
+                    + self.v[i][2] * other.v[2][j];
+                j += 1;
+            }
+            i += 1;
+        }
+
+        result
+    }
+
+    #[inline]
+    pub const fn to_f32(&self) -> Matrix3f {
+        Matrix3f {
+            v: [
+                [
+                    self.v[0][0] as f32,
+                    self.v[0][1] as f32,
+                    self.v[0][2] as f32,
+                ],
+                [
+                    self.v[1][0] as f32,
+                    self.v[1][1] as f32,
+                    self.v[1][2] as f32,
+                ],
+                [
+                    self.v[2][0] as f32,
+                    self.v[2][1] as f32,
+                    self.v[2][2] as f32,
+                ],
+            ],
+        }
+    }
+}
+
 /// Holds CIE XYZ representation
 #[repr(C)]
 #[derive(Clone, Debug, Copy, Default)]
@@ -664,6 +914,13 @@ impl Xyz {
     pub const fn to_vector(self) -> Vector3f {
         Vector3f {
             v: [self.x, self.y, self.z],
+        }
+    }
+
+    #[inline]
+    pub const fn to_vector_d(self) -> Vector3d {
+        Vector3d {
+            v: [self.x as f64, self.y as f64, self.z as f64],
         }
     }
 

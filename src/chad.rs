@@ -26,8 +26,8 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-use crate::Chromaticity;
 use crate::matrix::{Matrix3f, Vector3f, XyY, Xyz};
+use crate::{Chromaticity, Matrix3d, Vector3d};
 
 #[inline]
 const fn compute_chromatic_adaption(
@@ -63,6 +63,44 @@ const fn compute_chromatic_adaption(
     chad_inv.mat_mul_const(p0)
 }
 
+#[inline]
+const fn compute_chromatic_adaption_d(
+    source_white_point: Xyz,
+    dest_white_point: Xyz,
+    chad: Matrix3d,
+) -> Matrix3d {
+    let cone_source_xyz = Vector3d {
+        v: [
+            source_white_point.x as f64,
+            source_white_point.y as f64,
+            source_white_point.z as f64,
+        ],
+    };
+    let cone_source_rgb = chad.mul_vector(cone_source_xyz);
+
+    let cone_dest_xyz = Vector3d {
+        v: [
+            dest_white_point.x as f64,
+            dest_white_point.y as f64,
+            dest_white_point.z as f64,
+        ],
+    };
+    let cone_dest_rgb = chad.mul_vector(cone_dest_xyz);
+
+    let cone = Matrix3d {
+        v: [
+            [cone_dest_rgb.v[0] / cone_source_rgb.v[0], 0., 0.],
+            [0., cone_dest_rgb.v[1] / cone_source_rgb.v[1], 0.],
+            [0., 0., cone_dest_rgb.v[2] / cone_source_rgb.v[2]],
+        ],
+    };
+
+    let chad_inv = chad.inverse();
+
+    let p0 = cone.mat_mul_const(chad);
+    chad_inv.mat_mul_const(p0)
+}
+
 const fn adaption_matrix(source_illumination: Xyz, target_illumination: Xyz) -> Matrix3f {
     let lam_rigg = {
         Matrix3f {
@@ -76,8 +114,25 @@ const fn adaption_matrix(source_illumination: Xyz, target_illumination: Xyz) -> 
     compute_chromatic_adaption(source_illumination, target_illumination, lam_rigg)
 }
 
+const fn adaption_matrix_d(source_illumination: Xyz, target_illumination: Xyz) -> Matrix3d {
+    let lam_rigg = {
+        Matrix3d {
+            v: [
+                [0.8951, 0.2664, -0.1614],
+                [-0.7502, 1.7135, 0.0367],
+                [0.0389, -0.0685, 1.0296],
+            ],
+        }
+    };
+    compute_chromatic_adaption_d(source_illumination, target_illumination, lam_rigg)
+}
+
 pub const fn adapt_to_d50(r: Matrix3f, source_white_pt: XyY) -> Matrix3f {
     adapt_to_illuminant(r, source_white_pt, Chromaticity::D50.to_xyz())
+}
+
+pub const fn adapt_to_d50_d(r: Matrix3d, source_white_pt: XyY) -> Matrix3d {
+    adapt_to_illuminant_d(r, source_white_pt, Chromaticity::D50.to_xyz())
 }
 
 pub const fn adapt_to_illuminant(
@@ -86,6 +141,15 @@ pub const fn adapt_to_illuminant(
     illuminant_xyz: Xyz,
 ) -> Matrix3f {
     let bradford = adaption_matrix(source_white_pt.to_xyz(), illuminant_xyz);
+    bradford.mat_mul_const(r)
+}
+
+pub const fn adapt_to_illuminant_d(
+    r: Matrix3d,
+    source_white_pt: XyY,
+    illuminant_xyz: Xyz,
+) -> Matrix3d {
+    let bradford = adaption_matrix_d(source_white_pt.to_xyz(), illuminant_xyz);
     bradford.mat_mul_const(r)
 }
 
@@ -99,5 +163,18 @@ pub const fn adapt_to_illuminant_xyz(
     }
 
     let bradford = adaption_matrix(source_white_pt, illuminant_xyz);
+    bradford.mat_mul_const(r)
+}
+
+pub const fn adapt_to_illuminant_xyz_d(
+    r: Matrix3d,
+    source_white_pt: Xyz,
+    illuminant_xyz: Xyz,
+) -> Matrix3d {
+    if source_white_pt.y == 0.0 {
+        return r;
+    }
+
+    let bradford = adaption_matrix_d(source_white_pt, illuminant_xyz);
     bradford.mat_mul_const(r)
 }

@@ -27,257 +27,202 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 #![allow(dead_code)]
-use crate::conversions::neon::stages::NeonAlignedF32;
 use crate::math::FusedMultiplyAdd;
 use crate::rounding_div_ceil;
 use std::arch::aarch64::*;
 use std::ops::{Add, Sub};
 
-pub(crate) struct TetrahedralNeon<'a, const GRID_SIZE: usize> {
-    pub(crate) cube: &'a [NeonAlignedF32],
+#[repr(align(16), C)]
+pub(crate) struct NeonAlignedI16x4(pub(crate) [i16; 4]);
+
+pub(crate) struct TetrahedralNeonQ2_14<'a, const GRID_SIZE: usize> {
+    pub(crate) cube: &'a [NeonAlignedI16x4],
 }
 
-pub(crate) struct PyramidalNeon<'a, const GRID_SIZE: usize> {
-    pub(crate) cube: &'a [NeonAlignedF32],
+pub(crate) struct PyramidalNeonQ2_14<'a, const GRID_SIZE: usize> {
+    pub(crate) cube: &'a [NeonAlignedI16x4],
 }
 
-pub(crate) struct PyramidalNeonDouble<'a, const GRID_SIZE: usize> {
-    pub(crate) cube0: &'a [NeonAlignedF32],
-    pub(crate) cube1: &'a [NeonAlignedF32],
+pub(crate) struct PyramidalNeonQ2_14Double<'a, const GRID_SIZE: usize> {
+    pub(crate) cube0: &'a [NeonAlignedI16x4],
+    pub(crate) cube1: &'a [NeonAlignedI16x4],
 }
 
-pub(crate) struct PrismaticNeonDouble<'a, const GRID_SIZE: usize> {
-    pub(crate) cube0: &'a [NeonAlignedF32],
-    pub(crate) cube1: &'a [NeonAlignedF32],
+pub(crate) struct PrismaticNeonQ2_14Double<'a, const GRID_SIZE: usize> {
+    pub(crate) cube0: &'a [NeonAlignedI16x4],
+    pub(crate) cube1: &'a [NeonAlignedI16x4],
 }
 
-pub(crate) struct TetrahedralNeonDouble<'a, const GRID_SIZE: usize> {
-    pub(crate) cube0: &'a [NeonAlignedF32],
-    pub(crate) cube1: &'a [NeonAlignedF32],
+pub(crate) struct TetrahedralNeonQ2_14Double<'a, const GRID_SIZE: usize> {
+    pub(crate) cube0: &'a [NeonAlignedI16x4],
+    pub(crate) cube1: &'a [NeonAlignedI16x4],
 }
 
-pub(crate) struct PrismaticNeon<'a, const GRID_SIZE: usize> {
-    pub(crate) cube: &'a [NeonAlignedF32],
+pub(crate) struct PrismaticNeonQ2_14<'a, const GRID_SIZE: usize> {
+    pub(crate) cube: &'a [NeonAlignedI16x4],
 }
 
 trait Fetcher<T> {
     fn fetch(&self, x: i32, y: i32, z: i32) -> T;
 }
 
-struct TetrahedralNeonFetchVector<'a, const GRID_SIZE: usize> {
-    cube: &'a [NeonAlignedF32],
+struct TetrahedralNeonQ2_14QFetchVector<'a, const GRID_SIZE: usize> {
+    cube: &'a [NeonAlignedI16x4],
 }
 
-struct TetrahedralNeonFetchVectorDouble<'a, const GRID_SIZE: usize> {
-    cube0: &'a [NeonAlignedF32],
-    cube1: &'a [NeonAlignedF32],
-}
-
-#[derive(Copy, Clone)]
-pub(crate) struct NeonVector {
-    pub(crate) v: float32x4_t,
+struct TetrahedralNeonQ2_14QFetchVectorDouble<'a, const GRID_SIZE: usize> {
+    cube0: &'a [NeonAlignedI16x4],
+    cube1: &'a [NeonAlignedI16x4],
 }
 
 #[derive(Copy, Clone)]
-pub(crate) struct NeonVectorDouble {
-    pub(crate) v0: float32x4_t,
-    pub(crate) v1: float32x4_t,
+pub(crate) struct NeonVectorQ2_14 {
+    pub(crate) v: int16x4_t,
 }
 
-impl From<f32> for NeonVector {
+#[derive(Copy, Clone)]
+pub(crate) struct NeonVectorQ2_14Double {
+    pub(crate) v0: int16x4_t,
+    pub(crate) v1: int16x4_t,
+}
+
+impl From<i16> for NeonVectorQ2_14 {
     #[inline(always)]
-    fn from(v: f32) -> Self {
-        NeonVector {
-            v: unsafe { vdupq_n_f32(v) },
+    fn from(v: i16) -> Self {
+        NeonVectorQ2_14 {
+            v: unsafe { vdup_n_s16(v) },
         }
     }
 }
 
-impl From<f32> for NeonVectorDouble {
+impl From<i16> for NeonVectorQ2_14Double {
     #[inline(always)]
-    fn from(v: f32) -> Self {
-        NeonVectorDouble {
-            v0: unsafe { vdupq_n_f32(v) },
-            v1: unsafe { vdupq_n_f32(v) },
+    fn from(v: i16) -> Self {
+        NeonVectorQ2_14Double {
+            v0: unsafe { vdup_n_s16(v) },
+            v1: unsafe { vdup_n_s16(v) },
         }
     }
 }
 
-impl Sub<NeonVector> for NeonVector {
+impl Sub<NeonVectorQ2_14> for NeonVectorQ2_14 {
     type Output = Self;
     #[inline(always)]
-    fn sub(self, rhs: NeonVector) -> Self::Output {
-        NeonVector {
-            v: unsafe { vsubq_f32(self.v, rhs.v) },
+    fn sub(self, rhs: NeonVectorQ2_14) -> Self::Output {
+        NeonVectorQ2_14 {
+            v: unsafe { vsub_s16(self.v, rhs.v) },
         }
     }
 }
 
-impl Sub<NeonVectorDouble> for NeonVectorDouble {
+impl Sub<NeonVectorQ2_14Double> for NeonVectorQ2_14Double {
     type Output = Self;
     #[inline(always)]
-    fn sub(self, rhs: NeonVectorDouble) -> Self::Output {
-        NeonVectorDouble {
-            v0: unsafe { vsubq_f32(self.v0, rhs.v0) },
-            v1: unsafe { vsubq_f32(self.v1, rhs.v1) },
+    fn sub(self, rhs: NeonVectorQ2_14Double) -> Self::Output {
+        NeonVectorQ2_14Double {
+            v0: unsafe { vsub_s16(self.v0, rhs.v0) },
+            v1: unsafe { vsub_s16(self.v1, rhs.v1) },
         }
     }
 }
 
-impl Add<NeonVector> for NeonVector {
+impl Add<NeonVectorQ2_14> for NeonVectorQ2_14 {
     type Output = Self;
     #[inline(always)]
-    fn add(self, rhs: NeonVector) -> Self::Output {
-        NeonVector {
-            v: unsafe { vaddq_f32(self.v, rhs.v) },
+    fn add(self, rhs: NeonVectorQ2_14) -> Self::Output {
+        NeonVectorQ2_14 {
+            v: unsafe { vadd_s16(self.v, rhs.v) },
         }
     }
 }
 
-impl Add<NeonVectorDouble> for NeonVectorDouble {
+impl Add<NeonVectorQ2_14Double> for NeonVectorQ2_14Double {
     type Output = Self;
     #[inline(always)]
-    fn add(self, rhs: NeonVectorDouble) -> Self::Output {
-        NeonVectorDouble {
-            v0: unsafe { vaddq_f32(self.v0, rhs.v0) },
-            v1: unsafe { vaddq_f32(self.v1, rhs.v1) },
+    fn add(self, rhs: NeonVectorQ2_14Double) -> Self::Output {
+        NeonVectorQ2_14Double {
+            v0: unsafe { vadd_s16(self.v0, rhs.v0) },
+            v1: unsafe { vadd_s16(self.v1, rhs.v1) },
         }
     }
 }
 
-impl FusedMultiplyAdd<NeonVector> for NeonVector {
+impl FusedMultiplyAdd<NeonVectorQ2_14> for NeonVectorQ2_14 {
     #[inline(always)]
-    fn mla(&self, b: NeonVector, c: NeonVector) -> NeonVector {
-        NeonVector {
-            v: unsafe { vfmaq_f32(self.v, b.v, c.v) },
+    fn mla(&self, b: NeonVectorQ2_14, c: NeonVectorQ2_14) -> NeonVectorQ2_14 {
+        NeonVectorQ2_14 {
+            v: unsafe { vqrdmlah_s16(self.v, b.v, c.v) },
         }
     }
 }
 
-impl NeonVectorDouble {
+impl NeonVectorQ2_14Double {
     #[inline(always)]
-    fn mla(&self, b: NeonVectorDouble, c: NeonVector) -> NeonVectorDouble {
-        NeonVectorDouble {
-            v0: unsafe { vfmaq_f32(self.v0, b.v0, c.v) },
-            v1: unsafe { vfmaq_f32(self.v1, b.v1, c.v) },
+    fn mla(&self, b: NeonVectorQ2_14Double, c: NeonVectorQ2_14) -> NeonVectorQ2_14Double {
+        NeonVectorQ2_14Double {
+            v0: unsafe { vqrdmlah_s16(self.v0, b.v0, c.v) },
+            v1: unsafe { vqrdmlah_s16(self.v1, b.v1, c.v) },
         }
     }
 
     #[inline(always)]
-    pub(crate) fn split(self) -> (NeonVector, NeonVector) {
-        (NeonVector { v: self.v0 }, NeonVector { v: self.v1 })
+    pub(crate) fn split(self) -> (NeonVectorQ2_14, NeonVectorQ2_14) {
+        (
+            NeonVectorQ2_14 { v: self.v0 },
+            NeonVectorQ2_14 { v: self.v1 },
+        )
     }
 }
 
-impl<const GRID_SIZE: usize> Fetcher<NeonVector> for TetrahedralNeonFetchVector<'_, GRID_SIZE> {
-    fn fetch(&self, x: i32, y: i32, z: i32) -> NeonVector {
+impl<const GRID_SIZE: usize> Fetcher<NeonVectorQ2_14>
+    for TetrahedralNeonQ2_14QFetchVector<'_, GRID_SIZE>
+{
+    fn fetch(&self, x: i32, y: i32, z: i32) -> NeonVectorQ2_14 {
         let offset = (x as u32 * (GRID_SIZE as u32 * GRID_SIZE as u32)
             + y as u32 * GRID_SIZE as u32
             + z as u32) as usize;
         let jx = unsafe { self.cube.get_unchecked(offset..) };
-        NeonVector {
-            v: unsafe { vld1q_f32(jx.as_ptr() as *const f32) },
+        NeonVectorQ2_14 {
+            v: unsafe { vld1_s16(jx.as_ptr() as *const i16) },
         }
     }
 }
 
-impl<const GRID_SIZE: usize> Fetcher<NeonVectorDouble>
-    for TetrahedralNeonFetchVectorDouble<'_, GRID_SIZE>
+impl<const GRID_SIZE: usize> Fetcher<NeonVectorQ2_14Double>
+    for TetrahedralNeonQ2_14QFetchVectorDouble<'_, GRID_SIZE>
 {
-    fn fetch(&self, x: i32, y: i32, z: i32) -> NeonVectorDouble {
+    fn fetch(&self, x: i32, y: i32, z: i32) -> NeonVectorQ2_14Double {
         let offset = (x as u32 * (GRID_SIZE as u32 * GRID_SIZE as u32)
             + y as u32 * GRID_SIZE as u32
             + z as u32) as usize;
         let jx0 = unsafe { self.cube0.get_unchecked(offset..) };
         let jx1 = unsafe { self.cube1.get_unchecked(offset..) };
-        NeonVectorDouble {
-            v0: unsafe { vld1q_f32(jx0.as_ptr() as *const f32) },
-            v1: unsafe { vld1q_f32(jx1.as_ptr() as *const f32) },
+        NeonVectorQ2_14Double {
+            v0: unsafe { vld1_s16(jx0.as_ptr() as *const i16) },
+            v1: unsafe { vld1_s16(jx1.as_ptr() as *const i16) },
         }
     }
 }
 
-pub(crate) trait NeonMdInterpolation<'a, const GRID_SIZE: usize> {
-    fn new(table: &'a [NeonAlignedF32]) -> Self;
-    fn inter3_neon(&self, in_r: u16, in_g: u16, in_b: u16) -> NeonVector;
+pub(crate) trait NeonMdInterpolationQ2_14<'a, const GRID_SIZE: usize> {
+    fn new(table: &'a [NeonAlignedI16x4]) -> Self;
+    fn inter3_neon(&self, in_r: u16, in_g: u16, in_b: u16) -> NeonVectorQ2_14;
 }
 
-pub(crate) trait NeonMdInterpolationDouble<'a, const GRID_SIZE: usize> {
-    fn new(table0: &'a [NeonAlignedF32], table1: &'a [NeonAlignedF32]) -> Self;
-    fn inter3_neon(&self, in_r: u16, in_g: u16, in_b: u16) -> (NeonVector, NeonVector);
+pub(crate) trait NeonMdInterpolationQ2_14Double<'a, const GRID_SIZE: usize> {
+    fn new(table0: &'a [NeonAlignedI16x4], table1: &'a [NeonAlignedI16x4]) -> Self;
+    fn inter3_neon(&self, in_r: u16, in_g: u16, in_b: u16) -> (NeonVectorQ2_14, NeonVectorQ2_14);
 }
 
-impl<const GRID_SIZE: usize> TetrahedralNeon<'_, GRID_SIZE> {
-    #[inline(always)]
-    fn interpolate(&self, in_r: u16, in_g: u16, in_b: u16, r: impl Fetcher<NeonVector>) -> NeonVector {
-        const SCALE: f32 = 1.0 / 65535.0;
-        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / 65535;
-        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / 65535;
-        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / 65535;
-
-        let c0 = r.fetch(x, y, z);
-
-        let x_n: i32 = rounding_div_ceil(in_r as i32 * (GRID_SIZE as i32 - 1), 65535);
-        let y_n: i32 = rounding_div_ceil(in_g as i32 * (GRID_SIZE as i32 - 1), 65535);
-        let z_n: i32 = rounding_div_ceil(in_b as i32 * (GRID_SIZE as i32 - 1), 65535);
-
-        let scale = (GRID_SIZE as i32 - 1) as f32 * SCALE;
-
-        let rx = in_r as f32 * scale - x as f32;
-        let ry = in_g as f32 * scale - y as f32;
-        let rz = in_b as f32 * scale - z as f32;
-
-        let c2;
-        let c1;
-        let c3;
-        if rx >= ry {
-            if ry >= rz {
-                //rx >= ry && ry >= rz
-                c1 = r.fetch(x_n, y, z) - c0;
-                c2 = r.fetch(x_n, y_n, z) - r.fetch(x_n, y, z);
-                c3 = r.fetch(x_n, y_n, z_n) - r.fetch(x_n, y_n, z);
-            } else if rx >= rz {
-                //rx >= rz && rz >= ry
-                c1 = r.fetch(x_n, y, z) - c0;
-                c2 = r.fetch(x_n, y_n, z_n) - r.fetch(x_n, y, z_n);
-                c3 = r.fetch(x_n, y, z_n) - r.fetch(x_n, y, z);
-            } else {
-                //rz > rx && rx >= ry
-                c1 = r.fetch(x_n, y, z_n) - r.fetch(x, y, z_n);
-                c2 = r.fetch(x_n, y_n, z_n) - r.fetch(x_n, y, z_n);
-                c3 = r.fetch(x, y, z_n) - c0;
-            }
-        } else if rx >= rz {
-            //ry > rx && rx >= rz
-            c1 = r.fetch(x_n, y_n, z) - r.fetch(x, y_n, z);
-            c2 = r.fetch(x, y_n, z) - c0;
-            c3 = r.fetch(x_n, y_n, z_n) - r.fetch(x_n, y_n, z);
-        } else if ry >= rz {
-            //ry >= rz && rz > rx
-            c1 = r.fetch(x_n, y_n, z_n) - r.fetch(x, y_n, z_n);
-            c2 = r.fetch(x, y_n, z) - c0;
-            c3 = r.fetch(x, y_n, z_n) - r.fetch(x, y_n, z);
-        } else {
-            //rz > ry && ry > rx
-            c1 = r.fetch(x_n, y_n, z_n) - r.fetch(x, y_n, z_n);
-            c2 = r.fetch(x, y_n, z_n) - r.fetch(x, y, z_n);
-            c3 = r.fetch(x, y, z_n) - c0;
-        }
-        let s0 = c0.mla(c1, NeonVector::from(rx));
-        let s1 = s0.mla(c2, NeonVector::from(ry));
-        s1.mla(c3, NeonVector::from(rz))
-    }
-}
-
-impl<const GRID_SIZE: usize> TetrahedralNeonDouble<'_, GRID_SIZE> {
+impl<const GRID_SIZE: usize> TetrahedralNeonQ2_14<'_, GRID_SIZE> {
     #[inline(always)]
     fn interpolate(
         &self,
         in_r: u16,
         in_g: u16,
         in_b: u16,
-        r: impl Fetcher<NeonVectorDouble>,
-    ) -> (NeonVector, NeonVector) {
+        r: impl Fetcher<NeonVectorQ2_14>,
+    ) -> NeonVectorQ2_14 {
         const SCALE: f32 = 1.0 / 65535.0;
         let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / 65535;
         let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / 65535;
@@ -291,9 +236,11 @@ impl<const GRID_SIZE: usize> TetrahedralNeonDouble<'_, GRID_SIZE> {
 
         let scale = (GRID_SIZE as i32 - 1) as f32 * SCALE;
 
-        let rx = in_r as f32 * scale - x as f32;
-        let ry = in_g as f32 * scale - y as f32;
-        let rz = in_b as f32 * scale - z as f32;
+        const Q_SCALE: f32 = ((1 << 14) - 1) as f32;
+
+        let rx = ((in_r as f32 * scale - x as f32) * Q_SCALE) as i16;
+        let ry = ((in_g as f32 * scale - y as f32) * Q_SCALE) as i16;
+        let rz = ((in_b as f32 * scale - z as f32) * Q_SCALE) as i16;
 
         let c2;
         let c1;
@@ -331,29 +278,99 @@ impl<const GRID_SIZE: usize> TetrahedralNeonDouble<'_, GRID_SIZE> {
             c2 = r.fetch(x, y_n, z_n) - r.fetch(x, y, z_n);
             c3 = r.fetch(x, y, z_n) - c0;
         }
-        let s0 = c0.mla(c1, NeonVector::from(rx));
-        let s1 = s0.mla(c2, NeonVector::from(ry));
-        s1.mla(c3, NeonVector::from(rz)).split()
+        let s0 = c0.mla(c1, NeonVectorQ2_14::from(rx));
+        let s1 = s0.mla(c2, NeonVectorQ2_14::from(ry));
+        s1.mla(c3, NeonVectorQ2_14::from(rz))
+    }
+}
+
+impl<const GRID_SIZE: usize> TetrahedralNeonQ2_14Double<'_, GRID_SIZE> {
+    #[inline(always)]
+    fn interpolate(
+        &self,
+        in_r: u16,
+        in_g: u16,
+        in_b: u16,
+        r: impl Fetcher<NeonVectorQ2_14Double>,
+    ) -> (NeonVectorQ2_14, NeonVectorQ2_14) {
+        const SCALE: f32 = 1.0 / 65535.0;
+        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / 65535;
+        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / 65535;
+        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / 65535;
+
+        let c0 = r.fetch(x, y, z);
+
+        let x_n: i32 = rounding_div_ceil(in_r as i32 * (GRID_SIZE as i32 - 1), 65535);
+        let y_n: i32 = rounding_div_ceil(in_g as i32 * (GRID_SIZE as i32 - 1), 65535);
+        let z_n: i32 = rounding_div_ceil(in_b as i32 * (GRID_SIZE as i32 - 1), 65535);
+
+        let scale = (GRID_SIZE as i32 - 1) as f32 * SCALE;
+
+        const Q_SCALE: f32 = ((1 << 14) - 1) as f32;
+        
+        let rx = ((in_r as f32 * scale - x as f32) * Q_SCALE) as i16;
+        let ry = ((in_g as f32 * scale - y as f32) * Q_SCALE) as i16;
+        let rz = ((in_b as f32 * scale - z as f32) * Q_SCALE) as i16;
+
+        let c2;
+        let c1;
+        let c3;
+        if rx >= ry {
+            if ry >= rz {
+                //rx >= ry && ry >= rz
+                c1 = r.fetch(x_n, y, z) - c0;
+                c2 = r.fetch(x_n, y_n, z) - r.fetch(x_n, y, z);
+                c3 = r.fetch(x_n, y_n, z_n) - r.fetch(x_n, y_n, z);
+            } else if rx >= rz {
+                //rx >= rz && rz >= ry
+                c1 = r.fetch(x_n, y, z) - c0;
+                c2 = r.fetch(x_n, y_n, z_n) - r.fetch(x_n, y, z_n);
+                c3 = r.fetch(x_n, y, z_n) - r.fetch(x_n, y, z);
+            } else {
+                //rz > rx && rx >= ry
+                c1 = r.fetch(x_n, y, z_n) - r.fetch(x, y, z_n);
+                c2 = r.fetch(x_n, y_n, z_n) - r.fetch(x_n, y, z_n);
+                c3 = r.fetch(x, y, z_n) - c0;
+            }
+        } else if rx >= rz {
+            //ry > rx && rx >= rz
+            c1 = r.fetch(x_n, y_n, z) - r.fetch(x, y_n, z);
+            c2 = r.fetch(x, y_n, z) - c0;
+            c3 = r.fetch(x_n, y_n, z_n) - r.fetch(x_n, y_n, z);
+        } else if ry >= rz {
+            //ry >= rz && rz > rx
+            c1 = r.fetch(x_n, y_n, z_n) - r.fetch(x, y_n, z_n);
+            c2 = r.fetch(x, y_n, z) - c0;
+            c3 = r.fetch(x, y_n, z_n) - r.fetch(x, y_n, z);
+        } else {
+            //rz > ry && ry > rx
+            c1 = r.fetch(x_n, y_n, z_n) - r.fetch(x, y_n, z_n);
+            c2 = r.fetch(x, y_n, z_n) - r.fetch(x, y, z_n);
+            c3 = r.fetch(x, y, z_n) - c0;
+        }
+        let s0 = c0.mla(c1, NeonVectorQ2_14::from(rx));
+        let s1 = s0.mla(c2, NeonVectorQ2_14::from(ry));
+        s1.mla(c3, NeonVectorQ2_14::from(rz)).split()
     }
 }
 
 macro_rules! define_md_inter_neon {
     ($interpolator: ident) => {
-        impl<'a, const GRID_SIZE: usize> NeonMdInterpolation<'a, GRID_SIZE>
+        impl<'a, const GRID_SIZE: usize> NeonMdInterpolationQ2_14<'a, GRID_SIZE>
             for $interpolator<'a, GRID_SIZE>
         {
             #[inline(always)]
-            fn new(table: &'a [NeonAlignedF32]) -> Self {
+            fn new(table: &'a [NeonAlignedI16x4]) -> Self {
                 Self { cube: table }
             }
 
             #[inline(always)]
-            fn inter3_neon(&self, in_r: u16, in_g: u16, in_b: u16) -> NeonVector {
+            fn inter3_neon(&self, in_r: u16, in_g: u16, in_b: u16) -> NeonVectorQ2_14 {
                 self.interpolate(
                     in_r,
                     in_g,
                     in_b,
-                    TetrahedralNeonFetchVector::<GRID_SIZE> { cube: self.cube },
+                    TetrahedralNeonQ2_14QFetchVector::<GRID_SIZE> { cube: self.cube },
                 )
             }
         }
@@ -362,11 +379,11 @@ macro_rules! define_md_inter_neon {
 
 macro_rules! define_md_inter_neon_d {
     ($interpolator: ident) => {
-        impl<'a, const GRID_SIZE: usize> NeonMdInterpolationDouble<'a, GRID_SIZE>
+        impl<'a, const GRID_SIZE: usize> NeonMdInterpolationQ2_14Double<'a, GRID_SIZE>
             for $interpolator<'a, GRID_SIZE>
         {
             #[inline(always)]
-            fn new(table0: &'a [NeonAlignedF32], table1: &'a [NeonAlignedF32]) -> Self {
+            fn new(table0: &'a [NeonAlignedI16x4], table1: &'a [NeonAlignedI16x4]) -> Self {
                 Self {
                     cube0: table0,
                     cube1: table1,
@@ -374,12 +391,17 @@ macro_rules! define_md_inter_neon_d {
             }
 
             #[inline(always)]
-            fn inter3_neon(&self, in_r: u16, in_g: u16, in_b: u16) -> (NeonVector, NeonVector) {
+            fn inter3_neon(
+                &self,
+                in_r: u16,
+                in_g: u16,
+                in_b: u16,
+            ) -> (NeonVectorQ2_14, NeonVectorQ2_14) {
                 self.interpolate(
                     in_r,
                     in_g,
                     in_b,
-                    TetrahedralNeonFetchVectorDouble::<GRID_SIZE> {
+                    TetrahedralNeonQ2_14QFetchVectorDouble::<GRID_SIZE> {
                         cube0: self.cube0,
                         cube1: self.cube1,
                     },
@@ -389,91 +411,22 @@ macro_rules! define_md_inter_neon_d {
     };
 }
 
-define_md_inter_neon!(TetrahedralNeon);
-define_md_inter_neon!(PyramidalNeon);
-define_md_inter_neon!(PrismaticNeon);
-define_md_inter_neon_d!(PrismaticNeonDouble);
-define_md_inter_neon_d!(PyramidalNeonDouble);
-define_md_inter_neon_d!(TetrahedralNeonDouble);
+define_md_inter_neon!(TetrahedralNeonQ2_14);
+define_md_inter_neon!(PyramidalNeonQ2_14);
+define_md_inter_neon!(PrismaticNeonQ2_14);
+define_md_inter_neon_d!(PrismaticNeonQ2_14Double);
+define_md_inter_neon_d!(PyramidalNeonQ2_14Double);
+define_md_inter_neon_d!(TetrahedralNeonQ2_14Double);
 
-impl<const GRID_SIZE: usize> PyramidalNeon<'_, GRID_SIZE> {
-    #[inline(always)]
-    fn interpolate(&self, in_r: u16, in_g: u16, in_b: u16, r: impl Fetcher<NeonVector>) -> NeonVector {
-        const SCALE: f32 = 1.0 / 65535.0;
-        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / 65535;
-        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / 65535;
-        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / 65535;
-
-        let c0 = r.fetch(x, y, z);
-
-        let x_n: i32 = rounding_div_ceil(in_r as i32 * (GRID_SIZE as i32 - 1), 65535);
-        let y_n: i32 = rounding_div_ceil(in_g as i32 * (GRID_SIZE as i32 - 1), 65535);
-        let z_n: i32 = rounding_div_ceil(in_b as i32 * (GRID_SIZE as i32 - 1), 65535);
-
-        let scale = (GRID_SIZE as i32 - 1) as f32 * SCALE;
-
-        let dr = in_r as f32 * scale - x as f32;
-        let dg = in_g as f32 * scale - y as f32;
-        let db = in_b as f32 * scale - z as f32;
-
-        if dr > db && dg > db {
-            let x0 = r.fetch(x_n, y_n, z_n);
-            let x1 = r.fetch(x_n, y_n, z);
-            let x2 = r.fetch(x_n, y, z);
-            let x3 = r.fetch(x, y_n, z);
-
-            let c1 = x0 - x1;
-            let c2 = x2 - c0;
-            let c3 = x3 - c0;
-            let c4 = c0 - x3 - x2 + x1;
-
-            let s0 = c0.mla(c1, NeonVector::from(db));
-            let s1 = s0.mla(c2, NeonVector::from(dr));
-            let s2 = s1.mla(c3, NeonVector::from(dg));
-            s2.mla(c4, NeonVector::from(dr * dg))
-        } else if db > dr && dg > dr {
-            let x0 = r.fetch(x, y, z_n);
-            let x1 = r.fetch(x_n, y_n, z_n);
-            let x2 = r.fetch(x, y_n, z_n);
-            let x3 = r.fetch(x, y_n, z);
-
-            let c1 = x0 - c0;
-            let c2 = x1 - x2;
-            let c3 = x3 - c0;
-            let c4 = c0 - x3 - x0 + x2;
-
-            let s0 = c0.mla(c1, NeonVector::from(db));
-            let s1 = s0.mla(c2, NeonVector::from(dr));
-            let s2 = s1.mla(c3, NeonVector::from(dg));
-            s2.mla(c4, NeonVector::from(dg * db))
-        } else {
-            let x0 = r.fetch(x, y, z_n);
-            let x1 = r.fetch(x_n, y, z);
-            let x2 = r.fetch(x_n, y, z_n);
-            let x3 = r.fetch(x_n, y_n, z_n);
-
-            let c1 = x0 - c0;
-            let c2 = x1 - c0;
-            let c3 = x3 - x2;
-            let c4 = c0 - x1 - x0 + x2;
-
-            let s0 = c0.mla(c1, NeonVector::from(db));
-            let s1 = s0.mla(c2, NeonVector::from(dr));
-            let s2 = s1.mla(c3, NeonVector::from(dg));
-            s2.mla(c4, NeonVector::from(db * dr))
-        }
-    }
-}
-
-impl<const GRID_SIZE: usize> PyramidalNeonDouble<'_, GRID_SIZE> {
+impl<const GRID_SIZE: usize> PyramidalNeonQ2_14<'_, GRID_SIZE> {
     #[inline(always)]
     fn interpolate(
         &self,
         in_r: u16,
         in_g: u16,
         in_b: u16,
-        r: impl Fetcher<NeonVectorDouble>,
-    ) -> (NeonVector, NeonVector) {
+        r: impl Fetcher<NeonVectorQ2_14>,
+    ) -> NeonVectorQ2_14 {
         const SCALE: f32 = 1.0 / 65535.0;
         let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / 65535;
         let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / 65535;
@@ -487,13 +440,11 @@ impl<const GRID_SIZE: usize> PyramidalNeonDouble<'_, GRID_SIZE> {
 
         let scale = (GRID_SIZE as i32 - 1) as f32 * SCALE;
 
-        let dr = in_r as f32 * scale - x as f32;
-        let dg = in_g as f32 * scale - y as f32;
-        let db = in_b as f32 * scale - z as f32;
+        const Q_SCALE: f32 = ((1 << 14) - 1) as f32;
 
-        let w0 = NeonVector::from(db);
-        let w1 = NeonVector::from(dr);
-        let w2 = NeonVector::from(dg);
+        let dr = ((in_r as f32 * scale - x as f32) * Q_SCALE) as i16;
+        let dg = ((in_g as f32 * scale - y as f32) * Q_SCALE) as i16;
+        let db = ((in_b as f32 * scale - z as f32) * Q_SCALE) as i16;
 
         if dr > db && dg > db {
             let x0 = r.fetch(x_n, y_n, z_n);
@@ -506,7 +457,88 @@ impl<const GRID_SIZE: usize> PyramidalNeonDouble<'_, GRID_SIZE> {
             let c3 = x3 - c0;
             let c4 = c0 - x3 - x2 + x1;
 
-            let w3 = NeonVector::from(dr * dg);
+            let s0 = c0.mla(c1, NeonVectorQ2_14::from(db));
+            let s1 = s0.mla(c2, NeonVectorQ2_14::from(dr));
+            let s2 = s1.mla(c3, NeonVectorQ2_14::from(dg));
+            s2.mla(c4, NeonVectorQ2_14::from(dr * dg))
+        } else if db > dr && dg > dr {
+            let x0 = r.fetch(x, y, z_n);
+            let x1 = r.fetch(x_n, y_n, z_n);
+            let x2 = r.fetch(x, y_n, z_n);
+            let x3 = r.fetch(x, y_n, z);
+
+            let c1 = x0 - c0;
+            let c2 = x1 - x2;
+            let c3 = x3 - c0;
+            let c4 = c0 - x3 - x0 + x2;
+
+            let s0 = c0.mla(c1, NeonVectorQ2_14::from(db));
+            let s1 = s0.mla(c2, NeonVectorQ2_14::from(dr));
+            let s2 = s1.mla(c3, NeonVectorQ2_14::from(dg));
+            s2.mla(c4, NeonVectorQ2_14::from(dg * db))
+        } else {
+            let x0 = r.fetch(x, y, z_n);
+            let x1 = r.fetch(x_n, y, z);
+            let x2 = r.fetch(x_n, y, z_n);
+            let x3 = r.fetch(x_n, y_n, z_n);
+
+            let c1 = x0 - c0;
+            let c2 = x1 - c0;
+            let c3 = x3 - x2;
+            let c4 = c0 - x1 - x0 + x2;
+
+            let s0 = c0.mla(c1, NeonVectorQ2_14::from(db));
+            let s1 = s0.mla(c2, NeonVectorQ2_14::from(dr));
+            let s2 = s1.mla(c3, NeonVectorQ2_14::from(dg));
+            s2.mla(c4, NeonVectorQ2_14::from(db * dr))
+        }
+    }
+}
+
+impl<const GRID_SIZE: usize> PyramidalNeonQ2_14Double<'_, GRID_SIZE> {
+    #[inline(always)]
+    fn interpolate(
+        &self,
+        in_r: u16,
+        in_g: u16,
+        in_b: u16,
+        r: impl Fetcher<NeonVectorQ2_14Double>,
+    ) -> (NeonVectorQ2_14, NeonVectorQ2_14) {
+        const SCALE: f32 = 1.0 / 65535.0;
+        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / 65535;
+        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / 65535;
+        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / 65535;
+
+        let c0 = r.fetch(x, y, z);
+
+        let x_n: i32 = rounding_div_ceil(in_r as i32 * (GRID_SIZE as i32 - 1), 65535);
+        let y_n: i32 = rounding_div_ceil(in_g as i32 * (GRID_SIZE as i32 - 1), 65535);
+        let z_n: i32 = rounding_div_ceil(in_b as i32 * (GRID_SIZE as i32 - 1), 65535);
+
+        let scale = (GRID_SIZE as i32 - 1) as f32 * SCALE;
+
+        const Q_SCALE: f32 = ((1 << 14) - 1) as f32;
+
+        let dr = ((in_r as f32 * scale - x as f32) * Q_SCALE) as i16;
+        let dg = ((in_g as f32 * scale - y as f32) * Q_SCALE) as i16;
+        let db = ((in_b as f32 * scale - z as f32) * Q_SCALE) as i16;
+
+        let w0 = NeonVectorQ2_14::from(db);
+        let w1 = NeonVectorQ2_14::from(dr);
+        let w2 = NeonVectorQ2_14::from(dg);
+
+        if dr > db && dg > db {
+            let x0 = r.fetch(x_n, y_n, z_n);
+            let x1 = r.fetch(x_n, y_n, z);
+            let x2 = r.fetch(x_n, y, z);
+            let x3 = r.fetch(x, y_n, z);
+
+            let c1 = x0 - x1;
+            let c2 = x2 - c0;
+            let c3 = x3 - c0;
+            let c4 = c0 - x3 - x2 + x1;
+
+            let w3 = NeonVectorQ2_14::from(dr * dg);
 
             let s0 = c0.mla(c1, w0);
             let s1 = s0.mla(c2, w1);
@@ -523,7 +555,7 @@ impl<const GRID_SIZE: usize> PyramidalNeonDouble<'_, GRID_SIZE> {
             let c3 = x3 - c0;
             let c4 = c0 - x3 - x0 + x2;
 
-            let w3 = NeonVector::from(dg * db);
+            let w3 = NeonVectorQ2_14::from(dg * db);
 
             let s0 = c0.mla(c1, w0);
             let s1 = s0.mla(c2, w1);
@@ -540,7 +572,7 @@ impl<const GRID_SIZE: usize> PyramidalNeonDouble<'_, GRID_SIZE> {
             let c3 = x3 - x2;
             let c4 = c0 - x1 - x0 + x2;
 
-            let w3 = NeonVector::from(db * dr);
+            let w3 = NeonVectorQ2_14::from(db * dr);
 
             let s0 = c0.mla(c1, w0);
             let s1 = s0.mla(c2, w1);
@@ -550,9 +582,15 @@ impl<const GRID_SIZE: usize> PyramidalNeonDouble<'_, GRID_SIZE> {
     }
 }
 
-impl<const GRID_SIZE: usize> PrismaticNeon<'_, GRID_SIZE> {
+impl<const GRID_SIZE: usize> PrismaticNeonQ2_14<'_, GRID_SIZE> {
     #[inline(always)]
-    fn interpolate(&self, in_r: u16, in_g: u16, in_b: u16, r: impl Fetcher<NeonVector>) -> NeonVector {
+    fn interpolate(
+        &self,
+        in_r: u16,
+        in_g: u16,
+        in_b: u16,
+        r: impl Fetcher<NeonVectorQ2_14>,
+    ) -> NeonVectorQ2_14 {
         const SCALE: f32 = 1.0 / 65535.0;
         let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / 65535;
         let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / 65535;
@@ -566,9 +604,11 @@ impl<const GRID_SIZE: usize> PrismaticNeon<'_, GRID_SIZE> {
 
         let scale = (GRID_SIZE as i32 - 1) as f32 * SCALE;
 
-        let dr = in_r as f32 * scale - x as f32;
-        let dg = in_g as f32 * scale - y as f32;
-        let db = in_b as f32 * scale - z as f32;
+        const Q_SCALE: f32 = ((1 << 14) - 1) as f32;
+
+        let dr = ((in_r as f32 * scale - x as f32) * Q_SCALE) as i16;
+        let dg = ((in_g as f32 * scale - y as f32) * Q_SCALE) as i16;
+        let db = ((in_b as f32 * scale - z as f32) * Q_SCALE) as i16;
 
         if db > dr {
             let x0 = r.fetch(x, y, z_n);
@@ -583,11 +623,11 @@ impl<const GRID_SIZE: usize> PrismaticNeon<'_, GRID_SIZE> {
             let c4 = c0 - x2 - x0 + x3;
             let c5 = x0 - x3 - x1 + x4;
 
-            let s0 = c0.mla(c1, NeonVector::from(db));
-            let s1 = s0.mla(c2, NeonVector::from(dr));
-            let s2 = s1.mla(c3, NeonVector::from(dg));
-            let s3 = s2.mla(c4, NeonVector::from(dg * db));
-            s3.mla(c5, NeonVector::from(dr * dg))
+            let s0 = c0.mla(c1, NeonVectorQ2_14::from(db));
+            let s1 = s0.mla(c2, NeonVectorQ2_14::from(dr));
+            let s2 = s1.mla(c3, NeonVectorQ2_14::from(dg));
+            let s3 = s2.mla(c4, NeonVectorQ2_14::from(dg * db));
+            s3.mla(c5, NeonVectorQ2_14::from(dr * dg))
         } else {
             let x0 = r.fetch(x_n, y, z);
             let x1 = r.fetch(x_n, y, z_n);
@@ -601,24 +641,24 @@ impl<const GRID_SIZE: usize> PrismaticNeon<'_, GRID_SIZE> {
             let c4 = x0 - x3 - x1 + x4;
             let c5 = c0 - x2 - x0 + x3;
 
-            let s0 = c0.mla(c1, NeonVector::from(db));
-            let s1 = s0.mla(c2, NeonVector::from(dr));
-            let s2 = s1.mla(c3, NeonVector::from(dg));
-            let s3 = s2.mla(c4, NeonVector::from(dg * db));
-            s3.mla(c5, NeonVector::from(dr * dg))
+            let s0 = c0.mla(c1, NeonVectorQ2_14::from(db));
+            let s1 = s0.mla(c2, NeonVectorQ2_14::from(dr));
+            let s2 = s1.mla(c3, NeonVectorQ2_14::from(dg));
+            let s3 = s2.mla(c4, NeonVectorQ2_14::from(dg * db));
+            s3.mla(c5, NeonVectorQ2_14::from(dr * dg))
         }
     }
 }
 
-impl<const GRID_SIZE: usize> PrismaticNeonDouble<'_, GRID_SIZE> {
+impl<const GRID_SIZE: usize> PrismaticNeonQ2_14Double<'_, GRID_SIZE> {
     #[inline(always)]
     fn interpolate(
         &self,
         in_r: u16,
         in_g: u16,
         in_b: u16,
-        rv: impl Fetcher<NeonVectorDouble>,
-    ) -> (NeonVector, NeonVector) {
+        rv: impl Fetcher<NeonVectorQ2_14Double>,
+    ) -> (NeonVectorQ2_14, NeonVectorQ2_14) {
         const SCALE: f32 = 1.0 / 65535.0;
         let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / 65535;
         let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / 65535;
@@ -632,15 +672,17 @@ impl<const GRID_SIZE: usize> PrismaticNeonDouble<'_, GRID_SIZE> {
 
         let scale = (GRID_SIZE as i32 - 1) as f32 * SCALE;
 
-        let dr = in_r as f32 * scale - x as f32;
-        let dg = in_g as f32 * scale - y as f32;
-        let db = in_b as f32 * scale - z as f32;
+        const Q_SCALE: f32 = ((1 << 14) - 1) as f32;
 
-        let w0 = NeonVector::from(db);
-        let w1 = NeonVector::from(dr);
-        let w2 = NeonVector::from(dg);
-        let w3 = NeonVector::from(dg * db);
-        let w4 = NeonVector::from(dr * dg);
+        let dr = ((in_r as f32 * scale - x as f32) * Q_SCALE) as i16;
+        let dg = ((in_g as f32 * scale - y as f32) * Q_SCALE) as i16;
+        let db = ((in_b as f32 * scale - z as f32) * Q_SCALE) as i16;
+
+        let w0 = NeonVectorQ2_14::from(db);
+        let w1 = NeonVectorQ2_14::from(dr);
+        let w2 = NeonVectorQ2_14::from(dg);
+        let w3 = NeonVectorQ2_14::from(dg * db);
+        let w4 = NeonVectorQ2_14::from(dr * dg);
 
         if db > dr {
             let x0 = rv.fetch(x, y, z_n);

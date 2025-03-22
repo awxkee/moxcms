@@ -36,7 +36,7 @@ use crate::matrix::{BT2020_MATRIX, DISPLAY_P3_MATRIX, Matrix3f, SRGB_MATRIX, XyY
 use crate::safe_reader::{SafeAdd, SafeMul};
 use crate::tag::{TAG_SIZE, Tag, TagTypeDefinition};
 use crate::trc::ToneReprCurve;
-use crate::{Chromaticity, Layout, Vector3f};
+use crate::{Chromaticity, Layout, Matrix3d, Vector3f, adapt_to_d50_d};
 use std::io::Read;
 
 const MAX_PROFILE_SIZE: usize = 1024 * 1024 * 10; // 10 MB max, for Fogra39 etc
@@ -2015,17 +2015,17 @@ impl ColorProfile {
         green_xyz: Xyz,
         blue_xyz: Xyz,
     ) {
-        let xyz_matrix = Matrix3f {
+        let xyz_matrix = Matrix3d {
             v: [
-                [red_xyz.x, green_xyz.x, blue_xyz.x],
-                [red_xyz.y, green_xyz.y, blue_xyz.y],
-                [red_xyz.z, green_xyz.z, blue_xyz.z],
+                [red_xyz.x as f64, green_xyz.x as f64, blue_xyz.x as f64],
+                [red_xyz.y as f64, green_xyz.y as f64, blue_xyz.y as f64],
+                [red_xyz.z as f64, green_xyz.z as f64, blue_xyz.z as f64],
             ],
         };
-        let colorants = ColorProfile::rgb_to_xyz_const(xyz_matrix, white_point.to_xyz());
-        let colorants = adapt_to_d50(colorants, white_point);
+        let colorants = ColorProfile::rgb_to_xyz_const_d(xyz_matrix, white_point.to_xyz());
+        let colorants = adapt_to_d50_d(colorants, white_point);
 
-        self.update_colorants(colorants);
+        self.update_colorants(colorants.to_f32());
     }
 
     pub(crate) const fn update_colorants(&mut self, colorants: Matrix3f) {
@@ -2082,6 +2082,16 @@ impl ColorProfile {
     pub const fn rgb_to_xyz_const(xyz_matrix: Matrix3f, wp: Xyz) -> Matrix3f {
         let xyz_inverse = xyz_matrix.inverse();
         let s = xyz_inverse.mul_vector(wp.to_vector());
+        let mut v = xyz_matrix.mul_row_vector::<0>(s);
+        v = v.mul_row_vector::<1>(s);
+        v = v.mul_row_vector::<2>(s);
+        v
+    }
+
+    /// If Primaries is invalid will return invalid matrix on const context
+    pub const fn rgb_to_xyz_const_d(xyz_matrix: Matrix3d, wp: Xyz) -> Matrix3d {
+        let xyz_inverse = xyz_matrix.inverse();
+        let s = xyz_inverse.mul_vector(wp.to_vector_d());
         let mut v = xyz_matrix.mul_row_vector::<0>(s);
         v = v.mul_row_vector::<1>(s);
         v = v.mul_row_vector::<2>(s);
