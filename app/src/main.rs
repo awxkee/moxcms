@@ -26,7 +26,7 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-use jxl_oxide::{JxlImage, JxlThreadPool, Lcms2, Moxcms};
+// use jxl_oxide::{JxlImage, JxlThreadPool, Lcms2, Moxcms};
 use lcms2::{Intent, PixelFormat, Profile, Transform};
 use moxcms::{ColorProfile, InterpolationMethod, Layout, RenderingIntent, TransformOptions};
 use std::fs;
@@ -153,7 +153,7 @@ fn main() {
         PixelFormat::RGBA_FLT,
         &pr1,
         PixelFormat::CMYK_FLT,
-        Intent::RelativeColorimetric,
+        Intent::Perceptual,
     )
     .unwrap();
 
@@ -162,7 +162,7 @@ fn main() {
         PixelFormat::CMYK_FLT,
         &lcms2::Profile::new_srgb(),
         PixelFormat::RGBA_FLT,
-        Intent::RelativeColorimetric,
+        Intent::Perceptual,
     )
     .unwrap();
 
@@ -193,10 +193,11 @@ fn main() {
             &funny_profile,
             Layout::Rgba,
             TransformOptions {
-                rendering_intent: RenderingIntent::RelativeColorimetric,
+                rendering_intent: RenderingIntent::Perceptual,
                 allow_use_cicp_transfer: false,
                 prefer_fixed_point: false,
                 interpolation_method: InterpolationMethod::Tetrahedral,
+                black_point_compensation: false,
             },
         )
         .unwrap();
@@ -211,10 +212,11 @@ fn main() {
             &out_profile,
             Layout::Rgba,
             TransformOptions {
-                rendering_intent: RenderingIntent::RelativeColorimetric,
+                rendering_intent: RenderingIntent::Perceptual,
                 allow_use_cicp_transfer: false,
                 prefer_fixed_point: false,
                 interpolation_method: InterpolationMethod::Tetrahedral,
+                black_point_compensation: false,
             },
         )
         .unwrap();
@@ -229,7 +231,7 @@ fn main() {
         }
     }
 
-    v_max = 100.;
+    // v_max = 1.;
     //
     // let instant = Instant::now();
 
@@ -255,7 +257,7 @@ fn main() {
         .flat_map(|x| [x[0], x[1], x[2], 1.])
         .collect();
 
-    let mut rgba_lcms2 = vec![[0f32; 4]; (decoder.output_buffer_size().unwrap() / 3) * 4];
+    let mut rgba_lcms2 = vec![[0f32; 4]; (decoder.output_buffer_size().unwrap() / 3)];
 
     t2.transform_pixels(&cmyk_lcms2, &mut rgba_lcms2);
 
@@ -369,10 +371,10 @@ fn main() {
     )
     .unwrap();
 
-    let dst = lcms2_src
+    let dst = rgba_lcms2
         .iter()
-        .flat_map(|x| x)
-        .map(|&x| (x * 255f32).round() as u8)
+        .flat_map(|x| [x[0], x[1], x[2], 1.])
+        .map(|x| (x * 255f32).round() as u8)
         .collect::<Vec<_>>();
     image::save_buffer(
         "v_new_lcms2.png",

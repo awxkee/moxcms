@@ -167,6 +167,7 @@ where
                 InterpolationMethod::Prism => {
                     self.transform_chunk::<PrismaticSse<GRID_SIZE>>(src, dst);
                 }
+                InterpolationMethod::Linear => {}
             }
         }
 

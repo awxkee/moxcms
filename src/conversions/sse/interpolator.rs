@@ -32,7 +32,7 @@ use crate::rounding_div_ceil;
 use std::arch::x86::*;
 #[cfg(target_arch = "x86_64")]
 use std::arch::x86_64::*;
-use std::ops::{Add, Sub};
+use std::ops::{Add, Mul, Sub};
 
 #[repr(align(16), C)]
 pub(crate) struct SseAlignedF32(pub(crate) [f32; 4]);
@@ -46,6 +46,10 @@ pub(crate) struct PyramidalSse<'a, const GRID_SIZE: usize> {
 }
 
 pub(crate) struct PrismaticSse<'a, const GRID_SIZE: usize> {
+    pub(crate) cube: &'a [SseAlignedF32],
+}
+
+pub(crate) struct TrilinearSse<'a, const GRID_SIZE: usize> {
     pub(crate) cube: &'a [SseAlignedF32],
 }
 
@@ -84,6 +88,16 @@ impl Add<SseVector> for SseVector {
     fn add(self, rhs: SseVector) -> Self::Output {
         SseVector {
             v: unsafe { _mm_add_ps(self.v, rhs.v) },
+        }
+    }
+}
+
+impl Mul<SseVector> for SseVector {
+    type Output = Self;
+    #[inline(always)]
+    fn mul(self, rhs: SseVector) -> Self::Output {
+        SseVector {
+            v: unsafe { _mm_mul_ps(self.v, rhs.v) },
         }
     }
 }
@@ -213,6 +227,7 @@ macro_rules! define_inter_sse {
 define_inter_sse!(TetrahedralSse);
 define_inter_sse!(PyramidalSse);
 define_inter_sse!(PrismaticSse);
+define_inter_sse!(TrilinearSse);
 
 impl<const GRID_SIZE: usize> PyramidalSse<'_, GRID_SIZE> {
     #[inline(always)]
@@ -352,5 +367,60 @@ impl<const GRID_SIZE: usize> PrismaticSse<'_, GRID_SIZE> {
             let s3 = s2.mla(c4, SseVector::from(dg * db));
             s3.mla(c5, SseVector::from(dr * dg))
         }
+    }
+}
+
+impl<const GRID_SIZE: usize> TrilinearSse<'_, GRID_SIZE> {
+    #[inline(always)]
+    fn interpolate(
+        &self,
+        in_r: u16,
+        in_g: u16,
+        in_b: u16,
+        r: impl Fetcher<SseVector>,
+    ) -> SseVector {
+        const SCALE: f32 = 1.0 / 65535.0;
+        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / 65535;
+        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / 65535;
+        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / 65535;
+
+        let x_n: i32 = rounding_div_ceil(in_r as i32 * (GRID_SIZE as i32 - 1), 65535);
+        let y_n: i32 = rounding_div_ceil(in_g as i32 * (GRID_SIZE as i32 - 1), 65535);
+        let z_n: i32 = rounding_div_ceil(in_b as i32 * (GRID_SIZE as i32 - 1), 65535);
+
+        let scale = (GRID_SIZE as i32 - 1) as f32 * SCALE;
+
+        let dr = in_r as f32 * scale - x as f32;
+        let dg = in_g as f32 * scale - y as f32;
+        let db = in_b as f32 * scale - z as f32;
+
+        let w0 = SseVector::from(dr);
+        let w1 = SseVector::from(dg);
+        let w2 = SseVector::from(db);
+
+        let c000 = r.fetch(x, y, z);
+        let c100 = r.fetch(x_n, y, z);
+        let c010 = r.fetch(x, y_n, z);
+        let c110 = r.fetch(x_n, y_n, z);
+        let c001 = r.fetch(x, y, z_n);
+        let c101 = r.fetch(x_n, y, z_n);
+        let c011 = r.fetch(x, y_n, z_n);
+        let c111 = r.fetch(x_n, y_n, z_n);
+
+        let dx = SseVector::from(1.0 - dr);
+
+        let c00 = (c000 * dx).mla(c100, w0);
+        let c10 = (c010 * dx).mla(c110, w0);
+        let c01 = (c001 * dx).mla(c101, w0);
+        let c11 = (c011 * dx).mla(c111, w0);
+
+        let dy = SseVector::from(1.0 - dg);
+
+        let c0 = (c00 * dy).mla(c10, w1);
+        let c1 = (c01 * dy).mla(c11, w1);
+
+        let dz = SseVector::from(1.0 - db);
+
+        (c0 * dz).mla(c1, w2)
     }
 }

@@ -69,6 +69,7 @@ pub struct TransformOptions {
     pub prefer_fixed_point: bool,
     /// Interpolation method for 3D LUT
     pub interpolation_method: InterpolationMethod,
+    pub black_point_compensation: bool,
 }
 
 #[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Default)]
@@ -98,6 +99,7 @@ impl Default for TransformOptions {
             allow_use_cicp_transfer: true,
             prefer_fixed_point: true,
             interpolation_method: InterpolationMethod::default(),
+            black_point_compensation: false,
         }
     }
 }

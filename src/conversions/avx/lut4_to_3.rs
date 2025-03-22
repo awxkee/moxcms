@@ -29,7 +29,7 @@
 use crate::conversions::CompressForLut;
 use crate::conversions::avx::interpolator::{
     AvxMdInterpolationDouble, PrismaticAvxFmaDouble, PyramidAvxFmaDouble, SseAlignedF32,
-    TetrahedralAvxFmaDouble,
+    TetrahedralAvxFmaDouble, TrilinearAvxFmaDouble,
 };
 use crate::conversions::lut_transforms::Lut4x3Factory;
 use crate::transform::PointeeSizeExpressible;
@@ -164,6 +164,9 @@ where
                 }
                 InterpolationMethod::Prism => {
                     self.transform_chunk::<PrismaticAvxFmaDouble<GRID_SIZE>>(src, dst);
+                }
+                InterpolationMethod::Linear => {
+                    self.transform_chunk::<TrilinearAvxFmaDouble<GRID_SIZE>>(src, dst);
                 }
             }
         }

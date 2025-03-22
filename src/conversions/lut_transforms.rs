@@ -36,7 +36,8 @@ use crate::math::m_clamp;
 use crate::mlaf::mlaf;
 use crate::{
     CmsError, ColorProfile, DataColorSpace, InPlaceStage, InterpolationMethod, Layout,
-    LutWarehouse, Matrix3f, ProfileVersion, TransformExecutor, TransformOptions, Xyz,
+    LutWarehouse, Matrix3f, ProfileVersion, RenderingIntent, TransformExecutor, TransformOptions,
+    Xyz,
 };
 use num_traits::AsPrimitive;
 use std::marker::PhantomData;
@@ -518,7 +519,11 @@ where
             lab_to_xyz_stage.transform(&mut lut)?;
         }
 
-        if source.color_space == DataColorSpace::Cmyk {
+        if source.color_space == DataColorSpace::Cmyk
+            && (options.rendering_intent == RenderingIntent::Perceptual
+                || options.rendering_intent == RenderingIntent::RelativeColorimetric)
+            && options.black_point_compensation
+        {
             if let (Some(src_bp), Some(dst_bp)) = (
                 source.detect_black_point::<GRID_SIZE>(&lut),
                 dest.detect_black_point::<GRID_SIZE>(&lut),
