@@ -29,7 +29,7 @@
 use crate::math::m_clamp;
 use crate::profile::LutDataType;
 use crate::trc::lut_interp_linear_float;
-use crate::{Array3D, CmsError, Stage};
+use crate::{Array3D, CmsError, InterpolationMethod, Stage, TransformOptions, Vector4f};
 use num_traits::AsPrimitive;
 
 #[derive(Default)]
@@ -38,15 +38,17 @@ struct Lut3x4 {
     clut: Vec<f32>,
     grid_size: u8,
     gamma: [Vec<f32>; 4],
+    interpolation_method: InterpolationMethod,
 }
 
-fn stage_lut_3x4(lut: &LutDataType) -> Box<dyn Stage> {
+fn stage_lut_3x4(lut: &LutDataType, options: TransformOptions) -> Box<dyn Stage> {
     let clut_length: usize = (lut.num_clut_grid_points as usize).pow(lut.num_input_channels as u32)
         * lut.num_output_channels as usize;
     // the matrix of lutType is only used when the input color space is XYZ.
 
     // Prepare input curves
     let mut transform = Lut3x4::default();
+    transform.interpolation_method = options.interpolation_method;
     transform.input[0] = lut.input_table[0..lut.num_input_table_entries as usize].to_vec();
     transform.input[1] = lut.input_table
         [lut.num_input_table_entries as usize..lut.num_input_table_entries as usize * 2]
@@ -73,10 +75,13 @@ fn stage_lut_3x4(lut: &LutDataType) -> Box<dyn Stage> {
     Box::new(transform)
 }
 
-impl Stage for Lut3x4 {
-    fn transform(&self, src: &[f32], dst: &mut [f32]) -> Result<(), CmsError> {
-        let l_tbl = Array3D::new(&self.clut, self.grid_size as usize);
-
+impl Lut3x4 {
+    fn transform_impl<Fetch: Fn(f32, f32, f32) -> Vector4f>(
+        &self,
+        src: &[f32],
+        dst: &mut [f32],
+        fetch: Fetch,
+    ) -> Result<(), CmsError> {
         let linearization_0 = &self.input[0];
         let linearization_1 = &self.input[1];
         let linearization_2 = &self.input[2];
@@ -86,7 +91,7 @@ impl Stage for Lut3x4 {
             let linear_y = lut_interp_linear_float(src[1], linearization_1);
             let linear_z = lut_interp_linear_float(src[2], linearization_2);
 
-            let clut = l_tbl.trilinear_vec4(linear_x, linear_y, linear_z);
+            let clut = fetch(linear_x, linear_y, linear_z);
 
             let pcs_x = lut_interp_linear_float(m_clamp(clut.v[0], 0.0, 1.0), &self.gamma[0]);
             let pcs_y = lut_interp_linear_float(m_clamp(clut.v[1], 0.0, 1.0), &self.gamma[1]);
@@ -96,6 +101,27 @@ impl Stage for Lut3x4 {
             dest[1] = pcs_y;
             dest[2] = pcs_z;
             dest[3] = pcs_w;
+        }
+        Ok(())
+    }
+}
+
+impl Stage for Lut3x4 {
+    fn transform(&self, src: &[f32], dst: &mut [f32]) -> Result<(), CmsError> {
+        let l_tbl = Array3D::new(&self.clut, self.grid_size as usize);
+        match self.interpolation_method {
+            InterpolationMethod::Tetrahedral => {
+                self.transform_impl(src, dst, |x, y, z| l_tbl.tetra_vec4(x, y, z))?;
+            }
+            InterpolationMethod::Pyramid => {
+                self.transform_impl(src, dst, |x, y, z| l_tbl.pyramid_vec4(x, y, z))?;
+            }
+            InterpolationMethod::Prism => {
+                self.transform_impl(src, dst, |x, y, z| l_tbl.prism_vec4(x, y, z))?;
+            }
+            InterpolationMethod::Linear => {
+                self.transform_impl(src, dst, |x, y, z| l_tbl.trilinear_vec4(x, y, z))?;
+            }
         }
         Ok(())
     }
@@ -142,14 +168,18 @@ pub(crate) fn create_lut3_samples_norm<const SAMPLES: usize>() -> Vec<f32> {
     src
 }
 
-pub(crate) fn create_lut3x4(lut: &LutDataType, src: &[f32]) -> Result<Vec<f32>, CmsError> {
+pub(crate) fn create_lut3x4(
+    lut: &LutDataType,
+    src: &[f32],
+    options: TransformOptions,
+) -> Result<Vec<f32>, CmsError> {
     if lut.num_input_channels != 3 || lut.num_output_channels != 4 {
         return Err(CmsError::UnsupportedProfileConnection);
     }
 
     let mut dest = vec![0.; (src.len() / 3) * 4];
 
-    let lut_stage = stage_lut_3x4(lut);
+    let lut_stage = stage_lut_3x4(lut, options);
     lut_stage.transform(src, &mut dest)?;
     Ok(dest)
 }

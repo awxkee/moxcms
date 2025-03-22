@@ -26,6 +26,7 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+use jxl_oxide::{JxlImage, JxlThreadPool, Lcms2, Moxcms};
 use lcms2::{Intent, PixelFormat, Profile, Transform};
 use moxcms::{ColorProfile, InterpolationMethod, Layout, RenderingIntent, TransformOptions};
 use std::fs;
@@ -74,15 +75,39 @@ fn compute_abs_diff4(src: &[f32], dst: &[[f32; 4]], highlights: &mut [f32]) {
     println!("Abs A {}", abs_a);
 }
 
+fn compute_abs_diff42(src: &[f32], dst: &[f32]) {
+    let mut abs_r = f32::MIN;
+    let mut abs_g = f32::MIN;
+    let mut abs_b = f32::MIN;
+    let mut abs_a = f32::MIN;
+    let mut mean_r = 0f32;
+    let mut mean_g = 0f32;
+    let mut mean_b = 0f32;
+    for (src, dst) in src.chunks_exact(4).zip(dst.chunks_exact(4)) {
+        let dr = (src[0] - dst[0]).abs();
+        abs_r = dr.max(abs_r);
+        mean_r += dr.abs();
+        abs_g = (src[1] - dst[1]).abs().max(abs_g);
+        mean_g += (src[1] - dst[1]).abs();
+        abs_b = (src[2] - dst[2]).abs().max(abs_b);
+        mean_b += (src[2] - dst[2]).abs();
+        abs_a = (src[3] - dst[3]).abs().max(abs_a);
+    }
+    mean_r /= dst.len() as f32;
+    mean_g /= dst.len() as f32;
+    mean_b /= dst.len() as f32;
+    println!("Abs R {} Mean R {}", abs_r, mean_r);
+    println!("Abs G {} Mean G {}", abs_g, mean_g);
+    println!("Abs B {} Mean G {}", abs_b, mean_b);
+    println!("Abs A {}", abs_a);
+}
+
 fn main() {
+    // let decoded = ColorProfile::new_bt2020();
+    // let encoded = decoded.encode().unwrap();
     let funny_icc = fs::read("./assets/us_swop_coated.icc").unwrap();
 
     // println!("{:?}", decoded);
-
-    let decoded = ColorProfile::new_bt2020_pq();
-    let encoded = decoded.encode().unwrap();
-
-    fs::write("./bt2020.icc", encoded).unwrap();
 
     let srgb_perceptual_icc = fs::read("./assets/srgb_perceptual.icc").unwrap();
 
@@ -127,17 +152,17 @@ fn main() {
         &lcms2::Profile::new_srgb(),
         PixelFormat::RGBA_FLT,
         &pr1,
-        PixelFormat::CMYK_FLT,
-        Intent::RelativeColorimetric,
+        PixelFormat::RGBA_FLT,
+        Intent::Perceptual,
     )
     .unwrap();
 
     let t2 = Transform::new(
         &pr1,
-        PixelFormat::CMYK_FLT,
+        PixelFormat::RGBA_FLT,
         &lcms2::Profile::new_srgb(),
         PixelFormat::RGBA_FLT,
-        Intent::RelativeColorimetric,
+        Intent::Perceptual,
     )
     .unwrap();
 
@@ -168,7 +193,7 @@ fn main() {
             &funny_profile,
             Layout::Rgba,
             TransformOptions {
-                rendering_intent: RenderingIntent::RelativeColorimetric,
+                rendering_intent: RenderingIntent::Perceptual,
                 allow_use_cicp_transfer: false,
                 prefer_fixed_point: false,
                 interpolation_method: InterpolationMethod::Tetrahedral,
@@ -186,7 +211,7 @@ fn main() {
             &out_profile,
             Layout::Rgba,
             TransformOptions {
-                rendering_intent: RenderingIntent::RelativeColorimetric,
+                rendering_intent: RenderingIntent::Perceptual,
                 allow_use_cicp_transfer: false,
                 prefer_fixed_point: false,
                 interpolation_method: InterpolationMethod::Tetrahedral,
@@ -204,7 +229,7 @@ fn main() {
         }
     }
 
-    v_max = 100.;
+    v_max = 1.;
     //
     // let instant = Instant::now();
 
@@ -225,6 +250,11 @@ fn main() {
             .unwrap();
     }
 
+    dst = dst
+        .chunks_exact(4)
+        .flat_map(|x| [x[0], x[1], x[2], 1.])
+        .collect();
+
     let mut rgba_lcms2 = vec![[0f32; 4]; (decoder.output_buffer_size().unwrap() / 3) * 4];
 
     t2.transform_pixels(&cmyk_lcms2, &mut rgba_lcms2);
@@ -234,7 +264,7 @@ fn main() {
     compute_abs_diff4(&dst, &rgba_lcms2, &mut highlights);
 
     // println!("Estimated time: {:?}", instant.elapsed());
-    //
+
     // let mut image = JxlImage::builder()
     //     .pool(JxlThreadPool::none())
     //     .read(std::io::Cursor::new(
@@ -248,6 +278,26 @@ fn main() {
     // let image = render.image_all_channels();
     // let img_buf = image.buf();
     //
+    // let real_img_mox = img_buf
+    //     .chunks_exact(5)
+    //     .flat_map(|x| [x[0], x[1], x[2], x[3]])
+    //     .collect::<Vec<_>>();
+    //
+    // let mut image = JxlImage::builder()
+    //     .pool(JxlThreadPool::none())
+    //     .read(std::io::Cursor::new(
+    //         fs::read("./assets/input(1).jxl").unwrap(),
+    //     ))
+    //     .unwrap();
+    // image.set_cms(Lcms2);
+    //
+    // let real_img_lcms = img_buf
+    //     .chunks_exact(5)
+    //     .flat_map(|x| [x[0], x[1], x[2], x[3]])
+    //     .collect::<Vec<_>>();
+    //
+    // compute_abs_diff42(&real_img_mox, &real_img_lcms);
+    //
     // let real_img_data = img_buf
     //     .chunks_exact(5)
     //     .flat_map(|x| [x[0], x[1], x[2], x[3]])
@@ -255,31 +305,31 @@ fn main() {
     //     .collect::<Vec<_>>();
     //
     // let jxl_profile = ColorProfile::new_from_slice(&rendered_icc).unwrap();
+
+    // let mut dst2 = vec![0u8; real_img_data.len()];
+    // let transform2 = jxl_profile
+    //     .create_transform_8bit(
+    //         Layout::Rgba,
+    //         &dest_profile,
+    //         Layout::Rgba,
+    //         TransformOptions::default(),
+    //     )
+    //     .unwrap();
     //
-    // // let mut dst2 = vec![0u16; real_img_data.len()];
-    // // let transform2 = jxl_profile
-    // //     .create_transform_16bit(
-    // //         Layout::Rgba,
-    // //         &dest_profile,
-    // //         Layout::Rgba,
-    // //         TransformOptions::default(),
-    // //     )
-    // //     .unwrap();
-    // //
-    // // for (src, dst) in real_img_data
-    // //     .chunks_exact(img.width() as usize * 4)
-    // //     .zip(dst2.chunks_exact_mut(image.width() as usize * 4))
-    // // {
-    // //     // ot.transform_pixels(src, dst);
-    // //
-    // //     transform2
-    // //         .transform(
-    // //             &src[..image.width() as usize * 4],
-    // //             &mut dst[..image.height() as usize * 4],
-    // //         )
-    // //         .unwrap();
-    // // }
-    // //
+    // for (src, dst) in real_img_data
+    //     .chunks_exact(img.width() as usize * 4)
+    //     .zip(dst2.chunks_exact_mut(image.width() as usize * 4))
+    // {
+    //     // ot.transform_pixels(src, dst);
+    //
+    //     transform2
+    //         .transform(
+    //             &src[..image.width() as usize * 4],
+    //             &mut dst[..image.height() as usize * 4],
+    //         )
+    //         .unwrap();
+    // }
+    //
     // image::save_buffer(
     //     "moxcms.png",
     //     &real_img_data,

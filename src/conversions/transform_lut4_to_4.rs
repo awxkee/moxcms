@@ -28,7 +28,7 @@
  */
 use crate::conversions::CompressForLut;
 use crate::conversions::interpolator::{
-    MultidimensionalInterpolation, Prismatic, Pyramidal, Tetrahedral,
+    MultidimensionalInterpolation, Prismatic, Pyramidal, Tetrahedral, Trilinear,
 };
 use crate::conversions::lut_transforms::Lut4x3Factory;
 use crate::math::{FusedMultiplyAdd, m_clamp};
@@ -184,6 +184,13 @@ where
                     self.transform_chunk::<Prismatic<GRID_SIZE>, DefaultVector3fLerp>(src, dst);
                 } else {
                     self.transform_chunk::<Prismatic<GRID_SIZE>, NonFiniteVector3fLerp>(src, dst);
+                }
+            }
+            InterpolationMethod::Linear => {
+                if T::FINITE {
+                    self.transform_chunk::<Trilinear<GRID_SIZE>, DefaultVector3fLerp>(src, dst);
+                } else {
+                    self.transform_chunk::<Trilinear<GRID_SIZE>, NonFiniteVector3fLerp>(src, dst);
                 }
             }
         }

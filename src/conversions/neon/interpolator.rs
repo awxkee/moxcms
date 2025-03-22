@@ -29,9 +29,8 @@
 #![allow(dead_code)]
 use crate::conversions::neon::stages::NeonAlignedF32;
 use crate::math::FusedMultiplyAdd;
-use crate::rounding_div_ceil;
 use std::arch::aarch64::*;
-use std::ops::{Add, Sub};
+use std::ops::{Add, Mul, Sub};
 
 pub(crate) struct TetrahedralNeon<'a, const GRID_SIZE: usize> {
     pub(crate) cube: &'a [NeonAlignedF32],
@@ -41,12 +40,21 @@ pub(crate) struct PyramidalNeon<'a, const GRID_SIZE: usize> {
     pub(crate) cube: &'a [NeonAlignedF32],
 }
 
+pub(crate) struct TrilinearNeon<'a, const GRID_SIZE: usize> {
+    pub(crate) cube: &'a [NeonAlignedF32],
+}
+
 pub(crate) struct PyramidalNeonDouble<'a, const GRID_SIZE: usize> {
     pub(crate) cube0: &'a [NeonAlignedF32],
     pub(crate) cube1: &'a [NeonAlignedF32],
 }
 
 pub(crate) struct PrismaticNeonDouble<'a, const GRID_SIZE: usize> {
+    pub(crate) cube0: &'a [NeonAlignedF32],
+    pub(crate) cube1: &'a [NeonAlignedF32],
+}
+
+pub(crate) struct TrilinearNeonDouble<'a, const GRID_SIZE: usize> {
     pub(crate) cube0: &'a [NeonAlignedF32],
     pub(crate) cube1: &'a [NeonAlignedF32],
 }
@@ -113,6 +121,16 @@ impl Sub<NeonVector> for NeonVector {
     }
 }
 
+impl Mul<NeonVector> for NeonVector {
+    type Output = Self;
+    #[inline(always)]
+    fn mul(self, rhs: NeonVector) -> Self::Output {
+        NeonVector {
+            v: unsafe { vmulq_f32(self.v, rhs.v) },
+        }
+    }
+}
+
 impl Sub<NeonVectorDouble> for NeonVectorDouble {
     type Output = Self;
     #[inline(always)]
@@ -120,6 +138,17 @@ impl Sub<NeonVectorDouble> for NeonVectorDouble {
         NeonVectorDouble {
             v0: unsafe { vsubq_f32(self.v0, rhs.v0) },
             v1: unsafe { vsubq_f32(self.v1, rhs.v1) },
+        }
+    }
+}
+
+impl Mul<NeonVectorDouble> for NeonVectorDouble {
+    type Output = Self;
+    #[inline(always)]
+    fn mul(self, rhs: NeonVectorDouble) -> Self::Output {
+        NeonVectorDouble {
+            v0: unsafe { vmulq_f32(self.v0, rhs.v0) },
+            v1: unsafe { vmulq_f32(self.v1, rhs.v1) },
         }
     }
 }
@@ -398,9 +427,11 @@ macro_rules! define_md_inter_neon_d {
 define_md_inter_neon!(TetrahedralNeon);
 define_md_inter_neon!(PyramidalNeon);
 define_md_inter_neon!(PrismaticNeon);
+define_md_inter_neon!(TrilinearNeon);
 define_md_inter_neon_d!(PrismaticNeonDouble);
 define_md_inter_neon_d!(PyramidalNeonDouble);
 define_md_inter_neon_d!(TetrahedralNeonDouble);
+define_md_inter_neon_d!(TrilinearNeonDouble);
 
 impl<const GRID_SIZE: usize> PyramidalNeon<'_, GRID_SIZE> {
     #[inline(always)]
@@ -697,5 +728,116 @@ impl<const GRID_SIZE: usize> PrismaticNeonDouble<'_, GRID_SIZE> {
             let s3 = s2.mla(c4, w3);
             s3.mla(c5, w4).split()
         }
+    }
+}
+
+impl<const GRID_SIZE: usize> TrilinearNeonDouble<'_, GRID_SIZE> {
+    #[inline(always)]
+    fn interpolate(
+        &self,
+        in_r: u16,
+        in_g: u16,
+        in_b: u16,
+        r: impl Fetcher<NeonVectorDouble>,
+    ) -> (NeonVector, NeonVector) {
+        const SCALE: f32 = 1.0 / 65535.0;
+        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / 65535;
+        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / 65535;
+        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / 65535;
+
+        let x_n: i32 = (x + 1).min(GRID_SIZE as i32 - 1);
+        let y_n: i32 = (y + 1).min(GRID_SIZE as i32 - 1);
+        let z_n: i32 = (z + 1).min(GRID_SIZE as i32 - 1);
+
+        let scale = (GRID_SIZE as i32 - 1) as f32 * SCALE;
+
+        let dr = in_r as f32 * scale - x as f32;
+        let dg = in_g as f32 * scale - y as f32;
+        let db = in_b as f32 * scale - z as f32;
+
+        let w0 = NeonVector::from(dr);
+        let w1 = NeonVector::from(dg);
+        let w2 = NeonVector::from(db);
+
+        let c000 = r.fetch(x, y, z);
+        let c100 = r.fetch(x_n, y, z);
+        let c010 = r.fetch(x, y_n, z);
+        let c110 = r.fetch(x_n, y_n, z);
+        let c001 = r.fetch(x, y, z_n);
+        let c101 = r.fetch(x_n, y, z_n);
+        let c011 = r.fetch(x, y_n, z_n);
+        let c111 = r.fetch(x_n, y_n, z_n);
+
+        let dx = NeonVectorDouble::from(1.0 - dr);
+
+        // Perform trilinear interpolation
+        let c00 = (c000 * dx).mla(c100, w0);
+        let c10 = (c010 * dx).mla(c110, w0);
+        let c01 = (c001 * dx).mla(c101, w0);
+        let c11 = (c011 * dx).mla(c111, w0);
+
+        let dy = NeonVectorDouble::from(1.0 - dg);
+
+        let c0 = (c00 * dy).mla(c10, w1);
+        let c1 = (c01 * dy).mla(c11, w1);
+
+        let dz = NeonVectorDouble::from(1.0 - db);
+
+        (c0 * dz).mla(c1, w2).split()
+    }
+}
+
+impl<const GRID_SIZE: usize> TrilinearNeon<'_, GRID_SIZE> {
+    #[inline(always)]
+    fn interpolate(
+        &self,
+        in_r: u16,
+        in_g: u16,
+        in_b: u16,
+        r: impl Fetcher<NeonVector>,
+    ) -> NeonVector {
+        const SCALE: f32 = 1.0 / 65535.0;
+        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / 65535;
+        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / 65535;
+        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / 65535;
+
+        let x_n: i32 = (x + 1).min(GRID_SIZE as i32 - 1);
+        let y_n: i32 = (y + 1).min(GRID_SIZE as i32 - 1);
+        let z_n: i32 = (z + 1).min(GRID_SIZE as i32 - 1);
+
+        let scale = (GRID_SIZE as i32 - 1) as f32 * SCALE;
+
+        let dr = in_r as f32 * scale - x as f32;
+        let dg = in_g as f32 * scale - y as f32;
+        let db = in_b as f32 * scale - z as f32;
+
+        let w0 = NeonVector::from(dr);
+        let w1 = NeonVector::from(dg);
+        let w2 = NeonVector::from(db);
+
+        let c000 = r.fetch(x, y, z);
+        let c100 = r.fetch(x_n, y, z);
+        let c010 = r.fetch(x, y_n, z);
+        let c110 = r.fetch(x_n, y_n, z);
+        let c001 = r.fetch(x, y, z_n);
+        let c101 = r.fetch(x_n, y, z_n);
+        let c011 = r.fetch(x, y_n, z_n);
+        let c111 = r.fetch(x_n, y_n, z_n);
+
+        let dx = NeonVector::from(1.0 - dr);
+
+        let c00 = (c000 * dx).mla(c100, w0);
+        let c10 = (c010 * dx).mla(c110, w0);
+        let c01 = (c001 * dx).mla(c101, w0);
+        let c11 = (c011 * dx).mla(c111, w0);
+
+        let dy = NeonVector::from(1.0 - dg);
+
+        let c0 = (c00 * dy).mla(c10, w1);
+        let c1 = (c01 * dy).mla(c11, w1);
+
+        let dz = NeonVector::from(1.0 - db);
+
+        (c0 * dz).mla(c1, w2)
     }
 }

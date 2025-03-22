@@ -87,6 +87,8 @@ pub enum InterpolationMethod {
     /// Interpolation by dividing cube into prisms.
     #[default]
     Prism,
+    /// Trilinear/Quadlinear interpolation
+    Linear,
 }
 
 impl Default for TransformOptions {

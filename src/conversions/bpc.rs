@@ -29,8 +29,7 @@
 
 use crate::conversions::interpolator::{MultidimensionalInterpolation, Tetrahedral};
 use crate::conversions::transform_lut4_to_4::{NonFiniteVector3fLerp, Vector3fCmykLerp};
-use crate::mlaf::mlaf;
-use crate::{Chromaticity, ColorProfile, DataColorSpace, Lab, Xyz};
+use crate::{ColorProfile, DataColorSpace, Lab, Xyz};
 
 impl ColorProfile {
     #[inline]
@@ -102,16 +101,16 @@ impl ColorProfile {
 }
 
 pub(crate) fn compensate_bpc_in_lut(lut_xyz: &mut [f32], src_bp: Xyz, dst_bp: Xyz) {
-    let rx = (1. - dst_bp.x) / (1. - src_bp.x);
-    let ry = (1. - dst_bp.y) / (1. - src_bp.y);
-    let rz = (1. - dst_bp.z) / (1. - src_bp.z);
-    let dx = 1. - rx;
-    let dy = 1. - ry;
-    let dz = 1. - rz;
-    const WP_50: Xyz = Chromaticity::D50.to_xyz();
-    for dst in lut_xyz.chunks_exact_mut(3) {
-        dst[0] = mlaf(dst[0] * rx, dx, WP_50.x);
-        dst[1] = mlaf(dst[1] * ry, dy, WP_50.y);
-        dst[2] = mlaf(dst[2] * rz, dz, WP_50.z);
-    }
+    // let rx = (1. - dst_bp.x) / (1. - src_bp.x);
+    // let ry = (1. - dst_bp.y) / (1. - src_bp.y);
+    // let rz = (1. - dst_bp.z) / (1. - src_bp.z);
+    // let dx = 1. - rx;
+    // let dy = 1. - ry;
+    // let dz = 1. - rz;
+    // const WP_50: Xyz = Chromaticity::D50.to_xyz();
+    // for dst in lut_xyz.chunks_exact_mut(3) {
+    //     dst[0] = mlaf(dst[0] * rx, dx, WP_50.x);
+    //     dst[1] = mlaf(dst[1] * ry, dy, WP_50.y);
+    //     dst[2] = mlaf(dst[2] * rz, dz, WP_50.z);
+    // }
 }

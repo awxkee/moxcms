@@ -509,7 +509,7 @@ where
 
         const GRID_SIZE: usize = 17;
 
-        let mut lut = create_lut4::<GRID_SIZE>(src_lut_a_to_b)?;
+        let mut lut = create_lut4::<GRID_SIZE>(src_lut_a_to_b, options)?;
 
         pcs_lab_v2_to_v4(source, &mut lut);
 
@@ -545,7 +545,9 @@ where
                 .get_pcs_to_device(options.rendering_intent)
                 .ok_or(CmsError::UnsupportedProfileConnection)?;
             match pcs_to_device {
-                LutWarehouse::Lut(lut_data_type) => lut = create_lut3x3(lut_data_type, &lut)?,
+                LutWarehouse::Lut(lut_data_type) => {
+                    lut = create_lut3x3(lut_data_type, &lut, options)?
+                }
                 LutWarehouse::MCurves(mab) => prepare_mba_3x3(mab, &mut lut)?,
             }
         }
@@ -597,7 +599,7 @@ where
 
             match device_to_pcs {
                 LutWarehouse::Lut(lut_data_type) => {
-                    lut = create_lut3x3(lut_data_type, &lut)?;
+                    lut = create_lut3x3(lut_data_type, &lut, options)?;
                 }
                 LutWarehouse::MCurves(mab) => prepare_mab_3x3(mab, &mut lut)?,
             }
@@ -619,7 +621,7 @@ where
 
         pcs_lab_v4_to_v2(dest, &mut lut);
 
-        let lut = create_lut3x4(dest_lut_b_to_a, &lut)?;
+        let lut = create_lut3x4(dest_lut_b_to_a, &lut, options)?;
 
         return Ok(match src_layout {
             Layout::Rgb => {
@@ -664,7 +666,7 @@ where
 
             match device_to_pcs {
                 LutWarehouse::Lut(lut_data_type) => {
-                    lut = create_lut3x3(lut_data_type, &lut)?;
+                    lut = create_lut3x3(lut_data_type, &lut, options)?;
                 }
                 LutWarehouse::MCurves(mab) => prepare_mab_3x3(mab, &mut lut)?,
             }
@@ -691,7 +693,9 @@ where
                 .get_pcs_to_device(options.rendering_intent)
                 .ok_or(CmsError::UnsupportedProfileConnection)?;
             match pcs_to_device {
-                LutWarehouse::Lut(lut_data_type) => lut = create_lut3x3(lut_data_type, &lut)?,
+                LutWarehouse::Lut(lut_data_type) => {
+                    lut = create_lut3x3(lut_data_type, &lut, options)?
+                }
                 LutWarehouse::MCurves(mab) => prepare_mba_3x3(mab, &mut lut)?,
             }
         } else if dest.has_full_colors_triplet() {

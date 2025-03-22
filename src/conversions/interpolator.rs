@@ -43,6 +43,10 @@ pub(crate) struct Prismatic<'a, const GRID_SIZE: usize> {
     pub(crate) cube: &'a [f32],
 }
 
+pub(crate) struct Trilinear<'a, const GRID_SIZE: usize> {
+    pub(crate) cube: &'a [f32],
+}
+
 trait Fetcher<T> {
     fn fetch(&self, x: i32, y: i32, z: i32) -> T;
 }
@@ -194,6 +198,7 @@ macro_rules! define_md_inter {
 define_md_inter!(Tetrahedral);
 define_md_inter!(Pyramidal);
 define_md_inter!(Prismatic);
+define_md_inter!(Trilinear);
 
 impl<const GRID_SIZE: usize> Pyramidal<'_, GRID_SIZE> {
     #[inline]
@@ -339,5 +344,64 @@ impl<const GRID_SIZE: usize> Prismatic<'_, GRID_SIZE> {
             let s3 = s2.mla(c4, T::from(dg * db));
             s3.mla(c5, T::from(dr * dg))
         }
+    }
+}
+
+impl<const GRID_SIZE: usize> Trilinear<'_, GRID_SIZE> {
+    #[inline]
+    fn interpolate<
+        T: Copy
+            + Sub<T, Output = T>
+            + Mul<T, Output = T>
+            + Mul<f32, Output = T>
+            + Add<T, Output = T>
+            + From<f32>
+            + FusedMultiplyAdd<T>,
+    >(
+        &self,
+        in_r: u16,
+        in_g: u16,
+        in_b: u16,
+        r: impl Fetcher<T>,
+    ) -> T {
+        const SCALE: f32 = 1.0 / 65535.0;
+        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / 65535;
+        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / 65535;
+        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / 65535;
+        let x_n: i32 = rounding_div_ceil(in_r as i32 * (GRID_SIZE as i32 - 1), 65535);
+        let y_n: i32 = rounding_div_ceil(in_g as i32 * (GRID_SIZE as i32 - 1), 65535);
+        let z_n: i32 = rounding_div_ceil(in_b as i32 * (GRID_SIZE as i32 - 1), 65535);
+        let dr = in_r as f32 * ((GRID_SIZE as i32 - 1) as f32 * SCALE) - x as f32;
+        let dg = in_g as f32 * ((GRID_SIZE as i32 - 1) as f32 * SCALE) - y as f32;
+        let db = in_b as f32 * ((GRID_SIZE as i32 - 1) as f32 * SCALE) - z as f32;
+        let w0 = T::from(dr);
+        let w1 = T::from(dg);
+        let w2 = T::from(db);
+
+        let c000 = r.fetch(x, y, z);
+        let c100 = r.fetch(x_n, y, z);
+        let c010 = r.fetch(x, y_n, z);
+        let c110 = r.fetch(x_n, y_n, z);
+        let c001 = r.fetch(x, y, z_n);
+        let c101 = r.fetch(x_n, y, z_n);
+        let c011 = r.fetch(x, y_n, z_n);
+        let c111 = r.fetch(x_n, y_n, z_n);
+
+        let dx = T::from(1.0 - dr);
+
+        // Perform trilinear interpolation
+        let c00 = (c000 * dx).mla(c100, w0);
+        let c10 = (c010 * dx).mla(c110, w0);
+        let c01 = (c001 * dx).mla(c101, w0);
+        let c11 = (c011 * dx).mla(c111, w0);
+
+        let dy = T::from(1.0 - dg);
+
+        let c0 = (c00 * dy).mla(c10, w1);
+        let c1 = (c01 * dy).mla(c11, w1);
+
+        let dz = T::from(1.0 - db);
+
+        (c0 * dz).mla(c1, w2)
     }
 }

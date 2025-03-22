@@ -121,6 +121,226 @@ impl Array4D<'_> {
     }
 
     #[inline]
+    pub fn pyramid(&self, lin_x: f32, lin_y: f32, lin_z: f32, lin_w: f32) -> Vector3f {
+        let scale = (self.grid_size as i32 - 1) as f32;
+
+        let x = (lin_x * scale).floor() as i32;
+        let y = (lin_y * scale).floor() as i32;
+        let z = (lin_z * scale).floor() as i32;
+        let w = (lin_w * scale).floor() as i32;
+
+        let x_n = (lin_x * scale).ceil() as i32;
+        let y_n = (lin_y * scale).ceil() as i32;
+        let z_n = (lin_z * scale).ceil() as i32;
+        let w_n = (lin_w * scale).ceil() as i32;
+
+        let dr = lin_x * scale - x as f32;
+        let dg = lin_y * scale - y as f32;
+        let db = lin_z * scale - z as f32;
+        let dw = lin_w * scale - w as f32;
+
+        let c0 = self.vec3(x, y, z, w);
+
+        let w0 = if dr > db && dg > db {
+            let x0 = self.vec3(x_n, y_n, z_n, w);
+            let x1 = self.vec3(x_n, y_n, z, w);
+            let x2 = self.vec3(x_n, y, z, w);
+            let x3 = self.vec3(x, y_n, z, w);
+
+            let c1 = x0 - x1;
+            let c2 = x2 - c0;
+            let c3 = x3 - c0;
+            let c4 = c0 - x3 - x2 + x1;
+
+            let s0 = c0.mla(c1, Vector3f::from(db));
+            let s1 = s0.mla(c2, Vector3f::from(dr));
+            let s2 = s1.mla(c3, Vector3f::from(dg));
+            s2.mla(c4, Vector3f::from(dr * dg))
+        } else if db > dr && dg > dr {
+            let x0 = self.vec3(x, y, z_n, w);
+            let x1 = self.vec3(x_n, y_n, z_n, w);
+            let x2 = self.vec3(x, y_n, z_n, w);
+            let x3 = self.vec3(x, y_n, z, w);
+
+            let c1 = x0 - c0;
+            let c2 = x1 - x2;
+            let c3 = x3 - c0;
+            let c4 = c0 - x3 - x0 + x2;
+
+            let s0 = c0.mla(c1, Vector3f::from(db));
+            let s1 = s0.mla(c2, Vector3f::from(dr));
+            let s2 = s1.mla(c3, Vector3f::from(dg));
+            s2.mla(c4, Vector3f::from(dg * db))
+        } else {
+            let x0 = self.vec3(x, y, z_n, w);
+            let x1 = self.vec3(x_n, y, z, w);
+            let x2 = self.vec3(x_n, y, z_n, w);
+            let x3 = self.vec3(x_n, y_n, z_n, w);
+
+            let c1 = x0 - c0;
+            let c2 = x1 - c0;
+            let c3 = x3 - x2;
+            let c4 = c0 - x1 - x0 + x2;
+
+            let s0 = c0.mla(c1, Vector3f::from(db));
+            let s1 = s0.mla(c2, Vector3f::from(dr));
+            let s2 = s1.mla(c3, Vector3f::from(dg));
+            s2.mla(c4, Vector3f::from(db * dr))
+        };
+
+        let c0 = self.vec3(x, y, z, w_n);
+
+        let w1 = if dr > db && dg > db {
+            let x0 = self.vec3(x_n, y_n, z_n, w_n);
+            let x1 = self.vec3(x_n, y_n, z, w_n);
+            let x2 = self.vec3(x_n, y, z, w_n);
+            let x3 = self.vec3(x, y_n, z, w_n);
+
+            let c1 = x0 - x1;
+            let c2 = x2 - c0;
+            let c3 = x3 - c0;
+            let c4 = c0 - x3 - x2 + x1;
+
+            let s0 = c0.mla(c1, Vector3f::from(db));
+            let s1 = s0.mla(c2, Vector3f::from(dr));
+            let s2 = s1.mla(c3, Vector3f::from(dg));
+            s2.mla(c4, Vector3f::from(dr * dg))
+        } else if db > dr && dg > dr {
+            let x0 = self.vec3(x, y, z_n, w_n);
+            let x1 = self.vec3(x_n, y_n, z_n, w_n);
+            let x2 = self.vec3(x, y_n, z_n, w_n);
+            let x3 = self.vec3(x, y_n, z, w_n);
+
+            let c1 = x0 - c0;
+            let c2 = x1 - x2;
+            let c3 = x3 - c0;
+            let c4 = c0 - x3 - x0 + x2;
+
+            let s0 = c0.mla(c1, Vector3f::from(db));
+            let s1 = s0.mla(c2, Vector3f::from(dr));
+            let s2 = s1.mla(c3, Vector3f::from(dg));
+            s2.mla(c4, Vector3f::from(dg * db))
+        } else {
+            let x0 = self.vec3(x, y, z_n, w_n);
+            let x1 = self.vec3(x_n, y, z, w_n);
+            let x2 = self.vec3(x_n, y, z_n, w_n);
+            let x3 = self.vec3(x_n, y_n, z_n, w_n);
+
+            let c1 = x0 - c0;
+            let c2 = x1 - c0;
+            let c3 = x3 - x2;
+            let c4 = c0 - x1 - x0 + x2;
+
+            let s0 = c0.mla(c1, Vector3f::from(db));
+            let s1 = s0.mla(c2, Vector3f::from(dr));
+            let s2 = s1.mla(c3, Vector3f::from(dg));
+            s2.mla(c4, Vector3f::from(db * dr))
+        };
+        (w0 * (Vector3f::from(1.0) - Vector3f::from(dw))).mla(w1, Vector3f::from(dw))
+    }
+
+    #[inline]
+    pub fn prism(&self, lin_x: f32, lin_y: f32, lin_z: f32, lin_w: f32) -> Vector3f {
+        let scale = (self.grid_size as i32 - 1) as f32;
+
+        let x = (lin_x * scale).floor() as i32;
+        let y = (lin_y * scale).floor() as i32;
+        let z = (lin_z * scale).floor() as i32;
+        let w = (lin_w * scale).floor() as i32;
+
+        let x_n = (lin_x * scale).ceil() as i32;
+        let y_n = (lin_y * scale).ceil() as i32;
+        let z_n = (lin_z * scale).ceil() as i32;
+        let w_n = (lin_w * scale).ceil() as i32;
+
+        let dr = lin_x * scale - x as f32;
+        let dg = lin_y * scale - y as f32;
+        let db = lin_z * scale - z as f32;
+        let dw = lin_w * scale - w as f32;
+
+        let c0 = self.vec3(x, y, z, w);
+
+        let w0 = if db >= dr {
+            let x0 = self.vec3(x, y, z_n, w);
+            let x1 = self.vec3(x_n, y, z_n, w);
+            let x2 = self.vec3(x, y_n, z, w);
+            let x3 = self.vec3(x, y_n, z_n, w);
+            let x4 = self.vec3(x_n, y_n, z_n, w);
+
+            let c1 = x0 - c0;
+            let c2 = x1 - x0;
+            let c3 = x2 - c0;
+            let c4 = c0 - x2 - x0 + x3;
+            let c5 = x0 - x3 - x1 + x4;
+
+            let s0 = c0.mla(c1, Vector3f::from(db));
+            let s1 = s0.mla(c2, Vector3f::from(dr));
+            let s2 = s1.mla(c3, Vector3f::from(dg));
+            let s3 = s2.mla(c4, Vector3f::from(dg * db));
+            s3.mla(c5, Vector3f::from(dr * dg))
+        } else {
+            let x0 = self.vec3(x_n, y, z, w);
+            let x1 = self.vec3(x_n, y, z_n, w);
+            let x2 = self.vec3(x, y_n, z, w);
+            let x3 = self.vec3(x_n, y_n, z, w);
+            let x4 = self.vec3(x_n, y_n, z_n, w);
+
+            let c1 = x1 - x0;
+            let c2 = x0 - c0;
+            let c3 = x2 - c0;
+            let c4 = x0 - x3 - x1 + x4;
+            let c5 = c0 - x2 - x0 + x3;
+
+            let s0 = c0.mla(c1, Vector3f::from(db));
+            let s1 = s0.mla(c2, Vector3f::from(dr));
+            let s2 = s1.mla(c3, Vector3f::from(dg));
+            let s3 = s2.mla(c4, Vector3f::from(dg * db));
+            s3.mla(c5, Vector3f::from(dr * dg))
+        };
+
+        let c0 = self.vec3(x, y, z, w_n);
+
+        let w1 = if db >= dr {
+            let x0 = self.vec3(x, y, z_n, w_n);
+            let x1 = self.vec3(x_n, y, z_n, w_n);
+            let x2 = self.vec3(x, y_n, z, w_n);
+            let x3 = self.vec3(x, y_n, z_n, w_n);
+            let x4 = self.vec3(x_n, y_n, z_n, w_n);
+
+            let c1 = x0 - c0;
+            let c2 = x1 - x0;
+            let c3 = x2 - c0;
+            let c4 = c0 - x2 - x0 + x3;
+            let c5 = x0 - x3 - x1 + x4;
+
+            let s0 = c0.mla(c1, Vector3f::from(db));
+            let s1 = s0.mla(c2, Vector3f::from(dr));
+            let s2 = s1.mla(c3, Vector3f::from(dg));
+            let s3 = s2.mla(c4, Vector3f::from(dg * db));
+            s3.mla(c5, Vector3f::from(dr * dg))
+        } else {
+            let x0 = self.vec3(x_n, y, z, w_n);
+            let x1 = self.vec3(x_n, y, z_n, w_n);
+            let x2 = self.vec3(x, y_n, z, w_n);
+            let x3 = self.vec3(x_n, y_n, z, w_n);
+            let x4 = self.vec3(x_n, y_n, z_n, w_n);
+
+            let c1 = x1 - x0;
+            let c2 = x0 - c0;
+            let c3 = x2 - c0;
+            let c4 = x0 - x3 - x1 + x4;
+            let c5 = c0 - x2 - x0 + x3;
+
+            let s0 = c0.mla(c1, Vector3f::from(db));
+            let s1 = s0.mla(c2, Vector3f::from(dr));
+            let s2 = s1.mla(c3, Vector3f::from(dg));
+            let s3 = s2.mla(c4, Vector3f::from(dg * db));
+            s3.mla(c5, Vector3f::from(dr * dg))
+        };
+        (w0 * (Vector3f::from(1.0) - Vector3f::from(dw))).mla(w1, Vector3f::from(dw))
+    }
+
+    #[inline]
     pub fn tetra(&self, lin_x: f32, lin_y: f32, lin_z: f32, lin_w: f32) -> Vector3f {
         let scale = (self.grid_size as i32 - 1) as f32;
 
@@ -407,6 +627,77 @@ impl Array3D<'_> {
     }
 
     #[inline]
+    fn tetra<
+        T: Copy
+            + From<f32>
+            + Sub<T, Output = T>
+            + Mul<T, Output = T>
+            + Add<T, Output = T>
+            + FusedMultiplyAdd<T>,
+    >(
+        &self,
+        lin_x: f32,
+        lin_y: f32,
+        lin_z: f32,
+        fetch: impl ArrayFetch<T>,
+    ) -> T {
+        let scale = (self.grid_size as i32 - 1) as f32;
+
+        let x = (lin_x * scale).floor() as i32;
+        let y = (lin_y * scale).floor() as i32;
+        let z = (lin_z * scale).floor() as i32;
+
+        let x_n = (lin_x * scale).ceil() as i32;
+        let y_n = (lin_y * scale).ceil() as i32;
+        let z_n = (lin_z * scale).ceil() as i32;
+
+        let rx = lin_x * scale - x as f32;
+        let ry = lin_y * scale - y as f32;
+        let rz = lin_z * scale - z as f32;
+
+        let c0 = fetch.fetch(x, y, z);
+        let c2;
+        let c1;
+        let c3;
+        if rx >= ry {
+            if ry >= rz {
+                //rx >= ry && ry >= rz
+                c1 = fetch.fetch(x_n, y, z) - c0;
+                c2 = fetch.fetch(x_n, y_n, z) - fetch.fetch(x_n, y, z);
+                c3 = fetch.fetch(x_n, y_n, z_n) - fetch.fetch(x_n, y_n, z);
+            } else if rx >= rz {
+                //rx >= rz && rz >= ry
+                c1 = fetch.fetch(x_n, y, z) - c0;
+                c2 = fetch.fetch(x_n, y_n, z_n) - fetch.fetch(x_n, y, z_n);
+                c3 = fetch.fetch(x_n, y, z_n) - fetch.fetch(x_n, y, z);
+            } else {
+                //rz > rx && rx >= ry
+                c1 = fetch.fetch(x_n, y, z_n) - fetch.fetch(x, y, z_n);
+                c2 = fetch.fetch(x_n, y_n, z_n) - fetch.fetch(x_n, y, z_n);
+                c3 = fetch.fetch(x, y, z_n) - c0;
+            }
+        } else if rx >= rz {
+            //ry > rx && rx >= rz
+            c1 = fetch.fetch(x_n, y_n, z) - fetch.fetch(x, y_n, z);
+            c2 = fetch.fetch(x, y_n, z) - c0;
+            c3 = fetch.fetch(x_n, y_n, z_n) - fetch.fetch(x_n, y_n, z);
+        } else if ry >= rz {
+            //ry >= rz && rz > rx
+            c1 = fetch.fetch(x_n, y_n, z_n) - fetch.fetch(x, y_n, z_n);
+            c2 = fetch.fetch(x, y_n, z) - c0;
+            c3 = fetch.fetch(x, y_n, z_n) - fetch.fetch(x, y_n, z);
+        } else {
+            //rz > ry && ry > rx
+            c1 = fetch.fetch(x_n, y_n, z_n) - fetch.fetch(x, y_n, z_n);
+            c2 = fetch.fetch(x, y_n, z_n) - fetch.fetch(x, y, z_n);
+            c3 = fetch.fetch(x, y, z_n) - c0;
+        }
+        let s0 = c0.mla(c1, T::from(rx));
+        let s1 = s0.mla(c2, T::from(ry));
+        s1.mla(c3, T::from(rz))
+    }
+
+    #[inline]
     fn prism<
         T: Copy
             + From<f32>
@@ -478,6 +769,34 @@ impl Array3D<'_> {
 
     #[inline]
     pub fn trilinear_vec3(&self, lin_x: f32, lin_y: f32, lin_z: f32) -> Vector3f {
+        self.trilinear(
+            lin_x,
+            lin_y,
+            lin_z,
+            ArrayFetchVector3f {
+                array: self.array,
+                x_stride: self.x_stride,
+                y_stride: self.y_stride,
+            },
+        )
+    }
+
+    #[inline]
+    pub fn prism_vec3(&self, lin_x: f32, lin_y: f32, lin_z: f32) -> Vector3f {
+        self.prism(
+            lin_x,
+            lin_y,
+            lin_z,
+            ArrayFetchVector3f {
+                array: self.array,
+                x_stride: self.x_stride,
+                y_stride: self.y_stride,
+            },
+        )
+    }
+
+    #[inline]
+    pub fn pyramid_vec3(&self, lin_x: f32, lin_y: f32, lin_z: f32) -> Vector3f {
         self.pyramid(
             lin_x,
             lin_y,
@@ -491,7 +810,63 @@ impl Array3D<'_> {
     }
 
     #[inline]
+    pub fn tetra_vec3(&self, lin_x: f32, lin_y: f32, lin_z: f32) -> Vector3f {
+        self.tetra(
+            lin_x,
+            lin_y,
+            lin_z,
+            ArrayFetchVector3f {
+                array: self.array,
+                x_stride: self.x_stride,
+                y_stride: self.y_stride,
+            },
+        )
+    }
+
+    #[inline]
     pub fn trilinear_vec4(&self, lin_x: f32, lin_y: f32, lin_z: f32) -> Vector4f {
+        self.trilinear(
+            lin_x,
+            lin_y,
+            lin_z,
+            ArrayFetchVector4f {
+                array: self.array,
+                x_stride: self.x_stride,
+                y_stride: self.y_stride,
+            },
+        )
+    }
+
+    #[inline]
+    pub fn tetra_vec4(&self, lin_x: f32, lin_y: f32, lin_z: f32) -> Vector4f {
+        self.tetra(
+            lin_x,
+            lin_y,
+            lin_z,
+            ArrayFetchVector4f {
+                array: self.array,
+                x_stride: self.x_stride,
+                y_stride: self.y_stride,
+            },
+        )
+    }
+
+    #[inline]
+    pub fn pyramid_vec4(&self, lin_x: f32, lin_y: f32, lin_z: f32) -> Vector4f {
+        self.pyramid(
+            lin_x,
+            lin_y,
+            lin_z,
+            ArrayFetchVector4f {
+                array: self.array,
+                x_stride: self.x_stride,
+                y_stride: self.y_stride,
+            },
+        )
+    }
+
+    #[inline]
+    pub fn prism_vec4(&self, lin_x: f32, lin_y: f32, lin_z: f32) -> Vector4f {
         self.prism(
             lin_x,
             lin_y,
