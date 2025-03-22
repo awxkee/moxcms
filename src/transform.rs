@@ -483,10 +483,14 @@ impl ColorProfile {
             ));
         } else if (self.color_space == DataColorSpace::Cmyk
             || self.color_space == DataColorSpace::Rgb
-            || self.color_space == DataColorSpace::Lab)
+            || self.color_space == DataColorSpace::Lab
+            || self.color_space == DataColorSpace::Color3
+            || self.color_space == DataColorSpace::Color4)
             && (dst_pr.color_space == DataColorSpace::Rgb
                 || dst_pr.color_space == DataColorSpace::Cmyk
-                || dst_pr.color_space == DataColorSpace::Lab)
+                || dst_pr.color_space == DataColorSpace::Lab
+                || dst_pr.color_space == DataColorSpace::Color3
+                || dst_pr.color_space == DataColorSpace::Color4)
             && (dst_pr.pcs == DataColorSpace::Xyz || dst_pr.pcs == DataColorSpace::Lab)
             && (self.pcs == DataColorSpace::Xyz || self.pcs == DataColorSpace::Lab)
         {

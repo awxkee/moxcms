@@ -246,7 +246,8 @@ impl CompressForLut for u16 {
     #[inline(always)]
     fn compress_lut<const BIT_DEPTH: usize>(self) -> u8 {
         let scale = BIT_DEPTH - 8;
-        (self >> scale).min(255) as u8
+        let rnd = (1 << (scale - 1)) - 1;
+        ((self as u32 + rnd) >> scale).min(255) as u8
     }
 }
 

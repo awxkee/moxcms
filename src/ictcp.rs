@@ -74,9 +74,9 @@ impl ICtCp {
     #[inline]
     pub fn from_xyz(xyz: Xyz) -> ICtCp {
         let lms = XYZ_TO_LMS.mul_vector(xyz.to_vector());
-        let lin_l = pq_to_linearf(lms.v[0]);
-        let lin_m = pq_to_linearf(lms.v[1]);
-        let lin_s = pq_to_linearf(lms.v[2]);
+        let lin_l = pq_from_linearf(lms.v[0]);
+        let lin_m = pq_from_linearf(lms.v[1]);
+        let lin_s = pq_from_linearf(lms.v[2]);
         let ictcp = L_LMS_TO_ICTCP.mul_vector(Vector3f {
             v: [lin_l, lin_m, lin_s],
         });
@@ -93,9 +93,9 @@ impl ICtCp {
     #[inline]
     pub fn from_linear_rgb(rgb: Rgb<f32>, matrix: Matrix3f) -> ICtCp {
         let lms = matrix.mul_vector(rgb.to_vector());
-        let lin_l = pq_to_linearf(lms.v[0]);
-        let lin_m = pq_to_linearf(lms.v[1]);
-        let lin_s = pq_to_linearf(lms.v[2]);
+        let lin_l = pq_from_linearf(lms.v[0]);
+        let lin_m = pq_from_linearf(lms.v[1]);
+        let lin_s = pq_from_linearf(lms.v[2]);
         let ictcp = L_LMS_TO_ICTCP.mul_vector(Vector3f {
             v: [lin_l, lin_m, lin_s],
         });
@@ -114,9 +114,9 @@ impl ICtCp {
         let l_lms = ICTCP_TO_L_LMS.mul_vector(Vector3f {
             v: [self.i, self.ct, self.cp],
         });
-        let gamma_l = pq_from_linearf(l_lms.v[0]);
-        let gamma_m = pq_from_linearf(l_lms.v[1]);
-        let gamma_s = pq_from_linearf(l_lms.v[2]);
+        let gamma_l = pq_to_linearf(l_lms.v[0]);
+        let gamma_m = pq_to_linearf(l_lms.v[1]);
+        let gamma_s = pq_to_linearf(l_lms.v[2]);
 
         let lms = matrix.mul_vector(Vector3f {
             v: [gamma_l, gamma_m, gamma_s],
@@ -133,9 +133,9 @@ impl ICtCp {
         let l_lms = ICTCP_TO_L_LMS.mul_vector(Vector3f {
             v: [self.i, self.ct, self.cp],
         });
-        let gamma_l = pq_from_linearf(l_lms.v[0]);
-        let gamma_m = pq_from_linearf(l_lms.v[1]);
-        let gamma_s = pq_from_linearf(l_lms.v[2]);
+        let gamma_l = pq_to_linearf(l_lms.v[0]);
+        let gamma_m = pq_to_linearf(l_lms.v[1]);
+        let gamma_s = pq_to_linearf(l_lms.v[2]);
 
         let lms = LMS_TO_XYZ.mul_vector(Vector3f {
             v: [gamma_l, gamma_m, gamma_s],
