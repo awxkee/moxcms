@@ -28,6 +28,7 @@
  */
 #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "avx"))]
 mod avx;
+mod bpc;
 mod gray2rgb;
 mod interpolator;
 mod lut3x3;

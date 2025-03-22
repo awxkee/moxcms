@@ -209,7 +209,13 @@ pub(crate) trait NeonMdInterpolationDouble<'a, const GRID_SIZE: usize> {
 
 impl<const GRID_SIZE: usize> TetrahedralNeon<'_, GRID_SIZE> {
     #[inline(always)]
-    fn interpolate(&self, in_r: u16, in_g: u16, in_b: u16, r: impl Fetcher<NeonVector>) -> NeonVector {
+    fn interpolate(
+        &self,
+        in_r: u16,
+        in_g: u16,
+        in_b: u16,
+        r: impl Fetcher<NeonVector>,
+    ) -> NeonVector {
         const SCALE: f32 = 1.0 / 65535.0;
         let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / 65535;
         let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / 65535;
@@ -220,7 +226,7 @@ impl<const GRID_SIZE: usize> TetrahedralNeon<'_, GRID_SIZE> {
         let x_n: i32 = (x + 1).min(GRID_SIZE as i32 - 1);
         let y_n: i32 = (y + 1).min(GRID_SIZE as i32 - 1);
         let z_n: i32 = (z + 1).min(GRID_SIZE as i32 - 1);
-        
+
         let scale = (GRID_SIZE as i32 - 1) as f32 * SCALE;
 
         let rx = in_r as f32 * scale - x as f32;
@@ -398,7 +404,13 @@ define_md_inter_neon_d!(TetrahedralNeonDouble);
 
 impl<const GRID_SIZE: usize> PyramidalNeon<'_, GRID_SIZE> {
     #[inline(always)]
-    fn interpolate(&self, in_r: u16, in_g: u16, in_b: u16, r: impl Fetcher<NeonVector>) -> NeonVector {
+    fn interpolate(
+        &self,
+        in_r: u16,
+        in_g: u16,
+        in_b: u16,
+        r: impl Fetcher<NeonVector>,
+    ) -> NeonVector {
         const SCALE: f32 = 1.0 / 65535.0;
         let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / 65535;
         let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / 65535;
@@ -552,7 +564,13 @@ impl<const GRID_SIZE: usize> PyramidalNeonDouble<'_, GRID_SIZE> {
 
 impl<const GRID_SIZE: usize> PrismaticNeon<'_, GRID_SIZE> {
     #[inline(always)]
-    fn interpolate(&self, in_r: u16, in_g: u16, in_b: u16, r: impl Fetcher<NeonVector>) -> NeonVector {
+    fn interpolate(
+        &self,
+        in_r: u16,
+        in_g: u16,
+        in_b: u16,
+        r: impl Fetcher<NeonVector>,
+    ) -> NeonVector {
         const SCALE: f32 = 1.0 / 65535.0;
         let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / 65535;
         let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / 65535;

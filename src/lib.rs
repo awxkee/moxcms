@@ -87,9 +87,9 @@ pub use math::{
     powf, rounding_div_ceil, sinf, sqrtf,
 };
 pub use matrix::{
-    BT2020_MATRIX, Chromaticity, DISPLAY_P3_MATRIX, Matrix3d, Matrix3f, Matrix4f, SRGB_MATRIX,
-    Vector3, Vector3d, Vector3f, Vector3i, Vector3u, Vector4, Vector4d, Vector4f, XyY, Xyz, Xyzd,
-    Matrix3
+    BT2020_MATRIX, Chromaticity, DISPLAY_P3_MATRIX, Matrix3, Matrix3d, Matrix3f, Matrix4f,
+    SRGB_MATRIX, Vector3, Vector3d, Vector3f, Vector3i, Vector3u, Vector4, Vector4d, Vector4f, XyY,
+    Xyz, Xyzd,
 };
 pub use nd_array::{Array3D, Array4D};
 pub use oklab::Oklab;

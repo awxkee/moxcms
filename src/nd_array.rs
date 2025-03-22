@@ -329,7 +329,12 @@ impl Array3D<'_> {
 
     #[inline]
     fn pyramid<
-        T: Copy + From<f32> + Sub<T, Output = T> + Mul<T, Output = T> + Add<T, Output = T> + FusedMultiplyAdd<T>,
+        T: Copy
+            + From<f32>
+            + Sub<T, Output = T>
+            + Mul<T, Output = T>
+            + Add<T, Output = T>
+            + FusedMultiplyAdd<T>,
     >(
         &self,
         lin_x: f32,
@@ -403,7 +408,12 @@ impl Array3D<'_> {
 
     #[inline]
     fn prism<
-        T: Copy + From<f32> + Sub<T, Output = T> + Mul<T, Output = T> + Add<T, Output = T> + FusedMultiplyAdd<T>,
+        T: Copy
+            + From<f32>
+            + Sub<T, Output = T>
+            + Mul<T, Output = T>
+            + Add<T, Output = T>
+            + FusedMultiplyAdd<T>,
     >(
         &self,
         lin_x: f32,

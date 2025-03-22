@@ -441,6 +441,8 @@ make_transform_3x3_fn!(make_transformer_3x3_sse41, SseLut3x3Factory);
 
 #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "avx"))]
 use crate::conversions::avx::AvxLut4x3Factory;
+use crate::conversions::bpc::compensate_bpc_in_lut;
+
 #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "avx"))]
 make_transform_4x3_fn!(make_transformer_4x3_avx_fma, AvxLut4x3Factory);
 
@@ -514,6 +516,15 @@ where
         if source.pcs == DataColorSpace::Lab {
             let lab_to_xyz_stage = StageLabToXyz::default();
             lab_to_xyz_stage.transform(&mut lut)?;
+        }
+
+        if source.color_space == DataColorSpace::Cmyk {
+            if let (Some(src_bp), Some(dst_bp)) = (
+                source.detect_black_point::<GRID_SIZE>(&lut),
+                dest.detect_black_point::<GRID_SIZE>(&lut),
+            ) {
+                compensate_bpc_in_lut(&mut lut, src_bp, dst_bp);
+            }
         }
 
         if dest.pcs == DataColorSpace::Lab {

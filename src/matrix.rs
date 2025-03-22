@@ -992,6 +992,18 @@ macro_rules! define_xyz {
             }
 
             #[inline]
+            pub fn normalize(self) -> Self {
+                if self.y == 0. {
+                    return Self::default();
+                }
+                Self {
+                    x: self.x / self.y,
+                    y: 1.0,
+                    z: self.z / self.y,
+                }
+            }
+
+            #[inline]
             pub fn to_linear_rgb(self, rgb_to_xyz: Matrix3<$im_type>) -> crate::Rgb<$im_type> {
                 let x = self.x;
                 let y = self.y;

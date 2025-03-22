@@ -56,9 +56,9 @@ impl Stage for Lut4 {
 
             let clut = l_tbl.tetra(linear_x, linear_y, linear_z, linear_w);
 
-            let pcs_x = lut_interp_linear_float(clut.v[0], &self.output[0]);
-            let pcs_y = lut_interp_linear_float(clut.v[1], &self.output[1]);
-            let pcs_z = lut_interp_linear_float(clut.v[2], &self.output[2]);
+            let pcs_x = lut_interp_linear_float(m_clamp(clut.v[0], 0.0, 1.0), &self.output[0]);
+            let pcs_y = lut_interp_linear_float(m_clamp(clut.v[1], 0.0, 1.0), &self.output[1]);
+            let pcs_z = lut_interp_linear_float(m_clamp(clut.v[2], 0.0, 1.0), &self.output[2]);
             dest[0] = pcs_x;
             dest[1] = pcs_y;
             dest[2] = pcs_z;

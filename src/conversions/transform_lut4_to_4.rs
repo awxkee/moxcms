@@ -60,7 +60,7 @@ impl Vector3fCmykLerp for DefaultVector3fLerp {
 
 #[allow(unused)]
 #[derive(Copy, Clone, Default)]
-struct NonFiniteVector3fLerp;
+pub(crate) struct NonFiniteVector3fLerp;
 
 impl Vector3fCmykLerp for NonFiniteVector3fLerp {
     #[inline(always)]

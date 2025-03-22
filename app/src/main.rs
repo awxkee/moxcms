@@ -75,7 +75,7 @@ fn compute_abs_diff4(src: &[f32], dst: &[[f32; 4]], highlights: &mut [f32]) {
 }
 
 fn main() {
-    let funny_icc = fs::read("./assets/fogra39_coated.icc").unwrap();
+    let funny_icc = fs::read("./assets/us_swop_coated.icc").unwrap();
 
     // println!("{:?}", decoded);
 
@@ -85,14 +85,13 @@ fn main() {
     fs::write("./bt2020.icc", encoded).unwrap();
 
     let srgb_perceptual_icc = fs::read("./assets/srgb_perceptual.icc").unwrap();
-    let out_icc = fs::read("./assets/output.icc").unwrap();
 
     let funny_profile = ColorProfile::new_from_slice(&funny_icc).unwrap();
 
     let srgb_perceptual_profile = ColorProfile::new_from_slice(&srgb_perceptual_icc).unwrap();
     let out_profile = ColorProfile::new_srgb();
 
-    let f_str = "./assets/test1.jpg";
+    let f_str = "./assets/bench.jpg";
     let file = File::open(f_str).expect("Failed to open file");
 
     let img = image::ImageReader::open(f_str).unwrap().decode().unwrap();
@@ -176,7 +175,7 @@ fn main() {
             },
         )
         .unwrap();
-    
+
     transform.transform(&real_dst, &mut cmyk).unwrap();
 
     let time = Instant::now();
@@ -196,15 +195,16 @@ fn main() {
         .unwrap();
     println!("Rendering took {:?}", time.elapsed());
     let mut dst = vec![0f32; real_dst.len()];
-    
+
     let mut v_max = f32::MIN;
-    
+
     for src in cmyk_lcms2.iter() {
         for &src in src.iter() {
             v_max = src.max(v_max);
         }
     }
-    
+
+    v_max = 100.;
     //
     // let instant = Instant::now();
 

@@ -36,7 +36,7 @@ use crate::matrix::{BT2020_MATRIX, DISPLAY_P3_MATRIX, Matrix3f, SRGB_MATRIX, XyY
 use crate::safe_reader::{SafeAdd, SafeMul};
 use crate::tag::{TAG_SIZE, Tag, TagTypeDefinition};
 use crate::trc::ToneReprCurve;
-use crate::{Chromaticity, Layout, Matrix3d, Vector3f, adapt_to_d50_d, Xyzd};
+use crate::{Chromaticity, Layout, Matrix3d, Vector3f, Xyzd, adapt_to_d50_d};
 use std::io::Read;
 
 const MAX_PROFILE_SIZE: usize = 1024 * 1024 * 10; // 10 MB max, for Fogra39 etc
@@ -2109,7 +2109,6 @@ impl ColorProfile {
         let white_point = Chromaticity::D50.to_xyzd();
         ColorProfile::rgb_to_xyz_const_d(xyz_matrix, white_point)
     }
-
 
     /// Computes transform matrix RGB -> XYZ -> RGB
     /// Current profile is used as source, other as destination

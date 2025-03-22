@@ -116,22 +116,28 @@ impl<const GRID_SIZE: usize> Fetcher<SseVector> for TetrahedralSseFetchVector<'_
 
 pub(crate) trait SseMdInterpolation<'a, const GRID_SIZE: usize> {
     fn new(table: &'a [SseAlignedF32]) -> Self;
-    fn inter3_sse(&self, in_r: u8, in_g: u8, in_b: u8) -> SseVector;
+    fn inter3_sse(&self, in_r: u16, in_g: u16, in_b: u16) -> SseVector;
 }
 
 impl<const GRID_SIZE: usize> TetrahedralSse<'_, GRID_SIZE> {
     #[inline(always)]
-    fn interpolate(&self, in_r: u8, in_g: u8, in_b: u8, r: impl Fetcher<SseVector>) -> SseVector {
-        const SCALE: f32 = 1.0 / 255.0;
-        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / 255;
-        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / 255;
-        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / 255;
+    fn interpolate(
+        &self,
+        in_r: u16,
+        in_g: u16,
+        in_b: u16,
+        r: impl Fetcher<SseVector>,
+    ) -> SseVector {
+        const SCALE: f32 = 1.0 / 65535.0;
+        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / 65535;
+        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / 65535;
+        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / 65535;
 
         let c0 = r.fetch(x, y, z);
 
-        let x_n: i32 = rounding_div_ceil(in_r as i32 * (GRID_SIZE as i32 - 1), 255);
-        let y_n: i32 = rounding_div_ceil(in_g as i32 * (GRID_SIZE as i32 - 1), 255);
-        let z_n: i32 = rounding_div_ceil(in_b as i32 * (GRID_SIZE as i32 - 1), 255);
+        let x_n: i32 = rounding_div_ceil(in_r as i32 * (GRID_SIZE as i32 - 1), 65535);
+        let y_n: i32 = rounding_div_ceil(in_g as i32 * (GRID_SIZE as i32 - 1), 65535);
+        let z_n: i32 = rounding_div_ceil(in_b as i32 * (GRID_SIZE as i32 - 1), 65535);
 
         let scale = (GRID_SIZE as i32 - 1) as f32 * SCALE;
 
@@ -192,7 +198,7 @@ macro_rules! define_inter_sse {
             }
 
             #[inline(always)]
-            fn inter3_sse(&self, in_r: u8, in_g: u8, in_b: u8) -> SseVector {
+            fn inter3_sse(&self, in_r: u16, in_g: u16, in_b: u16) -> SseVector {
                 self.interpolate(
                     in_r,
                     in_g,
@@ -210,17 +216,23 @@ define_inter_sse!(PrismaticSse);
 
 impl<const GRID_SIZE: usize> PyramidalSse<'_, GRID_SIZE> {
     #[inline(always)]
-    fn interpolate(&self, in_r: u8, in_g: u8, in_b: u8, r: impl Fetcher<SseVector>) -> SseVector {
-        const SCALE: f32 = 1.0 / 255.0;
-        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / 255;
-        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / 255;
-        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / 255;
+    fn interpolate(
+        &self,
+        in_r: u16,
+        in_g: u16,
+        in_b: u16,
+        r: impl Fetcher<SseVector>,
+    ) -> SseVector {
+        const SCALE: f32 = 1.0 / 65535.0;
+        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / 65535;
+        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / 65535;
+        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / 65535;
 
         let c0 = r.fetch(x, y, z);
 
-        let x_n: i32 = rounding_div_ceil(in_r as i32 * (GRID_SIZE as i32 - 1), 255);
-        let y_n: i32 = rounding_div_ceil(in_g as i32 * (GRID_SIZE as i32 - 1), 255);
-        let z_n: i32 = rounding_div_ceil(in_b as i32 * (GRID_SIZE as i32 - 1), 255);
+        let x_n: i32 = rounding_div_ceil(in_r as i32 * (GRID_SIZE as i32 - 1), 65535);
+        let y_n: i32 = rounding_div_ceil(in_g as i32 * (GRID_SIZE as i32 - 1), 65535);
+        let z_n: i32 = rounding_div_ceil(in_b as i32 * (GRID_SIZE as i32 - 1), 65535);
 
         let scale = (GRID_SIZE as i32 - 1) as f32 * SCALE;
 
@@ -279,17 +291,23 @@ impl<const GRID_SIZE: usize> PyramidalSse<'_, GRID_SIZE> {
 
 impl<const GRID_SIZE: usize> PrismaticSse<'_, GRID_SIZE> {
     #[inline(always)]
-    fn interpolate(&self, in_r: u8, in_g: u8, in_b: u8, r: impl Fetcher<SseVector>) -> SseVector {
-        const SCALE: f32 = 1.0 / 255.0;
-        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / 255;
-        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / 255;
-        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / 255;
+    fn interpolate(
+        &self,
+        in_r: u16,
+        in_g: u16,
+        in_b: u16,
+        r: impl Fetcher<SseVector>,
+    ) -> SseVector {
+        const SCALE: f32 = 1.0 / 65535.0;
+        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / 65535;
+        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / 65535;
+        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / 65535;
 
         let c0 = r.fetch(x, y, z);
 
-        let x_n: i32 = rounding_div_ceil(in_r as i32 * (GRID_SIZE as i32 - 1), 255);
-        let y_n: i32 = rounding_div_ceil(in_g as i32 * (GRID_SIZE as i32 - 1), 255);
-        let z_n: i32 = rounding_div_ceil(in_b as i32 * (GRID_SIZE as i32 - 1), 255);
+        let x_n: i32 = rounding_div_ceil(in_r as i32 * (GRID_SIZE as i32 - 1), 65535);
+        let y_n: i32 = rounding_div_ceil(in_g as i32 * (GRID_SIZE as i32 - 1), 65535);
+        let z_n: i32 = rounding_div_ceil(in_b as i32 * (GRID_SIZE as i32 - 1), 65535);
 
         let scale = (GRID_SIZE as i32 - 1) as f32 * SCALE;
 
