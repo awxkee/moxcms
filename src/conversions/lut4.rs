@@ -41,7 +41,7 @@ struct Lut4 {
 
 impl Stage for Lut4 {
     fn transform(&self, src: &[f32], dst: &mut [f32]) -> Result<(), CmsError> {
-        let l_tbl = Array4D::new(&self.clut, self.grid_size as usize);
+        let l_tbl = Array4D::new(&self.clut[0..], self.grid_size as usize);
 
         let linearization_0 = &self.linearization[0];
         let linearization_1 = &self.linearization[1];
@@ -56,12 +56,12 @@ impl Stage for Lut4 {
 
             let clut = l_tbl.tetra(linear_x, linear_y, linear_z, linear_w);
 
-            let pcs_x = lut_interp_linear_float(m_clamp(clut.v[0], 0.0, 1.0), &self.output[0]);
-            let pcs_y = lut_interp_linear_float(m_clamp(clut.v[1], 0.0, 1.0), &self.output[1]);
-            let pcs_z = lut_interp_linear_float(m_clamp(clut.v[2], 0.0, 1.0), &self.output[2]);
-            dest[0] = pcs_x;
-            dest[1] = pcs_y;
-            dest[2] = pcs_z;
+            let pcs_x = lut_interp_linear_float(clut.v[0], &self.output[0]);
+            let pcs_y = lut_interp_linear_float(clut.v[1], &self.output[1]);
+            let pcs_z = lut_interp_linear_float(clut.v[2], &self.output[2]);
+            dest[0] = m_clamp(pcs_x, 0.0, 1.0f32);
+            dest[1] = m_clamp(pcs_y, 0.0, 1.0f32);
+            dest[2] = m_clamp(pcs_z, 0.0, 1.0f32);
         }
         Ok(())
     }

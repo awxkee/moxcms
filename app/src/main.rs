@@ -163,21 +163,21 @@ fn main() {
 
     let time = Instant::now();
 
-    // let transform = dest_profile
-    //     .create_transform_f32(
-    //         Layout::Rgba,
-    //         &funny_profile,
-    //         Layout::Rgba,
-    //         TransformOptions {
-    //             rendering_intent: RenderingIntent::RelativeColorimetric,
-    //             allow_use_cicp_transfer: false,
-    //             prefer_fixed_point: false,
-    //             interpolation_method: InterpolationMethod::Tetrahedral,
-    //         },
-    //     )
-    //     .unwrap();
-    // 
-    // transform.transform(&real_dst, &mut cmyk).unwrap();
+    let transform = dest_profile
+        .create_transform_f32(
+            Layout::Rgba,
+            &funny_profile,
+            Layout::Rgba,
+            TransformOptions {
+                rendering_intent: RenderingIntent::RelativeColorimetric,
+                allow_use_cicp_transfer: false,
+                prefer_fixed_point: false,
+                interpolation_method: InterpolationMethod::Tetrahedral,
+            },
+        )
+        .unwrap();
+    
+    transform.transform(&real_dst, &mut cmyk).unwrap();
 
     let time = Instant::now();
 
@@ -199,7 +199,7 @@ fn main() {
     //
     // let instant = Instant::now();
 
-    let clms = lcms2_src
+    let clms = cmyk_lcms2
         .iter()
         .flat_map(|x| [x[0], x[1], x[2], x[3]])
         .collect::<Vec<_>>();
@@ -218,7 +218,7 @@ fn main() {
 
     let mut rgba_lcms2 = vec![[0f32; 4]; (decoder.output_buffer_size().unwrap() / 3) * 4];
 
-    t2.transform_pixels(&lcms2_src, &mut rgba_lcms2);
+    t2.transform_pixels(&cmyk_lcms2, &mut rgba_lcms2);
 
     let mut highlights = vec![0f32; dst.len()];
 
