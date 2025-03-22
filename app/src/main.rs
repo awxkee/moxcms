@@ -152,17 +152,17 @@ fn main() {
         &lcms2::Profile::new_srgb(),
         PixelFormat::RGBA_FLT,
         &pr1,
-        PixelFormat::RGBA_FLT,
-        Intent::Perceptual,
+        PixelFormat::CMYK_FLT,
+        Intent::RelativeColorimetric,
     )
     .unwrap();
 
     let t2 = Transform::new(
         &pr1,
-        PixelFormat::RGBA_FLT,
+        PixelFormat::CMYK_FLT,
         &lcms2::Profile::new_srgb(),
         PixelFormat::RGBA_FLT,
-        Intent::Perceptual,
+        Intent::RelativeColorimetric,
     )
     .unwrap();
 
@@ -193,7 +193,7 @@ fn main() {
             &funny_profile,
             Layout::Rgba,
             TransformOptions {
-                rendering_intent: RenderingIntent::Perceptual,
+                rendering_intent: RenderingIntent::RelativeColorimetric,
                 allow_use_cicp_transfer: false,
                 prefer_fixed_point: false,
                 interpolation_method: InterpolationMethod::Tetrahedral,
@@ -211,7 +211,7 @@ fn main() {
             &out_profile,
             Layout::Rgba,
             TransformOptions {
-                rendering_intent: RenderingIntent::Perceptual,
+                rendering_intent: RenderingIntent::RelativeColorimetric,
                 allow_use_cicp_transfer: false,
                 prefer_fixed_point: false,
                 interpolation_method: InterpolationMethod::Tetrahedral,
@@ -229,7 +229,7 @@ fn main() {
         }
     }
 
-    v_max = 1.;
+    v_max = 100.;
     //
     // let instant = Instant::now();
 
