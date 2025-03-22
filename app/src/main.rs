@@ -196,12 +196,21 @@ fn main() {
         .unwrap();
     println!("Rendering took {:?}", time.elapsed());
     let mut dst = vec![0f32; real_dst.len()];
+    
+    let mut v_max = f32::MIN;
+    
+    for src in cmyk_lcms2.iter() {
+        for &src in src.iter() {
+            v_max = src.max(v_max);
+        }
+    }
+    
     //
     // let instant = Instant::now();
 
     let clms = cmyk_lcms2
         .iter()
-        .flat_map(|x| [x[0], x[1], x[2], x[3]])
+        .flat_map(|x| [x[0] / v_max, x[1] / v_max, x[2] / v_max, x[3] / v_max])
         .collect::<Vec<_>>();
 
     for (src, dst) in clms
