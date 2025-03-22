@@ -27,6 +27,7 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 #![allow(dead_code)]
+use crate::conversions::lut_transforms::LUT_SAMPLING;
 use crate::conversions::neon::stages::NeonAlignedF32;
 use crate::math::FusedMultiplyAdd;
 use std::arch::aarch64::*;
@@ -245,10 +246,10 @@ impl<const GRID_SIZE: usize> TetrahedralNeon<'_, GRID_SIZE> {
         in_b: u16,
         r: impl Fetcher<NeonVector>,
     ) -> NeonVector {
-        const SCALE: f32 = 1.0 / 65535.0;
-        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / 65535;
-        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / 65535;
-        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / 65535;
+        const SCALE: f32 = 1.0 / LUT_SAMPLING as f32;
+        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
+        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
+        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
 
         let c0 = r.fetch(x, y, z);
 
@@ -313,10 +314,10 @@ impl<const GRID_SIZE: usize> TetrahedralNeonDouble<'_, GRID_SIZE> {
         in_b: u16,
         r: impl Fetcher<NeonVectorDouble>,
     ) -> (NeonVector, NeonVector) {
-        const SCALE: f32 = 1.0 / 65535.0;
-        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / 65535;
-        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / 65535;
-        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / 65535;
+        const SCALE: f32 = 1.0 / LUT_SAMPLING as f32;
+        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
+        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
+        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
 
         let c0 = r.fetch(x, y, z);
 
@@ -442,10 +443,10 @@ impl<const GRID_SIZE: usize> PyramidalNeon<'_, GRID_SIZE> {
         in_b: u16,
         r: impl Fetcher<NeonVector>,
     ) -> NeonVector {
-        const SCALE: f32 = 1.0 / 65535.0;
-        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / 65535;
-        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / 65535;
-        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / 65535;
+        const SCALE: f32 = 1.0 / LUT_SAMPLING as f32;
+        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
+        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
+        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
 
         let c0 = r.fetch(x, y, z);
 
@@ -517,10 +518,10 @@ impl<const GRID_SIZE: usize> PyramidalNeonDouble<'_, GRID_SIZE> {
         in_b: u16,
         r: impl Fetcher<NeonVectorDouble>,
     ) -> (NeonVector, NeonVector) {
-        const SCALE: f32 = 1.0 / 65535.0;
-        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / 65535;
-        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / 65535;
-        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / 65535;
+        const SCALE: f32 = 1.0 / LUT_SAMPLING as f32;
+        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
+        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
+        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
 
         let c0 = r.fetch(x, y, z);
 
@@ -602,10 +603,10 @@ impl<const GRID_SIZE: usize> PrismaticNeon<'_, GRID_SIZE> {
         in_b: u16,
         r: impl Fetcher<NeonVector>,
     ) -> NeonVector {
-        const SCALE: f32 = 1.0 / 65535.0;
-        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / 65535;
-        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / 65535;
-        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / 65535;
+        const SCALE: f32 = 1.0 / LUT_SAMPLING as f32;
+        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
+        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
+        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
 
         let c0 = r.fetch(x, y, z);
 
@@ -668,10 +669,10 @@ impl<const GRID_SIZE: usize> PrismaticNeonDouble<'_, GRID_SIZE> {
         in_b: u16,
         rv: impl Fetcher<NeonVectorDouble>,
     ) -> (NeonVector, NeonVector) {
-        const SCALE: f32 = 1.0 / 65535.0;
-        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / 65535;
-        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / 65535;
-        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / 65535;
+        const SCALE: f32 = 1.0 / LUT_SAMPLING as f32;
+        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
+        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
+        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
 
         let c0 = rv.fetch(x, y, z);
 
@@ -740,10 +741,10 @@ impl<const GRID_SIZE: usize> TrilinearNeonDouble<'_, GRID_SIZE> {
         in_b: u16,
         r: impl Fetcher<NeonVectorDouble>,
     ) -> (NeonVector, NeonVector) {
-        const SCALE: f32 = 1.0 / 65535.0;
-        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / 65535;
-        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / 65535;
-        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / 65535;
+        const SCALE: f32 = 1.0 / LUT_SAMPLING as f32;
+        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
+        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
+        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
 
         let x_n: i32 = (x + 1).min(GRID_SIZE as i32 - 1);
         let y_n: i32 = (y + 1).min(GRID_SIZE as i32 - 1);
@@ -796,10 +797,10 @@ impl<const GRID_SIZE: usize> TrilinearNeon<'_, GRID_SIZE> {
         in_b: u16,
         r: impl Fetcher<NeonVector>,
     ) -> NeonVector {
-        const SCALE: f32 = 1.0 / 65535.0;
-        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / 65535;
-        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / 65535;
-        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / 65535;
+        const SCALE: f32 = 1.0 / LUT_SAMPLING as f32;
+        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
+        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
+        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
 
         let x_n: i32 = (x + 1).min(GRID_SIZE as i32 - 1);
         let y_n: i32 = (y + 1).min(GRID_SIZE as i32 - 1);

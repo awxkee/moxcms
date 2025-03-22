@@ -31,7 +31,7 @@ use crate::conversions::avx::interpolator::{
     AvxMdInterpolationDouble, PrismaticAvxFmaDouble, PyramidAvxFmaDouble, SseAlignedF32,
     TetrahedralAvxFmaDouble, TrilinearAvxFmaDouble,
 };
-use crate::conversions::lut_transforms::Lut4x3Factory;
+use crate::conversions::lut_transforms::{LUT_SAMPLING, Lut4x3Factory};
 use crate::transform::PointeeSizeExpressible;
 use crate::{CmsError, InterpolationMethod, Layout, TransformExecutor, rounding_div_ceil};
 use num_traits::AsPrimitive;
@@ -78,9 +78,10 @@ where
             let m = src[1].compress_lut::<BIT_DEPTH>();
             let y = src[2].compress_lut::<BIT_DEPTH>();
             let k = src[3].compress_lut::<BIT_DEPTH>();
-            let linear_k: f32 = k as i32 as f32 / 65535.0;
-            let w: i32 = k as i32 * (GRID_SIZE as i32 - 1) / 65535;
-            let w_n: i32 = rounding_div_ceil(k as i32 * (GRID_SIZE as i32 - 1), 65535);
+            let linear_k: f32 = k as i32 as f32 / LUT_SAMPLING as f32;
+            let w: i32 = k as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
+            let w_n: i32 =
+                rounding_div_ceil(k as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
             let t: f32 = linear_k * (GRID_SIZE as i32 - 1) as f32 - w as f32;
 
             let table1 = &self.lut[(w * grid_size3) as usize..];

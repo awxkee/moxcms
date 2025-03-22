@@ -27,6 +27,7 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 #![allow(dead_code)]
+use crate::conversions::lut_transforms::LUT_SAMPLING;
 use crate::math::FusedMultiplyAdd;
 use crate::{Vector3f, Vector4f, rounding_div_ceil};
 use std::ops::{Add, Mul, Sub};
@@ -110,13 +111,13 @@ impl<const GRID_SIZE: usize> Tetrahedral<'_, GRID_SIZE> {
         in_b: u16,
         r: impl Fetcher<T>,
     ) -> T {
-        const SCALE: f32 = 1.0 / 65535.0;
-        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / 65535;
-        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / 65535;
-        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / 65535;
-        let x_n: i32 = rounding_div_ceil(in_r as i32 * (GRID_SIZE as i32 - 1), 65535);
-        let y_n: i32 = rounding_div_ceil(in_g as i32 * (GRID_SIZE as i32 - 1), 65535);
-        let z_n: i32 = rounding_div_ceil(in_b as i32 * (GRID_SIZE as i32 - 1), 65535);
+        const SCALE: f32 = 1.0 / LUT_SAMPLING as f32;
+        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
+        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
+        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
+        let x_n: i32 = rounding_div_ceil(in_r as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
+        let y_n: i32 = rounding_div_ceil(in_g as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
+        let z_n: i32 = rounding_div_ceil(in_b as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
         let rx = in_r as f32 * ((GRID_SIZE as i32 - 1) as f32 * SCALE) - x as f32;
         let ry = in_g as f32 * ((GRID_SIZE as i32 - 1) as f32 * SCALE) - y as f32;
         let rz = in_b as f32 * ((GRID_SIZE as i32 - 1) as f32 * SCALE) - z as f32;
@@ -217,13 +218,13 @@ impl<const GRID_SIZE: usize> Pyramidal<'_, GRID_SIZE> {
         in_b: u16,
         r: impl Fetcher<T>,
     ) -> T {
-        const SCALE: f32 = 1.0 / 65535.0;
-        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / 65535;
-        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / 65535;
-        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / 65535;
-        let x_n: i32 = rounding_div_ceil(in_r as i32 * (GRID_SIZE as i32 - 1), 65535);
-        let y_n: i32 = rounding_div_ceil(in_g as i32 * (GRID_SIZE as i32 - 1), 65535);
-        let z_n: i32 = rounding_div_ceil(in_b as i32 * (GRID_SIZE as i32 - 1), 65535);
+        const SCALE: f32 = 1.0 / LUT_SAMPLING as f32;
+        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
+        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
+        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
+        let x_n: i32 = rounding_div_ceil(in_r as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
+        let y_n: i32 = rounding_div_ceil(in_g as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
+        let z_n: i32 = rounding_div_ceil(in_b as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
         let dr = in_r as f32 * ((GRID_SIZE as i32 - 1) as f32 * SCALE) - x as f32;
         let dg = in_g as f32 * ((GRID_SIZE as i32 - 1) as f32 * SCALE) - y as f32;
         let db = in_b as f32 * ((GRID_SIZE as i32 - 1) as f32 * SCALE) - z as f32;
@@ -295,13 +296,13 @@ impl<const GRID_SIZE: usize> Prismatic<'_, GRID_SIZE> {
         in_b: u16,
         r: impl Fetcher<T>,
     ) -> T {
-        const SCALE: f32 = 1.0 / 65535.0;
-        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / 65535;
-        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / 65535;
-        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / 65535;
-        let x_n: i32 = rounding_div_ceil(in_r as i32 * (GRID_SIZE as i32 - 1), 65535);
-        let y_n: i32 = rounding_div_ceil(in_g as i32 * (GRID_SIZE as i32 - 1), 65535);
-        let z_n: i32 = rounding_div_ceil(in_b as i32 * (GRID_SIZE as i32 - 1), 65535);
+        const SCALE: f32 = 1.0 / LUT_SAMPLING as f32;
+        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
+        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
+        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
+        let x_n: i32 = rounding_div_ceil(in_r as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
+        let y_n: i32 = rounding_div_ceil(in_g as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
+        let z_n: i32 = rounding_div_ceil(in_b as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
         let dr = in_r as f32 * ((GRID_SIZE as i32 - 1) as f32 * SCALE) - x as f32;
         let dg = in_g as f32 * ((GRID_SIZE as i32 - 1) as f32 * SCALE) - y as f32;
         let db = in_b as f32 * ((GRID_SIZE as i32 - 1) as f32 * SCALE) - z as f32;
@@ -364,13 +365,13 @@ impl<const GRID_SIZE: usize> Trilinear<'_, GRID_SIZE> {
         in_b: u16,
         r: impl Fetcher<T>,
     ) -> T {
-        const SCALE: f32 = 1.0 / 65535.0;
-        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / 65535;
-        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / 65535;
-        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / 65535;
-        let x_n: i32 = rounding_div_ceil(in_r as i32 * (GRID_SIZE as i32 - 1), 65535);
-        let y_n: i32 = rounding_div_ceil(in_g as i32 * (GRID_SIZE as i32 - 1), 65535);
-        let z_n: i32 = rounding_div_ceil(in_b as i32 * (GRID_SIZE as i32 - 1), 65535);
+        const SCALE: f32 = 1.0 / LUT_SAMPLING as f32;
+        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
+        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
+        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
+        let x_n: i32 = rounding_div_ceil(in_r as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
+        let y_n: i32 = rounding_div_ceil(in_g as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
+        let z_n: i32 = rounding_div_ceil(in_b as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
         let dr = in_r as f32 * ((GRID_SIZE as i32 - 1) as f32 * SCALE) - x as f32;
         let dg = in_g as f32 * ((GRID_SIZE as i32 - 1) as f32 * SCALE) - y as f32;
         let db = in_b as f32 * ((GRID_SIZE as i32 - 1) as f32 * SCALE) - z as f32;

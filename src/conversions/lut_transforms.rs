@@ -163,33 +163,49 @@ pub(crate) trait CompressForLut {
     fn compress_lut<const BIT_DEPTH: usize>(self) -> u16;
 }
 
+pub(crate) const LUT_SAMPLING: u16 = 16383;
+
 impl CompressForLut for u8 {
     #[inline(always)]
     fn compress_lut<const BIT_DEPTH: usize>(self) -> u16 {
-        u16::from_ne_bytes([self, self])
+        u16::from_ne_bytes([self, self]) >> 2
     }
 }
 
 impl CompressForLut for u16 {
     #[inline(always)]
     fn compress_lut<const BIT_DEPTH: usize>(self) -> u16 {
-        let target_expand_bits = 16u32 - BIT_DEPTH as u32;
-        (((self as u32) << target_expand_bits) | ((self as u32) >> (16 - target_expand_bits)))
-            .min(65535) as u16
+        if BIT_DEPTH == 16 {
+            self >> 2
+        } else if BIT_DEPTH == 14 {
+            self
+        } else {
+            let target_expand_bits = 14u32 - BIT_DEPTH as u32;
+            (((self) << target_expand_bits) | ((self) >> (14 - target_expand_bits)))
+                .min(LUT_SAMPLING)
+        }
     }
 }
 
 impl CompressForLut for f32 {
     #[inline(always)]
     fn compress_lut<const BIT_DEPTH: usize>(self) -> u16 {
-        m_clamp((self * 65535.).round(), 0.0, 65535.0) as u16
+        m_clamp(
+            (self * LUT_SAMPLING as f32).round(),
+            0.0,
+            LUT_SAMPLING as f32,
+        ) as u16
     }
 }
 
 impl CompressForLut for f64 {
     #[inline(always)]
     fn compress_lut<const BIT_DEPTH: usize>(self) -> u16 {
-        m_clamp((self * 65535.).round(), 0.0, 65535.0) as u16
+        m_clamp(
+            (self * LUT_SAMPLING as f64).round(),
+            0.0,
+            LUT_SAMPLING as f64,
+        ) as u16
     }
 }
 

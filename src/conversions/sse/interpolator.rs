@@ -26,6 +26,7 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+use crate::conversions::lut_transforms::LUT_SAMPLING;
 use crate::math::FusedMultiplyAdd;
 use crate::rounding_div_ceil;
 #[cfg(target_arch = "x86")]
@@ -142,16 +143,16 @@ impl<const GRID_SIZE: usize> TetrahedralSse<'_, GRID_SIZE> {
         in_b: u16,
         r: impl Fetcher<SseVector>,
     ) -> SseVector {
-        const SCALE: f32 = 1.0 / 65535.0;
-        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / 65535;
-        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / 65535;
-        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / 65535;
+        const SCALE: f32 = 1.0 / LUT_SAMPLING as f32;
+        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
+        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
+        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
 
         let c0 = r.fetch(x, y, z);
 
-        let x_n: i32 = rounding_div_ceil(in_r as i32 * (GRID_SIZE as i32 - 1), 65535);
-        let y_n: i32 = rounding_div_ceil(in_g as i32 * (GRID_SIZE as i32 - 1), 65535);
-        let z_n: i32 = rounding_div_ceil(in_b as i32 * (GRID_SIZE as i32 - 1), 65535);
+        let x_n: i32 = rounding_div_ceil(in_r as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
+        let y_n: i32 = rounding_div_ceil(in_g as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
+        let z_n: i32 = rounding_div_ceil(in_b as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
 
         let scale = (GRID_SIZE as i32 - 1) as f32 * SCALE;
 
@@ -238,16 +239,16 @@ impl<const GRID_SIZE: usize> PyramidalSse<'_, GRID_SIZE> {
         in_b: u16,
         r: impl Fetcher<SseVector>,
     ) -> SseVector {
-        const SCALE: f32 = 1.0 / 65535.0;
-        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / 65535;
-        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / 65535;
-        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / 65535;
+        const SCALE: f32 = 1.0 / LUT_SAMPLING as f32;
+        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
+        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
+        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
 
         let c0 = r.fetch(x, y, z);
 
-        let x_n: i32 = rounding_div_ceil(in_r as i32 * (GRID_SIZE as i32 - 1), 65535);
-        let y_n: i32 = rounding_div_ceil(in_g as i32 * (GRID_SIZE as i32 - 1), 65535);
-        let z_n: i32 = rounding_div_ceil(in_b as i32 * (GRID_SIZE as i32 - 1), 65535);
+        let x_n: i32 = rounding_div_ceil(in_r as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
+        let y_n: i32 = rounding_div_ceil(in_g as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
+        let z_n: i32 = rounding_div_ceil(in_b as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
 
         let scale = (GRID_SIZE as i32 - 1) as f32 * SCALE;
 
@@ -313,16 +314,16 @@ impl<const GRID_SIZE: usize> PrismaticSse<'_, GRID_SIZE> {
         in_b: u16,
         r: impl Fetcher<SseVector>,
     ) -> SseVector {
-        const SCALE: f32 = 1.0 / 65535.0;
-        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / 65535;
-        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / 65535;
-        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / 65535;
+        const SCALE: f32 = 1.0 / LUT_SAMPLING as f32;
+        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
+        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
+        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
 
         let c0 = r.fetch(x, y, z);
 
-        let x_n: i32 = rounding_div_ceil(in_r as i32 * (GRID_SIZE as i32 - 1), 65535);
-        let y_n: i32 = rounding_div_ceil(in_g as i32 * (GRID_SIZE as i32 - 1), 65535);
-        let z_n: i32 = rounding_div_ceil(in_b as i32 * (GRID_SIZE as i32 - 1), 65535);
+        let x_n: i32 = rounding_div_ceil(in_r as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
+        let y_n: i32 = rounding_div_ceil(in_g as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
+        let z_n: i32 = rounding_div_ceil(in_b as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
 
         let scale = (GRID_SIZE as i32 - 1) as f32 * SCALE;
 
@@ -379,14 +380,14 @@ impl<const GRID_SIZE: usize> TrilinearSse<'_, GRID_SIZE> {
         in_b: u16,
         r: impl Fetcher<SseVector>,
     ) -> SseVector {
-        const SCALE: f32 = 1.0 / 65535.0;
-        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / 65535;
-        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / 65535;
-        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / 65535;
+        const SCALE: f32 = 1.0 / LUT_SAMPLING as f32;
+        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
+        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
+        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
 
-        let x_n: i32 = rounding_div_ceil(in_r as i32 * (GRID_SIZE as i32 - 1), 65535);
-        let y_n: i32 = rounding_div_ceil(in_g as i32 * (GRID_SIZE as i32 - 1), 65535);
-        let z_n: i32 = rounding_div_ceil(in_b as i32 * (GRID_SIZE as i32 - 1), 65535);
+        let x_n: i32 = rounding_div_ceil(in_r as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
+        let y_n: i32 = rounding_div_ceil(in_g as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
+        let z_n: i32 = rounding_div_ceil(in_b as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
 
         let scale = (GRID_SIZE as i32 - 1) as f32 * SCALE;
 

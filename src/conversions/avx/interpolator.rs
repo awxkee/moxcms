@@ -34,6 +34,7 @@ use std::arch::x86::*;
 #[cfg(target_arch = "x86_64")]
 use std::arch::x86_64::*;
 use std::ops::{Add, Mul, Sub};
+use crate::conversions::lut_transforms::LUT_SAMPLING;
 
 #[repr(align(16), C)]
 pub(crate) struct SseAlignedF32(pub(crate) [f32; 4]);
@@ -271,16 +272,16 @@ impl<const GRID_SIZE: usize> TetrahedralAvxFma<'_, GRID_SIZE> {
         in_b: u16,
         r: impl Fetcher<AvxVectorSse>,
     ) -> AvxVectorSse {
-        const SCALE: f32 = 1.0 / 65535.0;
-        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / 65535;
-        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / 65535;
-        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / 65535;
+        const SCALE: f32 = 1.0 / LUT_SAMPLING as f32;
+        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
+        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
+        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
 
         let c0 = r.fetch(x, y, z);
 
-        let x_n: i32 = rounding_div_ceil(in_r as i32 * (GRID_SIZE as i32 - 1), 65535);
-        let y_n: i32 = rounding_div_ceil(in_g as i32 * (GRID_SIZE as i32 - 1), 65535);
-        let z_n: i32 = rounding_div_ceil(in_b as i32 * (GRID_SIZE as i32 - 1), 65535);
+        let x_n: i32 = rounding_div_ceil(in_r as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
+        let y_n: i32 = rounding_div_ceil(in_g as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
+        let z_n: i32 = rounding_div_ceil(in_b as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
 
         let scale = (GRID_SIZE as i32 - 1) as f32 * SCALE;
 
@@ -448,16 +449,16 @@ impl<const GRID_SIZE: usize> PyramidalAvxFma<'_, GRID_SIZE> {
         in_b: u16,
         r: impl Fetcher<AvxVectorSse>,
     ) -> AvxVectorSse {
-        const SCALE: f32 = 1.0 / 65535.0;
-        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / 65535;
-        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / 65535;
-        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / 65535;
+        const SCALE: f32 = 1.0 / LUT_SAMPLING as f32;
+        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
+        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
+        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
 
         let c0 = r.fetch(x, y, z);
 
-        let x_n: i32 = rounding_div_ceil(in_r as i32 * (GRID_SIZE as i32 - 1), 65535);
-        let y_n: i32 = rounding_div_ceil(in_g as i32 * (GRID_SIZE as i32 - 1), 65535);
-        let z_n: i32 = rounding_div_ceil(in_b as i32 * (GRID_SIZE as i32 - 1), 65535);
+        let x_n: i32 = rounding_div_ceil(in_r as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
+        let y_n: i32 = rounding_div_ceil(in_g as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
+        let z_n: i32 = rounding_div_ceil(in_b as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
 
         let scale = (GRID_SIZE as i32 - 1) as f32 * SCALE;
 
@@ -532,16 +533,16 @@ impl<const GRID_SIZE: usize> PrismaticAvxFma<'_, GRID_SIZE> {
         in_b: u16,
         r: impl Fetcher<AvxVectorSse>,
     ) -> AvxVectorSse {
-        const SCALE: f32 = 1.0 / 65535.0;
-        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / 65535;
-        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / 65535;
-        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / 65535;
+        const SCALE: f32 = 1.0 / LUT_SAMPLING as f32;
+        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
+        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
+        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
 
         let c0 = r.fetch(x, y, z);
 
-        let x_n: i32 = rounding_div_ceil(in_r as i32 * (GRID_SIZE as i32 - 1), 65535);
-        let y_n: i32 = rounding_div_ceil(in_g as i32 * (GRID_SIZE as i32 - 1), 65535);
-        let z_n: i32 = rounding_div_ceil(in_b as i32 * (GRID_SIZE as i32 - 1), 65535);
+        let x_n: i32 = rounding_div_ceil(in_r as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
+        let y_n: i32 = rounding_div_ceil(in_g as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
+        let z_n: i32 = rounding_div_ceil(in_b as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
 
         let scale = (GRID_SIZE as i32 - 1) as f32 * SCALE;
 
@@ -605,17 +606,17 @@ impl<const GRID_SIZE: usize> PrismaticAvxFmaDouble<'_, GRID_SIZE> {
         r0: impl Fetcher<AvxVectorSse>,
         r1: impl Fetcher<AvxVectorSse>,
     ) -> (AvxVectorSse, AvxVectorSse) {
-        const SCALE: f32 = 1.0 / 65535.0;
-        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / 65535;
-        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / 65535;
-        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / 65535;
+        const SCALE: f32 = 1.0 / LUT_SAMPLING as f32;
+        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
+        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
+        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
 
         let c0_0 = r0.fetch(x, y, z);
         let c0_1 = r0.fetch(x, y, z);
 
-        let x_n: i32 = rounding_div_ceil(in_r as i32 * (GRID_SIZE as i32 - 1), 65535);
-        let y_n: i32 = rounding_div_ceil(in_g as i32 * (GRID_SIZE as i32 - 1), 65535);
-        let z_n: i32 = rounding_div_ceil(in_b as i32 * (GRID_SIZE as i32 - 1), 65535);
+        let x_n: i32 = rounding_div_ceil(in_r as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
+        let y_n: i32 = rounding_div_ceil(in_g as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
+        let z_n: i32 = rounding_div_ceil(in_b as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
 
         let scale = (GRID_SIZE as i32 - 1) as f32 * SCALE;
 
@@ -705,17 +706,17 @@ impl<const GRID_SIZE: usize> PyramidAvxFmaDouble<'_, GRID_SIZE> {
         r0: impl Fetcher<AvxVectorSse>,
         r1: impl Fetcher<AvxVectorSse>,
     ) -> (AvxVectorSse, AvxVectorSse) {
-        const SCALE: f32 = 1.0 / 65535.0;
-        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / 65535;
-        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / 65535;
-        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / 65535;
+        const SCALE: f32 = 1.0 / LUT_SAMPLING as f32;
+        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
+        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
+        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
 
         let c0_0 = r0.fetch(x, y, z);
         let c0_1 = r1.fetch(x, y, z);
 
-        let x_n: i32 = rounding_div_ceil(in_r as i32 * (GRID_SIZE as i32 - 1), 65535);
-        let y_n: i32 = rounding_div_ceil(in_g as i32 * (GRID_SIZE as i32 - 1), 65535);
-        let z_n: i32 = rounding_div_ceil(in_b as i32 * (GRID_SIZE as i32 - 1), 65535);
+        let x_n: i32 = rounding_div_ceil(in_r as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
+        let y_n: i32 = rounding_div_ceil(in_g as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
+        let z_n: i32 = rounding_div_ceil(in_b as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
 
         let scale = (GRID_SIZE as i32 - 1) as f32 * SCALE;
 
@@ -825,17 +826,17 @@ impl<const GRID_SIZE: usize> TetrahedralAvxFmaDouble<'_, GRID_SIZE> {
         r1: impl Fetcher<AvxVectorSse>,
         rv: impl Fetcher<AvxVector>,
     ) -> (AvxVectorSse, AvxVectorSse) {
-        const SCALE: f32 = 1.0 / 65535.0;
-        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / 65535;
-        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / 65535;
-        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / 65535;
+        const SCALE: f32 = 1.0 / LUT_SAMPLING as f32;
+        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
+        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
+        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
 
         let c0_0 = r0.fetch(x, y, z);
         let c0_1 = r1.fetch(x, y, z);
 
-        let x_n: i32 = rounding_div_ceil(in_r as i32 * (GRID_SIZE as i32 - 1), 65535);
-        let y_n: i32 = rounding_div_ceil(in_g as i32 * (GRID_SIZE as i32 - 1), 65535);
-        let z_n: i32 = rounding_div_ceil(in_b as i32 * (GRID_SIZE as i32 - 1), 65535);
+        let x_n: i32 = rounding_div_ceil(in_r as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
+        let y_n: i32 = rounding_div_ceil(in_g as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
+        let z_n: i32 = rounding_div_ceil(in_b as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
 
         let scale = (GRID_SIZE as i32 - 1) as f32 * SCALE;
 
@@ -900,14 +901,14 @@ impl<const GRID_SIZE: usize> TrilinearAvxFmaDouble<'_, GRID_SIZE> {
         in_b: u16,
         rv: impl Fetcher<AvxVector>,
     ) -> (AvxVectorSse, AvxVectorSse) {
-        const SCALE: f32 = 1.0 / 65535.0;
-        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / 65535;
-        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / 65535;
-        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / 65535;
+        const SCALE: f32 = 1.0 / LUT_SAMPLING as f32;
+        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
+        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
+        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
 
-        let x_n: i32 = rounding_div_ceil(in_r as i32 * (GRID_SIZE as i32 - 1), 65535);
-        let y_n: i32 = rounding_div_ceil(in_g as i32 * (GRID_SIZE as i32 - 1), 65535);
-        let z_n: i32 = rounding_div_ceil(in_b as i32 * (GRID_SIZE as i32 - 1), 65535);
+        let x_n: i32 = rounding_div_ceil(in_r as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
+        let y_n: i32 = rounding_div_ceil(in_g as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
+        let z_n: i32 = rounding_div_ceil(in_b as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
 
         let scale = (GRID_SIZE as i32 - 1) as f32 * SCALE;
 
@@ -955,14 +956,14 @@ impl<const GRID_SIZE: usize> TrilinearAvxFma<'_, GRID_SIZE> {
         in_b: u16,
         r: impl Fetcher<AvxVectorSse>,
     ) -> AvxVectorSse {
-        const SCALE: f32 = 1.0 / 65535.0;
-        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / 65535;
-        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / 65535;
-        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / 65535;
+        const SCALE: f32 = 1.0 / LUT_SAMPLING as f32;
+        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
+        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
+        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
 
-        let x_n: i32 = rounding_div_ceil(in_r as i32 * (GRID_SIZE as i32 - 1), 65535);
-        let y_n: i32 = rounding_div_ceil(in_g as i32 * (GRID_SIZE as i32 - 1), 65535);
-        let z_n: i32 = rounding_div_ceil(in_b as i32 * (GRID_SIZE as i32 - 1), 65535);
+        let x_n: i32 = rounding_div_ceil(in_r as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
+        let y_n: i32 = rounding_div_ceil(in_g as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
+        let z_n: i32 = rounding_div_ceil(in_b as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
 
         let scale = (GRID_SIZE as i32 - 1) as f32 * SCALE;
 
