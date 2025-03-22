@@ -36,7 +36,7 @@ use crate::matrix::{BT2020_MATRIX, DISPLAY_P3_MATRIX, Matrix3f, SRGB_MATRIX, XyY
 use crate::safe_reader::{SafeAdd, SafeMul};
 use crate::tag::{TAG_SIZE, Tag, TagTypeDefinition};
 use crate::trc::ToneReprCurve;
-use crate::{Chromaticity, Layout, Matrix3d, Vector3f, adapt_to_d50_d};
+use crate::{Chromaticity, Layout, Matrix3d, Vector3f, adapt_to_d50_d, Xyzd};
 use std::io::Read;
 
 const MAX_PROFILE_SIZE: usize = 1024 * 1024 * 10; // 10 MB max, for Fogra39 etc
@@ -2022,7 +2022,7 @@ impl ColorProfile {
                 [red_xyz.z as f64, green_xyz.z as f64, blue_xyz.z as f64],
             ],
         };
-        let colorants = ColorProfile::rgb_to_xyz_const_d(xyz_matrix, white_point.to_xyz());
+        let colorants = ColorProfile::rgb_to_xyz_const_d(xyz_matrix, white_point.to_xyzd());
         let colorants = adapt_to_d50_d(colorants, white_point);
 
         self.update_colorants(colorants.to_f32());
@@ -2089,7 +2089,7 @@ impl ColorProfile {
     }
 
     /// If Primaries is invalid will return invalid matrix on const context
-    pub const fn rgb_to_xyz_const_d(xyz_matrix: Matrix3d, wp: Xyz) -> Matrix3d {
+    pub const fn rgb_to_xyz_const_d(xyz_matrix: Matrix3d, wp: Xyzd) -> Matrix3d {
         let xyz_inverse = xyz_matrix.inverse();
         let s = xyz_inverse.mul_vector(wp.to_vector_d());
         let mut v = xyz_matrix.mul_row_vector::<0>(s);
@@ -2103,6 +2103,13 @@ impl ColorProfile {
         let white_point = Chromaticity::D50.to_xyz();
         self.rgb_to_xyz(xyz_matrix, white_point)
     }
+
+    pub fn rgb_to_xyz_matrix_d(&self) -> Matrix3d {
+        let xyz_matrix = self.colorant_matrix().to_f64();
+        let white_point = Chromaticity::D50.to_xyzd();
+        ColorProfile::rgb_to_xyz_const_d(xyz_matrix, white_point)
+    }
+
 
     /// Computes transform matrix RGB -> XYZ -> RGB
     /// Current profile is used as source, other as destination

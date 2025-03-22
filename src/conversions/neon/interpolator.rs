@@ -217,10 +217,10 @@ impl<const GRID_SIZE: usize> TetrahedralNeon<'_, GRID_SIZE> {
 
         let c0 = r.fetch(x, y, z);
 
-        let x_n: i32 = rounding_div_ceil(in_r as i32 * (GRID_SIZE as i32 - 1), 65535);
-        let y_n: i32 = rounding_div_ceil(in_g as i32 * (GRID_SIZE as i32 - 1), 65535);
-        let z_n: i32 = rounding_div_ceil(in_b as i32 * (GRID_SIZE as i32 - 1), 65535);
-
+        let x_n: i32 = (x + 1).min(GRID_SIZE as i32 - 1);
+        let y_n: i32 = (y + 1).min(GRID_SIZE as i32 - 1);
+        let z_n: i32 = (z + 1).min(GRID_SIZE as i32 - 1);
+        
         let scale = (GRID_SIZE as i32 - 1) as f32 * SCALE;
 
         let rx = in_r as f32 * scale - x as f32;
@@ -285,9 +285,9 @@ impl<const GRID_SIZE: usize> TetrahedralNeonDouble<'_, GRID_SIZE> {
 
         let c0 = r.fetch(x, y, z);
 
-        let x_n: i32 = rounding_div_ceil(in_r as i32 * (GRID_SIZE as i32 - 1), 65535);
-        let y_n: i32 = rounding_div_ceil(in_g as i32 * (GRID_SIZE as i32 - 1), 65535);
-        let z_n: i32 = rounding_div_ceil(in_b as i32 * (GRID_SIZE as i32 - 1), 65535);
+        let x_n: i32 = (x + 1).min(GRID_SIZE as i32 - 1);
+        let y_n: i32 = (y + 1).min(GRID_SIZE as i32 - 1);
+        let z_n: i32 = (z + 1).min(GRID_SIZE as i32 - 1);
 
         let scale = (GRID_SIZE as i32 - 1) as f32 * SCALE;
 
@@ -406,9 +406,9 @@ impl<const GRID_SIZE: usize> PyramidalNeon<'_, GRID_SIZE> {
 
         let c0 = r.fetch(x, y, z);
 
-        let x_n: i32 = rounding_div_ceil(in_r as i32 * (GRID_SIZE as i32 - 1), 65535);
-        let y_n: i32 = rounding_div_ceil(in_g as i32 * (GRID_SIZE as i32 - 1), 65535);
-        let z_n: i32 = rounding_div_ceil(in_b as i32 * (GRID_SIZE as i32 - 1), 65535);
+        let x_n: i32 = (x + 1).min(GRID_SIZE as i32 - 1);
+        let y_n: i32 = (y + 1).min(GRID_SIZE as i32 - 1);
+        let z_n: i32 = (z + 1).min(GRID_SIZE as i32 - 1);
 
         let scale = (GRID_SIZE as i32 - 1) as f32 * SCALE;
 
@@ -481,9 +481,9 @@ impl<const GRID_SIZE: usize> PyramidalNeonDouble<'_, GRID_SIZE> {
 
         let c0 = r.fetch(x, y, z);
 
-        let x_n: i32 = rounding_div_ceil(in_r as i32 * (GRID_SIZE as i32 - 1), 65535);
-        let y_n: i32 = rounding_div_ceil(in_g as i32 * (GRID_SIZE as i32 - 1), 65535);
-        let z_n: i32 = rounding_div_ceil(in_b as i32 * (GRID_SIZE as i32 - 1), 65535);
+        let x_n: i32 = (x + 1).min(GRID_SIZE as i32 - 1);
+        let y_n: i32 = (y + 1).min(GRID_SIZE as i32 - 1);
+        let z_n: i32 = (z + 1).min(GRID_SIZE as i32 - 1);
 
         let scale = (GRID_SIZE as i32 - 1) as f32 * SCALE;
 
@@ -560,9 +560,9 @@ impl<const GRID_SIZE: usize> PrismaticNeon<'_, GRID_SIZE> {
 
         let c0 = r.fetch(x, y, z);
 
-        let x_n: i32 = rounding_div_ceil(in_r as i32 * (GRID_SIZE as i32 - 1), 65535);
-        let y_n: i32 = rounding_div_ceil(in_g as i32 * (GRID_SIZE as i32 - 1), 65535);
-        let z_n: i32 = rounding_div_ceil(in_b as i32 * (GRID_SIZE as i32 - 1), 65535);
+        let x_n: i32 = (x + 1).min(GRID_SIZE as i32 - 1);
+        let y_n: i32 = (y + 1).min(GRID_SIZE as i32 - 1);
+        let z_n: i32 = (z + 1).min(GRID_SIZE as i32 - 1);
 
         let scale = (GRID_SIZE as i32 - 1) as f32 * SCALE;
 
@@ -626,9 +626,9 @@ impl<const GRID_SIZE: usize> PrismaticNeonDouble<'_, GRID_SIZE> {
 
         let c0 = rv.fetch(x, y, z);
 
-        let x_n: i32 = rounding_div_ceil(in_r as i32 * (GRID_SIZE as i32 - 1), 65535);
-        let y_n: i32 = rounding_div_ceil(in_g as i32 * (GRID_SIZE as i32 - 1), 65535);
-        let z_n: i32 = rounding_div_ceil(in_b as i32 * (GRID_SIZE as i32 - 1), 65535);
+        let x_n: i32 = (x + 1).min(GRID_SIZE as i32 - 1);
+        let y_n: i32 = (y + 1).min(GRID_SIZE as i32 - 1);
+        let z_n: i32 = (z + 1).min(GRID_SIZE as i32 - 1);
 
         let scale = (GRID_SIZE as i32 - 1) as f32 * SCALE;
 

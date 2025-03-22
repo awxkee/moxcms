@@ -119,6 +119,109 @@ impl Array4D<'_> {
         let r_z2 = lerp(r_y1, r_y2, z_d);
         lerp(r_z1, r_z2, w_d)
     }
+
+    #[inline]
+    pub fn tetra(&self, lin_x: f32, lin_y: f32, lin_z: f32, lin_w: f32) -> Vector3f {
+        let scale = (self.grid_size as i32 - 1) as f32;
+
+        let x = (lin_x * scale).floor() as i32;
+        let y = (lin_y * scale).floor() as i32;
+        let z = (lin_z * scale).floor() as i32;
+        let w = (lin_w * scale).floor() as i32;
+
+        let x_n = (lin_x * scale).ceil() as i32;
+        let y_n = (lin_y * scale).ceil() as i32;
+        let z_n = (lin_z * scale).ceil() as i32;
+        let w_n = (lin_w * scale).ceil() as i32;
+
+        let rx = lin_x * scale - x as f32;
+        let ry = lin_y * scale - y as f32;
+        let rz = lin_z * scale - z as f32;
+        let rw = lin_w * scale - w as f32;
+
+        let c0 = self.vec3(x, y, z, w);
+        let c2;
+        let c1;
+        let c3;
+        if rx >= ry {
+            if ry >= rz {
+                //rx >= ry && ry >= rz
+                c1 = self.vec3(x_n, y, z, w) - c0;
+                c2 = self.vec3(x_n, y_n, z, w) - self.vec3(x_n, y, z, w);
+                c3 = self.vec3(x_n, y_n, z_n, w) - self.vec3(x_n, y_n, z, w);
+            } else if rx >= rz {
+                //rx >= rz && rz >= ry
+                c1 = self.vec3(x_n, y, z, w) - c0;
+                c2 = self.vec3(x_n, y_n, z_n, w) - self.vec3(x_n, y, z_n, w);
+                c3 = self.vec3(x_n, y, z_n, w) - self.vec3(x_n, y, z, w);
+            } else {
+                //rz > rx && rx >= ry
+                c1 = self.vec3(x_n, y, z_n, w) - self.vec3(x, y, z_n, w);
+                c2 = self.vec3(x_n, y_n, z_n, w) - self.vec3(x_n, y, z_n, w);
+                c3 = self.vec3(x, y, z_n, w) - c0;
+            }
+        } else if rx >= rz {
+            //ry > rx && rx >= rz
+            c1 = self.vec3(x_n, y_n, z, w) - self.vec3(x, y_n, z, w);
+            c2 = self.vec3(x, y_n, z, w) - c0;
+            c3 = self.vec3(x_n, y_n, z_n, w) - self.vec3(x_n, y_n, z, w);
+        } else if ry >= rz {
+            //ry >= rz && rz > rx
+            c1 = self.vec3(x_n, y_n, z_n, w) - self.vec3(x, y_n, z_n, w);
+            c2 = self.vec3(x, y_n, z, w) - c0;
+            c3 = self.vec3(x, y_n, z_n, w) - self.vec3(x, y_n, z, w);
+        } else {
+            //rz > ry && ry > rx
+            c1 = self.vec3(x_n, y_n, z_n, w) - self.vec3(x, y_n, z_n, w);
+            c2 = self.vec3(x, y_n, z_n, w) - self.vec3(x, y, z_n, w);
+            c3 = self.vec3(x, y, z_n, w) - c0;
+        }
+        let s0 = c0.mla(c1, Vector3f::from(rx));
+        let s1 = s0.mla(c2, Vector3f::from(ry));
+        let w0 = s1.mla(c3, Vector3f::from(rz));
+
+        let c0 = self.vec3(x, y, z, w_n);
+        let c2;
+        let c1;
+        let c3;
+        if rx >= ry {
+            if ry >= rz {
+                //rx >= ry && ry >= rz
+                c1 = self.vec3(x_n, y, z, w_n) - c0;
+                c2 = self.vec3(x_n, y_n, z, w_n) - self.vec3(x_n, y, z, w_n);
+                c3 = self.vec3(x_n, y_n, z_n, w_n) - self.vec3(x_n, y_n, z, w_n);
+            } else if rx >= rz {
+                //rx >= rz && rz >= ry
+                c1 = self.vec3(x_n, y, z, w_n) - c0;
+                c2 = self.vec3(x_n, y_n, z_n, w_n) - self.vec3(x_n, y, z_n, w_n);
+                c3 = self.vec3(x_n, y, z_n, w_n) - self.vec3(x_n, y, z, w_n);
+            } else {
+                //rz > rx && rx >= ry
+                c1 = self.vec3(x_n, y, z_n, w_n) - self.vec3(x, y, z_n, w_n);
+                c2 = self.vec3(x_n, y_n, z_n, w_n) - self.vec3(x_n, y, z_n, w_n);
+                c3 = self.vec3(x, y, z_n, w_n) - c0;
+            }
+        } else if rx >= rz {
+            //ry > rx && rx >= rz
+            c1 = self.vec3(x_n, y_n, z, w_n) - self.vec3(x, y_n, z, w_n);
+            c2 = self.vec3(x, y_n, z, w_n) - c0;
+            c3 = self.vec3(x_n, y_n, z_n, w_n) - self.vec3(x_n, y_n, z, w_n);
+        } else if ry >= rz {
+            //ry >= rz && rz > rx
+            c1 = self.vec3(x_n, y_n, z_n, w_n) - self.vec3(x, y_n, z_n, w_n);
+            c2 = self.vec3(x, y_n, z, w_n) - c0;
+            c3 = self.vec3(x, y_n, z_n, w_n) - self.vec3(x, y_n, z, w_n);
+        } else {
+            //rz > ry && ry > rx
+            c1 = self.vec3(x_n, y_n, z_n, w_n) - self.vec3(x, y_n, z_n, w_n);
+            c2 = self.vec3(x, y_n, z_n, w_n) - self.vec3(x, y, z_n, w_n);
+            c3 = self.vec3(x, y, z_n, w_n) - c0;
+        }
+        let s0 = c0.mla(c1, Vector3f::from(rx));
+        let s1 = s0.mla(c2, Vector3f::from(ry));
+        let w1 = s1.mla(c3, Vector3f::from(rz));
+        (w0 * (Vector3f::from(1.0) - Vector3f::from(rw))).mla(w1, Vector3f::from(rw))
+    }
 }
 
 /// 3D CLUT helper
@@ -225,8 +328,147 @@ impl Array3D<'_> {
     }
 
     #[inline]
+    fn pyramid<
+        T: Copy + From<f32> + Sub<T, Output = T> + Mul<T, Output = T> + Add<T, Output = T> + FusedMultiplyAdd<T>,
+    >(
+        &self,
+        lin_x: f32,
+        lin_y: f32,
+        lin_z: f32,
+        fetch: impl ArrayFetch<T>,
+    ) -> T {
+        let scale = (self.grid_size as i32 - 1) as f32;
+
+        let x = (lin_x * scale).floor() as i32;
+        let y = (lin_y * scale).floor() as i32;
+        let z = (lin_z * scale).floor() as i32;
+
+        let x_n = (lin_x * scale).ceil() as i32;
+        let y_n = (lin_y * scale).ceil() as i32;
+        let z_n = (lin_z * scale).ceil() as i32;
+
+        let dr = lin_x * scale - x as f32;
+        let dg = lin_y * scale - y as f32;
+        let db = lin_z * scale - z as f32;
+
+        let c0 = fetch.fetch(x, y, z);
+
+        if dr > db && dg > db {
+            let x0 = fetch.fetch(x_n, y_n, z_n);
+            let x1 = fetch.fetch(x_n, y_n, z);
+            let x2 = fetch.fetch(x_n, y, z);
+            let x3 = fetch.fetch(x, y_n, z);
+
+            let c1 = x0 - x1;
+            let c2 = x2 - c0;
+            let c3 = x3 - c0;
+            let c4 = c0 - x3 - x2 + x1;
+
+            let s0 = c0.mla(c1, T::from(db));
+            let s1 = s0.mla(c2, T::from(dr));
+            let s2 = s1.mla(c3, T::from(dg));
+            s2.mla(c4, T::from(dr * dg))
+        } else if db > dr && dg > dr {
+            let x0 = fetch.fetch(x, y, z_n);
+            let x1 = fetch.fetch(x_n, y_n, z_n);
+            let x2 = fetch.fetch(x, y_n, z_n);
+            let x3 = fetch.fetch(x, y_n, z);
+
+            let c1 = x0 - c0;
+            let c2 = x1 - x2;
+            let c3 = x3 - c0;
+            let c4 = c0 - x3 - x0 + x2;
+
+            let s0 = c0.mla(c1, T::from(db));
+            let s1 = s0.mla(c2, T::from(dr));
+            let s2 = s1.mla(c3, T::from(dg));
+            s2.mla(c4, T::from(dg * db))
+        } else {
+            let x0 = fetch.fetch(x, y, z_n);
+            let x1 = fetch.fetch(x_n, y, z);
+            let x2 = fetch.fetch(x_n, y, z_n);
+            let x3 = fetch.fetch(x_n, y_n, z_n);
+
+            let c1 = x0 - c0;
+            let c2 = x1 - c0;
+            let c3 = x3 - x2;
+            let c4 = c0 - x1 - x0 + x2;
+
+            let s0 = c0.mla(c1, T::from(db));
+            let s1 = s0.mla(c2, T::from(dr));
+            let s2 = s1.mla(c3, T::from(dg));
+            s2.mla(c4, T::from(db * dr))
+        }
+    }
+
+    #[inline]
+    fn prism<
+        T: Copy + From<f32> + Sub<T, Output = T> + Mul<T, Output = T> + Add<T, Output = T> + FusedMultiplyAdd<T>,
+    >(
+        &self,
+        lin_x: f32,
+        lin_y: f32,
+        lin_z: f32,
+        fetch: impl ArrayFetch<T>,
+    ) -> T {
+        let scale = (self.grid_size as i32 - 1) as f32;
+
+        let x = (lin_x * scale).floor() as i32;
+        let y = (lin_y * scale).floor() as i32;
+        let z = (lin_z * scale).floor() as i32;
+
+        let x_n = (lin_x * scale).ceil() as i32;
+        let y_n = (lin_y * scale).ceil() as i32;
+        let z_n = (lin_z * scale).ceil() as i32;
+
+        let dr = lin_x * scale - x as f32;
+        let dg = lin_y * scale - y as f32;
+        let db = lin_z * scale - z as f32;
+
+        let c0 = fetch.fetch(x, y, z);
+
+        if db >= dr {
+            let x0 = fetch.fetch(x, y, z_n);
+            let x1 = fetch.fetch(x_n, y, z_n);
+            let x2 = fetch.fetch(x, y_n, z);
+            let x3 = fetch.fetch(x, y_n, z_n);
+            let x4 = fetch.fetch(x_n, y_n, z_n);
+
+            let c1 = x0 - c0;
+            let c2 = x1 - x0;
+            let c3 = x2 - c0;
+            let c4 = c0 - x2 - x0 + x3;
+            let c5 = x0 - x3 - x1 + x4;
+
+            let s0 = c0.mla(c1, T::from(db));
+            let s1 = s0.mla(c2, T::from(dr));
+            let s2 = s1.mla(c3, T::from(dg));
+            let s3 = s2.mla(c4, T::from(dg * db));
+            s3.mla(c5, T::from(dr * dg))
+        } else {
+            let x0 = fetch.fetch(x_n, y, z);
+            let x1 = fetch.fetch(x_n, y, z_n);
+            let x2 = fetch.fetch(x, y_n, z);
+            let x3 = fetch.fetch(x_n, y_n, z);
+            let x4 = fetch.fetch(x_n, y_n, z_n);
+
+            let c1 = x1 - x0;
+            let c2 = x0 - c0;
+            let c3 = x2 - c0;
+            let c4 = x0 - x3 - x1 + x4;
+            let c5 = c0 - x2 - x0 + x3;
+
+            let s0 = c0.mla(c1, T::from(db));
+            let s1 = s0.mla(c2, T::from(dr));
+            let s2 = s1.mla(c3, T::from(dg));
+            let s3 = s2.mla(c4, T::from(dg * db));
+            s3.mla(c5, T::from(dr * dg))
+        }
+    }
+
+    #[inline]
     pub fn trilinear_vec3(&self, lin_x: f32, lin_y: f32, lin_z: f32) -> Vector3f {
-        self.trilinear(
+        self.pyramid(
             lin_x,
             lin_y,
             lin_z,
@@ -240,7 +482,7 @@ impl Array3D<'_> {
 
     #[inline]
     pub fn trilinear_vec4(&self, lin_x: f32, lin_y: f32, lin_z: f32) -> Vector4f {
-        self.trilinear(
+        self.prism(
             lin_x,
             lin_y,
             lin_z,

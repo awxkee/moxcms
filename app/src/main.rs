@@ -32,11 +32,11 @@ use std::fs;
 use std::fs::File;
 use std::io::BufReader;
 use std::time::Instant;
+use zune_jpeg::JpegDecoder;
 use zune_jpeg::zune_core::colorspace::ColorSpace;
 use zune_jpeg::zune_core::options::DecoderOptions;
-use zune_jpeg::JpegDecoder;
 
-fn compute_abs_diff4(src: &[f32], dst: &[[f32; 4]]) {
+fn compute_abs_diff4(src: &[f32], dst: &[[f32; 4]], highlights: &mut [f32]) {
     let mut abs_r = f32::MIN;
     let mut abs_g = f32::MIN;
     let mut abs_b = f32::MIN;
@@ -44,14 +44,26 @@ fn compute_abs_diff4(src: &[f32], dst: &[[f32; 4]]) {
     let mut mean_r = 0f32;
     let mut mean_g = 0f32;
     let mut mean_b = 0f32;
-    for (src, dst) in src.chunks_exact(4).zip(dst.iter()) {
-        abs_r = (src[0] - dst[0]).abs().max(abs_r);
-        mean_r += (src[0] - dst[0]).abs();
+    for ((src, dst), h) in src
+        .chunks_exact(4)
+        .zip(dst.iter())
+        .zip(highlights.chunks_exact_mut(4))
+    {
+        let dr = (src[0] - dst[0]).abs();
+        abs_r = dr.max(abs_r);
+        mean_r += dr.abs();
         abs_g = (src[1] - dst[1]).abs().max(abs_g);
         mean_g += (src[1] - dst[1]).abs();
         abs_b = (src[2] - dst[2]).abs().max(abs_b);
         mean_b += (src[2] - dst[2]).abs();
         abs_a = (src[3] - dst[3]).abs().max(abs_a);
+        if dr > 0.1 {
+            h[0] = 1.0f32;
+            h[3] = 1.0f32;
+        } else if dr < 0.2 {
+            h[1] = 1.0f32;
+            h[3] = 1.0f32;
+        }
     }
     mean_r /= dst.len() as f32;
     mean_g /= dst.len() as f32;
@@ -128,7 +140,7 @@ fn main() {
         PixelFormat::RGBA_FLT,
         Intent::RelativeColorimetric,
     )
-        .unwrap();
+    .unwrap();
 
     let mut cmyk = vec![0f32; (decoder.output_buffer_size().unwrap() / 3) * 4];
 
@@ -151,25 +163,24 @@ fn main() {
 
     let time = Instant::now();
 
-    let transform = dest_profile
-        .create_transform_f32(
-            Layout::Rgba,
-            &funny_profile,
-            Layout::Rgba,
-            TransformOptions {
-                rendering_intent: RenderingIntent::RelativeColorimetric,
-                allow_use_cicp_transfer: false,
-                prefer_fixed_point: false,
-                interpolation_method: InterpolationMethod::Tetrahedral,
-            },
-        )
-        .unwrap();
-
-    transform.transform(&real_dst, &mut cmyk).unwrap();
+    // let transform = dest_profile
+    //     .create_transform_f32(
+    //         Layout::Rgba,
+    //         &funny_profile,
+    //         Layout::Rgba,
+    //         TransformOptions {
+    //             rendering_intent: RenderingIntent::RelativeColorimetric,
+    //             allow_use_cicp_transfer: false,
+    //             prefer_fixed_point: false,
+    //             interpolation_method: InterpolationMethod::Tetrahedral,
+    //         },
+    //     )
+    //     .unwrap();
+    // 
+    // transform.transform(&real_dst, &mut cmyk).unwrap();
 
     let time = Instant::now();
 
-    dest_profile.rendering_intent = RenderingIntent::Perceptual;
     let transform = funny_profile
         .create_transform_f32(
             Layout::Rgba,
@@ -188,7 +199,12 @@ fn main() {
     //
     // let instant = Instant::now();
 
-    for (src, dst) in cmyk
+    let clms = lcms2_src
+        .iter()
+        .flat_map(|x| [x[0], x[1], x[2], x[3]])
+        .collect::<Vec<_>>();
+
+    for (src, dst) in clms
         .chunks_exact(img.width() as usize * 4)
         .zip(dst.chunks_exact_mut(img.width() as usize * 4))
     {
@@ -203,11 +219,13 @@ fn main() {
     let mut rgba_lcms2 = vec![[0f32; 4]; (decoder.output_buffer_size().unwrap() / 3) * 4];
 
     t2.transform_pixels(&lcms2_src, &mut rgba_lcms2);
-    
-    compute_abs_diff4(&dst, &lcms2_src);
+
+    let mut highlights = vec![0f32; dst.len()];
+
+    compute_abs_diff4(&dst, &rgba_lcms2, &mut highlights);
 
     // println!("Estimated time: {:?}", instant.elapsed());
-    // 
+    //
     // let mut image = JxlImage::builder()
     //     .pool(JxlThreadPool::none())
     //     .read(std::io::Cursor::new(
@@ -215,20 +233,20 @@ fn main() {
     //     ))
     //     .unwrap();
     // image.set_cms(Moxcms);
-    // 
+    //
     // let render = image.render_frame(0).unwrap();
     // let rendered_icc = image.rendered_icc();
     // let image = render.image_all_channels();
     // let img_buf = image.buf();
-    // 
+    //
     // let real_img_data = img_buf
     //     .chunks_exact(5)
     //     .flat_map(|x| [x[0], x[1], x[2], x[3]])
     //     .map(|x| (x * 255.0 + 0.5) as u8)
     //     .collect::<Vec<_>>();
-    // 
+    //
     // let jxl_profile = ColorProfile::new_from_slice(&rendered_icc).unwrap();
-    // 
+    //
     // // let mut dst2 = vec![0u16; real_img_data.len()];
     // // let transform2 = jxl_profile
     // //     .create_transform_16bit(
@@ -238,13 +256,13 @@ fn main() {
     // //         TransformOptions::default(),
     // //     )
     // //     .unwrap();
-    // // 
+    // //
     // // for (src, dst) in real_img_data
     // //     .chunks_exact(img.width() as usize * 4)
     // //     .zip(dst2.chunks_exact_mut(image.width() as usize * 4))
     // // {
     // //     // ot.transform_pixels(src, dst);
-    // // 
+    // //
     // //     transform2
     // //         .transform(
     // //             &src[..image.width() as usize * 4],
@@ -252,7 +270,7 @@ fn main() {
     // //         )
     // //         .unwrap();
     // // }
-    // // 
+    // //
     // image::save_buffer(
     //     "moxcms.png",
     //     &real_img_data,
@@ -267,6 +285,19 @@ fn main() {
     // }).flat_map(|x| x).collect::<Vec<u8>>();
 
     let dst = dst
+        .iter()
+        .map(|&x| (x * 255f32).round() as u8)
+        .collect::<Vec<_>>();
+    image::save_buffer(
+        "v_new_dst.png",
+        &dst,
+        img.width(),
+        img.height(),
+        image::ExtendedColorType::Rgba8,
+    )
+    .unwrap();
+
+    let dst = highlights
         .iter()
         .map(|&x| (x * 255f32).round() as u8)
         .collect::<Vec<_>>();
@@ -291,7 +322,7 @@ fn main() {
         img.height(),
         image::ExtendedColorType::Rgba8,
     )
-        .unwrap();
+    .unwrap();
 }
 
 // fn main() {

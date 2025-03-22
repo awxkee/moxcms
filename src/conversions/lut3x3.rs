@@ -85,12 +85,12 @@ impl Stage for Lut3x3 {
 
             let clut = l_tbl.trilinear_vec3(linear_x, linear_y, linear_z);
 
-            let pcs_x = lut_interp_linear_float(clut.v[0], &self.gamma[0]);
-            let pcs_y = lut_interp_linear_float(clut.v[1], &self.gamma[1]);
-            let pcs_z = lut_interp_linear_float(clut.v[2], &self.gamma[2]);
-            dest[0] = m_clamp(pcs_x, 0.0, 1.0f32);
-            dest[1] = m_clamp(pcs_y, 0.0, 1.0f32);
-            dest[2] = m_clamp(pcs_z, 0.0, 1.0f32);
+            let pcs_x = lut_interp_linear_float(m_clamp(clut.v[0], 0.0, 1.0), &self.gamma[0]);
+            let pcs_y = lut_interp_linear_float(m_clamp(clut.v[1], 0.0, 1.0), &self.gamma[1]);
+            let pcs_z = lut_interp_linear_float(m_clamp(clut.v[2], 0.0, 1.0), &self.gamma[2]);
+            dest[0] = pcs_x;
+            dest[1] = pcs_y;
+            dest[2] = pcs_z;
         }
         Ok(())
     }

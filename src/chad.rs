@@ -29,8 +29,18 @@
 use crate::matrix::{Matrix3f, Vector3f, XyY, Xyz};
 use crate::{Chromaticity, Matrix3d, Vector3d};
 
+pub(crate) const BRADFORD_D: Matrix3d = Matrix3d {
+    v: [
+        [0.8951, 0.2664, -0.1614],
+        [-0.7502, 1.7135, 0.0367],
+        [0.0389, -0.0685, 1.0296],
+    ],
+};
+
+pub(crate) const BRADFORD_F: Matrix3f = BRADFORD_D.to_f32();
+
 #[inline]
-const fn compute_chromatic_adaption(
+pub(crate) const fn compute_chromatic_adaption(
     source_white_point: Xyz,
     dest_white_point: Xyz,
     chad: Matrix3f,
@@ -64,7 +74,7 @@ const fn compute_chromatic_adaption(
 }
 
 #[inline]
-const fn compute_chromatic_adaption_d(
+pub(crate) const fn compute_chromatic_adaption_d(
     source_white_point: Xyz,
     dest_white_point: Xyz,
     chad: Matrix3d,
@@ -102,29 +112,11 @@ const fn compute_chromatic_adaption_d(
 }
 
 const fn adaption_matrix(source_illumination: Xyz, target_illumination: Xyz) -> Matrix3f {
-    let lam_rigg = {
-        Matrix3f {
-            v: [
-                [0.8951, 0.2664, -0.1614],
-                [-0.7502, 1.7135, 0.0367],
-                [0.0389, -0.0685, 1.0296],
-            ],
-        }
-    };
-    compute_chromatic_adaption(source_illumination, target_illumination, lam_rigg)
+    compute_chromatic_adaption(source_illumination, target_illumination, BRADFORD_F)
 }
 
 const fn adaption_matrix_d(source_illumination: Xyz, target_illumination: Xyz) -> Matrix3d {
-    let lam_rigg = {
-        Matrix3d {
-            v: [
-                [0.8951, 0.2664, -0.1614],
-                [-0.7502, 1.7135, 0.0367],
-                [0.0389, -0.0685, 1.0296],
-            ],
-        }
-    };
-    compute_chromatic_adaption_d(source_illumination, target_illumination, lam_rigg)
+    compute_chromatic_adaption_d(source_illumination, target_illumination, BRADFORD_D)
 }
 
 pub const fn adapt_to_d50(r: Matrix3f, source_white_pt: XyY) -> Matrix3f {
