@@ -58,8 +58,8 @@ struct TetrahedralFetchVector3f<'a, const GRID_SIZE: usize> {
 
 pub(crate) trait MultidimensionalInterpolation<'a, const GRID_SIZE: usize> {
     fn new(table: &'a [f32]) -> Self;
-    fn inter3(&self, in_r: u16, in_g: u16, in_b: u16) -> Vector3f;
-    fn inter4(&self, in_r: u16, in_g: u16, in_b: u16) -> Vector4f;
+    fn inter3(&self, in_r: u8, in_g: u8, in_b: u8) -> Vector3f;
+    fn inter4(&self, in_r: u8, in_g: u8, in_b: u8) -> Vector4f;
 }
 
 impl<const GRID_SIZE: usize> Fetcher<Vector3f> for TetrahedralFetchVector3f<'_, GRID_SIZE> {
@@ -106,9 +106,9 @@ impl<const GRID_SIZE: usize> Tetrahedral<'_, GRID_SIZE> {
             + FusedMultiplyAdd<T>,
     >(
         &self,
-        in_r: u16,
-        in_g: u16,
-        in_b: u16,
+        in_r: u8,
+        in_g: u8,
+        in_b: u8,
         r: impl Fetcher<T>,
     ) -> T {
         const SCALE: f32 = 1.0 / LUT_SAMPLING as f32;
@@ -174,7 +174,7 @@ macro_rules! define_md_inter {
             }
 
             #[inline(always)]
-            fn inter3(&self, in_r: u16, in_g: u16, in_b: u16) -> Vector3f {
+            fn inter3(&self, in_r: u8, in_g: u8, in_b: u8) -> Vector3f {
                 self.interpolate(
                     in_r,
                     in_g,
@@ -184,7 +184,7 @@ macro_rules! define_md_inter {
             }
 
             #[inline(always)]
-            fn inter4(&self, in_r: u16, in_g: u16, in_b: u16) -> Vector4f {
+            fn inter4(&self, in_r: u8, in_g: u8, in_b: u8) -> Vector4f {
                 self.interpolate(
                     in_r,
                     in_g,
@@ -213,9 +213,9 @@ impl<const GRID_SIZE: usize> Pyramidal<'_, GRID_SIZE> {
             + FusedMultiplyAdd<T>,
     >(
         &self,
-        in_r: u16,
-        in_g: u16,
-        in_b: u16,
+        in_r: u8,
+        in_g: u8,
+        in_b: u8,
         r: impl Fetcher<T>,
     ) -> T {
         const SCALE: f32 = 1.0 / LUT_SAMPLING as f32;
@@ -291,9 +291,9 @@ impl<const GRID_SIZE: usize> Prismatic<'_, GRID_SIZE> {
             + FusedMultiplyAdd<T>,
     >(
         &self,
-        in_r: u16,
-        in_g: u16,
-        in_b: u16,
+        in_r: u8,
+        in_g: u8,
+        in_b: u8,
         r: impl Fetcher<T>,
     ) -> T {
         const SCALE: f32 = 1.0 / LUT_SAMPLING as f32;
@@ -360,9 +360,9 @@ impl<const GRID_SIZE: usize> Trilinear<'_, GRID_SIZE> {
             + FusedMultiplyAdd<T>,
     >(
         &self,
-        in_r: u16,
-        in_g: u16,
-        in_b: u16,
+        in_r: u8,
+        in_g: u8,
+        in_b: u8,
         r: impl Fetcher<T>,
     ) -> T {
         const SCALE: f32 = 1.0 / LUT_SAMPLING as f32;

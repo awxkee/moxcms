@@ -131,18 +131,12 @@ impl<const GRID_SIZE: usize> Fetcher<SseVector> for TetrahedralSseFetchVector<'_
 
 pub(crate) trait SseMdInterpolation<'a, const GRID_SIZE: usize> {
     fn new(table: &'a [SseAlignedF32]) -> Self;
-    fn inter3_sse(&self, in_r: u16, in_g: u16, in_b: u16) -> SseVector;
+    fn inter3_sse(&self, in_r: u8, in_g: u8, in_b: u8) -> SseVector;
 }
 
 impl<const GRID_SIZE: usize> TetrahedralSse<'_, GRID_SIZE> {
     #[inline(always)]
-    fn interpolate(
-        &self,
-        in_r: u16,
-        in_g: u16,
-        in_b: u16,
-        r: impl Fetcher<SseVector>,
-    ) -> SseVector {
+    fn interpolate(&self, in_r: u8, in_g: u8, in_b: u8, r: impl Fetcher<SseVector>) -> SseVector {
         const SCALE: f32 = 1.0 / LUT_SAMPLING as f32;
         let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
         let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
@@ -213,7 +207,7 @@ macro_rules! define_inter_sse {
             }
 
             #[inline(always)]
-            fn inter3_sse(&self, in_r: u16, in_g: u16, in_b: u16) -> SseVector {
+            fn inter3_sse(&self, in_r: u8, in_g: u8, in_b: u8) -> SseVector {
                 self.interpolate(
                     in_r,
                     in_g,
@@ -232,13 +226,7 @@ define_inter_sse!(TrilinearSse);
 
 impl<const GRID_SIZE: usize> PyramidalSse<'_, GRID_SIZE> {
     #[inline(always)]
-    fn interpolate(
-        &self,
-        in_r: u16,
-        in_g: u16,
-        in_b: u16,
-        r: impl Fetcher<SseVector>,
-    ) -> SseVector {
+    fn interpolate(&self, in_r: u8, in_g: u8, in_b: u8, r: impl Fetcher<SseVector>) -> SseVector {
         const SCALE: f32 = 1.0 / LUT_SAMPLING as f32;
         let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
         let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
@@ -307,13 +295,7 @@ impl<const GRID_SIZE: usize> PyramidalSse<'_, GRID_SIZE> {
 
 impl<const GRID_SIZE: usize> PrismaticSse<'_, GRID_SIZE> {
     #[inline(always)]
-    fn interpolate(
-        &self,
-        in_r: u16,
-        in_g: u16,
-        in_b: u16,
-        r: impl Fetcher<SseVector>,
-    ) -> SseVector {
+    fn interpolate(&self, in_r: u8, in_g: u8, in_b: u8, r: impl Fetcher<SseVector>) -> SseVector {
         const SCALE: f32 = 1.0 / LUT_SAMPLING as f32;
         let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
         let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
@@ -373,13 +355,7 @@ impl<const GRID_SIZE: usize> PrismaticSse<'_, GRID_SIZE> {
 
 impl<const GRID_SIZE: usize> TrilinearSse<'_, GRID_SIZE> {
     #[inline(always)]
-    fn interpolate(
-        &self,
-        in_r: u16,
-        in_g: u16,
-        in_b: u16,
-        r: impl Fetcher<SseVector>,
-    ) -> SseVector {
+    fn interpolate(&self, in_r: u8, in_g: u8, in_b: u8, r: impl Fetcher<SseVector>) -> SseVector {
         const SCALE: f32 = 1.0 / LUT_SAMPLING as f32;
         let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
         let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;

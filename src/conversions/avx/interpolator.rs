@@ -77,12 +77,12 @@ pub(crate) struct TetrahedralAvxFmaDouble<'a, const GRID_SIZE: usize> {
 
 pub(crate) trait AvxMdInterpolationDouble<'a, const GRID_SIZE: usize> {
     fn new(table0: &'a [SseAlignedF32], table1: &'a [SseAlignedF32]) -> Self;
-    fn inter3_sse(&self, in_r: u16, in_g: u16, in_b: u16) -> (AvxVectorSse, AvxVectorSse);
+    fn inter3_sse(&self, in_r: u8, in_g: u8, in_b: u8) -> (AvxVectorSse, AvxVectorSse);
 }
 
 pub(crate) trait AvxMdInterpolation<'a, const GRID_SIZE: usize> {
     fn new(table: &'a [SseAlignedF32]) -> Self;
-    fn inter3_sse(&self, in_r: u16, in_g: u16, in_b: u16) -> AvxVectorSse;
+    fn inter3_sse(&self, in_r: u8, in_g: u8, in_b: u8) -> AvxVectorSse;
 }
 
 trait Fetcher<T> {
@@ -267,9 +267,9 @@ impl<const GRID_SIZE: usize> TetrahedralAvxFma<'_, GRID_SIZE> {
     #[inline(always)]
     fn interpolate(
         &self,
-        in_r: u16,
-        in_g: u16,
-        in_b: u16,
+        in_r: u8,
+        in_g: u8,
+        in_b: u8,
         r: impl Fetcher<AvxVectorSse>,
     ) -> AvxVectorSse {
         const SCALE: f32 = 1.0 / LUT_SAMPLING as f32;
@@ -342,7 +342,7 @@ macro_rules! define_interp_avx {
             }
 
             #[inline(always)]
-            fn inter3_sse(&self, in_r: u16, in_g: u16, in_b: u16) -> AvxVectorSse {
+            fn inter3_sse(&self, in_r: u8, in_g: u8, in_b: u8) -> AvxVectorSse {
                 self.interpolate(
                     in_r,
                     in_g,
@@ -368,7 +368,7 @@ macro_rules! define_interp_avx_d {
             }
 
             #[inline(always)]
-            fn inter3_sse(&self, in_r: u16, in_g: u16, in_b: u16) -> (AvxVectorSse, AvxVectorSse) {
+            fn inter3_sse(&self, in_r: u8, in_g: u8, in_b: u8) -> (AvxVectorSse, AvxVectorSse) {
                 self.interpolate(
                     in_r,
                     in_g,
@@ -400,7 +400,7 @@ impl<'a, const GRID_SIZE: usize> AvxMdInterpolationDouble<'a, GRID_SIZE>
     }
 
     #[inline(always)]
-    fn inter3_sse(&self, in_r: u16, in_g: u16, in_b: u16) -> (AvxVectorSse, AvxVectorSse) {
+    fn inter3_sse(&self, in_r: u8, in_g: u8, in_b: u8) -> (AvxVectorSse, AvxVectorSse) {
         self.interpolate(
             in_r,
             in_g,
@@ -427,7 +427,7 @@ impl<'a, const GRID_SIZE: usize> AvxMdInterpolationDouble<'a, GRID_SIZE>
     }
 
     #[inline(always)]
-    fn inter3_sse(&self, in_r: u16, in_g: u16, in_b: u16) -> (AvxVectorSse, AvxVectorSse) {
+    fn inter3_sse(&self, in_r: u8, in_g: u8, in_b: u8) -> (AvxVectorSse, AvxVectorSse) {
         self.interpolate(
             in_r,
             in_g,
@@ -444,9 +444,9 @@ impl<const GRID_SIZE: usize> PyramidalAvxFma<'_, GRID_SIZE> {
     #[inline(always)]
     fn interpolate(
         &self,
-        in_r: u16,
-        in_g: u16,
-        in_b: u16,
+        in_r: u8,
+        in_g: u8,
+        in_b: u8,
         r: impl Fetcher<AvxVectorSse>,
     ) -> AvxVectorSse {
         const SCALE: f32 = 1.0 / LUT_SAMPLING as f32;
@@ -528,9 +528,9 @@ impl<const GRID_SIZE: usize> PrismaticAvxFma<'_, GRID_SIZE> {
     #[inline(always)]
     fn interpolate(
         &self,
-        in_r: u16,
-        in_g: u16,
-        in_b: u16,
+        in_r: u8,
+        in_g: u8,
+        in_b: u8,
         r: impl Fetcher<AvxVectorSse>,
     ) -> AvxVectorSse {
         const SCALE: f32 = 1.0 / LUT_SAMPLING as f32;
@@ -600,9 +600,9 @@ impl<const GRID_SIZE: usize> PrismaticAvxFmaDouble<'_, GRID_SIZE> {
     #[inline(always)]
     fn interpolate(
         &self,
-        in_r: u16,
-        in_g: u16,
-        in_b: u16,
+        in_r: u8,
+        in_g: u8,
+        in_b: u8,
         r0: impl Fetcher<AvxVectorSse>,
         r1: impl Fetcher<AvxVectorSse>,
     ) -> (AvxVectorSse, AvxVectorSse) {
@@ -700,9 +700,9 @@ impl<const GRID_SIZE: usize> PyramidAvxFmaDouble<'_, GRID_SIZE> {
     #[inline(always)]
     fn interpolate(
         &self,
-        in_r: u16,
-        in_g: u16,
-        in_b: u16,
+        in_r: u8,
+        in_g: u8,
+        in_b: u8,
         r0: impl Fetcher<AvxVectorSse>,
         r1: impl Fetcher<AvxVectorSse>,
     ) -> (AvxVectorSse, AvxVectorSse) {
@@ -819,9 +819,9 @@ impl<const GRID_SIZE: usize> TetrahedralAvxFmaDouble<'_, GRID_SIZE> {
     #[inline(always)]
     fn interpolate(
         &self,
-        in_r: u16,
-        in_g: u16,
-        in_b: u16,
+        in_r: u8,
+        in_g: u8,
+        in_b: u8,
         r0: impl Fetcher<AvxVectorSse>,
         r1: impl Fetcher<AvxVectorSse>,
         rv: impl Fetcher<AvxVector>,
@@ -896,9 +896,9 @@ impl<const GRID_SIZE: usize> TrilinearAvxFmaDouble<'_, GRID_SIZE> {
     #[inline(always)]
     fn interpolate(
         &self,
-        in_r: u16,
-        in_g: u16,
-        in_b: u16,
+        in_r: u8,
+        in_g: u8,
+        in_b: u8,
         rv: impl Fetcher<AvxVector>,
     ) -> (AvxVectorSse, AvxVectorSse) {
         const SCALE: f32 = 1.0 / LUT_SAMPLING as f32;
@@ -951,9 +951,9 @@ impl<const GRID_SIZE: usize> TrilinearAvxFma<'_, GRID_SIZE> {
     #[inline(always)]
     fn interpolate(
         &self,
-        in_r: u16,
-        in_g: u16,
-        in_b: u16,
+        in_r: u8,
+        in_g: u8,
+        in_b: u8,
         r: impl Fetcher<AvxVectorSse>,
     ) -> AvxVectorSse {
         const SCALE: f32 = 1.0 / LUT_SAMPLING as f32;
