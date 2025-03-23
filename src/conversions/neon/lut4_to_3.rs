@@ -97,8 +97,7 @@ where
             if T::FINITE {
                 unsafe {
                     let t0 = vdupq_n_f32(t);
-                    let ones = vdupq_n_f32(1f32);
-                    let hp = vmulq_f32(a0, vsubq_f32(ones, t0));
+                    let hp = vfmsq_f32(a0, a0, t0);
                     let mut v = vfmaq_f32(hp, b0, t0);
                     v = vmulq_f32(v, value_scale);
                     v = vminq_f32(v, value_scale);
@@ -112,8 +111,7 @@ where
             } else {
                 unsafe {
                     let t0 = vdupq_n_f32(t);
-                    let ones = vdupq_n_f32(1f32);
-                    let hp = vmulq_f32(a0, vsubq_f32(ones, t0));
+                    let hp = vfmsq_f32(a0, a0, t0);
                     let mut v = vfmaq_f32(hp, b0, t0);
                     v = vminq_f32(v, value_scale);
                     v = vmaxq_f32(v, vdupq_n_f32(0.));

@@ -184,6 +184,25 @@ impl FusedMultiplyAdd<NeonVector> for NeonVector {
     }
 }
 
+impl NeonVector {
+    #[inline(always)]
+    fn neg_mla(&self, b: NeonVector, c: NeonVector) -> NeonVector {
+        NeonVector {
+            v: unsafe { vfmsq_f32(self.v, b.v, c.v) },
+        }
+    }
+}
+
+impl NeonVectorDouble {
+    #[inline(always)]
+    fn neg_mla(&self, b: NeonVectorDouble, c: NeonVectorDouble) -> NeonVectorDouble {
+        NeonVectorDouble {
+            v0: unsafe { vfmsq_f32(self.v0, b.v0, c.v0) },
+            v1: unsafe { vfmsq_f32(self.v1, b.v1, c.v1) },
+        }
+    }
+}
+
 impl NeonVectorDouble {
     #[inline(always)]
     fn mla(&self, b: NeonVectorDouble, c: NeonVector) -> NeonVectorDouble {
@@ -751,22 +770,21 @@ impl<const GRID_SIZE: usize> TrilinearNeonDouble<'_, GRID_SIZE> {
         let c011 = r.fetch(x, y_n, z_n);
         let c111 = r.fetch(x_n, y_n, z_n);
 
-        let dx = NeonVectorDouble::from(1.0 - dr);
+        let dx = NeonVectorDouble::from(dr);
 
-        // Perform trilinear interpolation
-        let c00 = (c000 * dx).mla(c100, w0);
-        let c10 = (c010 * dx).mla(c110, w0);
-        let c01 = (c001 * dx).mla(c101, w0);
-        let c11 = (c011 * dx).mla(c111, w0);
+        let c00 = c000.neg_mla(c000, dx).mla(c100, w0);
+        let c10 = c010.neg_mla(c010, dx).mla(c110, w0);
+        let c01 = c001.neg_mla(c001, dx).mla(c101, w0);
+        let c11 = c011.neg_mla(c011, dx).mla(c111, w0);
 
-        let dy = NeonVectorDouble::from(1.0 - dg);
+        let dy = NeonVectorDouble::from(dg);
 
-        let c0 = (c00 * dy).mla(c10, w1);
-        let c1 = (c01 * dy).mla(c11, w1);
+        let c0 = c00.neg_mla(c00, dy).mla(c10, w1);
+        let c1 = c01.neg_mla(c01, dy).mla(c11, w1);
 
-        let dz = NeonVectorDouble::from(1.0 - db);
+        let dz = NeonVectorDouble::from(db);
 
-        (c0 * dz).mla(c1, w2).split()
+        c0.neg_mla(c0, dz).mla(c1, w2).split()
     }
 }
 
@@ -801,20 +819,20 @@ impl<const GRID_SIZE: usize> TrilinearNeon<'_, GRID_SIZE> {
         let c011 = r.fetch(x, y_n, z_n);
         let c111 = r.fetch(x_n, y_n, z_n);
 
-        let dx = NeonVector::from(1.0 - dr);
+        let dx = NeonVector::from(dr);
 
-        let c00 = (c000 * dx).mla(c100, w0);
-        let c10 = (c010 * dx).mla(c110, w0);
-        let c01 = (c001 * dx).mla(c101, w0);
-        let c11 = (c011 * dx).mla(c111, w0);
+        let c00 = c000.neg_mla(c000, dx).mla(c100, w0);
+        let c10 = c010.neg_mla(c010, dx).mla(c110, w0);
+        let c01 = c001.neg_mla(c001, dx).mla(c101, w0);
+        let c11 = c011.neg_mla(c011, dx).mla(c111, w0);
 
-        let dy = NeonVector::from(1.0 - dg);
+        let dy = NeonVector::from(dg);
 
-        let c0 = (c00 * dy).mla(c10, w1);
-        let c1 = (c01 * dy).mla(c11, w1);
+        let c0 = c00.neg_mla(c00, dy).mla(c10, w1);
+        let c1 = c01.neg_mla(c01, dy).mla(c11, w1);
 
-        let dz = NeonVector::from(1.0 - db);
+        let dz = NeonVector::from(db);
 
-        (c0 * dz).mla(c1, w2)
+        c0.neg_mla(c0, dz).mla(c1, w2)
     }
 }

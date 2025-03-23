@@ -27,9 +27,8 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 // use jxl_oxide::{JxlImage, JxlThreadPool, Lcms2, Moxcms};
-use lcms2::{Intent, PixelFormat, Profile, Transform};
+use lcms2::Profile;
 use moxcms::{ColorProfile, InterpolationMethod, Layout, RenderingIntent, TransformOptions};
-use rand::Rng;
 use std::fs;
 use std::fs::File;
 use std::io::BufReader;
