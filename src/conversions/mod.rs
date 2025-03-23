@@ -37,6 +37,7 @@ mod lut4;
 mod lut_transforms;
 mod mab;
 mod mab4x3;
+mod mba3x4;
 #[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
 mod neon;
 mod rgb2gray;

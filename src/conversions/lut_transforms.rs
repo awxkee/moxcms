@@ -35,8 +35,8 @@ use crate::lab::Lab;
 use crate::math::m_clamp;
 use crate::mlaf::mlaf;
 use crate::{
-    CmsError, ColorProfile, DataColorSpace, InPlaceStage, InterpolationMethod, Layout,
-    LutWarehouse, Matrix3f, ProfileVersion, TransformExecutor, TransformOptions, Xyz,
+    CmsError, ColorProfile, DataColorSpace, InPlaceStage, Layout, LutWarehouse, Matrix3f,
+    ProfileVersion, TransformExecutor, TransformOptions, Xyz,
 };
 use num_traits::AsPrimitive;
 use std::marker::PhantomData;
@@ -203,15 +203,22 @@ impl CompressForLut for f64 {
 
 pub(crate) trait Lut3x3Factory {
     fn make_transform_3x3<
-        T: Copy + AsPrimitive<f32> + Default + CompressForLut + PointeeSizeExpressible + 'static,
+        T: Copy
+            + AsPrimitive<f32>
+            + Default
+            + CompressForLut
+            + PointeeSizeExpressible
+            + 'static
+            + Send
+            + Sync,
         const SRC_LAYOUT: u8,
         const DST_LAYOUT: u8,
         const GRID_SIZE: usize,
         const BIT_DEPTH: usize,
     >(
         lut: Vec<f32>,
-        interpolation_method: InterpolationMethod,
-    ) -> impl TransformExecutor<T>
+        options: TransformOptions,
+    ) -> Box<dyn TransformExecutor<T> + Send + Sync>
     where
         f32: AsPrimitive<T>,
         u32: AsPrimitive<T>;
@@ -219,14 +226,21 @@ pub(crate) trait Lut3x3Factory {
 
 pub(crate) trait Lut4x3Factory {
     fn make_transform_4x3<
-        T: Copy + AsPrimitive<f32> + Default + CompressForLut + PointeeSizeExpressible + 'static,
+        T: Copy
+            + AsPrimitive<f32>
+            + Default
+            + CompressForLut
+            + PointeeSizeExpressible
+            + 'static
+            + Send
+            + Sync,
         const LAYOUT: u8,
         const GRID_SIZE: usize,
         const BIT_DEPTH: usize,
     >(
         lut: Vec<f32>,
-        interpolation_method: InterpolationMethod,
-    ) -> impl TransformExecutor<T>
+        options: TransformOptions,
+    ) -> Box<dyn TransformExecutor<T> + Sync + Send>
     where
         f32: AsPrimitive<T>,
         u32: AsPrimitive<T>;
@@ -348,37 +362,37 @@ macro_rules! make_transform_3x3_fn {
         {
             match src_layout {
                 Layout::Rgb => match dst_layout {
-                    Layout::Rgb => Box::new($exec_impl::make_transform_3x3::<
+                    Layout::Rgb => $exec_impl::make_transform_3x3::<
                         T,
                         { Layout::Rgb as u8 },
                         { Layout::Rgb as u8 },
                         GRID_SIZE,
                         BIT_DEPTH,
-                    >(lut, options.interpolation_method)),
-                    Layout::Rgba => Box::new($exec_impl::make_transform_3x3::<
+                    >(lut, options),
+                    Layout::Rgba => $exec_impl::make_transform_3x3::<
                         T,
                         { Layout::Rgb as u8 },
                         { Layout::Rgba as u8 },
                         GRID_SIZE,
                         BIT_DEPTH,
-                    >(lut, options.interpolation_method)),
+                    >(lut, options),
                     _ => unimplemented!(),
                 },
                 Layout::Rgba => match dst_layout {
-                    Layout::Rgb => Box::new($exec_impl::make_transform_3x3::<
+                    Layout::Rgb => $exec_impl::make_transform_3x3::<
                         T,
                         { Layout::Rgba as u8 },
                         { Layout::Rgb as u8 },
                         GRID_SIZE,
                         BIT_DEPTH,
-                    >(lut, options.interpolation_method)),
-                    Layout::Rgba => Box::new($exec_impl::make_transform_3x3::<
+                    >(lut, options),
+                    Layout::Rgba => $exec_impl::make_transform_3x3::<
                         T,
                         { Layout::Rgba as u8 },
                         { Layout::Rgba as u8 },
                         GRID_SIZE,
                         BIT_DEPTH,
-                    >(lut, options.interpolation_method)),
+                    >(lut, options),
                     _ => unimplemented!(),
                 },
                 _ => unimplemented!(),
@@ -410,18 +424,18 @@ macro_rules! make_transform_4x3_fn {
             u32: AsPrimitive<T>,
         {
             match dst_layout {
-                Layout::Rgb => Box::new($exec_name::make_transform_4x3::<
+                Layout::Rgb => $exec_name::make_transform_4x3::<
                     T,
                     { Layout::Rgb as u8 },
                     GRID_SIZE,
                     BIT_DEPTH,
-                >(lut, options.interpolation_method)),
-                Layout::Rgba => Box::new($exec_name::make_transform_4x3::<
+                >(lut, options),
+                Layout::Rgba => $exec_name::make_transform_4x3::<
                     T,
                     { Layout::Rgba as u8 },
                     GRID_SIZE,
                     BIT_DEPTH,
-                >(lut, options.interpolation_method)),
+                >(lut, options),
                 _ => unimplemented!(),
             }
         }
@@ -451,6 +465,7 @@ make_transform_3x3_fn!(make_transformer_3x3_sse41, SseLut3x3Factory);
 #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "avx"))]
 use crate::conversions::avx::AvxLut4x3Factory;
 use crate::conversions::mab4x3::prepare_mab_4x3;
+use crate::conversions::mba3x4::prepare_mba_3x4;
 // use crate::conversions::bpc::compensate_bpc_in_lut;
 
 #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "avx"))]
@@ -599,10 +614,6 @@ where
             return Err(CmsError::UnsupportedProfileConnection);
         }
 
-        let dest_lut_b_to_a = dest.get_pcs_to_device_lut(options.rendering_intent).ok_or(
-            CmsError::UnsupportedLutRenderingIntent(source.rendering_intent),
-        )?;
-
         const GRID_SIZE: usize = 33;
 
         let mut lut: Vec<f32>;
@@ -637,7 +648,13 @@ where
 
         pcs_lab_v4_to_v2(dest, &mut lut);
 
-        let lut = create_lut3x4(dest_lut_b_to_a, &lut, options)?;
+        let lut = match dest
+            .get_pcs_to_device(options.rendering_intent)
+            .ok_or(CmsError::UnsupportedProfileConnection)?
+        {
+            LutWarehouse::Lut(lut_type) => create_lut3x4(lut_type, &lut, options)?,
+            LutWarehouse::MCurves(m_curves) => prepare_mba_3x4(m_curves, &mut lut, options)?,
+        };
 
         return Ok(match src_layout {
             Layout::Rgb => {

@@ -33,7 +33,8 @@ use crate::conversions::interpolator::{
 use crate::conversions::lut_transforms::{LUT_SAMPLING, Lut4x3Factory};
 use crate::math::{FusedMultiplyAdd, m_clamp};
 use crate::{
-    CmsError, InterpolationMethod, Layout, PointeeSizeExpressible, TransformExecutor, Vector3f,
+    CmsError, InterpolationMethod, Layout, PointeeSizeExpressible, TransformExecutor,
+    TransformOptions, Vector3f,
 };
 use num_traits::AsPrimitive;
 use std::marker::PhantomData;
@@ -217,22 +218,29 @@ pub(crate) struct DefaultLut4x3Factory {}
 #[allow(dead_code)]
 impl Lut4x3Factory for DefaultLut4x3Factory {
     fn make_transform_4x3<
-        T: Copy + AsPrimitive<f32> + Default + CompressForLut + PointeeSizeExpressible + 'static,
+        T: Copy
+            + AsPrimitive<f32>
+            + Default
+            + CompressForLut
+            + PointeeSizeExpressible
+            + 'static
+            + Send
+            + Sync,
         const LAYOUT: u8,
         const GRID_SIZE: usize,
         const BIT_DEPTH: usize,
     >(
         lut: Vec<f32>,
-        interpolation_method: InterpolationMethod,
-    ) -> impl TransformExecutor<T>
+        options: TransformOptions,
+    ) -> Box<dyn TransformExecutor<T> + Sync + Send>
     where
         f32: AsPrimitive<T>,
         u32: AsPrimitive<T>,
     {
-        TransformLut4XyzToRgb::<T, LAYOUT, GRID_SIZE, BIT_DEPTH> {
+        Box::new(TransformLut4XyzToRgb::<T, LAYOUT, GRID_SIZE, BIT_DEPTH> {
             lut,
             _phantom: PhantomData,
-            interpolation_method,
-        }
+            interpolation_method: options.interpolation_method,
+        })
     }
 }

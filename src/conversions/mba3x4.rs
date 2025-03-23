@@ -28,116 +28,102 @@
  */
 use crate::conversions::mab::{BCurves3, MCurves3};
 use crate::{
-    Array4D, CmsError, InPlaceStage, InterpolationMethod, LutMCurvesType, Stage, TransformOptions,
-    Vector3f,
+    Array3D, CmsError, InPlaceStage, InterpolationMethod, LutMCurvesType, Stage, TransformOptions,
+    Vector4f,
 };
 
-struct ACurves4x3<'a, const DEPTH: usize, const GRID_SIZE: usize> {
+struct ACurves3x4Inverse<'a, const DEPTH: usize> {
     curve0: Box<[f32; 65536]>,
     curve1: Box<[f32; 65536]>,
     curve2: Box<[f32; 65536]>,
     curve3: Box<[f32; 65536]>,
     clut: &'a [f32],
-    grid_size: [u8; 4],
+    grid_size: [u8; 3],
     interpolation_method: InterpolationMethod,
 }
 
-impl<const DEPTH: usize, const GRID_SIZE: usize> ACurves4x3<'_, DEPTH, GRID_SIZE> {
-    fn transform_impl<Fetch: Fn(f32, f32, f32, f32) -> Vector3f>(
+impl<const DEPTH: usize> ACurves3x4Inverse<'_, DEPTH> {
+    fn transform_impl<Fetch: Fn(f32, f32, f32) -> Vector4f>(
         &self,
         src: &[f32],
         dst: &mut [f32],
         fetch: Fetch,
     ) -> Result<(), CmsError> {
-        let scale_value = (DEPTH - 1) as f32;
+        let scale_value = (DEPTH as u32 - 1u32) as f32;
 
-        assert_eq!(src.len() / 4, dst.len() / 3);
+        assert_eq!(src.len() / 3, dst.len() / 4);
 
-        for (src, dst) in src.chunks_exact(4).zip(dst.chunks_exact_mut(3)) {
-            let a0 = (src[0] * scale_value).round().min(scale_value) as u16;
-            let a1 = (src[1] * scale_value).round().min(scale_value) as u16;
-            let a2 = (src[2] * scale_value).round().min(scale_value) as u16;
-            let a3 = (src[3] * scale_value).round().min(scale_value) as u16;
-            let c = self.curve0[a0 as usize];
-            let m = self.curve1[a1 as usize];
-            let y = self.curve2[a2 as usize];
-            let k = self.curve3[a3 as usize];
-
-            let r = fetch(c, m, y, k);
-            dst[0] = r.v[0];
-            dst[1] = r.v[1];
-            dst[2] = r.v[2];
+        for (src, dst) in src.chunks_exact(3).zip(dst.chunks_exact_mut(4)) {
+            let interpolated = fetch(src[0], src[1], src[2]);
+            let a0 = (interpolated.v[0] * scale_value).round().min(scale_value) as u16;
+            let a1 = (interpolated.v[1] * scale_value).round().min(scale_value) as u16;
+            let a2 = (interpolated.v[2] * scale_value).round().min(scale_value) as u16;
+            let a3 = (interpolated.v[3] * scale_value).round().min(scale_value) as u16;
+            let b0 = self.curve0[a0 as usize];
+            let b1 = self.curve1[a1 as usize];
+            let b2 = self.curve2[a2 as usize];
+            let b3 = self.curve3[a3 as usize];
+            dst[0] = b0;
+            dst[1] = b1;
+            dst[2] = b2;
+            dst[3] = b3;
         }
         Ok(())
     }
 }
 
-impl<const DEPTH: usize, const GRID_SIZE: usize> Stage for ACurves4x3<'_, DEPTH, GRID_SIZE> {
+impl<const DEPTH: usize> Stage for ACurves3x4Inverse<'_, DEPTH> {
     fn transform(&self, src: &[f32], dst: &mut [f32]) -> Result<(), CmsError> {
-        let lut = Array4D::new_hypercube(self.clut, self.grid_size);
-
+        let lut = Array3D::new_hexahedron(self.clut, self.grid_size);
         match self.interpolation_method {
             InterpolationMethod::Tetrahedral => {
-                self.transform_impl(src, dst, |x, y, z, w| lut.tetra_vec3(x, y, z, w))?;
+                self.transform_impl(src, dst, |x, y, z| lut.tetra_vec4(x, y, z))?;
             }
             InterpolationMethod::Pyramid => {
-                self.transform_impl(src, dst, |x, y, z, w| lut.pyramid_vec3(x, y, z, w))?;
+                self.transform_impl(src, dst, |x, y, z| lut.pyramid_vec4(x, y, z))?;
             }
             InterpolationMethod::Prism => {
-                self.transform_impl(src, dst, |x, y, z, w| lut.prism_vec3(x, y, z, w))?;
+                self.transform_impl(src, dst, |x, y, z| lut.prism_vec4(x, y, z))?;
             }
             InterpolationMethod::Linear => {
-                self.transform_impl(src, dst, |x, y, z, w| lut.quadlinear_vec3(x, y, z, w))?;
+                self.transform_impl(src, dst, |x, y, z| lut.trilinear_vec4(x, y, z))?;
             }
         }
         Ok(())
     }
 }
 
-pub(crate) fn prepare_mab_4x3<const GRID_SIZE: usize>(
+pub(crate) fn prepare_mba_3x4(
     mab: &LutMCurvesType,
     lut: &mut [f32],
     options: TransformOptions,
 ) -> Result<Vec<f32>, CmsError> {
+    if mab.num_input_channels != 3 && mab.num_output_channels != 4 {
+        return Err(CmsError::UnsupportedProfileConnection);
+    }
+
     const LERP_DEPTH: usize = 65536;
     const BP: usize = 13;
     const DEPTH: usize = 8192;
-    if mab.num_input_channels != 4 && mab.num_output_channels != 3 {
-        return Err(CmsError::UnsupportedProfileConnection);
-    }
-    let mut new_lut = vec![0f32; (lut.len() / 4) * 3];
-    if mab.a_curves.len() == 4 && !mab.clut.is_empty() {
-        let curve0 = mab.a_curves[0]
+
+    if mab.b_curves.len() == 3 {
+        let curve0 = mab.b_curves[0]
             .build_linearize_table::<u16, LERP_DEPTH, BP>()
             .ok_or(CmsError::InvalidTrcCurve)?;
-        let curve1 = mab.a_curves[1]
+        let curve1 = mab.b_curves[1]
             .build_linearize_table::<u16, LERP_DEPTH, BP>()
             .ok_or(CmsError::InvalidTrcCurve)?;
-        let curve2 = mab.a_curves[2]
+        let curve2 = mab.b_curves[2]
             .build_linearize_table::<u16, LERP_DEPTH, BP>()
             .ok_or(CmsError::InvalidTrcCurve)?;
-        let curve3 = mab.a_curves[3]
-            .build_linearize_table::<u16, LERP_DEPTH, BP>()
-            .ok_or(CmsError::InvalidTrcCurve)?;
-        let clut = &mab.clut;
-        let a_curves = ACurves4x3::<DEPTH, GRID_SIZE> {
+        let b_curves = BCurves3::<DEPTH> {
             curve0,
             curve1,
             curve2,
-            curve3,
-            clut,
-            grid_size: [
-                mab.grid_points[0],
-                mab.grid_points[1],
-                mab.grid_points[2],
-                mab.grid_points[3],
-            ],
-            interpolation_method: options.interpolation_method,
         };
-        a_curves.transform(lut, &mut new_lut)?;
+        b_curves.transform(lut)?;
     } else {
-        // Not supported
-        return Err(CmsError::UnsupportedProfileConnection);
+        return Err(CmsError::InvalidAtoBLut);
     }
 
     if mab.m_curves.len() == 3 {
@@ -158,29 +144,39 @@ pub(crate) fn prepare_mab_4x3<const GRID_SIZE: usize>(
             curve2,
             matrix,
             bias,
-            inverse: false,
+            inverse: true,
         };
-        m_curves.transform(&mut new_lut)?;
+        m_curves.transform(lut)?;
     }
 
-    if mab.b_curves.len() == 3 {
-        let curve0 = mab.b_curves[0]
+    let mut new_lut = vec![0f32; (lut.len() / 3) * 4];
+
+    if mab.a_curves.len() == 4 && !mab.clut.is_empty() {
+        let curve0 = mab.a_curves[0]
             .build_linearize_table::<u16, LERP_DEPTH, BP>()
             .ok_or(CmsError::InvalidTrcCurve)?;
-        let curve1 = mab.b_curves[1]
+        let curve1 = mab.a_curves[1]
             .build_linearize_table::<u16, LERP_DEPTH, BP>()
             .ok_or(CmsError::InvalidTrcCurve)?;
-        let curve2 = mab.b_curves[2]
+        let curve2 = mab.a_curves[2]
             .build_linearize_table::<u16, LERP_DEPTH, BP>()
             .ok_or(CmsError::InvalidTrcCurve)?;
-        let b_curves = BCurves3::<DEPTH> {
+        let curve3 = mab.a_curves[3]
+            .build_linearize_table::<u16, LERP_DEPTH, BP>()
+            .ok_or(CmsError::InvalidTrcCurve)?;
+        let clut = &mab.clut;
+        let a_curves = ACurves3x4Inverse::<DEPTH> {
             curve0,
             curve1,
             curve2,
+            curve3,
+            clut,
+            grid_size: [mab.grid_points[0], mab.grid_points[1], mab.grid_points[2]],
+            interpolation_method: options.interpolation_method,
         };
-        b_curves.transform(&mut new_lut)?;
+        a_curves.transform(lut, &mut new_lut)?;
     } else {
-        return Err(CmsError::InvalidAtoBLut);
+        return Err(CmsError::UnsupportedProfileConnection);
     }
 
     Ok(new_lut)

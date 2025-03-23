@@ -31,7 +31,7 @@ use crate::conversions::CompressForLut;
 use crate::conversions::interpolator::MultidimensionalInterpolation;
 use crate::conversions::lut_transforms::Lut3x3Factory;
 use crate::transform::PointeeSizeExpressible;
-use crate::{CmsError, InterpolationMethod, Layout, TransformExecutor};
+use crate::{CmsError, InterpolationMethod, Layout, TransformExecutor, TransformOptions};
 use num_traits::AsPrimitive;
 use std::marker::PhantomData;
 
@@ -160,23 +160,32 @@ pub(crate) struct DefaultLut3x3Factory {}
 
 impl Lut3x3Factory for DefaultLut3x3Factory {
     fn make_transform_3x3<
-        T: Copy + AsPrimitive<f32> + Default + CompressForLut + PointeeSizeExpressible + 'static,
+        T: Copy
+            + AsPrimitive<f32>
+            + Default
+            + CompressForLut
+            + PointeeSizeExpressible
+            + 'static
+            + Send
+            + Sync,
         const SRC_LAYOUT: u8,
         const DST_LAYOUT: u8,
         const GRID_SIZE: usize,
         const BIT_DEPTH: usize,
     >(
         lut: Vec<f32>,
-        interpolation_method: InterpolationMethod,
-    ) -> impl TransformExecutor<T>
+        options: TransformOptions,
+    ) -> Box<dyn TransformExecutor<T> + Send + Sync>
     where
         f32: AsPrimitive<T>,
         u32: AsPrimitive<T>,
     {
-        TransformLut3x3::<T, SRC_LAYOUT, DST_LAYOUT, GRID_SIZE, BIT_DEPTH> {
-            lut,
-            _phantom: PhantomData,
-            interpolation_method,
-        }
+        Box::new(
+            TransformLut3x3::<T, SRC_LAYOUT, DST_LAYOUT, GRID_SIZE, BIT_DEPTH> {
+                lut,
+                _phantom: PhantomData,
+                interpolation_method: options.interpolation_method,
+            },
+        )
     }
 }
