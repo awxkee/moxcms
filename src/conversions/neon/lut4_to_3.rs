@@ -32,7 +32,7 @@ use crate::conversions::neon::interpolator::{
     NeonMdInterpolationDouble, PrismaticNeonDouble, PyramidalNeonDouble, TetrahedralNeonDouble,
     TrilinearNeonDouble,
 };
-use crate::conversions::neon::stages::NeonAlignedF32;
+use crate::conversions::neon::rgb_xyz::NeonAlignedF32;
 use crate::transform::PointeeSizeExpressible;
 use crate::{
     CmsError, InterpolationMethod, Layout, TransformExecutor, TransformOptions, rounding_div_ceil,

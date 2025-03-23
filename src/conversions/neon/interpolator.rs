@@ -28,7 +28,7 @@
  */
 #![allow(dead_code)]
 use crate::conversions::lut_transforms::LUT_SAMPLING;
-use crate::conversions::neon::stages::NeonAlignedF32;
+use crate::conversions::neon::rgb_xyz::NeonAlignedF32;
 use crate::math::FusedMultiplyAdd;
 use std::arch::aarch64::*;
 use std::ops::{Add, Mul, Sub};

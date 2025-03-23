@@ -28,11 +28,11 @@
  */
 mod interpolator;
 mod lut4_to_3;
+mod rgb_xyz;
 mod rgb_xyz_q4_12;
-mod stages;
 mod t_lut3_to_3;
 
 pub(crate) use lut4_to_3::NeonLut4x3Factory;
+pub(crate) use rgb_xyz::TransformProfilePcsXYZRgbNeon;
 pub(crate) use rgb_xyz_q4_12::TransformProfileRgbQ12Neon;
-pub(crate) use stages::TransformProfilePcsXYZRgbNeon;
 pub(crate) use t_lut3_to_3::NeonLut3x3Factory;
