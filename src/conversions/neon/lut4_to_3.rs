@@ -116,6 +116,7 @@ where
                     let hp = vmulq_f32(a0, vsubq_f32(ones, t0));
                     let mut v = vfmaq_f32(hp, b0, t0);
                     v = vminq_f32(v, value_scale);
+                    v = vmaxq_f32(v, vdupq_n_f32(0.));
 
                     dst[cn.r_i()] = vgetq_lane_f32::<0>(v).as_();
                     dst[cn.g_i()] = vgetq_lane_f32::<1>(v).as_();
