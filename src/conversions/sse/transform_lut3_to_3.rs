@@ -30,7 +30,7 @@ use crate::conversions::CompressForLut;
 use crate::conversions::lut_transforms::Lut3x3Factory;
 use crate::conversions::sse::TetrahedralSse;
 use crate::conversions::sse::interpolator::{
-    PrismaticSse, PyramidalSse, SseAlignedF32, SseMdInterpolation,
+    PrismaticSse, PyramidalSse, SseAlignedF32, SseMdInterpolation, TrilinearSse,
 };
 use crate::transform::PointeeSizeExpressible;
 use crate::{CmsError, InterpolationMethod, Layout, TransformExecutor};
@@ -166,6 +166,9 @@ where
                 }
                 InterpolationMethod::Prism => {
                     self.transform_chunk::<PrismaticSse<GRID_SIZE>>(src, dst);
+                }
+                InterpolationMethod::Linear => {
+                    self.transform_chunk::<TrilinearSse<GRID_SIZE>>(src, dst);
                 }
             }
         }

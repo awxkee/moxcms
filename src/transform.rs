@@ -69,6 +69,7 @@ pub struct TransformOptions {
     pub prefer_fixed_point: bool,
     /// Interpolation method for 3D LUT
     pub interpolation_method: InterpolationMethod,
+    // pub black_point_compensation: bool,
 }
 
 #[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Default)]
@@ -87,6 +88,8 @@ pub enum InterpolationMethod {
     /// Interpolation by dividing cube into prisms.
     #[default]
     Prism,
+    /// Trilinear/Quadlinear interpolation
+    Linear,
 }
 
 impl Default for TransformOptions {
@@ -96,6 +99,7 @@ impl Default for TransformOptions {
             allow_use_cicp_transfer: true,
             prefer_fixed_point: true,
             interpolation_method: InterpolationMethod::default(),
+            // black_point_compensation: false,
         }
     }
 }
@@ -483,10 +487,14 @@ impl ColorProfile {
             ));
         } else if (self.color_space == DataColorSpace::Cmyk
             || self.color_space == DataColorSpace::Rgb
-            || self.color_space == DataColorSpace::Lab)
+            || self.color_space == DataColorSpace::Lab
+            || self.color_space == DataColorSpace::Color3
+            || self.color_space == DataColorSpace::Color4)
             && (dst_pr.color_space == DataColorSpace::Rgb
                 || dst_pr.color_space == DataColorSpace::Cmyk
-                || dst_pr.color_space == DataColorSpace::Lab)
+                || dst_pr.color_space == DataColorSpace::Lab
+                || dst_pr.color_space == DataColorSpace::Color3
+                || dst_pr.color_space == DataColorSpace::Color4)
             && (dst_pr.pcs == DataColorSpace::Xyz || dst_pr.pcs == DataColorSpace::Lab)
             && (self.pcs == DataColorSpace::Xyz || self.pcs == DataColorSpace::Lab)
         {

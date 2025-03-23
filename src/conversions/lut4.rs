@@ -29,7 +29,7 @@
 use crate::math::m_clamp;
 use crate::profile::LutDataType;
 use crate::trc::lut_interp_linear_float;
-use crate::{Array4D, CmsError, Stage};
+use crate::{Array4D, CmsError, InterpolationMethod, Stage, TransformOptions, Vector3f};
 
 #[derive(Default)]
 struct Lut4 {
@@ -37,12 +37,16 @@ struct Lut4 {
     clut: Vec<f32>,
     grid_size: u8,
     output: [Vec<f32>; 3],
+    interpolation_method: InterpolationMethod,
 }
 
-impl Stage for Lut4 {
-    fn transform(&self, src: &[f32], dst: &mut [f32]) -> Result<(), CmsError> {
-        let l_tbl = Array4D::new(&self.clut[0..], self.grid_size as usize);
-
+impl Lut4 {
+    fn transform_impl<Fetch: Fn(f32, f32, f32, f32) -> Vector3f>(
+        &self,
+        src: &[f32],
+        dst: &mut [f32],
+        fetch: Fetch,
+    ) -> Result<(), CmsError> {
         let linearization_0 = &self.linearization[0];
         let linearization_1 = &self.linearization[1];
         let linearization_2 = &self.linearization[2];
@@ -54,24 +58,49 @@ impl Stage for Lut4 {
             let linear_z = lut_interp_linear_float(src[2], linearization_2);
             let linear_w = lut_interp_linear_float(src[3], linearization_3);
 
-            let clut = l_tbl.quadlinear_vec3(linear_x, linear_y, linear_z, linear_w);
+            let clut = fetch(linear_x, linear_y, linear_z, linear_w);
 
-            let pcs_x = lut_interp_linear_float(clut.v[0], &self.output[0]);
-            let pcs_y = lut_interp_linear_float(clut.v[1], &self.output[1]);
-            let pcs_z = lut_interp_linear_float(clut.v[2], &self.output[2]);
-            dest[0] = m_clamp(pcs_x, 0.0, 1.0f32);
-            dest[1] = m_clamp(pcs_y, 0.0, 1.0f32);
-            dest[2] = m_clamp(pcs_z, 0.0, 1.0f32);
+            let pcs_x = lut_interp_linear_float(m_clamp(clut.v[0], 0.0, 1.0), &self.output[0]);
+            let pcs_y = lut_interp_linear_float(m_clamp(clut.v[1], 0.0, 1.0), &self.output[1]);
+            let pcs_z = lut_interp_linear_float(m_clamp(clut.v[2], 0.0, 1.0), &self.output[2]);
+            dest[0] = pcs_x;
+            dest[1] = pcs_y;
+            dest[2] = pcs_z;
         }
         Ok(())
     }
 }
 
-fn stage_lut_4x3(lut: &LutDataType) -> Box<dyn Stage> {
+impl Stage for Lut4 {
+    fn transform(&self, src: &[f32], dst: &mut [f32]) -> Result<(), CmsError> {
+        let l_tbl = Array4D::new(&self.clut, self.grid_size as usize);
+
+        match self.interpolation_method {
+            InterpolationMethod::Tetrahedral => {
+                self.transform_impl(src, dst, |x, y, z, w| l_tbl.tetra(x, y, z, w))?;
+            }
+            InterpolationMethod::Pyramid => {
+                self.transform_impl(src, dst, |x, y, z, w| l_tbl.pyramid(x, y, z, w))?;
+            }
+            InterpolationMethod::Prism => {
+                self.transform_impl(src, dst, |x, y, z, w| l_tbl.prism(x, y, z, w))?
+            }
+            InterpolationMethod::Linear => {
+                self.transform_impl(src, dst, |x, y, z, w| l_tbl.quadlinear_vec3(x, y, z, w))?
+            }
+        }
+        Ok(())
+    }
+}
+
+fn stage_lut_4x3(lut: &LutDataType, options: TransformOptions) -> Box<dyn Stage> {
     let clut_length: usize = (lut.num_clut_grid_points as usize).pow(lut.num_input_channels as u32)
         * lut.num_output_channels as usize;
 
-    let mut transform = Lut4::default();
+    let mut transform = Lut4 {
+        interpolation_method: options.interpolation_method,
+        ..Default::default()
+    };
     transform.linearization[0] = lut.input_table[0..lut.num_input_table_entries as usize].to_vec();
     transform.linearization[1] = lut.input_table
         [lut.num_input_table_entries as usize..lut.num_input_table_entries as usize * 2]
@@ -98,7 +127,10 @@ fn stage_lut_4x3(lut: &LutDataType) -> Box<dyn Stage> {
     Box::new(transform)
 }
 
-pub(crate) fn create_lut4<const SAMPLES: usize>(lut: &LutDataType) -> Result<Vec<f32>, CmsError> {
+pub(crate) fn create_lut4<const SAMPLES: usize>(
+    lut: &LutDataType,
+    options: TransformOptions,
+) -> Result<Vec<f32>, CmsError> {
     if lut.num_input_channels != 4 {
         return Err(CmsError::UnsupportedProfileConnection);
     }
@@ -120,7 +152,7 @@ pub(crate) fn create_lut4<const SAMPLES: usize>(lut: &LutDataType) -> Result<Vec
             }
         }
     }
-    let lut_stage = stage_lut_4x3(lut);
+    let lut_stage = stage_lut_4x3(lut, options);
     lut_stage.transform(&src, &mut dest)?;
     Ok(dest)
 }

@@ -146,6 +146,10 @@ where
                 use crate::conversions::interpolator::Prismatic;
                 self.transform_chunk::<Prismatic<GRID_SIZE>>(src, dst);
             }
+            InterpolationMethod::Linear => {
+                use crate::conversions::interpolator::Trilinear;
+                self.transform_chunk::<Trilinear<GRID_SIZE>>(src, dst);
+            }
         }
 
         Ok(())

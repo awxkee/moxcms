@@ -62,7 +62,10 @@ mod trc;
 mod writer;
 mod yrg;
 
-pub use chad::{adapt_to_d50, adapt_to_illuminant, adapt_to_illuminant_xyz};
+pub use chad::{
+    adapt_to_d50, adapt_to_d50_d, adapt_to_illuminant, adapt_to_illuminant_d,
+    adapt_to_illuminant_xyz, adapt_to_illuminant_xyz_d,
+};
 pub use cicp::{CicpColorPrimaries, ColorPrimaries, MatrixCoefficients, TransferCharacteristics};
 pub use dat::ColorDateTime;
 pub use defaults::{
@@ -84,8 +87,9 @@ pub use math::{
     powf, rounding_div_ceil, sinf, sqrtf,
 };
 pub use matrix::{
-    BT2020_MATRIX, Chromaticity, DISPLAY_P3_MATRIX, Matrix3f, Matrix4f, SRGB_MATRIX, Vector3,
-    Vector3f, Vector3i, Vector3u, Vector4, Vector4f, XyY, Xyz,
+    BT2020_MATRIX, Chromaticity, DISPLAY_P3_MATRIX, Matrix3, Matrix3d, Matrix3f, Matrix4f,
+    SRGB_MATRIX, Vector3, Vector3d, Vector3f, Vector3i, Vector3u, Vector4, Vector4d, Vector4f, XyY,
+    Xyz, Xyzd,
 };
 pub use nd_array::{Array3D, Array4D};
 pub use oklab::Oklab;

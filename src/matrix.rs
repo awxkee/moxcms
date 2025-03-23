@@ -48,8 +48,10 @@ pub struct Vector4<T> {
 }
 
 pub type Vector4f = Vector4<f32>;
+pub type Vector4d = Vector4<f64>;
 
 pub type Vector3f = Vector3<f32>;
+pub type Vector3d = Vector3<f64>;
 pub type Vector3i = Vector3<i32>;
 pub type Vector3u = Vector3<u32>;
 
@@ -135,6 +137,26 @@ impl Vector3<f32> {
     const fn const_mul_vector(self, v: Vector3f) -> Vector3f {
         Vector3f {
             v: [self.v[0] * v.v[0], self.v[1] * v.v[1], self.v[2] * v.v[2]],
+        }
+    }
+}
+
+impl Vector3d {
+    #[inline]
+    const fn const_mul_vector(self, v: Vector3d) -> Vector3d {
+        Vector3d {
+            v: [self.v[0] * v.v[0], self.v[1] * v.v[1], self.v[2] * v.v[2]],
+        }
+    }
+}
+
+impl<T: 'static> Vector3<T> {
+    pub fn cast<V: Copy + 'static>(&self) -> Vector3<V>
+    where
+        T: AsPrimitive<V>,
+    {
+        Vector3::<V> {
+            v: [self.v[0].as_(), self.v[1].as_(), self.v[2].as_()],
         }
     }
 }
@@ -321,9 +343,16 @@ pub struct Matrix3f {
     pub v: [[f32; 3]; 3],
 }
 
+/// Matrix math helper
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Default)]
-pub(crate) struct Matrix3<T> {
+pub struct Matrix3d {
+    pub v: [[f64; 3]; 3],
+}
+
+#[repr(C)]
+#[derive(Copy, Clone, Debug, Default)]
+pub struct Matrix3<T> {
     pub v: [[T; 3]; 3],
 }
 
@@ -632,6 +661,251 @@ impl Matrix3f {
 
         result
     }
+
+    #[inline]
+    pub const fn to_f64(&self) -> Matrix3d {
+        Matrix3d {
+            v: [
+                [
+                    self.v[0][0] as f64,
+                    self.v[0][1] as f64,
+                    self.v[0][2] as f64,
+                ],
+                [
+                    self.v[1][0] as f64,
+                    self.v[1][1] as f64,
+                    self.v[1][2] as f64,
+                ],
+                [
+                    self.v[2][0] as f64,
+                    self.v[2][1] as f64,
+                    self.v[2][2] as f64,
+                ],
+            ],
+        }
+    }
+}
+
+impl Matrix3d {
+    #[inline]
+    pub fn transpose(&self) -> Matrix3d {
+        Matrix3d {
+            v: [
+                [self.v[0][0], self.v[1][0], self.v[2][0]],
+                [self.v[0][1], self.v[1][1], self.v[2][1]],
+                [self.v[0][2], self.v[1][2], self.v[2][2]],
+            ],
+        }
+    }
+
+    pub const IDENTITY: Matrix3d = Matrix3d {
+        v: [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+    };
+
+    #[inline]
+    pub const fn test_equality(&self, other: Matrix3d) -> bool {
+        const TOLERANCE: f64 = 0.001f64;
+        let diff_r_x = (self.v[0][0] - other.v[0][0]).abs();
+        let diff_r_y = (self.v[0][1] - other.v[0][1]).abs();
+        let diff_r_z = (self.v[0][2] - other.v[0][2]).abs();
+
+        if diff_r_x > TOLERANCE || diff_r_y > TOLERANCE || diff_r_z > TOLERANCE {
+            return false;
+        }
+
+        let diff_g_x = (self.v[1][0] - other.v[1][0]).abs();
+        let diff_g_y = (self.v[1][1] - other.v[1][1]).abs();
+        let diff_g_z = (self.v[1][2] - other.v[1][2]).abs();
+
+        if diff_g_x > TOLERANCE || diff_g_y > TOLERANCE || diff_g_z > TOLERANCE {
+            return false;
+        }
+
+        let diff_b_x = (self.v[2][0] - other.v[2][0]).abs();
+        let diff_b_y = (self.v[2][1] - other.v[2][1]).abs();
+        let diff_b_z = (self.v[2][2] - other.v[2][2]).abs();
+
+        if diff_b_x > TOLERANCE || diff_b_y > TOLERANCE || diff_b_z > TOLERANCE {
+            return false;
+        }
+
+        true
+    }
+
+    #[inline]
+    pub const fn determinant(&self) -> Option<f64> {
+        let v = self.v;
+        let a0 = v[0][0] * v[1][1] * v[2][2];
+        let a1 = v[0][1] * v[1][2] * v[2][0];
+        let a2 = v[0][2] * v[1][0] * v[2][1];
+
+        let s0 = v[0][2] * v[1][1] * v[2][0];
+        let s1 = v[0][1] * v[1][0] * v[2][2];
+        let s2 = v[0][0] * v[1][2] * v[2][1];
+
+        let j = a0 + a1 + a2 - s0 - s1 - s2;
+        if j == 0. {
+            return None;
+        }
+        Some(j)
+    }
+
+    #[inline]
+    pub const fn inverse(&self) -> Self {
+        let v = self.v;
+        let det = self.determinant();
+        match det {
+            None => Matrix3d::IDENTITY,
+            Some(determinant) => {
+                let det = 1. / determinant;
+                let a = v[0][0];
+                let b = v[0][1];
+                let c = v[0][2];
+                let d = v[1][0];
+                let e = v[1][1];
+                let f = v[1][2];
+                let g = v[2][0];
+                let h = v[2][1];
+                let i = v[2][2];
+
+                Matrix3d {
+                    v: [
+                        [
+                            (e * i - f * h) * det,
+                            (c * h - b * i) * det,
+                            (b * f - c * e) * det,
+                        ],
+                        [
+                            (f * g - d * i) * det,
+                            (a * i - c * g) * det,
+                            (c * d - a * f) * det,
+                        ],
+                        [
+                            (d * h - e * g) * det,
+                            (b * g - a * h) * det,
+                            (a * e - b * d) * det,
+                        ],
+                    ],
+                }
+            }
+        }
+    }
+
+    #[inline]
+    pub fn mul_row<const R: usize>(&self, rhs: f64) -> Self {
+        if R == 0 {
+            Self {
+                v: [(Vector3d { v: self.v[0] } * rhs).v, self.v[1], self.v[2]],
+            }
+        } else if R == 1 {
+            Self {
+                v: [self.v[0], (Vector3d { v: self.v[1] } * rhs).v, self.v[2]],
+            }
+        } else if R == 2 {
+            Self {
+                v: [self.v[0], self.v[1], (Vector3d { v: self.v[2] } * rhs).v],
+            }
+        } else {
+            unimplemented!()
+        }
+    }
+
+    #[inline]
+    pub const fn mul_row_vector<const R: usize>(&self, rhs: Vector3d) -> Self {
+        if R == 0 {
+            Self {
+                v: [
+                    (Vector3d { v: self.v[0] }.const_mul_vector(rhs)).v,
+                    self.v[1],
+                    self.v[2],
+                ],
+            }
+        } else if R == 1 {
+            Self {
+                v: [
+                    self.v[0],
+                    (Vector3d { v: self.v[1] }.const_mul_vector(rhs)).v,
+                    self.v[2],
+                ],
+            }
+        } else if R == 2 {
+            Self {
+                v: [
+                    self.v[0],
+                    self.v[1],
+                    (Vector3d { v: self.v[2] }.const_mul_vector(rhs)).v,
+                ],
+            }
+        } else {
+            unimplemented!()
+        }
+    }
+
+    #[inline]
+    pub const fn mul_vector(&self, other: Vector3d) -> Vector3d {
+        let x = self.v[0][1] * other.v[1] + self.v[0][2] * other.v[2] + self.v[0][0] * other.v[0];
+        let y = self.v[1][0] * other.v[0] + self.v[1][1] * other.v[1] + self.v[1][2] * other.v[2];
+        let z = self.v[2][0] * other.v[0] + self.v[2][1] * other.v[1] + self.v[2][2] * other.v[2];
+        Vector3::<f64> { v: [x, y, z] }
+    }
+
+    #[inline]
+    pub fn mat_mul(&self, other: Matrix3d) -> Self {
+        let mut result = Matrix3d::default();
+
+        for i in 0..3 {
+            for j in 0..3 {
+                result.v[i][j] = mlaf(
+                    mlaf(self.v[i][0] * other.v[0][j], self.v[i][1], other.v[1][j]),
+                    self.v[i][2],
+                    other.v[2][j],
+                );
+            }
+        }
+
+        result
+    }
+
+    #[inline]
+    pub const fn mat_mul_const(&self, other: Matrix3d) -> Self {
+        let mut result = Matrix3d { v: [[0.; 3]; 3] };
+        let mut i = 0usize;
+        while i < 3 {
+            let mut j = 0usize;
+            while j < 3 {
+                result.v[i][j] = self.v[i][0] * other.v[0][j]
+                    + self.v[i][1] * other.v[1][j]
+                    + self.v[i][2] * other.v[2][j];
+                j += 1;
+            }
+            i += 1;
+        }
+
+        result
+    }
+
+    #[inline]
+    pub const fn to_f32(&self) -> Matrix3f {
+        Matrix3f {
+            v: [
+                [
+                    self.v[0][0] as f32,
+                    self.v[0][1] as f32,
+                    self.v[0][2] as f32,
+                ],
+                [
+                    self.v[1][0] as f32,
+                    self.v[1][1] as f32,
+                    self.v[1][2] as f32,
+                ],
+                [
+                    self.v[2][0] as f32,
+                    self.v[2][1] as f32,
+                    self.v[2][2] as f32,
+                ],
+            ],
+        }
+    }
 }
 
 /// Holds CIE XYZ representation
@@ -643,140 +917,178 @@ pub struct Xyz {
     pub z: f32,
 }
 
-impl PartialEq<Self> for Xyz {
-    #[inline]
-    fn eq(&self, other: &Self) -> bool {
-        const TOLERANCE: f32 = 0.0001f32;
-        let dx = (self.x - other.x).abs();
-        let dy = (self.y - other.y).abs();
-        let dz = (self.z - other.z).abs();
-        dx < TOLERANCE && dy < TOLERANCE && dz < TOLERANCE
-    }
+/// Holds CIE XYZ representation, in double precision
+#[repr(C)]
+#[derive(Clone, Debug, Copy, Default)]
+pub struct Xyzd {
+    pub x: f64,
+    pub y: f64,
+    pub z: f64,
 }
 
-impl Xyz {
-    #[inline]
-    pub const fn new(x: f32, y: f32, z: f32) -> Self {
-        Self { x, y, z }
-    }
-
-    #[inline]
-    pub const fn to_vector(self) -> Vector3f {
-        Vector3f {
-            v: [self.x, self.y, self.z],
+macro_rules! define_xyz {
+    ($xyz_name:ident, $im_type: ident) => {
+        impl PartialEq<Self> for $xyz_name {
+            #[inline]
+            fn eq(&self, other: &Self) -> bool {
+                const TOLERANCE: $im_type = 0.0001;
+                let dx = (self.x - other.x).abs();
+                let dy = (self.y - other.y).abs();
+                let dz = (self.z - other.z).abs();
+                dx < TOLERANCE && dy < TOLERANCE && dz < TOLERANCE
+            }
         }
-    }
 
-    #[inline]
-    pub fn from_linear_rgb(rgb: crate::Rgb<f32>, rgb_to_xyz: Matrix3f) -> Self {
-        let r = rgb.r;
-        let g = rgb.g;
-        let b = rgb.b;
+        impl $xyz_name {
+            #[inline]
+            pub const fn new(x: $im_type, y: $im_type, z: $im_type) -> Self {
+                Self { x, y, z }
+            }
 
-        let transform = rgb_to_xyz;
+            #[inline]
+            pub const fn to_vector(self) -> Vector3f {
+                Vector3f {
+                    v: [self.x as f32, self.y as f32, self.z as f32],
+                }
+            }
 
-        let new_r = mlaf(
-            mlaf(r * transform.v[0][0], g, transform.v[0][1]),
-            b,
-            transform.v[0][2],
-        );
+            #[inline]
+            pub const fn to_vector_d(self) -> Vector3d {
+                Vector3d {
+                    v: [self.x as f64, self.y as f64, self.z as f64],
+                }
+            }
 
-        let new_g = mlaf(
-            mlaf(r * transform.v[1][0], g, transform.v[1][1]),
-            b,
-            transform.v[1][2],
-        );
+            #[inline]
+            pub fn from_linear_rgb(
+                rgb: crate::Rgb<$im_type>,
+                rgb_to_xyz: Matrix3<$im_type>,
+            ) -> Self {
+                let r = rgb.r;
+                let g = rgb.g;
+                let b = rgb.b;
 
-        let new_b = mlaf(
-            mlaf(r * transform.v[2][0], g, transform.v[2][1]),
-            b,
-            transform.v[2][2],
-        );
+                let transform = rgb_to_xyz;
 
-        Xyz::new(new_r, new_g, new_b)
-    }
+                let new_r = mlaf(
+                    mlaf(r * transform.v[0][0], g, transform.v[0][1]),
+                    b,
+                    transform.v[0][2],
+                );
 
-    #[inline]
-    pub fn to_linear_rgb(self, rgb_to_xyz: Matrix3f) -> crate::Rgb<f32> {
-        let x = self.x;
-        let y = self.y;
-        let z = self.z;
+                let new_g = mlaf(
+                    mlaf(r * transform.v[1][0], g, transform.v[1][1]),
+                    b,
+                    transform.v[1][2],
+                );
 
-        let transform = rgb_to_xyz;
+                let new_b = mlaf(
+                    mlaf(r * transform.v[2][0], g, transform.v[2][1]),
+                    b,
+                    transform.v[2][2],
+                );
 
-        let new_r = mlaf(
-            mlaf(x * transform.v[0][0], y, transform.v[0][1]),
-            z,
-            transform.v[0][2],
-        );
+                $xyz_name::new(new_r, new_g, new_b)
+            }
 
-        let new_g = mlaf(
-            mlaf(x * transform.v[1][0], y, transform.v[1][1]),
-            z,
-            transform.v[1][2],
-        );
+            #[inline]
+            pub fn normalize(self) -> Self {
+                if self.y == 0. {
+                    return Self::default();
+                }
+                Self {
+                    x: self.x / self.y,
+                    y: 1.0,
+                    z: self.z / self.y,
+                }
+            }
 
-        let new_b = mlaf(
-            mlaf(x * transform.v[2][0], y, transform.v[2][1]),
-            z,
-            transform.v[2][2],
-        );
+            #[inline]
+            pub fn to_linear_rgb(self, rgb_to_xyz: Matrix3<$im_type>) -> crate::Rgb<$im_type> {
+                let x = self.x;
+                let y = self.y;
+                let z = self.z;
 
-        crate::Rgb::<f32>::new(new_r, new_g, new_b)
-    }
-}
+                let transform = rgb_to_xyz;
 
-impl Mul<f32> for Xyz {
-    type Output = Xyz;
+                let new_r = mlaf(
+                    mlaf(x * transform.v[0][0], y, transform.v[0][1]),
+                    z,
+                    transform.v[0][2],
+                );
 
-    #[inline]
-    fn mul(self, rhs: f32) -> Self::Output {
-        Self {
-            x: self.x * rhs,
-            y: self.y * rhs,
-            z: self.z * rhs,
+                let new_g = mlaf(
+                    mlaf(x * transform.v[1][0], y, transform.v[1][1]),
+                    z,
+                    transform.v[1][2],
+                );
+
+                let new_b = mlaf(
+                    mlaf(x * transform.v[2][0], y, transform.v[2][1]),
+                    z,
+                    transform.v[2][2],
+                );
+
+                crate::Rgb::<$im_type>::new(new_r, new_g, new_b)
+            }
         }
-    }
-}
 
-impl Mul<Xyz> for Xyz {
-    type Output = Xyz;
+        impl Mul<$im_type> for $xyz_name {
+            type Output = $xyz_name;
 
-    #[inline]
-    fn mul(self, rhs: Xyz) -> Self::Output {
-        Self {
-            x: self.x * rhs.x,
-            y: self.y * rhs.y,
-            z: self.z * rhs.z,
+            #[inline]
+            fn mul(self, rhs: $im_type) -> Self::Output {
+                Self {
+                    x: self.x * rhs,
+                    y: self.y * rhs,
+                    z: self.z * rhs,
+                }
+            }
         }
-    }
-}
 
-impl Div<Xyz> for Xyz {
-    type Output = Xyz;
+        impl Mul<$xyz_name> for $xyz_name {
+            type Output = $xyz_name;
 
-    #[inline]
-    fn div(self, rhs: Xyz) -> Self::Output {
-        Self {
-            x: self.x / rhs.x,
-            y: self.y / rhs.y,
-            z: self.z / rhs.z,
+            #[inline]
+            fn mul(self, rhs: $xyz_name) -> Self::Output {
+                Self {
+                    x: self.x * rhs.x,
+                    y: self.y * rhs.y,
+                    z: self.z * rhs.z,
+                }
+            }
         }
-    }
-}
 
-impl Div<f32> for Xyz {
-    type Output = Xyz;
+        impl Div<$xyz_name> for $xyz_name {
+            type Output = $xyz_name;
 
-    #[inline]
-    fn div(self, rhs: f32) -> Self::Output {
-        Self {
-            x: self.x / rhs,
-            y: self.y / rhs,
-            z: self.z / rhs,
+            #[inline]
+            fn div(self, rhs: $xyz_name) -> Self::Output {
+                Self {
+                    x: self.x / rhs.x,
+                    y: self.y / rhs.y,
+                    z: self.z / rhs.z,
+                }
+            }
         }
-    }
+
+        impl Div<$im_type> for $xyz_name {
+            type Output = $xyz_name;
+
+            #[inline]
+            fn div(self, rhs: $im_type) -> Self::Output {
+                Self {
+                    x: self.x / rhs,
+                    y: self.y / rhs,
+                    z: self.z / rhs,
+                }
+            }
+        }
+    };
 }
+
+define_xyz!(Xyz, f32);
+define_xyz!(Xyzd, f64);
 
 /// Holds CIE XyY representation
 #[derive(Clone, Debug, Copy, Default)]
@@ -800,6 +1112,15 @@ impl XyY {
             z: (1. - self.x - self.y) / self.y * self.yb,
         }
     }
+
+    #[inline]
+    pub const fn to_xyzd(self) -> Xyzd {
+        Xyzd {
+            x: self.x as f64 / self.y as f64 * self.yb as f64,
+            y: self.yb as f64,
+            z: (1. - self.x as f64 - self.y as f64) / self.y as f64 * self.yb as f64,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Copy)]
@@ -821,6 +1142,15 @@ impl Chromaticity {
             x: self.x / self.y,
             y: 1f32,
             z: (1f32 - self.x - self.y) / self.y,
+        }
+    }
+
+    #[inline]
+    pub const fn to_xyzd(&self) -> Xyzd {
+        Xyzd {
+            x: self.x as f64 / self.y as f64,
+            y: 1f64,
+            z: (1f64 - self.x as f64 - self.y as f64) / self.y as f64,
         }
     }
 

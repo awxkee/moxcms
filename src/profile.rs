@@ -36,7 +36,7 @@ use crate::matrix::{BT2020_MATRIX, DISPLAY_P3_MATRIX, Matrix3f, SRGB_MATRIX, XyY
 use crate::safe_reader::{SafeAdd, SafeMul};
 use crate::tag::{TAG_SIZE, Tag, TagTypeDefinition};
 use crate::trc::ToneReprCurve;
-use crate::{Chromaticity, Layout, Vector3f};
+use crate::{Chromaticity, Layout, Matrix3d, Vector3f, Xyzd, adapt_to_d50_d};
 use std::io::Read;
 
 const MAX_PROFILE_SIZE: usize = 1024 * 1024 * 10; // 10 MB max, for Fogra39 etc
@@ -1386,7 +1386,9 @@ impl ColorProfile {
         slice: &[u8],
         offset: usize,
         length: usize,
+        total_offset: usize,
     ) -> Result<Option<Vec<ToneReprCurve>>, CmsError> {
+        let mut captured_offset = total_offset;
         let mut curve_offset: usize = offset;
         let mut curves = Vec::new();
         for _ in 0..length {
@@ -1400,9 +1402,11 @@ impl ColorProfile {
                 Some(curve) => curves.push(curve),
             }
             curve_offset += tag_size;
+            captured_offset += tag_size;
             // 4 byte aligned
-            if tag_size % 4 != 0 {
-                curve_offset += 4 - tag_size % 4;
+            if captured_offset % 4 != 0 {
+                curve_offset += 4 - captured_offset % 4;
+                captured_offset += 4 - captured_offset % 4;
             }
         }
         Ok(Some(curves))
@@ -1413,6 +1417,7 @@ impl ColorProfile {
         slice: &[u8],
         entry: usize,
         tag_size: usize,
+        to_pcs: bool,
     ) -> Result<Option<LutWarehouse>, CmsError> {
         if tag_size < 48 {
             return Ok(None);
@@ -1563,22 +1568,49 @@ impl ColorProfile {
         let a_curves = if a_curve_offset == 0 {
             Vec::new()
         } else {
-            Self::read_nested_tone_curves(tag, a_curve_offset, in_channels as usize)?
-                .ok_or(CmsError::InvalidProfile)?
+            Self::read_nested_tone_curves(
+                tag,
+                a_curve_offset,
+                if to_pcs {
+                    in_channels as usize
+                } else {
+                    out_channels as usize
+                },
+                entry + a_curve_offset,
+            )?
+            .ok_or(CmsError::InvalidProfile)?
         };
 
         let m_curves = if m_curve_offset == 0 {
             Vec::new()
         } else {
-            Self::read_nested_tone_curves(tag, m_curve_offset, out_channels as usize)?
-                .ok_or(CmsError::InvalidProfile)?
+            Self::read_nested_tone_curves(
+                tag,
+                m_curve_offset,
+                if to_pcs {
+                    out_channels as usize
+                } else {
+                    in_channels as usize
+                },
+                entry + m_curve_offset,
+            )?
+            .ok_or(CmsError::InvalidProfile)?
         };
 
         let b_curves = if b_curve_offset == 0 {
             Vec::new()
         } else {
-            Self::read_nested_tone_curves(tag, b_curve_offset, out_channels as usize)?
-                .ok_or(CmsError::InvalidProfile)?
+            Self::read_nested_tone_curves(
+                tag,
+                b_curve_offset,
+                if to_pcs {
+                    out_channels as usize
+                } else {
+                    in_channels as usize
+                },
+                entry + b_curve_offset,
+            )?
+            .ok_or(CmsError::InvalidProfile)?
         };
 
         let wh = LutWarehouse::MCurves(LutMCurvesType {
@@ -1762,7 +1794,12 @@ impl ColorProfile {
         Ok(if lut_type == LutType::Lut8 || lut_type == LutType::Lut16 {
             Self::read_lut_a_to_b_type(slice, tag_entry as usize, tag_size)?
         } else if lut_type == LutType::LutMba || lut_type == LutType::LutMab {
-            Self::read_lut_abm_type(slice, tag_entry as usize, tag_size)?
+            Self::read_lut_abm_type(
+                slice,
+                tag_entry as usize,
+                tag_size,
+                lut_type == LutType::LutMab,
+            )?
         } else {
             None
         })
@@ -2015,17 +2052,17 @@ impl ColorProfile {
         green_xyz: Xyz,
         blue_xyz: Xyz,
     ) {
-        let xyz_matrix = Matrix3f {
+        let xyz_matrix = Matrix3d {
             v: [
-                [red_xyz.x, green_xyz.x, blue_xyz.x],
-                [red_xyz.y, green_xyz.y, blue_xyz.y],
-                [red_xyz.z, green_xyz.z, blue_xyz.z],
+                [red_xyz.x as f64, green_xyz.x as f64, blue_xyz.x as f64],
+                [red_xyz.y as f64, green_xyz.y as f64, blue_xyz.y as f64],
+                [red_xyz.z as f64, green_xyz.z as f64, blue_xyz.z as f64],
             ],
         };
-        let colorants = ColorProfile::rgb_to_xyz_const(xyz_matrix, white_point.to_xyz());
-        let colorants = adapt_to_d50(colorants, white_point);
+        let colorants = ColorProfile::rgb_to_xyz_const_d(xyz_matrix, white_point.to_xyzd());
+        let colorants = adapt_to_d50_d(colorants, white_point);
 
-        self.update_colorants(colorants);
+        self.update_colorants(colorants.to_f32());
     }
 
     pub(crate) const fn update_colorants(&mut self, colorants: Matrix3f) {
@@ -2088,10 +2125,26 @@ impl ColorProfile {
         v
     }
 
+    /// If Primaries is invalid will return invalid matrix on const context
+    pub const fn rgb_to_xyz_const_d(xyz_matrix: Matrix3d, wp: Xyzd) -> Matrix3d {
+        let xyz_inverse = xyz_matrix.inverse();
+        let s = xyz_inverse.mul_vector(wp.to_vector_d());
+        let mut v = xyz_matrix.mul_row_vector::<0>(s);
+        v = v.mul_row_vector::<1>(s);
+        v = v.mul_row_vector::<2>(s);
+        v
+    }
+
     pub fn rgb_to_xyz_matrix(&self) -> Option<Matrix3f> {
         let xyz_matrix = self.colorant_matrix();
         let white_point = Chromaticity::D50.to_xyz();
         self.rgb_to_xyz(xyz_matrix, white_point)
+    }
+
+    pub fn rgb_to_xyz_matrix_d(&self) -> Matrix3d {
+        let xyz_matrix = self.colorant_matrix().to_f64();
+        let white_point = Chromaticity::D50.to_xyzd();
+        ColorProfile::rgb_to_xyz_const_d(xyz_matrix, white_point)
     }
 
     /// Computes transform matrix RGB -> XYZ -> RGB

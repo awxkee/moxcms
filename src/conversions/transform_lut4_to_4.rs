@@ -27,41 +27,78 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::conversions::CompressForLut;
-use crate::conversions::avx::interpolator::{
-    AvxMdInterpolationDouble, PrismaticAvxFmaDouble, PyramidAvxFmaDouble, SseAlignedF32,
-    TetrahedralAvxFmaDouble, TrilinearAvxFmaDouble,
+use crate::conversions::interpolator::{
+    MultidimensionalInterpolation, Prismatic, Pyramidal, Tetrahedral, Trilinear,
 };
 use crate::conversions::lut_transforms::{LUT_SAMPLING, Lut4x3Factory};
-use crate::transform::PointeeSizeExpressible;
-use crate::{CmsError, InterpolationMethod, Layout, TransformExecutor, rounding_div_ceil};
+use crate::math::{FusedMultiplyAdd, m_clamp};
+use crate::{
+    CmsError, InterpolationMethod, Layout, PointeeSizeExpressible, TransformExecutor, Vector3f,
+};
 use num_traits::AsPrimitive;
-#[cfg(target_arch = "x86")]
-use std::arch::x86::*;
-#[cfg(target_arch = "x86_64")]
-use std::arch::x86_64::*;
 use std::marker::PhantomData;
 
-struct TransformLut4XyzToRgbAvx<T, const LAYOUT: u8, const GRID_SIZE: usize, const BIT_DEPTH: usize>
-{
-    lut: Vec<SseAlignedF32>,
+pub(crate) trait Vector3fCmykLerp {
+    fn interpolate(a: Vector3f, b: Vector3f, t: f32, scale: f32) -> Vector3f;
+}
+
+#[allow(unused)]
+#[derive(Copy, Clone, Default)]
+struct DefaultVector3fLerp;
+
+impl Vector3fCmykLerp for DefaultVector3fLerp {
+    #[inline(always)]
+    fn interpolate(a: Vector3f, b: Vector3f, t: f32, scale: f32) -> Vector3f {
+        let t = Vector3f::from(t);
+        let mut new_vec = (a * (Vector3f::from(1.0) - t)).mla(b, t) * scale + 0.5f32;
+        new_vec.v[0] = m_clamp(new_vec.v[0], 0.0, scale);
+        new_vec.v[1] = m_clamp(new_vec.v[1], 0.0, scale);
+        new_vec.v[2] = m_clamp(new_vec.v[2], 0.0, scale);
+        new_vec
+    }
+}
+
+#[allow(unused)]
+#[derive(Copy, Clone, Default)]
+pub(crate) struct NonFiniteVector3fLerp;
+
+impl Vector3fCmykLerp for NonFiniteVector3fLerp {
+    #[inline(always)]
+    fn interpolate(a: Vector3f, b: Vector3f, t: f32, _: f32) -> Vector3f {
+        let t = Vector3f::from(t);
+        let mut new_vec = (a * (Vector3f::from(1.0) - t)).mla(b, t);
+        new_vec.v[0] = m_clamp(new_vec.v[0], 0.0, 1.0);
+        new_vec.v[1] = m_clamp(new_vec.v[1], 0.0, 1.0);
+        new_vec.v[2] = m_clamp(new_vec.v[2], 0.0, 1.0);
+        new_vec
+    }
+}
+
+#[allow(unused)]
+struct TransformLut4XyzToRgb<T, const LAYOUT: u8, const GRID_SIZE: usize, const BIT_DEPTH: usize> {
+    lut: Vec<f32>,
     _phantom: PhantomData<T>,
     interpolation_method: InterpolationMethod,
 }
 
+#[allow(unused)]
 impl<
-    T: Copy + AsPrimitive<f32> + Default + CompressForLut + PointeeSizeExpressible,
+    T: Copy + AsPrimitive<f32> + Default + CompressForLut,
     const LAYOUT: u8,
     const GRID_SIZE: usize,
     const BIT_DEPTH: usize,
-> TransformLut4XyzToRgbAvx<T, LAYOUT, GRID_SIZE, BIT_DEPTH>
+> TransformLut4XyzToRgb<T, LAYOUT, GRID_SIZE, BIT_DEPTH>
 where
     f32: AsPrimitive<T>,
     u32: AsPrimitive<T>,
 {
-    #[allow(unused_unsafe)]
-    #[target_feature(enable = "avx2", enable = "fma")]
-    unsafe fn transform_chunk<'b, Interpolator: AvxMdInterpolationDouble<'b, GRID_SIZE>>(
-        &'b self,
+    #[inline(always)]
+    fn transform_chunk<
+        'k,
+        Tetrahedral: MultidimensionalInterpolation<'k, GRID_SIZE>,
+        Interpolation: Vector3fCmykLerp,
+    >(
+        &'k self,
         src: &[T],
         dst: &mut [T],
     ) {
@@ -70,7 +107,7 @@ where
         let grid_size = GRID_SIZE as i32;
         let grid_size3 = grid_size * grid_size * grid_size;
 
-        let value_scale = unsafe { _mm_set1_ps(((1 << BIT_DEPTH) - 1) as f32) };
+        let value_scale = ((1 << BIT_DEPTH) - 1) as f32;
         let max_value = ((1 << BIT_DEPTH) - 1u32).as_();
 
         for (src, dst) in src.chunks_exact(4).zip(dst.chunks_exact_mut(channels)) {
@@ -78,51 +115,22 @@ where
             let m = src[1].compress_lut::<BIT_DEPTH>();
             let y = src[2].compress_lut::<BIT_DEPTH>();
             let k = src[3].compress_lut::<BIT_DEPTH>();
-            let linear_k: f32 = k as i32 as f32 / LUT_SAMPLING as f32;
+            let linear_k: f32 = k as i32 as f32 * (1. / LUT_SAMPLING as f32);
             let w: i32 = k as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
-            let w_n: i32 =
-                rounding_div_ceil(k as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
+            let w_n: i32 = (w + 1).min(GRID_SIZE as i32 - 1);
             let t: f32 = linear_k * (GRID_SIZE as i32 - 1) as f32 - w as f32;
 
-            let table1 = &self.lut[(w * grid_size3) as usize..];
-            let table2 = &self.lut[(w_n * grid_size3) as usize..];
+            let table1 = &self.lut[(w * grid_size3 * 3) as usize..];
+            let table2 = &self.lut[(w_n * grid_size3 * 3) as usize..];
 
-            let interpolator = Interpolator::new(table1, table2);
-            let v = interpolator.inter3_sse(c, m, y);
-            let (a0, b0) = (v.0.v, v.1.v);
-
-            if T::FINITE {
-                unsafe {
-                    let t0 = _mm_set1_ps(t);
-                    let ones = _mm_set1_ps(1f32);
-                    let hp = _mm_mul_ps(a0, _mm_sub_ps(ones, t0));
-                    let mut v = _mm_fmadd_ps(b0, t0, hp);
-                    v = _mm_max_ps(v, _mm_setzero_ps());
-                    v = _mm_mul_ps(v, value_scale);
-                    v = _mm_min_ps(v, value_scale);
-                    let jvz = _mm_cvtps_epi32(v);
-
-                    let x = _mm_extract_epi32::<0>(jvz);
-                    let y = _mm_extract_epi32::<1>(jvz);
-                    let z = _mm_extract_epi32::<2>(jvz);
-
-                    dst[cn.r_i()] = (x as u32).as_();
-                    dst[cn.g_i()] = (y as u32).as_();
-                    dst[cn.b_i()] = (z as u32).as_();
-                }
-            } else {
-                unsafe {
-                    let t0 = _mm_set1_ps(t);
-                    let ones = _mm_set1_ps(1f32);
-                    let hp = _mm_mul_ps(a0, _mm_sub_ps(ones, t0));
-                    let mut v = _mm_fmadd_ps(b0, t0, hp);
-                    v = _mm_max_ps(v, _mm_setzero_ps());
-                    v = _mm_min_ps(v, value_scale);
-                    dst[cn.r_i()] = f32::from_bits(_mm_extract_ps::<0>(v) as u32).as_();
-                    dst[cn.g_i()] = f32::from_bits(_mm_extract_ps::<1>(v) as u32).as_();
-                    dst[cn.b_i()] = f32::from_bits(_mm_extract_ps::<2>(v) as u32).as_();
-                }
-            }
+            let tetrahedral1 = Tetrahedral::new(table1);
+            let tetrahedral2 = Tetrahedral::new(table2);
+            let r1 = tetrahedral1.inter3(c, m, y);
+            let r2 = tetrahedral2.inter3(c, m, y);
+            let r = Interpolation::interpolate(r1, r2, t, value_scale);
+            dst[cn.r_i()] = r.v[0].as_();
+            dst[cn.g_i()] = r.v[1].as_();
+            dst[cn.b_i()] = r.v[2].as_();
             if channels == 4 {
                 dst[cn.a_i()] = max_value;
             }
@@ -130,12 +138,13 @@ where
     }
 }
 
+#[allow(unused)]
 impl<
     T: Copy + AsPrimitive<f32> + Default + CompressForLut + PointeeSizeExpressible,
     const LAYOUT: u8,
     const GRID_SIZE: usize,
     const BIT_DEPTH: usize,
-> TransformExecutor<T> for TransformLut4XyzToRgbAvx<T, LAYOUT, GRID_SIZE, BIT_DEPTH>
+> TransformExecutor<T> for TransformLut4XyzToRgb<T, LAYOUT, GRID_SIZE, BIT_DEPTH>
 where
     f32: AsPrimitive<T>,
     u32: AsPrimitive<T>,
@@ -155,19 +164,33 @@ where
             return Err(CmsError::LaneSizeMismatch);
         }
 
-        unsafe {
-            match self.interpolation_method {
-                InterpolationMethod::Tetrahedral => {
-                    self.transform_chunk::<TetrahedralAvxFmaDouble<GRID_SIZE>>(src, dst);
+        match self.interpolation_method {
+            InterpolationMethod::Tetrahedral => {
+                if T::FINITE {
+                    self.transform_chunk::<Tetrahedral<GRID_SIZE>, DefaultVector3fLerp>(src, dst);
+                } else {
+                    self.transform_chunk::<Tetrahedral<GRID_SIZE>, NonFiniteVector3fLerp>(src, dst);
                 }
-                InterpolationMethod::Pyramid => {
-                    self.transform_chunk::<PyramidAvxFmaDouble<GRID_SIZE>>(src, dst);
+            }
+            InterpolationMethod::Pyramid => {
+                if T::FINITE {
+                    self.transform_chunk::<Pyramidal<GRID_SIZE>, DefaultVector3fLerp>(src, dst);
+                } else {
+                    self.transform_chunk::<Pyramidal<GRID_SIZE>, NonFiniteVector3fLerp>(src, dst);
                 }
-                InterpolationMethod::Prism => {
-                    self.transform_chunk::<PrismaticAvxFmaDouble<GRID_SIZE>>(src, dst);
+            }
+            InterpolationMethod::Prism => {
+                if T::FINITE {
+                    self.transform_chunk::<Prismatic<GRID_SIZE>, DefaultVector3fLerp>(src, dst);
+                } else {
+                    self.transform_chunk::<Prismatic<GRID_SIZE>, NonFiniteVector3fLerp>(src, dst);
                 }
-                InterpolationMethod::Linear => {
-                    self.transform_chunk::<TrilinearAvxFmaDouble<GRID_SIZE>>(src, dst);
+            }
+            InterpolationMethod::Linear => {
+                if T::FINITE {
+                    self.transform_chunk::<Trilinear<GRID_SIZE>, DefaultVector3fLerp>(src, dst);
+                } else {
+                    self.transform_chunk::<Trilinear<GRID_SIZE>, NonFiniteVector3fLerp>(src, dst);
                 }
             }
         }
@@ -176,9 +199,11 @@ where
     }
 }
 
-pub(crate) struct AvxLut4x3Factory {}
+#[allow(dead_code)]
+pub(crate) struct DefaultLut4x3Factory {}
 
-impl Lut4x3Factory for AvxLut4x3Factory {
+#[allow(dead_code)]
+impl Lut4x3Factory for DefaultLut4x3Factory {
     fn make_transform_4x3<
         T: Copy + AsPrimitive<f32> + Default + CompressForLut + PointeeSizeExpressible + 'static,
         const LAYOUT: u8,
@@ -192,11 +217,7 @@ impl Lut4x3Factory for AvxLut4x3Factory {
         f32: AsPrimitive<T>,
         u32: AsPrimitive<T>,
     {
-        let lut = lut
-            .chunks_exact(3)
-            .map(|x| SseAlignedF32([x[0], x[1], x[2], 0f32]))
-            .collect::<Vec<_>>();
-        TransformLut4XyzToRgbAvx::<T, LAYOUT, GRID_SIZE, BIT_DEPTH> {
+        TransformLut4XyzToRgb::<T, LAYOUT, GRID_SIZE, BIT_DEPTH> {
             lut,
             _phantom: PhantomData,
             interpolation_method,

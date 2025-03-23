@@ -27,7 +27,10 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::mlaf::mlaf;
-use crate::{Array3D, CmsError, InPlaceStage, LutMCurvesType, Matrix3f, Vector3f};
+use crate::{
+    Array3D, CmsError, InPlaceStage, InterpolationMethod, LutMCurvesType, Matrix3f,
+    TransformOptions, Vector3f,
+};
 
 struct ACurves3<'a, const DEPTH: usize> {
     curve0: Box<[f32; DEPTH]>,
@@ -35,13 +38,16 @@ struct ACurves3<'a, const DEPTH: usize> {
     curve2: Box<[f32; DEPTH]>,
     clut: &'a [f32],
     grid_size: usize,
+    interpolation_method: InterpolationMethod,
 }
 
-impl<const DEPTH: usize> InPlaceStage for ACurves3<'_, DEPTH> {
-    fn transform(&self, dst: &mut [f32]) -> Result<(), CmsError> {
+impl<const DEPTH: usize> ACurves3<'_, DEPTH> {
+    fn transform_impl<Fetch: Fn(f32, f32, f32) -> Vector3f>(
+        &self,
+        dst: &mut [f32],
+        fetch: Fetch,
+    ) -> Result<(), CmsError> {
         let scale_value = (DEPTH - 1) as f32;
-
-        let lut = Array3D::new(self.clut, self.grid_size);
 
         for dst in dst.chunks_exact_mut(3) {
             let a0 = (dst[0] * scale_value).min(scale_value) as u8;
@@ -50,10 +56,31 @@ impl<const DEPTH: usize> InPlaceStage for ACurves3<'_, DEPTH> {
             let b0 = self.curve0[a0 as usize];
             let b1 = self.curve1[a1 as usize];
             let b2 = self.curve2[a2 as usize];
-            let interpolated = lut.trilinear_vec3(b0, b1, b2);
+            let interpolated = fetch(b0, b1, b2);
             dst[0] = interpolated.v[0];
             dst[1] = interpolated.v[1];
             dst[2] = interpolated.v[2];
+        }
+        Ok(())
+    }
+}
+
+impl<const DEPTH: usize> InPlaceStage for ACurves3<'_, DEPTH> {
+    fn transform(&self, dst: &mut [f32]) -> Result<(), CmsError> {
+        let lut = Array3D::new(self.clut, self.grid_size);
+        match self.interpolation_method {
+            InterpolationMethod::Tetrahedral => {
+                self.transform_impl(dst, |x, y, z| lut.tetra_vec3(x, y, z))?;
+            }
+            InterpolationMethod::Pyramid => {
+                self.transform_impl(dst, |x, y, z| lut.pyramid_vec3(x, y, z))?;
+            }
+            InterpolationMethod::Prism => {
+                self.transform_impl(dst, |x, y, z| lut.prism_vec3(x, y, z))?;
+            }
+            InterpolationMethod::Linear => {
+                self.transform_impl(dst, |x, y, z| lut.trilinear_vec3(x, y, z))?;
+            }
         }
         Ok(())
     }
@@ -65,16 +92,19 @@ struct ACurves3Inverse<'a, const DEPTH: usize> {
     curve2: Box<[f32; DEPTH]>,
     clut: &'a [f32],
     grid_size: usize,
+    interpolation_method: InterpolationMethod,
 }
 
-impl<const DEPTH: usize> InPlaceStage for ACurves3Inverse<'_, DEPTH> {
-    fn transform(&self, dst: &mut [f32]) -> Result<(), CmsError> {
+impl<const DEPTH: usize> ACurves3Inverse<'_, DEPTH> {
+    fn transform_impl<Fetch: Fn(f32, f32, f32) -> Vector3f>(
+        &self,
+        dst: &mut [f32],
+        fetch: Fetch,
+    ) -> Result<(), CmsError> {
         let scale_value = (DEPTH as u32 - 1u32) as f32;
 
-        let lut = Array3D::new(self.clut, self.grid_size);
-
         for dst in dst.chunks_exact_mut(3) {
-            let interpolated = lut.trilinear_vec3(dst[0], dst[1], dst[2]);
+            let interpolated = fetch(dst[0], dst[1], dst[2]);
             let a0 = (interpolated.v[0] * scale_value).min(scale_value) as u8;
             let a1 = (interpolated.v[1] * scale_value).min(scale_value) as u8;
             let a2 = (interpolated.v[2] * scale_value).min(scale_value) as u8;
@@ -84,6 +114,27 @@ impl<const DEPTH: usize> InPlaceStage for ACurves3Inverse<'_, DEPTH> {
             dst[0] = b0;
             dst[1] = b1;
             dst[2] = b2;
+        }
+        Ok(())
+    }
+}
+
+impl<const DEPTH: usize> InPlaceStage for ACurves3Inverse<'_, DEPTH> {
+    fn transform(&self, dst: &mut [f32]) -> Result<(), CmsError> {
+        let lut = Array3D::new(self.clut, self.grid_size);
+        match self.interpolation_method {
+            InterpolationMethod::Tetrahedral => {
+                self.transform_impl(dst, |x, y, z| lut.tetra_vec3(x, y, z))?;
+            }
+            InterpolationMethod::Pyramid => {
+                self.transform_impl(dst, |x, y, z| lut.pyramid_vec3(x, y, z))?;
+            }
+            InterpolationMethod::Prism => {
+                self.transform_impl(dst, |x, y, z| lut.prism_vec3(x, y, z))?;
+            }
+            InterpolationMethod::Linear => {
+                self.transform_impl(dst, |x, y, z| lut.trilinear_vec3(x, y, z))?;
+            }
         }
         Ok(())
     }
@@ -184,7 +235,11 @@ impl<const DEPTH: usize> InPlaceStage for BCurves<DEPTH> {
     }
 }
 
-pub(crate) fn prepare_mab_3x3(mab: &LutMCurvesType, lut: &mut [f32]) -> Result<(), CmsError> {
+pub(crate) fn prepare_mab_3x3(
+    mab: &LutMCurvesType,
+    lut: &mut [f32],
+    options: TransformOptions,
+) -> Result<(), CmsError> {
     const LERP_DEPTH: usize = 256;
     const BP: usize = 8;
     if mab.num_input_channels != 3 && mab.num_output_channels != 3 {
@@ -210,6 +265,7 @@ pub(crate) fn prepare_mab_3x3(mab: &LutMCurvesType, lut: &mut [f32]) -> Result<(
             curve2,
             clut,
             grid_size: mab.grid_points[0] as usize,
+            interpolation_method: options.interpolation_method,
         };
         a_curves.transform(lut)?;
     }
@@ -260,7 +316,11 @@ pub(crate) fn prepare_mab_3x3(mab: &LutMCurvesType, lut: &mut [f32]) -> Result<(
     Ok(())
 }
 
-pub(crate) fn prepare_mba_3x3(mab: &LutMCurvesType, lut: &mut [f32]) -> Result<(), CmsError> {
+pub(crate) fn prepare_mba_3x3(
+    mab: &LutMCurvesType,
+    lut: &mut [f32],
+    options: TransformOptions,
+) -> Result<(), CmsError> {
     if mab.num_input_channels != 3 && mab.num_output_channels != 3 {
         return Err(CmsError::UnsupportedProfileConnection);
     }
@@ -330,6 +390,7 @@ pub(crate) fn prepare_mba_3x3(mab: &LutMCurvesType, lut: &mut [f32]) -> Result<(
             curve2,
             clut,
             grid_size: mab.grid_points[0] as usize,
+            interpolation_method: options.interpolation_method,
         };
         a_curves.transform(lut)?;
     }

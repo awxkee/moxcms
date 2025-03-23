@@ -26,60 +26,20 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-use crate::conversions::interpolator::{
-    MultidimensionalInterpolation, Prismatic, Pyramidal, Tetrahedral,
-};
 use crate::conversions::lut3x3::create_lut3x3;
 use crate::conversions::lut3x4::{create_lut3_samples, create_lut3_samples_norm, create_lut3x4};
 use crate::conversions::lut4::create_lut4;
 use crate::conversions::mab::{prepare_mab_3x3, prepare_mba_3x3};
 use crate::conversions::transform_lut3_to_4::TransformLut3x4;
 use crate::lab::Lab;
-use crate::math::{FusedMultiplyAdd, m_clamp};
+use crate::math::m_clamp;
 use crate::mlaf::mlaf;
 use crate::{
     CmsError, ColorProfile, DataColorSpace, InPlaceStage, InterpolationMethod, Layout,
-    LutWarehouse, Matrix3f, ProfileVersion, TransformExecutor, TransformOptions, Vector3f, Xyz,
-    rounding_div_ceil,
+    LutWarehouse, Matrix3f, ProfileVersion, TransformExecutor, TransformOptions, Xyz,
 };
 use num_traits::AsPrimitive;
 use std::marker::PhantomData;
-
-pub(crate) trait Vector3fCmykLerp {
-    fn interpolate(a: Vector3f, b: Vector3f, t: f32, scale: f32) -> Vector3f;
-}
-
-#[allow(unused)]
-#[derive(Copy, Clone, Default)]
-struct DefaultVector3fLerp;
-
-impl Vector3fCmykLerp for DefaultVector3fLerp {
-    #[inline(always)]
-    fn interpolate(a: Vector3f, b: Vector3f, t: f32, scale: f32) -> Vector3f {
-        let t = Vector3f::from(t);
-        let mut new_vec = (a * (Vector3f::from(1.0) - t)).mla(b, t) * scale + 0.5f32;
-        new_vec.v[0] = new_vec.v[0].min(scale);
-        new_vec.v[1] = new_vec.v[1].min(scale);
-        new_vec.v[2] = new_vec.v[2].min(scale);
-        new_vec
-    }
-}
-
-#[allow(unused)]
-#[derive(Copy, Clone, Default)]
-struct NonFiniteVector3fLerp;
-
-impl Vector3fCmykLerp for NonFiniteVector3fLerp {
-    #[inline(always)]
-    fn interpolate(a: Vector3f, b: Vector3f, t: f32, _: f32) -> Vector3f {
-        let t = Vector3f::from(t);
-        let mut new_vec = (a * (Vector3f::from(1.0) - t)).mla(b, t);
-        new_vec.v[0] = new_vec.v[0].min(1f32).max(0f32);
-        new_vec.v[1] = new_vec.v[1].min(1f32).max(0f32);
-        new_vec.v[2] = new_vec.v[2].min(1f32).max(0f32);
-        new_vec
-    }
-}
 
 #[derive(Default)]
 pub(crate) struct StageLabToXyz {}
@@ -110,39 +70,6 @@ impl InPlaceStage for StageXyzToLab {
             dst[2] = lab.b;
         }
         Ok(())
-    }
-}
-
-#[allow(unused)]
-struct TransformLut4XyzToRgb<T, const LAYOUT: u8, const GRID_SIZE: usize, const BIT_DEPTH: usize> {
-    lut: Vec<f32>,
-    _phantom: PhantomData<T>,
-    interpolation_method: InterpolationMethod,
-}
-
-#[allow(dead_code)]
-pub(crate) struct DefaultLut4x3Factory {}
-
-#[allow(dead_code)]
-impl Lut4x3Factory for DefaultLut4x3Factory {
-    fn make_transform_4x3<
-        T: Copy + AsPrimitive<f32> + Default + CompressForLut + PointeeSizeExpressible + 'static,
-        const LAYOUT: u8,
-        const GRID_SIZE: usize,
-        const BIT_DEPTH: usize,
-    >(
-        lut: Vec<f32>,
-        interpolation_method: InterpolationMethod,
-    ) -> impl TransformExecutor<T>
-    where
-        f32: AsPrimitive<T>,
-        u32: AsPrimitive<T>,
-    {
-        TransformLut4XyzToRgb::<T, LAYOUT, GRID_SIZE, BIT_DEPTH> {
-            lut,
-            _phantom: PhantomData,
-            interpolation_method,
-        }
     }
 }
 
@@ -232,35 +159,45 @@ impl InPlaceStage for MatrixStage {
 }
 
 pub(crate) trait CompressForLut {
-    fn compress_lut<const BIT_DEPTH: usize>(self) -> u8;
+    fn compress_lut<const BIT_DEPTH: usize>(self) -> u16;
 }
+
+pub(crate) const LUT_SAMPLING: u16 = 65535;
 
 impl CompressForLut for u8 {
     #[inline(always)]
-    fn compress_lut<const BIT_DEPTH: usize>(self) -> u8 {
-        self
+    fn compress_lut<const BIT_DEPTH: usize>(self) -> u16 {
+        u16::from_ne_bytes([self, self])
     }
 }
 
 impl CompressForLut for u16 {
     #[inline(always)]
-    fn compress_lut<const BIT_DEPTH: usize>(self) -> u8 {
-        let scale = BIT_DEPTH - 8;
-        (self >> scale).min(255) as u8
+    fn compress_lut<const BIT_DEPTH: usize>(self) -> u16 {
+        let target_expand_bits = 16u32 - BIT_DEPTH as u32;
+        ((self) << target_expand_bits) | ((self) >> (16 - target_expand_bits))
     }
 }
 
 impl CompressForLut for f32 {
     #[inline(always)]
-    fn compress_lut<const BIT_DEPTH: usize>(self) -> u8 {
-        m_clamp((self * 255.).round(), 0.0, 255.0) as u8
+    fn compress_lut<const BIT_DEPTH: usize>(self) -> u16 {
+        m_clamp(
+            (self * LUT_SAMPLING as f32).round(),
+            0.0,
+            LUT_SAMPLING as f32,
+        ) as u16
     }
 }
 
 impl CompressForLut for f64 {
     #[inline(always)]
-    fn compress_lut<const BIT_DEPTH: usize>(self) -> u8 {
-        m_clamp((self * 255.).round(), 0.0, 255.0) as u8
+    fn compress_lut<const BIT_DEPTH: usize>(self) -> u16 {
+        m_clamp(
+            (self * LUT_SAMPLING as f64).round(),
+            0.0,
+            LUT_SAMPLING as f64,
+        ) as u16
     }
 }
 
@@ -293,117 +230,6 @@ pub(crate) trait Lut4x3Factory {
     where
         f32: AsPrimitive<T>,
         u32: AsPrimitive<T>;
-}
-
-#[allow(unused)]
-impl<
-    T: Copy + AsPrimitive<f32> + Default + CompressForLut,
-    const LAYOUT: u8,
-    const GRID_SIZE: usize,
-    const BIT_DEPTH: usize,
-> TransformLut4XyzToRgb<T, LAYOUT, GRID_SIZE, BIT_DEPTH>
-where
-    f32: AsPrimitive<T>,
-    u32: AsPrimitive<T>,
-{
-    #[inline(always)]
-    fn transform_chunk<
-        'k,
-        Tetrahedral: MultidimensionalInterpolation<'k, GRID_SIZE>,
-        Interpolation: Vector3fCmykLerp,
-    >(
-        &'k self,
-        src: &[T],
-        dst: &mut [T],
-    ) {
-        let cn = Layout::from(LAYOUT);
-        let channels = cn.channels();
-        let grid_size = GRID_SIZE as i32;
-        let grid_size3 = grid_size * grid_size * grid_size;
-
-        let value_scale = ((1 << BIT_DEPTH) - 1) as f32;
-        let max_value = ((1 << BIT_DEPTH) - 1u32).as_();
-
-        for (src, dst) in src.chunks_exact(4).zip(dst.chunks_exact_mut(channels)) {
-            let c = src[0].compress_lut::<BIT_DEPTH>();
-            let m = src[1].compress_lut::<BIT_DEPTH>();
-            let y = src[2].compress_lut::<BIT_DEPTH>();
-            let k = src[3].compress_lut::<BIT_DEPTH>();
-            let linear_k: f32 = k as i32 as f32 / 255.0;
-            let w: i32 = k as i32 * (GRID_SIZE as i32 - 1) / 255;
-            let w_n: i32 = rounding_div_ceil(k as i32 * (GRID_SIZE as i32 - 1), 255);
-            let t: f32 = linear_k * (GRID_SIZE as i32 - 1) as f32 - w as f32;
-
-            let table1 = &self.lut[(w * grid_size3 * 3) as usize..];
-            let table2 = &self.lut[(w_n * grid_size3 * 3) as usize..];
-
-            let tetrahedral1 = Tetrahedral::new(table1);
-            let tetrahedral2 = Tetrahedral::new(table2);
-            let r1 = tetrahedral1.inter3(c, m, y);
-            let r2 = tetrahedral2.inter3(c, m, y);
-            let r = Interpolation::interpolate(r1, r2, t, value_scale);
-            dst[cn.r_i()] = r.v[0].as_();
-            dst[cn.g_i()] = r.v[1].as_();
-            dst[cn.b_i()] = r.v[2].as_();
-            if channels == 4 {
-                dst[cn.a_i()] = max_value;
-            }
-        }
-    }
-}
-
-#[allow(unused)]
-impl<
-    T: Copy + AsPrimitive<f32> + Default + CompressForLut + PointeeSizeExpressible,
-    const LAYOUT: u8,
-    const GRID_SIZE: usize,
-    const BIT_DEPTH: usize,
-> TransformExecutor<T> for TransformLut4XyzToRgb<T, LAYOUT, GRID_SIZE, BIT_DEPTH>
-where
-    f32: AsPrimitive<T>,
-    u32: AsPrimitive<T>,
-{
-    fn transform(&self, src: &[T], dst: &mut [T]) -> Result<(), CmsError> {
-        let cn = Layout::from(LAYOUT);
-        let channels = cn.channels();
-        if src.len() % 4 != 0 {
-            return Err(CmsError::LaneMultipleOfChannels);
-        }
-        if dst.len() % channels != 0 {
-            return Err(CmsError::LaneMultipleOfChannels);
-        }
-        let src_chunks = src.len() / 4;
-        let dst_chunks = dst.len() / channels;
-        if src_chunks != dst_chunks {
-            return Err(CmsError::LaneSizeMismatch);
-        }
-
-        match self.interpolation_method {
-            InterpolationMethod::Tetrahedral => {
-                if T::FINITE {
-                    self.transform_chunk::<Tetrahedral<GRID_SIZE>, DefaultVector3fLerp>(src, dst);
-                } else {
-                    self.transform_chunk::<Tetrahedral<GRID_SIZE>, NonFiniteVector3fLerp>(src, dst);
-                }
-            }
-            InterpolationMethod::Pyramid => {
-                if T::FINITE {
-                    self.transform_chunk::<Pyramidal<GRID_SIZE>, DefaultVector3fLerp>(src, dst);
-                } else {
-                    self.transform_chunk::<Pyramidal<GRID_SIZE>, NonFiniteVector3fLerp>(src, dst);
-                }
-            }
-            InterpolationMethod::Prism => {
-                if T::FINITE {
-                    self.transform_chunk::<Prismatic<GRID_SIZE>, DefaultVector3fLerp>(src, dst);
-                } else {
-                    self.transform_chunk::<Prismatic<GRID_SIZE>, NonFiniteVector3fLerp>(src, dst);
-                }
-            }
-        }
-
-        Ok(())
-    }
 }
 
 struct RgbLinearizationStage<
@@ -624,6 +450,8 @@ make_transform_3x3_fn!(make_transformer_3x3_sse41, SseLut3x3Factory);
 
 #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "avx"))]
 use crate::conversions::avx::AvxLut4x3Factory;
+// use crate::conversions::bpc::compensate_bpc_in_lut;
+
 #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "avx"))]
 make_transform_4x3_fn!(make_transformer_4x3_avx_fma, AvxLut4x3Factory);
 
@@ -631,6 +459,9 @@ make_transform_4x3_fn!(make_transformer_4x3_avx_fma, AvxLut4x3Factory);
 use crate::conversions::sse::SseLut4x3Factory;
 #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"))]
 make_transform_4x3_fn!(make_transformer_4x3_sse41, SseLut4x3Factory);
+
+#[cfg(not(all(target_arch = "aarch64", target_feature = "neon", feature = "neon")))]
+use crate::conversions::transform_lut4_to_4::DefaultLut4x3Factory;
 
 #[cfg(not(all(target_arch = "aarch64", target_feature = "neon", feature = "neon")))]
 make_transform_4x3_fn!(make_transformer_4x3, DefaultLut4x3Factory);
@@ -687,7 +518,7 @@ where
 
         const GRID_SIZE: usize = 17;
 
-        let mut lut = create_lut4::<GRID_SIZE>(src_lut_a_to_b)?;
+        let mut lut = create_lut4::<GRID_SIZE>(src_lut_a_to_b, options)?;
 
         pcs_lab_v2_to_v4(source, &mut lut);
 
@@ -695,6 +526,19 @@ where
             let lab_to_xyz_stage = StageLabToXyz::default();
             lab_to_xyz_stage.transform(&mut lut)?;
         }
+
+        // if source.color_space == DataColorSpace::Cmyk
+        //     && (options.rendering_intent == RenderingIntent::Perceptual
+        //         || options.rendering_intent == RenderingIntent::RelativeColorimetric)
+        //     && options.black_point_compensation
+        // {
+        //     if let (Some(src_bp), Some(dst_bp)) = (
+        //         source.detect_black_point::<GRID_SIZE>(&lut),
+        //         dest.detect_black_point::<GRID_SIZE>(&lut),
+        //     ) {
+        //         compensate_bpc_in_lut(&mut lut, src_bp, dst_bp);
+        //     }
+        // }
 
         if dest.pcs == DataColorSpace::Lab {
             let lab_to_xyz_stage = StageXyzToLab::default();
@@ -714,8 +558,10 @@ where
                 .get_pcs_to_device(options.rendering_intent)
                 .ok_or(CmsError::UnsupportedProfileConnection)?;
             match pcs_to_device {
-                LutWarehouse::Lut(lut_data_type) => lut = create_lut3x3(lut_data_type, &lut)?,
-                LutWarehouse::MCurves(mab) => prepare_mba_3x3(mab, &mut lut)?,
+                LutWarehouse::Lut(lut_data_type) => {
+                    lut = create_lut3x3(lut_data_type, &lut, options)?
+                }
+                LutWarehouse::MCurves(mab) => prepare_mba_3x3(mab, &mut lut, options)?,
             }
         }
 
@@ -766,9 +612,9 @@ where
 
             match device_to_pcs {
                 LutWarehouse::Lut(lut_data_type) => {
-                    lut = create_lut3x3(lut_data_type, &lut)?;
+                    lut = create_lut3x3(lut_data_type, &lut, options)?;
                 }
-                LutWarehouse::MCurves(mab) => prepare_mab_3x3(mab, &mut lut)?,
+                LutWarehouse::MCurves(mab) => prepare_mab_3x3(mab, &mut lut, options)?,
             }
         } else if source.has_full_colors_triplet() {
             lut = create_rgb_lin_lut::<T, BIT_DEPTH, LINEAR_CAP, GRID_SIZE>(source, options)?;
@@ -788,7 +634,7 @@ where
 
         pcs_lab_v4_to_v2(dest, &mut lut);
 
-        let lut = create_lut3x4(dest_lut_b_to_a, &lut)?;
+        let lut = create_lut3x4(dest_lut_b_to_a, &lut, options)?;
 
         return Ok(match src_layout {
             Layout::Rgb => {
@@ -833,9 +679,9 @@ where
 
             match device_to_pcs {
                 LutWarehouse::Lut(lut_data_type) => {
-                    lut = create_lut3x3(lut_data_type, &lut)?;
+                    lut = create_lut3x3(lut_data_type, &lut, options)?;
                 }
-                LutWarehouse::MCurves(mab) => prepare_mab_3x3(mab, &mut lut)?,
+                LutWarehouse::MCurves(mab) => prepare_mab_3x3(mab, &mut lut, options)?,
             }
         } else if source.has_full_colors_triplet() {
             lut = create_rgb_lin_lut::<T, BIT_DEPTH, LINEAR_CAP, GRID_SIZE>(source, options)?;
@@ -860,8 +706,10 @@ where
                 .get_pcs_to_device(options.rendering_intent)
                 .ok_or(CmsError::UnsupportedProfileConnection)?;
             match pcs_to_device {
-                LutWarehouse::Lut(lut_data_type) => lut = create_lut3x3(lut_data_type, &lut)?,
-                LutWarehouse::MCurves(mab) => prepare_mba_3x3(mab, &mut lut)?,
+                LutWarehouse::Lut(lut_data_type) => {
+                    lut = create_lut3x3(lut_data_type, &lut, options)?
+                }
+                LutWarehouse::MCurves(mab) => prepare_mba_3x3(mab, &mut lut, options)?,
             }
         } else if dest.has_full_colors_triplet() {
             prepare_inverse_lut_rgb_xyz::<T, BIT_DEPTH, GAMMA_LUT>(dest, &mut lut, options)?;
@@ -986,10 +834,7 @@ where
         options.allow_use_cicp_transfer,
     )?;
 
-    let xyz_to_rgb = dest
-        .rgb_to_xyz_matrix()
-        .ok_or(CmsError::UnsupportedProfileConnection)?
-        .inverse();
+    let xyz_to_rgb = dest.rgb_to_xyz_matrix_d().inverse();
 
     let mut matrices = vec![Matrix3f {
         v: [
@@ -999,7 +844,7 @@ where
         ],
     }];
 
-    matrices.push(xyz_to_rgb);
+    matrices.push(xyz_to_rgb.to_f32());
     let xyz_to_rgb_stage = XyzToRgbStage::<T, BIT_DEPTH, GAMMA_LUT> {
         r_gamma: gamma_map_r,
         g_gamma: gamma_map_g,

@@ -155,6 +155,9 @@ where
             InterpolationMethod::Prism => {
                 self.transform_chunk::<PrismaticNeon<GRID_SIZE>>(src, dst);
             }
+            InterpolationMethod::Linear => {
+                self.transform_chunk::<TrilinearNeon<GRID_SIZE>>(src, dst);
+            }
         }
 
         Ok(())

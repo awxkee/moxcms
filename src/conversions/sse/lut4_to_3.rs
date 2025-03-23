@@ -27,7 +27,7 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::conversions::CompressForLut;
-use crate::conversions::lut_transforms::Lut4x3Factory;
+use crate::conversions::lut_transforms::{LUT_SAMPLING, Lut4x3Factory};
 use crate::conversions::sse::TetrahedralSse;
 use crate::conversions::sse::interpolator::{
     PrismaticSse, PyramidalSse, SseAlignedF32, SseMdInterpolation,
@@ -78,9 +78,10 @@ where
             let m = src[1].compress_lut::<BIT_DEPTH>();
             let y = src[2].compress_lut::<BIT_DEPTH>();
             let k = src[3].compress_lut::<BIT_DEPTH>();
-            let linear_k: f32 = k as i32 as f32 / 255.0;
-            let w: i32 = k as i32 * (GRID_SIZE as i32 - 1) / 255;
-            let w_n: i32 = rounding_div_ceil(k as i32 * (GRID_SIZE as i32 - 1), 255);
+            let linear_k: f32 = k as i32 as f32 / LUT_SAMPLING as f32;
+            let w: i32 = k as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
+            let w_n: i32 =
+                rounding_div_ceil(k as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
             let t: f32 = linear_k * (GRID_SIZE as i32 - 1) as f32 - w as f32;
 
             let table1 = &self.lut[(w * grid_size3) as usize..];
@@ -167,6 +168,7 @@ where
                 InterpolationMethod::Prism => {
                     self.transform_chunk::<PrismaticSse<GRID_SIZE>>(src, dst);
                 }
+                InterpolationMethod::Linear => {}
             }
         }
 
