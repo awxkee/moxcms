@@ -469,15 +469,6 @@ pub enum LutWarehouse {
     MCurves(LutMCurvesType),
 }
 
-impl LutWarehouse {
-    pub(crate) fn as_lut(&self) -> Option<&LutDataType> {
-        match self {
-            LutWarehouse::Lut(lut) => Some(lut),
-            LutWarehouse::MCurves(_) => None,
-        }
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct LutDataType {
     // used by lut8Type/lut16Type (mft2) only
