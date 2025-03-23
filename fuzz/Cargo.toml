@@ -32,3 +32,10 @@ path = "safe_read/safe_read.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "lut"
+path = "lut/lut.rs"
+test = false
+doc = false
+bench = false

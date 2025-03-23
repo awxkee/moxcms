@@ -32,7 +32,7 @@ use crate::conversions::neon::interpolator::*;
 use crate::conversions::neon::interpolator::{NeonMdInterpolation, PyramidalNeon};
 use crate::conversions::neon::stages::NeonAlignedF32;
 use crate::transform::PointeeSizeExpressible;
-use crate::{CmsError, InterpolationMethod, Layout, TransformExecutor};
+use crate::{CmsError, InterpolationMethod, Layout, TransformExecutor, TransformOptions};
 use num_traits::AsPrimitive;
 use std::arch::aarch64::*;
 use std::marker::PhantomData;
@@ -168,15 +168,22 @@ pub(crate) struct NeonLut3x3Factory {}
 
 impl Lut3x3Factory for NeonLut3x3Factory {
     fn make_transform_3x3<
-        T: Copy + AsPrimitive<f32> + Default + CompressForLut + PointeeSizeExpressible + 'static,
+        T: Copy
+            + AsPrimitive<f32>
+            + Default
+            + CompressForLut
+            + PointeeSizeExpressible
+            + 'static
+            + Send
+            + Sync,
         const SRC_LAYOUT: u8,
         const DST_LAYOUT: u8,
         const GRID_SIZE: usize,
         const BIT_DEPTH: usize,
     >(
         lut: Vec<f32>,
-        interpolation_method: InterpolationMethod,
-    ) -> impl TransformExecutor<T>
+        options: TransformOptions,
+    ) -> Box<dyn TransformExecutor<T> + Send + Sync>
     where
         f32: AsPrimitive<T>,
         u32: AsPrimitive<T>,
@@ -185,10 +192,12 @@ impl Lut3x3Factory for NeonLut3x3Factory {
             .chunks_exact(3)
             .map(|x| NeonAlignedF32([x[0], x[1], x[2], 0f32]))
             .collect::<Vec<_>>();
-        TransformLut3x3Neon::<T, SRC_LAYOUT, DST_LAYOUT, GRID_SIZE, BIT_DEPTH> {
-            lut,
-            _phantom: PhantomData,
-            interpolation_method,
-        }
+        Box::new(
+            TransformLut3x3Neon::<T, SRC_LAYOUT, DST_LAYOUT, GRID_SIZE, BIT_DEPTH> {
+                lut,
+                _phantom: PhantomData,
+                interpolation_method: options.interpolation_method,
+            },
+        )
     }
 }

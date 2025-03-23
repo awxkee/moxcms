@@ -29,6 +29,7 @@
 // use jxl_oxide::{JxlImage, JxlThreadPool, Lcms2, Moxcms};
 use lcms2::{Intent, PixelFormat, Profile, Transform};
 use moxcms::{ColorProfile, InterpolationMethod, Layout, RenderingIntent, TransformOptions};
+use rand::Rng;
 use std::fs;
 use std::fs::File;
 use std::io::BufReader;
@@ -103,7 +104,7 @@ fn compute_abs_diff42(src: &[f32], dst: &[f32]) {
 }
 
 fn main() {
-    let funny_icc = fs::read("./assets/CGATS21_CRPC5.icc").unwrap();
+    let funny_icc = fs::read("./assets/srgb_perceptual.icc").unwrap();
 
     // println!("{:?}", decoded);
 
@@ -144,29 +145,7 @@ fn main() {
         .map(|x| x as f32 / 255.0)
         .collect::<Vec<_>>();
 
-    let pr1 = lcms2::Profile::new_icc(&funny_icc).unwrap();
-
-    let t1 = Transform::new(
-        &lcms2::Profile::new_srgb(),
-        PixelFormat::RGBA_FLT,
-        &pr1,
-        PixelFormat::CMYK_FLT,
-        Intent::Perceptual,
-    )
-    .unwrap();
-
-    let t2 = Transform::new(
-        &pr1,
-        PixelFormat::CMYK_FLT,
-        &lcms2::Profile::new_srgb(),
-        PixelFormat::RGBA_FLT,
-        Intent::Perceptual,
-    )
-    .unwrap();
-
     let mut cmyk = vec![0f32; (decoder.output_buffer_size().unwrap() / 3) * 4];
-
-    let mut cmyk_lcms2 = vec![[0f32; 4]; (decoder.output_buffer_size().unwrap() / 3) * 4];
 
     let icc = decoder.icc_profile().unwrap();
     let color_profile = ColorProfile::new_from_slice(&srgb_perceptual_icc).unwrap();
@@ -176,30 +155,23 @@ fn main() {
 
     // t1.transform_pixels(&real_dst, &mut cmyk);
 
-    let lcms2_src = real_dst
-        .chunks_exact(4)
-        .map(|x| [x[0], x[1], x[2], x[3]])
-        .collect::<Vec<_>>();
-
-    t1.transform_pixels(lcms2_src.as_slice(), cmyk_lcms2.as_mut_slice());
-
     let time = Instant::now();
 
-    // let transform = dest_profile
-    //     .create_transform_f32(
-    //         Layout::Rgba,
-    //         &funny_profile,
-    //         Layout::Rgba,
-    //         TransformOptions {
-    //             rendering_intent: RenderingIntent::Perceptual,
-    //             allow_use_cicp_transfer: false,
-    //             prefer_fixed_point: false,
-    //             interpolation_method: InterpolationMethod::Tetrahedral,
-    //         },
-    //     )
-    //     .unwrap();
-    //
-    // transform.transform(&real_dst, &mut cmyk).unwrap();
+    let transform = dest_profile
+        .create_transform_f32(
+            Layout::Rgba,
+            &funny_profile,
+            Layout::Rgba,
+            TransformOptions {
+                rendering_intent: RenderingIntent::Perceptual,
+                allow_use_cicp_transfer: false,
+                prefer_fixed_point: false,
+                interpolation_method: InterpolationMethod::Tetrahedral,
+            },
+        )
+        .unwrap();
+
+    transform.transform(&real_dst, &mut cmyk).unwrap();
 
     let time = Instant::now();
 
@@ -219,24 +191,7 @@ fn main() {
     println!("Rendering took {:?}", time.elapsed());
     let mut dst = vec![0f32; real_dst.len()];
 
-    let mut v_max = f32::MIN;
-
-    for src in cmyk_lcms2.iter() {
-        for &src in src.iter() {
-            v_max = src.max(v_max);
-        }
-    }
-
-    // v_max = 1.;
-    //
-    // let instant = Instant::now();
-
-    let clms = cmyk_lcms2
-        .iter()
-        .flat_map(|x| [x[0] / v_max, x[1] / v_max, x[2] / v_max, x[3] / v_max])
-        .collect::<Vec<_>>();
-
-    for (src, dst) in clms
+    for (src, dst) in cmyk
         .chunks_exact(img.width() as usize * 4)
         .zip(dst.chunks_exact_mut(img.width() as usize * 4))
     {
@@ -252,14 +207,6 @@ fn main() {
         .chunks_exact(4)
         .flat_map(|x| [x[0], x[1], x[2], 1.])
         .collect();
-
-    let mut rgba_lcms2 = vec![[0f32; 4]; (decoder.output_buffer_size().unwrap() / 3)];
-
-    t2.transform_pixels(&cmyk_lcms2, &mut rgba_lcms2);
-
-    let mut highlights = vec![0f32; dst.len()];
-
-    compute_abs_diff4(&dst, &rgba_lcms2, &mut highlights);
 
     // println!("Estimated time: {:?}", instant.elapsed());
 
@@ -353,33 +300,6 @@ fn main() {
         image::ExtendedColorType::Rgba8,
     )
     .unwrap();
-
-    let dst = highlights
-        .iter()
-        .map(|&x| (x * 255f32).round() as u8)
-        .collect::<Vec<_>>();
-    image::save_buffer(
-        "v_new_satu16.png",
-        &dst,
-        img.width(),
-        img.height(),
-        image::ExtendedColorType::Rgba8,
-    )
-    .unwrap();
-
-    let dst = rgba_lcms2
-        .iter()
-        .flat_map(|x| [x[0], x[1], x[2], 1.])
-        .map(|x| (x * 255f32).round() as u8)
-        .collect::<Vec<_>>();
-    image::save_buffer(
-        "v_new_lcms2.png",
-        &dst,
-        img.width(),
-        img.height(),
-        image::ExtendedColorType::Rgba8,
-    )
-    .unwrap();
 }
 
 // fn main() {
@@ -409,6 +329,7 @@ fn main() {
 //             Layout::Rgba,
 //             TransformOptions {
 //                 interpolation_method: InterpolationMethod::Prism,
+//                 prefer_fixed_point: true,
 //                 ..Default::default()
 //             },
 //         )

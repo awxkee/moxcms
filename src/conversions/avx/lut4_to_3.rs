@@ -33,7 +33,9 @@ use crate::conversions::avx::interpolator::{
 };
 use crate::conversions::lut_transforms::{LUT_SAMPLING, Lut4x3Factory};
 use crate::transform::PointeeSizeExpressible;
-use crate::{CmsError, InterpolationMethod, Layout, TransformExecutor, rounding_div_ceil};
+use crate::{
+    CmsError, InterpolationMethod, Layout, TransformExecutor, TransformOptions, rounding_div_ceil,
+};
 use num_traits::AsPrimitive;
 #[cfg(target_arch = "x86")]
 use std::arch::x86::*;
@@ -180,14 +182,21 @@ pub(crate) struct AvxLut4x3Factory {}
 
 impl Lut4x3Factory for AvxLut4x3Factory {
     fn make_transform_4x3<
-        T: Copy + AsPrimitive<f32> + Default + CompressForLut + PointeeSizeExpressible + 'static,
+        T: Copy
+            + AsPrimitive<f32>
+            + Default
+            + CompressForLut
+            + PointeeSizeExpressible
+            + 'static
+            + Send
+            + Sync,
         const LAYOUT: u8,
         const GRID_SIZE: usize,
         const BIT_DEPTH: usize,
     >(
         lut: Vec<f32>,
-        interpolation_method: InterpolationMethod,
-    ) -> impl TransformExecutor<T>
+        options: TransformOptions,
+    ) -> Box<dyn TransformExecutor<T> + Send + Sync>
     where
         f32: AsPrimitive<T>,
         u32: AsPrimitive<T>,
@@ -196,10 +205,12 @@ impl Lut4x3Factory for AvxLut4x3Factory {
             .chunks_exact(3)
             .map(|x| SseAlignedF32([x[0], x[1], x[2], 0f32]))
             .collect::<Vec<_>>();
-        TransformLut4XyzToRgbAvx::<T, LAYOUT, GRID_SIZE, BIT_DEPTH> {
-            lut,
-            _phantom: PhantomData,
-            interpolation_method,
-        }
+        Box::new(
+            TransformLut4XyzToRgbAvx::<T, LAYOUT, GRID_SIZE, BIT_DEPTH> {
+                lut,
+                _phantom: PhantomData,
+                interpolation_method: options.interpolation_method,
+            },
+        )
     }
 }

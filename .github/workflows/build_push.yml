@@ -85,6 +85,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@nightly
       - run: cargo install cargo-fuzz
       - run: cargo fuzz run unsafe --no-default-features --features ${{ matrix.feature }} -- -max_total_time=10
+      - run: cargo fuzz run lut --no-default-features --features ${{ matrix.feature }} -- -max_total_time=12
 
   fuzz_x86_64:
     name: Fuzzing x86_64
@@ -97,6 +98,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@nightly
       - run: cargo install cargo-fuzz
       - run: cargo fuzz run unsafe --no-default-features --features ${{ matrix.feature }} -- -max_total_time=12
+      - run: cargo fuzz run lut --no-default-features --features ${{ matrix.feature }} -- -max_total_time=12
 
   fuzz_reader:
     name: Fuzzing Reader
