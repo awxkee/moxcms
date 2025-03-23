@@ -1,10 +1,10 @@
-# Rust ICC management
+# Rust ICC Management
 
-Fast and safe converting between ICC profiles in pure Rust.
+Fast and safe conversion between ICC profiles; in pure Rust.
 
-Supports CMYK <-> RGBX and RGBX <-> RGBX, RGBX <-> GRAY, LAB <-> RGBX, CMYK <-> LAB
+Supports CMYK⬌RGBX, RGBX⬌RGBX, RGBX⬌GRAY, LAB⬌RGBX and CMYK⬌LAB
 
-# Example
+## Example
 
 ```rust
 let f_str = "./assets/dci_p3_profile.jpeg";
@@ -43,9 +43,9 @@ image::save_buffer(
     .unwrap();
 ```
 
-# Benchmarks
+## Benchmarks
 
-### ICC transform 8-bit 
+### ICC Transform 8-Bit 
 
 Test made on the image 1997x1331 size
 
@@ -62,6 +62,8 @@ Test made on the image 1997x1331 size
 | qcms LUT RGB->RGB   |  26.72ms   |  60.80ms   |
 | qcms RGBA->RGBA     |   6.83ms   |   4.99ms   |
 | qcms CMYK->RGBA     |  25.97ms   |  61.54ms   |
+
+## License
 
 This project is licensed under either of
 
