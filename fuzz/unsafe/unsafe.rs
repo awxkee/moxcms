@@ -1,10 +1,9 @@
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
-use moxcms::{ColorProfile, Layout, RenderingIntent, TransformOptions};
-use std::fs;
+use moxcms::{ColorProfile, InterpolationMethod, Layout, TransformOptions};
 
-fuzz_target!(|data: (u8, u8, u16, u8, u8,)| {
+fuzz_target!(|data: (u8, u8, u16, u8, u8, u8, u8, f32)| {
     let src_layout = if data.3 % 2 == 0 {
         Layout::Rgba
     } else {
@@ -15,24 +14,31 @@ fuzz_target!(|data: (u8, u8, u16, u8, u8,)| {
     } else {
         Layout::Rgb
     };
+    let bp = data.6 % 3;
+    let bit_depth = if bp == 0 {
+        10
+    } else if bp == 1 {
+        12
+    } else {
+        16
+    };
+    let inter = data.5 % 4;
+    let interpolation_method = if inter == 0 {
+        InterpolationMethod::Tetrahedral
+    } else if inter == 1 {
+        InterpolationMethod::Pyramid
+    } else if inter == 2 {
+        InterpolationMethod::Prism
+    } else {
+        InterpolationMethod::Linear
+    };
     fuzz_8_bit(
         data.0 as usize,
         data.1 as usize,
         (data.2 >> 8) as u8,
         src_layout,
         dst_layout,
-    );
-    fuzz_cmyk_8_bit(
-        data.0 as usize,
-        data.1 as usize,
-        (data.2 >> 8) as u8,
-        dst_layout,
-    );
-    fuzz_lut_rgb_8_bit(
-        data.0 as usize,
-        data.1 as usize,
-        (data.2 >> 8) as u8,
-        dst_layout,
+        interpolation_method,
     );
     fuzz_16_bit(
         data.0 as usize,
@@ -40,10 +46,19 @@ fuzz_target!(|data: (u8, u8, u16, u8, u8,)| {
         data.2,
         src_layout,
         dst_layout,
+        interpolation_method,
+        bit_depth,
     );
 });
 
-fn fuzz_8_bit(width: usize, height: usize, px: u8, src_layout: Layout, dst_layout: Layout) {
+fn fuzz_8_bit(
+    width: usize,
+    height: usize,
+    px: u8,
+    src_layout: Layout,
+    dst_layout: Layout,
+    interpolation_method: InterpolationMethod,
+) {
     if width == 0 || height == 0 {
         return;
     }
@@ -56,7 +71,10 @@ fn fuzz_8_bit(width: usize, height: usize, px: u8, src_layout: Layout, dst_layou
             src_layout,
             &dst_profile,
             dst_layout,
-            TransformOptions::default(),
+            TransformOptions {
+                interpolation_method,
+                ..Default::default()
+            },
         )
         .unwrap();
     transform
@@ -64,7 +82,15 @@ fn fuzz_8_bit(width: usize, height: usize, px: u8, src_layout: Layout, dst_layou
         .unwrap();
 }
 
-fn fuzz_16_bit(width: usize, height: usize, px: u16, src_layout: Layout, dst_layout: Layout) {
+fn fuzz_16_bit(
+    width: usize,
+    height: usize,
+    px: u16,
+    src_layout: Layout,
+    dst_layout: Layout,
+    interpolation_method: InterpolationMethod,
+    bp: usize,
+) {
     if width == 0 || height == 0 {
         return;
     }
@@ -72,62 +98,43 @@ fn fuzz_16_bit(width: usize, height: usize, px: u16, src_layout: Layout, dst_lay
     let mut dst_image_rgb = vec![px; width * height * dst_layout.channels()];
     let src_profile = ColorProfile::new_srgb();
     let dst_profile = ColorProfile::new_bt2020();
-    let transform = src_profile
-        .create_transform_16bit(
-            src_layout,
-            &dst_profile,
-            dst_layout,
-            TransformOptions::default(),
-        )
-        .unwrap();
-    transform
-        .transform(&src_image_rgb, &mut dst_image_rgb)
-        .unwrap();
-}
-
-fn fuzz_cmyk_8_bit(width: usize, height: usize, px: u8, dst_layout: Layout) {
-    if width == 0 || height == 0 {
-        return;
-    }
-
-    let cmyk_icc = fs::read("./assets/us_swop_coated.icc").unwrap();
-    let cmyk_profile = ColorProfile::new_from_slice(&cmyk_icc).unwrap();
-
-    let src_image_rgb = vec![px; width * height * 4];
-    let mut dst_image_rgb = vec![px; width * height * dst_layout.channels()];
-    let dst_profile = ColorProfile::new_srgb();
-    let transform = cmyk_profile
-        .create_transform_8bit(
-            Layout::Rgba,
-            &dst_profile,
-            dst_layout,
-            TransformOptions::default(),
-        )
-        .unwrap();
-    transform
-        .transform(&src_image_rgb, &mut dst_image_rgb)
-        .unwrap();
-}
-
-fn fuzz_lut_rgb_8_bit(width: usize, height: usize, px: u8, dst_layout: Layout) {
-    if width == 0 || height == 0 {
-        return;
-    }
-
-    let cmyk_icc = fs::read("./assets/srgb_perceptual.icc").unwrap();
-    let cmyk_profile = ColorProfile::new_from_slice(&cmyk_icc).unwrap();
-
-    let src_image_rgb = vec![px; width * height * 4];
-    let mut dst_image_rgb = vec![px; width * height * dst_layout.channels()];
-    let dst_profile = ColorProfile::new_display_p3();
-    let transform = cmyk_profile
-        .create_transform_8bit(
-            Layout::Rgba,
-            &dst_profile,
-            dst_layout,
-            TransformOptions::default(),
-        )
-        .unwrap();
+    let transform = if bp == 10 {
+        src_profile
+            .create_transform_10bit(
+                src_layout,
+                &dst_profile,
+                dst_layout,
+                TransformOptions {
+                    interpolation_method,
+                    ..Default::default()
+                },
+            )
+            .unwrap()
+    } else if bp == 12 {
+        src_profile
+            .create_transform_12bit(
+                src_layout,
+                &dst_profile,
+                dst_layout,
+                TransformOptions {
+                    interpolation_method,
+                    ..Default::default()
+                },
+            )
+            .unwrap()
+    } else {
+        src_profile
+            .create_transform_16bit(
+                src_layout,
+                &dst_profile,
+                dst_layout,
+                TransformOptions {
+                    interpolation_method,
+                    ..Default::default()
+                },
+            )
+            .unwrap()
+    };
     transform
         .transform(&src_image_rgb, &mut dst_image_rgb)
         .unwrap();
