@@ -32,6 +32,22 @@ use crate::matrix::Matrix3;
 use crate::{CmsError, TransformExecutor};
 use num_traits::AsPrimitive;
 
+#[allow(dead_code)]
+#[inline]
+pub(crate) fn split_by_twos<T: Copy>(data: &[T], channels: usize) -> (&[T], &[T]) {
+    let len = data.len() / channels;
+    let split_point = len / 2 * 2;
+    data.split_at(split_point * channels)
+}
+
+#[allow(dead_code)]
+#[inline]
+pub(crate) fn split_by_twos_mut<T: Copy>(data: &mut [T], channels: usize) -> (&mut [T], &mut [T]) {
+    let len = data.len() / channels;
+    let split_point = len / 2 * 2;
+    data.split_at_mut(split_point * channels)
+}
+
 /// Fixed point conversion for 8-bit/10-bit
 pub(crate) struct TransformProfileRgbFixedPoint<R, T, const LINEAR_CAP: usize> {
     pub(crate) r_linear: Box<[R; LINEAR_CAP]>,

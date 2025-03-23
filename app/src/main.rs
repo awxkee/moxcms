@@ -104,13 +104,13 @@ fn compute_abs_diff42(src: &[f32], dst: &[f32]) {
 }
 
 fn main() {
-    let funny_icc = fs::read("./assets/srgb_perceptual.icc").unwrap();
+    // let funny_icc = fs::read("./assets/srgb_perceptual.icc").unwrap();
 
     // println!("{:?}", decoded);
 
     let srgb_perceptual_icc = fs::read("./assets/srgb_perceptual.icc").unwrap();
 
-    let funny_profile = ColorProfile::new_from_slice(&funny_icc).unwrap();
+    let funny_profile = ColorProfile::new_srgb();//ColorProfile::new_from_slice(&funny_icc).unwrap();
 
     let srgb_perceptual_profile = ColorProfile::new_from_slice(&srgb_perceptual_icc).unwrap();
     let out_profile = ColorProfile::new_srgb();
@@ -149,7 +149,6 @@ fn main() {
 
     let icc = decoder.icc_profile().unwrap();
     let color_profile = ColorProfile::new_from_slice(&srgb_perceptual_icc).unwrap();
-    let cmyk_profile = ColorProfile::new_from_slice(&funny_icc).unwrap();
     // let color_profile = ColorProfile::new_gray_with_gamma(2.2);
     let mut dest_profile = ColorProfile::new_srgb();
 
@@ -165,7 +164,7 @@ fn main() {
             TransformOptions {
                 rendering_intent: RenderingIntent::Perceptual,
                 allow_use_cicp_transfer: false,
-                prefer_fixed_point: false,
+                prefer_fixed_point: true,
                 interpolation_method: InterpolationMethod::Tetrahedral,
             },
         )
@@ -183,7 +182,7 @@ fn main() {
             TransformOptions {
                 rendering_intent: RenderingIntent::Perceptual,
                 allow_use_cicp_transfer: false,
-                prefer_fixed_point: false,
+                prefer_fixed_point: true,
                 interpolation_method: InterpolationMethod::Tetrahedral,
             },
         )

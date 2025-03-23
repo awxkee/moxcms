@@ -51,7 +51,7 @@ Tests were ran with a 1997×1331 resolution image.
 
 | Conversion         | time(NEON) | Time(AVX2) |
 |--------------------|:----------:|:----------:|
-| moxcms RGB⮕RGB     |   2.79ms   |   4.57ms   |
+| moxcms RGB⮕RGB     |   2.69ms   |   4.57ms   |
 | moxcms LUT RGB⮕RGB |   8.23ms   |  19.00ms   |
 | moxcms RGBA⮕RGBA   |   3.08ms   |   4.87ms   |
 | moxcms CMYK⮕RGBA   |  14.35ms   |  30.40ms   |
