@@ -163,27 +163,20 @@ pub(crate) trait CompressForLut {
     fn compress_lut<const BIT_DEPTH: usize>(self) -> u16;
 }
 
-pub(crate) const LUT_SAMPLING: u16 = 16383;
+pub(crate) const LUT_SAMPLING: u16 = 65535;
 
 impl CompressForLut for u8 {
     #[inline(always)]
     fn compress_lut<const BIT_DEPTH: usize>(self) -> u16 {
-        u16::from_ne_bytes([self, self]) >> 2
+        u16::from_ne_bytes([self, self])
     }
 }
 
 impl CompressForLut for u16 {
     #[inline(always)]
     fn compress_lut<const BIT_DEPTH: usize>(self) -> u16 {
-        if BIT_DEPTH == 16 {
-            self >> 2
-        } else if BIT_DEPTH == 14 {
-            self
-        } else {
-            let target_expand_bits = 14u32 - BIT_DEPTH as u32;
-            (((self) << target_expand_bits) | ((self) >> (14 - target_expand_bits)))
-                .min(LUT_SAMPLING)
-        }
+        let target_expand_bits = 16u32 - BIT_DEPTH as u32;
+        (((self) << target_expand_bits) | ((self) >> (16 - target_expand_bits))).min(LUT_SAMPLING)
     }
 }
 
@@ -569,7 +562,7 @@ where
                 LutWarehouse::Lut(lut_data_type) => {
                     lut = create_lut3x3(lut_data_type, &lut, options)?
                 }
-                LutWarehouse::MCurves(mab) => prepare_mba_3x3(mab, &mut lut)?,
+                LutWarehouse::MCurves(mab) => prepare_mba_3x3(mab, &mut lut, options)?,
             }
         }
 
@@ -622,7 +615,7 @@ where
                 LutWarehouse::Lut(lut_data_type) => {
                     lut = create_lut3x3(lut_data_type, &lut, options)?;
                 }
-                LutWarehouse::MCurves(mab) => prepare_mab_3x3(mab, &mut lut)?,
+                LutWarehouse::MCurves(mab) => prepare_mab_3x3(mab, &mut lut, options)?,
             }
         } else if source.has_full_colors_triplet() {
             lut = create_rgb_lin_lut::<T, BIT_DEPTH, LINEAR_CAP, GRID_SIZE>(source, options)?;
@@ -689,7 +682,7 @@ where
                 LutWarehouse::Lut(lut_data_type) => {
                     lut = create_lut3x3(lut_data_type, &lut, options)?;
                 }
-                LutWarehouse::MCurves(mab) => prepare_mab_3x3(mab, &mut lut)?,
+                LutWarehouse::MCurves(mab) => prepare_mab_3x3(mab, &mut lut, options)?,
             }
         } else if source.has_full_colors_triplet() {
             lut = create_rgb_lin_lut::<T, BIT_DEPTH, LINEAR_CAP, GRID_SIZE>(source, options)?;
@@ -717,7 +710,7 @@ where
                 LutWarehouse::Lut(lut_data_type) => {
                     lut = create_lut3x3(lut_data_type, &lut, options)?
                 }
-                LutWarehouse::MCurves(mab) => prepare_mba_3x3(mab, &mut lut)?,
+                LutWarehouse::MCurves(mab) => prepare_mba_3x3(mab, &mut lut, options)?,
             }
         } else if dest.has_full_colors_triplet() {
             prepare_inverse_lut_rgb_xyz::<T, BIT_DEPTH, GAMMA_LUT>(dest, &mut lut, options)?;

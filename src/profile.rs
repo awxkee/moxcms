@@ -1386,7 +1386,9 @@ impl ColorProfile {
         slice: &[u8],
         offset: usize,
         length: usize,
+        total_offset: usize,
     ) -> Result<Option<Vec<ToneReprCurve>>, CmsError> {
+        let mut captured_offset = total_offset;
         let mut curve_offset: usize = offset;
         let mut curves = Vec::new();
         for _ in 0..length {
@@ -1400,9 +1402,11 @@ impl ColorProfile {
                 Some(curve) => curves.push(curve),
             }
             curve_offset += tag_size;
+            captured_offset += tag_size;
             // 4 byte aligned
-            if tag_size % 4 != 0 {
-                curve_offset += 4 - tag_size % 4;
+            if captured_offset % 4 != 0 {
+                curve_offset += 4 - captured_offset % 4;
+                captured_offset += 4 - captured_offset % 4;
             }
         }
         Ok(Some(curves))
@@ -1413,6 +1417,7 @@ impl ColorProfile {
         slice: &[u8],
         entry: usize,
         tag_size: usize,
+        to_pcs: bool,
     ) -> Result<Option<LutWarehouse>, CmsError> {
         if tag_size < 48 {
             return Ok(None);
@@ -1563,22 +1568,49 @@ impl ColorProfile {
         let a_curves = if a_curve_offset == 0 {
             Vec::new()
         } else {
-            Self::read_nested_tone_curves(tag, a_curve_offset, in_channels as usize)?
-                .ok_or(CmsError::InvalidProfile)?
+            Self::read_nested_tone_curves(
+                tag,
+                a_curve_offset,
+                if to_pcs {
+                    in_channels as usize
+                } else {
+                    out_channels as usize
+                },
+                entry + a_curve_offset,
+            )?
+            .ok_or(CmsError::InvalidProfile)?
         };
 
         let m_curves = if m_curve_offset == 0 {
             Vec::new()
         } else {
-            Self::read_nested_tone_curves(tag, m_curve_offset, out_channels as usize)?
-                .ok_or(CmsError::InvalidProfile)?
+            Self::read_nested_tone_curves(
+                tag,
+                m_curve_offset,
+                if to_pcs {
+                    out_channels as usize
+                } else {
+                    in_channels as usize
+                },
+                entry + m_curve_offset,
+            )?
+            .ok_or(CmsError::InvalidProfile)?
         };
 
         let b_curves = if b_curve_offset == 0 {
             Vec::new()
         } else {
-            Self::read_nested_tone_curves(tag, b_curve_offset, out_channels as usize)?
-                .ok_or(CmsError::InvalidProfile)?
+            Self::read_nested_tone_curves(
+                tag,
+                b_curve_offset,
+                if to_pcs {
+                    out_channels as usize
+                } else {
+                    in_channels as usize
+                },
+                entry + b_curve_offset,
+            )?
+            .ok_or(CmsError::InvalidProfile)?
         };
 
         let wh = LutWarehouse::MCurves(LutMCurvesType {
@@ -1762,7 +1794,12 @@ impl ColorProfile {
         Ok(if lut_type == LutType::Lut8 || lut_type == LutType::Lut16 {
             Self::read_lut_a_to_b_type(slice, tag_entry as usize, tag_size)?
         } else if lut_type == LutType::LutMba || lut_type == LutType::LutMab {
-            Self::read_lut_abm_type(slice, tag_entry as usize, tag_size)?
+            Self::read_lut_abm_type(
+                slice,
+                tag_entry as usize,
+                tag_size,
+                lut_type == LutType::LutMab,
+            )?
         } else {
             None
         })

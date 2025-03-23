@@ -103,9 +103,7 @@ fn compute_abs_diff42(src: &[f32], dst: &[f32]) {
 }
 
 fn main() {
-    // let decoded = ColorProfile::new_bt2020();
-    // let encoded = decoded.encode().unwrap();
-    let funny_icc = fs::read("./assets/us_swop_coated.icc").unwrap();
+    let funny_icc = fs::read("./assets/CGATS21_CRPC5.icc").unwrap();
 
     // println!("{:?}", decoded);
 

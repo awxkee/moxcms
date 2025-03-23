@@ -27,6 +27,7 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 #![allow(dead_code)]
+use crate::conversions::lut_transforms::LUT_SAMPLING;
 use crate::math::FusedMultiplyAdd;
 use crate::rounding_div_ceil;
 #[cfg(target_arch = "x86")]
@@ -34,7 +35,6 @@ use std::arch::x86::*;
 #[cfg(target_arch = "x86_64")]
 use std::arch::x86_64::*;
 use std::ops::{Add, Mul, Sub};
-use crate::conversions::lut_transforms::LUT_SAMPLING;
 
 #[repr(align(16), C)]
 pub(crate) struct SseAlignedF32(pub(crate) [f32; 4]);
@@ -961,9 +961,9 @@ impl<const GRID_SIZE: usize> TrilinearAvxFma<'_, GRID_SIZE> {
         let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
         let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
 
-        let x_n: i32 = (x + 1).min((GRID_SIZE as i32 - 1)); // rounding_div_ceil(in_r as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
-        let y_n: i32 = (y + 1).min((GRID_SIZE as i32 - 1));// rounding_div_ceil(in_g as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
-        let z_n: i32 = (z + 1).min((GRID_SIZE as i32 - 1));//rounding_div_ceil(in_b as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
+        let x_n: i32 = rounding_div_ceil(in_r as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
+        let y_n: i32 = rounding_div_ceil(in_g as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
+        let z_n: i32 = rounding_div_ceil(in_b as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
 
         let scale = (GRID_SIZE as i32 - 1) as f32 * SCALE;
 
