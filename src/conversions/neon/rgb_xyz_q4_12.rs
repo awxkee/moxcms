@@ -26,27 +26,13 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-use crate::conversions::rgbxyz_fixed::TransformProfileRgbFixedPoint;
+use crate::conversions::rgbxyz_fixed::{
+    TransformProfileRgbFixedPoint, split_by_twos, split_by_twos_mut,
+};
 use crate::transform::PointeeSizeExpressible;
 use crate::{CmsError, Layout, TransformExecutor};
 use num_traits::AsPrimitive;
 use std::arch::aarch64::*;
-
-#[allow(dead_code)]
-#[inline]
-pub(crate) fn split_by_twos<T: Copy>(data: &[T], channels: usize) -> (&[T], &[T]) {
-    let len = data.len() / channels;
-    let split_point = len / 2 * 2;
-    data.split_at(split_point * channels)
-}
-
-#[allow(dead_code)]
-#[inline]
-pub(crate) fn split_by_twos_mut<T: Copy>(data: &mut [T], channels: usize) -> (&mut [T], &mut [T]) {
-    let len = data.len() / channels;
-    let split_point = len / 2 * 2;
-    data.split_at_mut(split_point * channels)
-}
 
 pub(crate) struct TransformProfileRgbQ12Neon<
     T: Copy,
