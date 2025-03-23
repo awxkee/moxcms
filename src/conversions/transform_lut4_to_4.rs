@@ -75,6 +75,18 @@ impl Vector3fCmykLerp for NonFiniteVector3fLerp {
 }
 
 #[allow(unused)]
+#[derive(Copy, Clone, Default)]
+pub(crate) struct NonFiniteVector3fLerpUnbound;
+
+impl Vector3fCmykLerp for NonFiniteVector3fLerpUnbound {
+    #[inline(always)]
+    fn interpolate(a: Vector3f, b: Vector3f, t: f32, _: f32) -> Vector3f {
+        let t = Vector3f::from(t);
+        (a * (Vector3f::from(1.0) - t)).mla(b, t)
+    }
+}
+
+#[allow(unused)]
 struct TransformLut4XyzToRgb<T, const LAYOUT: u8, const GRID_SIZE: usize, const BIT_DEPTH: usize> {
     lut: Vec<f32>,
     _phantom: PhantomData<T>,

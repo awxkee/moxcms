@@ -77,13 +77,13 @@ impl Stage for Lut4 {
 
         match self.interpolation_method {
             InterpolationMethod::Tetrahedral => {
-                self.transform_impl(src, dst, |x, y, z, w| l_tbl.tetra(x, y, z, w))?;
+                self.transform_impl(src, dst, |x, y, z, w| l_tbl.tetra_vec3(x, y, z, w))?;
             }
             InterpolationMethod::Pyramid => {
-                self.transform_impl(src, dst, |x, y, z, w| l_tbl.pyramid(x, y, z, w))?;
+                self.transform_impl(src, dst, |x, y, z, w| l_tbl.pyramid_vec3(x, y, z, w))?;
             }
             InterpolationMethod::Prism => {
-                self.transform_impl(src, dst, |x, y, z, w| l_tbl.prism(x, y, z, w))?
+                self.transform_impl(src, dst, |x, y, z, w| l_tbl.prism_vec3(x, y, z, w))?
             }
             InterpolationMethod::Linear => {
                 self.transform_impl(src, dst, |x, y, z, w| l_tbl.quadlinear_vec3(x, y, z, w))?
@@ -127,17 +127,10 @@ fn stage_lut_4x3(lut: &LutDataType, options: TransformOptions) -> Box<dyn Stage>
     Box::new(transform)
 }
 
-pub(crate) fn create_lut4<const SAMPLES: usize>(
-    lut: &LutDataType,
-    options: TransformOptions,
-) -> Result<Vec<f32>, CmsError> {
-    if lut.num_input_channels != 4 {
-        return Err(CmsError::UnsupportedProfileConnection);
-    }
+pub(crate) fn create_lut4_norm_samples<const SAMPLES: usize>() -> Vec<f32> {
     let lut_size: u32 = (4 * SAMPLES * SAMPLES * SAMPLES * SAMPLES) as u32;
 
     let mut src = Vec::with_capacity(lut_size as usize);
-    let mut dest = vec![0.; (lut_size as usize) / 4 * 3];
 
     let recpeq = 1f32 / (SAMPLES - 1) as f32;
     for k in 0..SAMPLES {
@@ -152,6 +145,21 @@ pub(crate) fn create_lut4<const SAMPLES: usize>(
             }
         }
     }
+    src
+}
+
+pub(crate) fn create_lut4<const SAMPLES: usize>(
+    lut: &LutDataType,
+    options: TransformOptions,
+) -> Result<Vec<f32>, CmsError> {
+    if lut.num_input_channels != 4 {
+        return Err(CmsError::UnsupportedProfileConnection);
+    }
+    let lut_size: u32 = (4 * SAMPLES * SAMPLES * SAMPLES * SAMPLES) as u32;
+
+    let src = create_lut4_norm_samples::<SAMPLES>();
+    let mut dest = vec![0.; (lut_size as usize) / 4 * 3];
+
     let lut_stage = stage_lut_4x3(lut, options);
     lut_stage.transform(&src, &mut dest)?;
     Ok(dest)

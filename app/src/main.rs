@@ -185,22 +185,21 @@ fn main() {
 
     let time = Instant::now();
 
-    let transform = dest_profile
-        .create_transform_f32(
-            Layout::Rgba,
-            &funny_profile,
-            Layout::Rgba,
-            TransformOptions {
-                rendering_intent: RenderingIntent::Perceptual,
-                allow_use_cicp_transfer: false,
-                prefer_fixed_point: false,
-                interpolation_method: InterpolationMethod::Tetrahedral,
-                black_point_compensation: false,
-            },
-        )
-        .unwrap();
-
-    transform.transform(&real_dst, &mut cmyk).unwrap();
+    // let transform = dest_profile
+    //     .create_transform_f32(
+    //         Layout::Rgba,
+    //         &funny_profile,
+    //         Layout::Rgba,
+    //         TransformOptions {
+    //             rendering_intent: RenderingIntent::Perceptual,
+    //             allow_use_cicp_transfer: false,
+    //             prefer_fixed_point: false,
+    //             interpolation_method: InterpolationMethod::Tetrahedral,
+    //         },
+    //     )
+    //     .unwrap();
+    //
+    // transform.transform(&real_dst, &mut cmyk).unwrap();
 
     let time = Instant::now();
 
@@ -214,7 +213,6 @@ fn main() {
                 allow_use_cicp_transfer: false,
                 prefer_fixed_point: false,
                 interpolation_method: InterpolationMethod::Tetrahedral,
-                black_point_compensation: false,
             },
         )
         .unwrap();

@@ -524,25 +524,6 @@ impl ColorProfile {
         self.create_transform_nbit::<u8, 8, 256, 4096>(src_layout, dst_pr, dst_layout, options)
     }
 
-    pub(crate) fn get_device_to_pcs_lut(&self, intent: RenderingIntent) -> Option<&LutDataType> {
-        match intent {
-            RenderingIntent::AbsoluteColorimetric => self
-                .lut_a_to_b_colorimetric
-                .as_ref()
-                .and_then(|x| x.as_lut()),
-            RenderingIntent::Saturation => {
-                self.lut_a_to_b_saturation.as_ref().and_then(|x| x.as_lut())
-            }
-            RenderingIntent::RelativeColorimetric => self
-                .lut_a_to_b_colorimetric
-                .as_ref()
-                .and_then(|x| x.as_lut()),
-            RenderingIntent::Perceptual => {
-                self.lut_a_to_b_perceptual.as_ref().and_then(|x| x.as_lut())
-            }
-        }
-    }
-
     pub(crate) fn get_device_to_pcs(&self, intent: RenderingIntent) -> Option<&LutWarehouse> {
         match intent {
             RenderingIntent::AbsoluteColorimetric => self.lut_a_to_b_colorimetric.as_ref(),

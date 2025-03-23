@@ -28,7 +28,7 @@
  */
 use crate::conversions::lut3x3::create_lut3x3;
 use crate::conversions::lut3x4::{create_lut3_samples, create_lut3_samples_norm, create_lut3x4};
-use crate::conversions::lut4::create_lut4;
+use crate::conversions::lut4::{create_lut4, create_lut4_norm_samples};
 use crate::conversions::mab::{prepare_mab_3x3, prepare_mba_3x3};
 use crate::conversions::transform_lut3_to_4::TransformLut3x4;
 use crate::lab::Lab;
@@ -450,6 +450,7 @@ make_transform_3x3_fn!(make_transformer_3x3_sse41, SseLut3x3Factory);
 
 #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "avx"))]
 use crate::conversions::avx::AvxLut4x3Factory;
+use crate::conversions::mab4x3::prepare_mab_4x3;
 // use crate::conversions::bpc::compensate_bpc_in_lut;
 
 #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "avx"))]
@@ -510,15 +511,17 @@ where
             return Err(CmsError::UnsupportedProfileConnection);
         }
 
-        let src_lut_a_to_b = source
-            .get_device_to_pcs_lut(options.rendering_intent)
-            .ok_or(CmsError::UnsupportedLutRenderingIntent(
-                source.rendering_intent,
-            ))?;
-
         const GRID_SIZE: usize = 17;
 
-        let mut lut = create_lut4::<GRID_SIZE>(src_lut_a_to_b, options)?;
+        let mut lut = match source.get_device_to_pcs(options.rendering_intent).ok_or(
+            CmsError::UnsupportedLutRenderingIntent(source.rendering_intent),
+        )? {
+            LutWarehouse::Lut(lut) => create_lut4::<GRID_SIZE>(lut, options)?,
+            LutWarehouse::MCurves(m_curves) => {
+                let mut samples = create_lut4_norm_samples::<GRID_SIZE>();
+                prepare_mab_4x3::<GRID_SIZE>(m_curves, &mut samples, options)?
+            }
+        };
 
         pcs_lab_v2_to_v4(source, &mut lut);
 
