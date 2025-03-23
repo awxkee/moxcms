@@ -97,8 +97,10 @@ fn stage_lut_4x3(lut: &LutDataType, options: TransformOptions) -> Box<dyn Stage>
     let clut_length: usize = (lut.num_clut_grid_points as usize).pow(lut.num_input_channels as u32)
         * lut.num_output_channels as usize;
 
-    let mut transform = Lut4::default();
-    transform.interpolation_method = options.interpolation_method;
+    let mut transform = Lut4 {
+        interpolation_method: options.interpolation_method,
+        ..Default::default()
+    };
     transform.linearization[0] = lut.input_table[0..lut.num_input_table_entries as usize].to_vec();
     transform.linearization[1] = lut.input_table
         [lut.num_input_table_entries as usize..lut.num_input_table_entries as usize * 2]

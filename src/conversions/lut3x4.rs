@@ -47,8 +47,10 @@ fn stage_lut_3x4(lut: &LutDataType, options: TransformOptions) -> Box<dyn Stage>
     // the matrix of lutType is only used when the input color space is XYZ.
 
     // Prepare input curves
-    let mut transform = Lut3x4::default();
-    transform.interpolation_method = options.interpolation_method;
+    let mut transform = Lut3x4 {
+        interpolation_method: options.interpolation_method,
+        ..Default::default()
+    };
     transform.input[0] = lut.input_table[0..lut.num_input_table_entries as usize].to_vec();
     transform.input[1] = lut.input_table
         [lut.num_input_table_entries as usize..lut.num_input_table_entries as usize * 2]

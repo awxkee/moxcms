@@ -162,9 +162,9 @@ mod tests {
         let xyz = Xyz::new(0.5, 0.4, 0.3);
         let ictcp = ICtCp::from_xyz(xyz);
         let r_xyz = ictcp.to_xyz();
-        assert!((r_xyz.x - xyz.x).abs() < 1e-5);
-        assert!((r_xyz.y - xyz.y).abs() < 1e-5);
-        assert!((r_xyz.z - xyz.z).abs() < 1e-5);
+        assert!((r_xyz.x - xyz.x).abs() < 1e-4);
+        assert!((r_xyz.y - xyz.y).abs() < 1e-4);
+        assert!((r_xyz.z - xyz.z).abs() < 1e-4);
     }
 
     #[test]

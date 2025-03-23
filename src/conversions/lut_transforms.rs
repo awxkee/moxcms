@@ -36,8 +36,7 @@ use crate::math::m_clamp;
 use crate::mlaf::mlaf;
 use crate::{
     CmsError, ColorProfile, DataColorSpace, InPlaceStage, InterpolationMethod, Layout,
-    LutWarehouse, Matrix3f, ProfileVersion, RenderingIntent, TransformExecutor, TransformOptions,
-    Xyz,
+    LutWarehouse, Matrix3f, ProfileVersion, TransformExecutor, TransformOptions, Xyz,
 };
 use num_traits::AsPrimitive;
 use std::marker::PhantomData;
@@ -176,7 +175,7 @@ impl CompressForLut for u16 {
     #[inline(always)]
     fn compress_lut<const BIT_DEPTH: usize>(self) -> u16 {
         let target_expand_bits = 16u32 - BIT_DEPTH as u32;
-        (((self) << target_expand_bits) | ((self) >> (16 - target_expand_bits))).min(LUT_SAMPLING)
+        ((self) << target_expand_bits) | ((self) >> (16 - target_expand_bits))
     }
 }
 
@@ -451,7 +450,7 @@ make_transform_3x3_fn!(make_transformer_3x3_sse41, SseLut3x3Factory);
 
 #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "avx"))]
 use crate::conversions::avx::AvxLut4x3Factory;
-use crate::conversions::bpc::compensate_bpc_in_lut;
+// use crate::conversions::bpc::compensate_bpc_in_lut;
 
 #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "avx"))]
 make_transform_4x3_fn!(make_transformer_4x3_avx_fma, AvxLut4x3Factory);
@@ -528,18 +527,18 @@ where
             lab_to_xyz_stage.transform(&mut lut)?;
         }
 
-        if source.color_space == DataColorSpace::Cmyk
-            && (options.rendering_intent == RenderingIntent::Perceptual
-                || options.rendering_intent == RenderingIntent::RelativeColorimetric)
-            && options.black_point_compensation
-        {
-            if let (Some(src_bp), Some(dst_bp)) = (
-                source.detect_black_point::<GRID_SIZE>(&lut),
-                dest.detect_black_point::<GRID_SIZE>(&lut),
-            ) {
-                compensate_bpc_in_lut(&mut lut, src_bp, dst_bp);
-            }
-        }
+        // if source.color_space == DataColorSpace::Cmyk
+        //     && (options.rendering_intent == RenderingIntent::Perceptual
+        //         || options.rendering_intent == RenderingIntent::RelativeColorimetric)
+        //     && options.black_point_compensation
+        // {
+        //     if let (Some(src_bp), Some(dst_bp)) = (
+        //         source.detect_black_point::<GRID_SIZE>(&lut),
+        //         dest.detect_black_point::<GRID_SIZE>(&lut),
+        //     ) {
+        //         compensate_bpc_in_lut(&mut lut, src_bp, dst_bp);
+        //     }
+        // }
 
         if dest.pcs == DataColorSpace::Lab {
             let lab_to_xyz_stage = StageXyzToLab::default();
