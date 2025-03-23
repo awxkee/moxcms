@@ -27,9 +27,7 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::conversions::avx::stages::AvxAlignedU16;
-use crate::conversions::rgbxyz_fixed::{
-    TransformProfileRgbFixedPoint, split_by_twos, split_by_twos_mut,
-};
+use crate::conversions::rgbxyz_fixed::TransformProfileRgbFixedPoint;
 use crate::transform::PointeeSizeExpressible;
 use crate::{CmsError, Layout, TransformExecutor};
 use num_traits::AsPrimitive;
@@ -138,168 +136,147 @@ where
 
             let v_max_value = _mm256_set1_epi32(GAMMA_LUT as i32 - 1);
 
-            let (src_chunks, src_remainder) = split_by_twos(src, src_channels);
-            let (dst_chunks, dst_remainder) = split_by_twos_mut(dst, dst_channels);
+            let mut src = src;
+            let mut dst = dst;
 
-            if src_chunks.len() > 0 {
-                let (src0, src1) = src_chunks.split_at(src_chunks.len() / 2);
-                let (dst0, dst1) = dst_chunks.split_at_mut(dst_chunks.len() / 2);
-                let mut src_iter0 = src0.chunks_exact(src_channels);
-                let mut src_iter1 = src1.chunks_exact(src_channels);
+            let mut src_iter = src.chunks_exact(src_channels * 2);
+            let dst_iter = dst.chunks_exact_mut(dst_channels * 2);
 
-                let (mut r0, mut g0, mut b0, mut a0);
-                let (mut r1, mut g1, mut b1, mut a1);
+            let (mut r0, mut g0, mut b0, mut a0);
+            let (mut r1, mut g1, mut b1, mut a1);
 
-                if let (Some(src0), Some(src1)) = (src_iter0.next(), src_iter1.next()) {
-                    r0 = _xmm_broadcast_epi32(
-                        &self.profile.r_linear[src0[src_cn.r_i()]._as_usize()],
-                    );
-                    g0 = _xmm_broadcast_epi32(
-                        &self.profile.g_linear[src0[src_cn.g_i()]._as_usize()],
-                    );
-                    b0 = _xmm_broadcast_epi32(
-                        &self.profile.b_linear[src0[src_cn.b_i()]._as_usize()],
-                    );
-                    r1 = _xmm_broadcast_epi32(
-                        &self.profile.r_linear[src1[src_cn.r_i()]._as_usize()],
-                    );
-                    g1 = _xmm_broadcast_epi32(
-                        &self.profile.g_linear[src1[src_cn.g_i()]._as_usize()],
-                    );
-                    b1 = _xmm_broadcast_epi32(
-                        &self.profile.b_linear[src1[src_cn.b_i()]._as_usize()],
-                    );
-
-                    a0 = if src_channels == 4 {
-                        src0[src_cn.a_i()]
-                    } else {
-                        max_colors
-                    };
-                    a1 = if src_channels == 4 {
-                        src1[src_cn.a_i()]
-                    } else {
-                        max_colors
-                    };
+            if let Some(src) = src_iter.next() {
+                r0 = _xmm_broadcast_epi32(&self.profile.r_linear[src[src_cn.r_i()]._as_usize()]);
+                g0 = _xmm_broadcast_epi32(&self.profile.g_linear[src[src_cn.g_i()]._as_usize()]);
+                b0 = _xmm_broadcast_epi32(&self.profile.b_linear[src[src_cn.b_i()]._as_usize()]);
+                r1 = _xmm_broadcast_epi32(
+                    &self.profile.r_linear[src[src_cn.r_i() + src_channels]._as_usize()],
+                );
+                g1 = _xmm_broadcast_epi32(
+                    &self.profile.g_linear[src[src_cn.g_i() + src_channels]._as_usize()],
+                );
+                b1 = _xmm_broadcast_epi32(
+                    &self.profile.b_linear[src[src_cn.b_i() + src_channels]._as_usize()],
+                );
+                a0 = if src_channels == 4 {
+                    src[src_cn.a_i()]
                 } else {
-                    r0 = _mm_setzero_si128();
-                    g0 = _mm_setzero_si128();
-                    b0 = _mm_setzero_si128();
-                    a0 = max_colors;
-                    r1 = _mm_setzero_si128();
-                    g1 = _mm_setzero_si128();
-                    b1 = _mm_setzero_si128();
-                    a1 = max_colors;
+                    max_colors
+                };
+                a1 = if src_channels == 4 {
+                    src[src_cn.a_i() + src_channels]
+                } else {
+                    max_colors
+                };
+            } else {
+                r0 = _mm_setzero_si128();
+                g0 = _mm_setzero_si128();
+                b0 = _mm_setzero_si128();
+                a0 = max_colors;
+                r1 = _mm_setzero_si128();
+                g1 = _mm_setzero_si128();
+                b1 = _mm_setzero_si128();
+                a1 = max_colors;
+            }
+
+            for (src, dst) in src_iter.zip(dst_iter) {
+                let r = _mm256_inserti128_si256::<1>(_mm256_castsi128_si256(r0), r1);
+                let g = _mm256_inserti128_si256::<1>(_mm256_castsi128_si256(g0), g1);
+                let b = _mm256_inserti128_si256::<1>(_mm256_castsi128_si256(b0), b1);
+
+                let v0 = _mm256_madd_epi16(r, m0);
+                let v1 = _mm256_madd_epi16(g, m1);
+                let v2 = _mm256_madd_epi16(b, m2);
+
+                let acc0 = _mm256_add_epi32(v0, rnd);
+                let acc1 = _mm256_add_epi32(v1, v2);
+
+                let mut v = _mm256_add_epi32(acc0, acc1);
+                v = _mm256_srai_epi32::<PRECISION>(v);
+                v = _mm256_max_epi32(v, zeros);
+                v = _mm256_min_epi32(v, v_max_value);
+
+                _mm256_store_si256(temporary0.0.as_mut_ptr() as *mut _, v);
+
+                r0 = _xmm_broadcast_epi32(&self.profile.r_linear[src[src_cn.r_i()]._as_usize()]);
+                g0 = _xmm_broadcast_epi32(&self.profile.g_linear[src[src_cn.g_i()]._as_usize()]);
+                b0 = _xmm_broadcast_epi32(&self.profile.b_linear[src[src_cn.b_i()]._as_usize()]);
+                r1 = _xmm_broadcast_epi32(
+                    &self.profile.r_linear[src[src_cn.r_i() + src_channels]._as_usize()],
+                );
+                g1 = _xmm_broadcast_epi32(
+                    &self.profile.g_linear[src[src_cn.g_i() + src_channels]._as_usize()],
+                );
+                b1 = _xmm_broadcast_epi32(
+                    &self.profile.b_linear[src[src_cn.b_i() + src_channels]._as_usize()],
+                );
+
+                dst[dst_cn.r_i()] = self.profile.r_gamma[temporary0.0[0] as usize];
+                dst[dst_cn.g_i()] = self.profile.g_gamma[temporary0.0[2] as usize];
+                dst[dst_cn.b_i()] = self.profile.b_gamma[temporary0.0[4] as usize];
+                if dst_channels == 4 {
+                    dst[dst_cn.a_i()] = a0;
                 }
 
-                for (((src0, src1), dst0), dst1) in src_iter0
-                    .zip(src_iter1)
-                    .zip(dst0.chunks_exact_mut(dst_channels))
-                    .zip(dst1.chunks_exact_mut(dst_channels))
-                {
-                    let r = _mm256_inserti128_si256::<1>(_mm256_castsi128_si256(r0), r1);
-                    let g = _mm256_inserti128_si256::<1>(_mm256_castsi128_si256(g0), g1);
-                    let b = _mm256_inserti128_si256::<1>(_mm256_castsi128_si256(b0), b1);
-
-                    let v0 = _mm256_madd_epi16(r, m0);
-                    let v1 = _mm256_madd_epi16(g, m1);
-                    let v2 = _mm256_madd_epi16(b, m2);
-
-                    let acc0 = _mm256_add_epi32(v0, rnd);
-                    let acc1 = _mm256_add_epi32(v1, v2);
-
-                    let mut v = _mm256_add_epi32(acc0, acc1);
-                    v = _mm256_srai_epi32::<PRECISION>(v);
-                    v = _mm256_max_epi32(v, zeros);
-                    v = _mm256_min_epi32(v, v_max_value);
-
-                    _mm256_store_si256(temporary0.0.as_mut_ptr() as *mut _, v);
-
-                    r0 = _xmm_broadcast_epi32(
-                        &self.profile.r_linear[src0[src_cn.r_i()]._as_usize()],
-                    );
-                    g0 = _xmm_broadcast_epi32(
-                        &self.profile.g_linear[src0[src_cn.g_i()]._as_usize()],
-                    );
-                    b0 = _xmm_broadcast_epi32(
-                        &self.profile.b_linear[src0[src_cn.b_i()]._as_usize()],
-                    );
-                    r1 = _xmm_broadcast_epi32(
-                        &self.profile.r_linear[src1[src_cn.r_i()]._as_usize()],
-                    );
-                    g1 = _xmm_broadcast_epi32(
-                        &self.profile.g_linear[src1[src_cn.g_i()]._as_usize()],
-                    );
-                    b1 = _xmm_broadcast_epi32(
-                        &self.profile.b_linear[src1[src_cn.b_i()]._as_usize()],
-                    );
-
-                    dst0[dst_cn.r_i()] = self.profile.r_gamma[temporary0.0[0] as usize];
-                    dst0[dst_cn.g_i()] = self.profile.g_gamma[temporary0.0[2] as usize];
-                    dst0[dst_cn.b_i()] = self.profile.b_gamma[temporary0.0[4] as usize];
-                    if dst_channels == 4 {
-                        dst0[dst_cn.a_i()] = a0;
-                    }
-
-                    dst1[dst_cn.r_i()] = self.profile.r_gamma[temporary0.0[8] as usize];
-                    dst1[dst_cn.g_i()] = self.profile.g_gamma[temporary0.0[10] as usize];
-                    dst1[dst_cn.b_i()] = self.profile.b_gamma[temporary0.0[12] as usize];
-                    if dst_channels == 4 {
-                        dst1[dst_cn.a_i()] = a1;
-                    }
-
-                    a0 = if src_channels == 4 {
-                        src0[src_cn.a_i()]
-                    } else {
-                        max_colors
-                    };
-                    a1 = if src_channels == 4 {
-                        src1[src_cn.a_i()]
-                    } else {
-                        max_colors
-                    };
+                dst[dst_cn.r_i() + dst_channels] = self.profile.r_gamma[temporary0.0[8] as usize];
+                dst[dst_cn.g_i() + dst_channels] = self.profile.g_gamma[temporary0.0[10] as usize];
+                dst[dst_cn.b_i() + dst_channels] = self.profile.b_gamma[temporary0.0[12] as usize];
+                if dst_channels == 4 {
+                    dst[dst_cn.a_i() + dst_channels] = a1;
                 }
 
-                if let (Some(dst0), Some(dst1)) = (
-                    dst0.chunks_exact_mut(dst_channels).last(),
-                    dst1.chunks_exact_mut(dst_channels).last(),
-                ) {
-                    let r = _mm256_inserti128_si256::<1>(_mm256_castsi128_si256(r0), r1);
-                    let g = _mm256_inserti128_si256::<1>(_mm256_castsi128_si256(g0), g1);
-                    let b = _mm256_inserti128_si256::<1>(_mm256_castsi128_si256(b0), b1);
+                a0 = if src_channels == 4 {
+                    src[src_cn.a_i()]
+                } else {
+                    max_colors
+                };
+                a1 = if src_channels == 4 {
+                    src[src_cn.a_i() + src_channels]
+                } else {
+                    max_colors
+                };
+            }
 
-                    let v0 = _mm256_madd_epi16(r, m0);
-                    let v1 = _mm256_madd_epi16(g, m1);
-                    let v2 = _mm256_madd_epi16(b, m2);
+            if let Some(dst) = dst.chunks_exact_mut(dst_channels * 2).last() {
+                let r = _mm256_inserti128_si256::<1>(_mm256_castsi128_si256(r0), r1);
+                let g = _mm256_inserti128_si256::<1>(_mm256_castsi128_si256(g0), g1);
+                let b = _mm256_inserti128_si256::<1>(_mm256_castsi128_si256(b0), b1);
 
-                    let acc0 = _mm256_add_epi32(v0, rnd);
-                    let acc1 = _mm256_add_epi32(v1, v2);
+                let v0 = _mm256_madd_epi16(r, m0);
+                let v1 = _mm256_madd_epi16(g, m1);
+                let v2 = _mm256_madd_epi16(b, m2);
 
-                    let mut v = _mm256_add_epi32(acc0, acc1);
-                    v = _mm256_srai_epi32::<PRECISION>(v);
-                    v = _mm256_max_epi32(v, zeros);
-                    v = _mm256_min_epi32(v, v_max_value);
+                let acc0 = _mm256_add_epi32(v0, rnd);
+                let acc1 = _mm256_add_epi32(v1, v2);
 
-                    _mm256_store_si256(temporary0.0.as_mut_ptr() as *mut _, v);
+                let mut v = _mm256_add_epi32(acc0, acc1);
+                v = _mm256_srai_epi32::<PRECISION>(v);
+                v = _mm256_max_epi32(v, zeros);
+                v = _mm256_min_epi32(v, v_max_value);
 
-                    dst0[dst_cn.r_i()] = self.profile.r_gamma[temporary0.0[0] as usize];
-                    dst0[dst_cn.g_i()] = self.profile.g_gamma[temporary0.0[2] as usize];
-                    dst0[dst_cn.b_i()] = self.profile.b_gamma[temporary0.0[4] as usize];
-                    if dst_channels == 4 {
-                        dst0[dst_cn.a_i()] = a0;
-                    }
+                _mm256_store_si256(temporary0.0.as_mut_ptr() as *mut _, v);
 
-                    dst1[dst_cn.r_i()] = self.profile.r_gamma[temporary0.0[8] as usize];
-                    dst1[dst_cn.g_i()] = self.profile.g_gamma[temporary0.0[10] as usize];
-                    dst1[dst_cn.b_i()] = self.profile.b_gamma[temporary0.0[12] as usize];
-                    if dst_channels == 4 {
-                        dst1[dst_cn.a_i()] = a1;
-                    }
+                dst[dst_cn.r_i()] = self.profile.r_gamma[temporary0.0[0] as usize];
+                dst[dst_cn.g_i()] = self.profile.g_gamma[temporary0.0[2] as usize];
+                dst[dst_cn.b_i()] = self.profile.b_gamma[temporary0.0[4] as usize];
+                if dst_channels == 4 {
+                    dst[dst_cn.a_i()] = a0;
+                }
+
+                dst[dst_cn.r_i() + dst_channels] = self.profile.r_gamma[temporary0.0[8] as usize];
+                dst[dst_cn.g_i() + dst_channels] = self.profile.g_gamma[temporary0.0[10] as usize];
+                dst[dst_cn.b_i() + dst_channels] = self.profile.b_gamma[temporary0.0[12] as usize];
+                if dst_channels == 4 {
+                    dst[dst_cn.a_i() + dst_channels] = a1;
                 }
             }
 
-            for (src, dst) in src_remainder
+            src = src.chunks_exact(src_channels * 2).remainder();
+            dst = dst.chunks_exact_mut(dst_channels * 2).into_remainder();
+
+            for (src, dst) in src
                 .chunks_exact(src_channels)
-                .zip(dst_remainder.chunks_exact_mut(dst_channels))
+                .zip(dst.chunks_exact_mut(dst_channels))
             {
                 let r = _xmm_broadcast_epi32(&self.profile.r_linear[src[src_cn.r_i()]._as_usize()]);
                 let g = _xmm_broadcast_epi32(&self.profile.g_linear[src[src_cn.g_i()]._as_usize()]);
