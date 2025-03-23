@@ -41,7 +41,9 @@ pub(crate) fn lerp<
     (a * (T::from(1.0) - t)).mla(b, t)
 }
 
-/// 4D CLUT helper
+/// 4D CLUT helper.
+///
+/// Represents hypercube.
 pub struct Array4D<'a> {
     array: &'a [f32],
     x_stride: u32,
@@ -703,6 +705,8 @@ impl Array4D<'_> {
 }
 
 /// 3D CLUT helper
+///
+/// Represents hexahedron.
 pub struct Array3D<'a> {
     array: &'a [f32],
     x_stride: u32,

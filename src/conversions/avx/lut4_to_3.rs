@@ -96,8 +96,7 @@ where
             if T::FINITE {
                 unsafe {
                     let t0 = _mm_set1_ps(t);
-                    let ones = _mm_set1_ps(1f32);
-                    let hp = _mm_mul_ps(a0, _mm_sub_ps(ones, t0));
+                    let hp = _mm_fnmadd_ps(a0, t0, a0);
                     let mut v = _mm_fmadd_ps(b0, t0, hp);
                     v = _mm_max_ps(v, _mm_setzero_ps());
                     v = _mm_mul_ps(v, value_scale);
@@ -115,8 +114,7 @@ where
             } else {
                 unsafe {
                     let t0 = _mm_set1_ps(t);
-                    let ones = _mm_set1_ps(1f32);
-                    let hp = _mm_mul_ps(a0, _mm_sub_ps(ones, t0));
+                    let hp = _mm_fnmadd_ps(a0, t0, a0);
                     let mut v = _mm_fmadd_ps(b0, t0, hp);
                     v = _mm_max_ps(v, _mm_setzero_ps());
                     v = _mm_min_ps(v, value_scale);

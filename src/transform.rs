@@ -215,6 +215,8 @@ pub trait PointeeSizeExpressible {
     const FINITE: bool;
     const NOT_FINITE_GAMMA_TABLE_SIZE: usize;
     const NOT_FINITE_LINEAR_TABLE_SIZE: usize;
+    const IS_U8: bool;
+    const IS_U16: bool;
 }
 
 impl PointeeSizeExpressible for u8 {
@@ -226,6 +228,8 @@ impl PointeeSizeExpressible for u8 {
     const FINITE: bool = true;
     const NOT_FINITE_GAMMA_TABLE_SIZE: usize = 1;
     const NOT_FINITE_LINEAR_TABLE_SIZE: usize = 1;
+    const IS_U8: bool = true;
+    const IS_U16: bool = false;
 }
 
 impl PointeeSizeExpressible for u16 {
@@ -238,6 +242,9 @@ impl PointeeSizeExpressible for u16 {
 
     const NOT_FINITE_GAMMA_TABLE_SIZE: usize = 1;
     const NOT_FINITE_LINEAR_TABLE_SIZE: usize = 1;
+
+    const IS_U8: bool = false;
+    const IS_U16: bool = true;
 }
 
 impl PointeeSizeExpressible for f32 {
@@ -251,6 +258,8 @@ impl PointeeSizeExpressible for f32 {
 
     const NOT_FINITE_GAMMA_TABLE_SIZE: usize = 32768;
     const NOT_FINITE_LINEAR_TABLE_SIZE: usize = 1 << 14u32;
+    const IS_U8: bool = false;
+    const IS_U16: bool = false;
 }
 
 impl PointeeSizeExpressible for f64 {
@@ -264,6 +273,8 @@ impl PointeeSizeExpressible for f64 {
 
     const NOT_FINITE_GAMMA_TABLE_SIZE: usize = 65536;
     const NOT_FINITE_LINEAR_TABLE_SIZE: usize = 1 << 16;
+    const IS_U8: bool = false;
+    const IS_U16: bool = false;
 }
 
 impl ColorProfile {

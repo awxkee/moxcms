@@ -104,13 +104,13 @@ fn compute_abs_diff42(src: &[f32], dst: &[f32]) {
 }
 
 fn main() {
-    // let funny_icc = fs::read("./assets/srgb_perceptual.icc").unwrap();
+    let funny_icc = fs::read("./assets/us_swop_coated.icc").unwrap();
 
     // println!("{:?}", decoded);
 
     let srgb_perceptual_icc = fs::read("./assets/srgb_perceptual.icc").unwrap();
 
-    let funny_profile = ColorProfile::new_srgb(); //ColorProfile::new_from_slice(&funny_icc).unwrap();
+    let funny_profile = ColorProfile::new_from_slice(&funny_icc).unwrap();
 
     let srgb_perceptual_profile = ColorProfile::new_from_slice(&srgb_perceptual_icc).unwrap();
     let out_profile = ColorProfile::new_srgb();
@@ -142,10 +142,9 @@ fn main() {
     let real_dst = real_dst
         .chunks_exact(3)
         .flat_map(|x| [x[0], x[1], x[2], 255u8])
-        .map(|x| x as f32 / 255.0)
         .collect::<Vec<_>>();
 
-    let mut cmyk = vec![0f32; (decoder.output_buffer_size().unwrap() / 3) * 4];
+    let mut cmyk = vec![0u8; (decoder.output_buffer_size().unwrap() / 3) * 4];
 
     let icc = decoder.icc_profile().unwrap();
     let color_profile = ColorProfile::new_from_slice(&srgb_perceptual_icc).unwrap();
@@ -157,7 +156,7 @@ fn main() {
     let time = Instant::now();
 
     let transform = dest_profile
-        .create_transform_f32(
+        .create_transform_8bit(
             Layout::Rgba,
             &funny_profile,
             Layout::Rgba,
@@ -165,7 +164,7 @@ fn main() {
                 rendering_intent: RenderingIntent::Perceptual,
                 allow_use_cicp_transfer: false,
                 prefer_fixed_point: false,
-                interpolation_method: InterpolationMethod::Tetrahedral,
+                interpolation_method: InterpolationMethod::Linear,
             },
         )
         .unwrap();
@@ -175,7 +174,7 @@ fn main() {
     let time = Instant::now();
 
     let transform = funny_profile
-        .create_transform_f32(
+        .create_transform_8bit(
             Layout::Rgba,
             &out_profile,
             Layout::Rgba,
@@ -183,12 +182,12 @@ fn main() {
                 rendering_intent: RenderingIntent::Perceptual,
                 allow_use_cicp_transfer: false,
                 prefer_fixed_point: false,
-                interpolation_method: InterpolationMethod::Tetrahedral,
+                interpolation_method: InterpolationMethod::Linear,
             },
         )
         .unwrap();
     println!("Rendering took {:?}", time.elapsed());
-    let mut dst = vec![0f32; real_dst.len()];
+    let mut dst = vec![0u8; real_dst.len()];
 
     for (src, dst) in cmyk
         .chunks_exact(img.width() as usize * 4)
@@ -204,7 +203,7 @@ fn main() {
 
     dst = dst
         .chunks_exact(4)
-        .flat_map(|x| [x[0], x[1], x[2], 1.])
+        .flat_map(|x| [x[0], x[1], x[2], 255])
         .collect();
 
     // println!("Estimated time: {:?}", instant.elapsed());
@@ -287,10 +286,10 @@ fn main() {
     //     [x[0], x[1], x[2], 255]
     // }).flat_map(|x| x).collect::<Vec<u8>>();
 
-    let dst = dst
-        .iter()
-        .map(|&x| (x * 255f32).round() as u8)
-        .collect::<Vec<_>>();
+    // let dst = dst
+    //     .iter()
+    //     .map(|&x| (x * 255f32).round() as u8)
+    //     .collect::<Vec<_>>();
     image::save_buffer(
         "v_new_dst.png",
         &dst,

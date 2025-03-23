@@ -184,6 +184,24 @@ impl Mul<AvxVectorSse> for AvxVectorSse {
     }
 }
 
+impl AvxVector {
+    #[inline(always)]
+    pub(crate) fn neg_mla(self, b: AvxVector, c: AvxVector) -> Self {
+        Self {
+            v: unsafe { _mm256_fnmadd_ps(b.v, c.v, self.v) },
+        }
+    }
+}
+
+impl AvxVectorSse {
+    #[inline(always)]
+    pub(crate) fn neg_mla(self, b: AvxVectorSse, c: AvxVectorSse) -> Self {
+        Self {
+            v: unsafe { _mm_fnmadd_ps(b.v, c.v, self.v) },
+        }
+    }
+}
+
 impl Add<AvxVector> for AvxVector {
     type Output = Self;
     #[inline(always)]
@@ -929,21 +947,21 @@ impl<const GRID_SIZE: usize> TrilinearAvxFmaDouble<'_, GRID_SIZE> {
         let c011 = rv.fetch(x, y_n, z_n);
         let c111 = rv.fetch(x_n, y_n, z_n);
 
-        let dx = AvxVector::from(1.0 - rx);
+        let dx = AvxVector::from(rx);
 
-        let c00 = (c000 * dx).mla(c100, w0);
-        let c10 = (c010 * dx).mla(c110, w0);
-        let c01 = (c001 * dx).mla(c101, w0);
-        let c11 = (c011 * dx).mla(c111, w0);
+        let c00 = c000.neg_mla(c000, dx).mla(c100, w0);
+        let c10 = c010.neg_mla(c010, dx).mla(c110, w0);
+        let c01 = c001.neg_mla(c001, dx).mla(c101, w0);
+        let c11 = c011.neg_mla(c011, dx).mla(c111, w0);
 
-        let dy = AvxVector::from(1.0 - ry);
+        let dy = AvxVector::from(ry);
 
-        let c0 = (c00 * dy).mla(c10, w1);
-        let c1 = (c01 * dy).mla(c11, w1);
+        let c0 = c00.neg_mla(c00, dy).mla(c10, w1);
+        let c1 = c01.neg_mla(c01, dy).mla(c11, w1);
 
-        let dz = AvxVector::from(1.0 - rz);
+        let dz = AvxVector::from(rz);
 
-        (c0 * dz).mla(c1, w2).split()
+        c0.neg_mla(c0, dz).mla(c1, w2).split()
     }
 }
 
@@ -984,20 +1002,20 @@ impl<const GRID_SIZE: usize> TrilinearAvxFma<'_, GRID_SIZE> {
         let c011 = r.fetch(x, y_n, z_n);
         let c111 = r.fetch(x_n, y_n, z_n);
 
-        let dx = AvxVectorSse::from(1.0 - dr);
+        let dx = AvxVectorSse::from(dr);
 
-        let c00 = (c000 * dx).mla(c100, w0);
-        let c10 = (c010 * dx).mla(c110, w0);
-        let c01 = (c001 * dx).mla(c101, w0);
-        let c11 = (c011 * dx).mla(c111, w0);
+        let c00 = c000.neg_mla(c000, dx).mla(c100, w0);
+        let c10 = c010.neg_mla(c010, dx).mla(c110, w0);
+        let c01 = c001.neg_mla(c001, dx).mla(c101, w0);
+        let c11 = c011.neg_mla(c011, dx).mla(c111, w0);
 
-        let dy = AvxVectorSse::from(1.0 - dg);
+        let dy = AvxVectorSse::from(dg);
 
-        let c0 = (c00 * dy).mla(c10, w1);
-        let c1 = (c01 * dy).mla(c11, w1);
+        let c0 = c00.neg_mla(c00, dy).mla(c10, w1);
+        let c1 = c01.neg_mla(c01, dy).mla(c11, w1);
 
-        let dz = AvxVectorSse::from(1.0 - db);
+        let dz = AvxVectorSse::from(db);
 
-        (c0 * dz).mla(c1, w2)
+        c0.neg_mla(c0, dz).mla(c1, w2)
     }
 }
