@@ -113,10 +113,11 @@ where
                         let mut r = _mm_srai_epi16::<7>(_mm_adds_epi16(v.v, rnd));
                         r = _mm_packus_epi16(r, r);
 
-                        let x = _mm_extract_epi8::<0>(r);
-                        let y = _mm_extract_epi8::<1>(r);
-                        let z = _mm_extract_epi8::<2>(r);
-
+                        let m_once = _mm_cvtsi128_si32(r).to_ne_bytes();
+                        let x = m_once[0];
+                        let y = m_once[1];
+                        let z = m_once[2];
+                        
                         dst[dst_cn.r_i()] = (x as u32).as_();
                         dst[dst_cn.g_i()] = (y as u32).as_();
                         dst[dst_cn.b_i()] = (z as u32).as_();
