@@ -28,6 +28,7 @@
  */
 use crate::conversions::interpolator::BarycentricWeight;
 use crate::math::FusedMultiplyAdd;
+use num_traits::AsPrimitive;
 #[cfg(target_arch = "x86")]
 use std::arch::x86::*;
 #[cfg(target_arch = "x86_64")]
@@ -130,23 +131,28 @@ impl<const GRID_SIZE: usize> Fetcher<SseVector> for TetrahedralSseFetchVector<'_
 
 pub(crate) trait SseMdInterpolation<'a, const GRID_SIZE: usize> {
     fn new(table: &'a [SseAlignedF32]) -> Self;
-    fn inter3_sse(&self, in_r: u8, in_g: u8, in_b: u8, lut: &[BarycentricWeight; 256])
-    -> SseVector;
+    fn inter3_sse<U: AsPrimitive<usize>, const BINS: usize>(
+        &self,
+        in_r: U,
+        in_g: U,
+        in_b: U,
+        lut: &[BarycentricWeight; BINS],
+    ) -> SseVector;
 }
 
 impl<const GRID_SIZE: usize> TetrahedralSse<'_, GRID_SIZE> {
     #[inline(always)]
-    fn interpolate(
+    fn interpolate<U: AsPrimitive<usize>, const BINS: usize>(
         &self,
-        in_r: u8,
-        in_g: u8,
-        in_b: u8,
-        lut: &[BarycentricWeight; 256],
+        in_r: U,
+        in_g: U,
+        in_b: U,
+        lut: &[BarycentricWeight; BINS],
         r: impl Fetcher<SseVector>,
     ) -> SseVector {
-        let lut_r = lut[in_r as usize];
-        let lut_g = lut[in_g as usize];
-        let lut_b = lut[in_b as usize];
+        let lut_r = lut[in_r.as_()];
+        let lut_g = lut[in_g.as_()];
+        let lut_b = lut[in_b.as_()];
 
         let x: i32 = lut_r.x;
         let y: i32 = lut_g.x;
@@ -215,12 +221,12 @@ macro_rules! define_inter_sse {
             }
 
             #[inline(always)]
-            fn inter3_sse(
+            fn inter3_sse<U: AsPrimitive<usize>, const BINS: usize>(
                 &self,
-                in_r: u8,
-                in_g: u8,
-                in_b: u8,
-                lut: &[BarycentricWeight; 256],
+                in_r: U,
+                in_g: U,
+                in_b: U,
+                lut: &[BarycentricWeight; BINS],
             ) -> SseVector {
                 self.interpolate(
                     in_r,
@@ -241,17 +247,17 @@ define_inter_sse!(TrilinearSse);
 
 impl<const GRID_SIZE: usize> PyramidalSse<'_, GRID_SIZE> {
     #[inline(always)]
-    fn interpolate(
+    fn interpolate<U: AsPrimitive<usize>, const BINS: usize>(
         &self,
-        in_r: u8,
-        in_g: u8,
-        in_b: u8,
-        lut: &[BarycentricWeight; 256],
+        in_r: U,
+        in_g: U,
+        in_b: U,
+        lut: &[BarycentricWeight; BINS],
         r: impl Fetcher<SseVector>,
     ) -> SseVector {
-        let lut_r = lut[in_r as usize];
-        let lut_g = lut[in_g as usize];
-        let lut_b = lut[in_b as usize];
+        let lut_r = lut[in_r.as_()];
+        let lut_g = lut[in_g.as_()];
+        let lut_b = lut[in_b.as_()];
 
         let x: i32 = lut_r.x;
         let y: i32 = lut_g.x;
@@ -318,17 +324,17 @@ impl<const GRID_SIZE: usize> PyramidalSse<'_, GRID_SIZE> {
 
 impl<const GRID_SIZE: usize> PrismaticSse<'_, GRID_SIZE> {
     #[inline(always)]
-    fn interpolate(
+    fn interpolate<U: AsPrimitive<usize>, const BINS: usize>(
         &self,
-        in_r: u8,
-        in_g: u8,
-        in_b: u8,
-        lut: &[BarycentricWeight; 256],
+        in_r: U,
+        in_g: U,
+        in_b: U,
+        lut: &[BarycentricWeight; BINS],
         r: impl Fetcher<SseVector>,
     ) -> SseVector {
-        let lut_r = lut[in_r as usize];
-        let lut_g = lut[in_g as usize];
-        let lut_b = lut[in_b as usize];
+        let lut_r = lut[in_r.as_()];
+        let lut_g = lut[in_g.as_()];
+        let lut_b = lut[in_b.as_()];
 
         let x: i32 = lut_r.x;
         let y: i32 = lut_g.x;
@@ -386,17 +392,17 @@ impl<const GRID_SIZE: usize> PrismaticSse<'_, GRID_SIZE> {
 
 impl<const GRID_SIZE: usize> TrilinearSse<'_, GRID_SIZE> {
     #[inline(always)]
-    fn interpolate(
+    fn interpolate<U: AsPrimitive<usize>, const BINS: usize>(
         &self,
-        in_r: u8,
-        in_g: u8,
-        in_b: u8,
-        lut: &[BarycentricWeight; 256],
+        in_r: U,
+        in_g: U,
+        in_b: U,
+        lut: &[BarycentricWeight; BINS],
         r: impl Fetcher<SseVector>,
     ) -> SseVector {
-        let lut_r = lut[in_r as usize];
-        let lut_g = lut[in_g as usize];
-        let lut_b = lut[in_b as usize];
+        let lut_r = lut[in_r.as_()];
+        let lut_g = lut[in_g.as_()];
+        let lut_b = lut[in_b.as_()];
 
         let x: i32 = lut_r.x;
         let y: i32 = lut_g.x;

@@ -30,6 +30,7 @@
 use crate::conversions::lut_transforms::LUT_SAMPLING;
 use crate::math::{FusedMultiplyAdd, FusedMultiplyNegAdd};
 use crate::{Vector3f, Vector4f};
+use num_traits::AsPrimitive;
 use std::ops::{Add, Mul, Sub};
 
 pub(crate) struct Tetrahedral<'a, const GRID_SIZE: usize> {
@@ -78,21 +79,55 @@ impl BarycentricWeight {
         }
         weights
     }
+
+    pub(crate) fn create_binned<const GRID_SIZE: usize, const BINS: usize>()
+    -> Box<[BarycentricWeight; 65536]> {
+        let mut weights = Box::new([BarycentricWeight::default(); 65536]);
+        let b_scale: f32 = 1.0 / (BINS - 1) as f32;
+        for (index, weight) in weights.iter_mut().enumerate().take(BINS) {
+            let x: i32 = (index as f32 * (GRID_SIZE as i32 - 1) as f32 * b_scale).floor() as i32;
+
+            let x_n: i32 = (x + 1).min(GRID_SIZE as i32 - 1);
+
+            let scale = (GRID_SIZE as i32 - 1) as f32 * b_scale;
+
+            let dr = index as f32 * scale - x as f32;
+            *weight = BarycentricWeight { x, x_n, w: dr };
+        }
+        weights
+    }
 }
 
 impl BarycentricWeightQ1_15 {
     pub(crate) fn create_ranged_256<const GRID_SIZE: usize>() -> Box<[BarycentricWeightQ1_15; 256]>
     {
         let mut weights = Box::new([BarycentricWeightQ1_15::default(); 256]);
+        const SCALE: f32 = 1.0 / LUT_SAMPLING as f32;
+        let scale = (GRID_SIZE as i32 - 1) as f32 * SCALE;
+        const Q_WEIGHT: f32 = ((1 << 15) - 1) as f32;
+
         for (index, weight) in weights.iter_mut().enumerate() {
-            const SCALE: f32 = 1.0 / LUT_SAMPLING as f32;
             let x: i32 = index as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
 
             let x_n: i32 = (x + 1).min(GRID_SIZE as i32 - 1);
 
-            let scale = (GRID_SIZE as i32 - 1) as f32 * SCALE;
+            let dr = ((index as f32 * scale - x as f32) * Q_WEIGHT).round() as i16;
+            *weight = BarycentricWeightQ1_15 { x, x_n, w: dr };
+        }
+        weights
+    }
 
-            const Q_WEIGHT: f32 = ((1 << 15) - 1) as f32;
+    pub(crate) fn create_binned<const GRID_SIZE: usize, const BINS: usize>()
+    -> Box<[BarycentricWeightQ1_15; 65536]> {
+        let mut weights = Box::new([BarycentricWeightQ1_15::default(); 65536]);
+        let b_scale: f32 = 1.0 / (BINS - 1) as f32;
+        const Q_WEIGHT: f32 = ((1 << 15) - 1) as f32;
+        let scale = (GRID_SIZE as i32 - 1) as f32 * b_scale;
+
+        for (index, weight) in weights.iter_mut().enumerate().take(BINS) {
+            let x: i32 = (index as f32 * (GRID_SIZE as i32 - 1) as f32 * b_scale).floor() as i32;
+
+            let x_n: i32 = (x + 1).min(GRID_SIZE as i32 - 1);
 
             let dr = ((index as f32 * scale - x as f32) * Q_WEIGHT).round() as i16;
             *weight = BarycentricWeightQ1_15 { x, x_n, w: dr };
@@ -111,8 +146,20 @@ struct TetrahedralFetchVector3f<'a, const GRID_SIZE: usize> {
 
 pub(crate) trait MultidimensionalInterpolation<'a, const GRID_SIZE: usize> {
     fn new(table: &'a [f32]) -> Self;
-    fn inter3(&self, in_r: u8, in_g: u8, in_b: u8, lut: &[BarycentricWeight; 256]) -> Vector3f;
-    fn inter4(&self, in_r: u8, in_g: u8, in_b: u8, lut: &[BarycentricWeight; 256]) -> Vector4f;
+    fn inter3<U: AsPrimitive<usize>, const BINS: usize>(
+        &self,
+        in_r: U,
+        in_g: U,
+        in_b: U,
+        lut: &[BarycentricWeight; BINS],
+    ) -> Vector3f;
+    fn inter4<U: AsPrimitive<usize>, const BINS: usize>(
+        &self,
+        in_r: U,
+        in_g: U,
+        in_b: U,
+        lut: &[BarycentricWeight; BINS],
+    ) -> Vector4f;
 }
 
 impl<const GRID_SIZE: usize> Fetcher<Vector3f> for TetrahedralFetchVector3f<'_, GRID_SIZE> {
@@ -148,7 +195,7 @@ impl<const GRID_SIZE: usize> Fetcher<Vector4f> for TetrahedralFetchVector4f<'_, 
 }
 
 impl<const GRID_SIZE: usize> Tetrahedral<'_, GRID_SIZE> {
-    #[inline]
+    #[inline(always)]
     fn interpolate<
         T: Copy
             + Sub<T, Output = T>
@@ -157,17 +204,19 @@ impl<const GRID_SIZE: usize> Tetrahedral<'_, GRID_SIZE> {
             + Add<T, Output = T>
             + From<f32>
             + FusedMultiplyAdd<T>,
+        U: AsPrimitive<usize>,
+        const BINS: usize,
     >(
         &self,
-        in_r: u8,
-        in_g: u8,
-        in_b: u8,
-        lut: &[BarycentricWeight; 256],
+        in_r: U,
+        in_g: U,
+        in_b: U,
+        lut: &[BarycentricWeight; BINS],
         r: impl Fetcher<T>,
     ) -> T {
-        let lut_r = lut[in_r as usize];
-        let lut_g = lut[in_g as usize];
-        let lut_b = lut[in_b as usize];
+        let lut_r = lut[in_r.as_()];
+        let lut_g = lut[in_g.as_()];
+        let lut_b = lut[in_b.as_()];
 
         let x: i32 = lut_r.x;
         let y: i32 = lut_g.x;
@@ -234,14 +283,14 @@ macro_rules! define_md_inter {
             }
 
             #[inline(always)]
-            fn inter3(
+            fn inter3<U: AsPrimitive<usize>, const BINS: usize>(
                 &self,
-                in_r: u8,
-                in_g: u8,
-                in_b: u8,
-                lut: &[BarycentricWeight; 256],
+                in_r: U,
+                in_g: U,
+                in_b: U,
+                lut: &[BarycentricWeight; BINS],
             ) -> Vector3f {
-                self.interpolate(
+                self.interpolate::<Vector3f, U, BINS>(
                     in_r,
                     in_g,
                     in_b,
@@ -251,14 +300,14 @@ macro_rules! define_md_inter {
             }
 
             #[inline(always)]
-            fn inter4(
+            fn inter4<U: AsPrimitive<usize>, const BINS: usize>(
                 &self,
-                in_r: u8,
-                in_g: u8,
-                in_b: u8,
-                lut: &[BarycentricWeight; 256],
+                in_r: U,
+                in_g: U,
+                in_b: U,
+                lut: &[BarycentricWeight; BINS],
             ) -> Vector4f {
-                self.interpolate(
+                self.interpolate::<Vector4f, U, BINS>(
                     in_r,
                     in_g,
                     in_b,
@@ -276,7 +325,7 @@ define_md_inter!(Prismatic);
 define_md_inter!(Trilinear);
 
 impl<const GRID_SIZE: usize> Pyramidal<'_, GRID_SIZE> {
-    #[inline]
+    #[inline(always)]
     fn interpolate<
         T: Copy
             + Sub<T, Output = T>
@@ -285,17 +334,19 @@ impl<const GRID_SIZE: usize> Pyramidal<'_, GRID_SIZE> {
             + Add<T, Output = T>
             + From<f32>
             + FusedMultiplyAdd<T>,
+        U: AsPrimitive<usize>,
+        const BINS: usize,
     >(
         &self,
-        in_r: u8,
-        in_g: u8,
-        in_b: u8,
-        lut: &[BarycentricWeight; 256],
+        in_r: U,
+        in_g: U,
+        in_b: U,
+        lut: &[BarycentricWeight; BINS],
         r: impl Fetcher<T>,
     ) -> T {
-        let lut_r = lut[in_r as usize];
-        let lut_g = lut[in_g as usize];
-        let lut_b = lut[in_b as usize];
+        let lut_r = lut[in_r.as_()];
+        let lut_g = lut[in_g.as_()];
+        let lut_b = lut[in_b.as_()];
 
         let x: i32 = lut_r.x;
         let y: i32 = lut_g.x;
@@ -361,7 +412,7 @@ impl<const GRID_SIZE: usize> Pyramidal<'_, GRID_SIZE> {
 }
 
 impl<const GRID_SIZE: usize> Prismatic<'_, GRID_SIZE> {
-    #[inline]
+    #[inline(always)]
     fn interpolate<
         T: Copy
             + Sub<T, Output = T>
@@ -370,17 +421,19 @@ impl<const GRID_SIZE: usize> Prismatic<'_, GRID_SIZE> {
             + Add<T, Output = T>
             + From<f32>
             + FusedMultiplyAdd<T>,
+        U: AsPrimitive<usize>,
+        const BINS: usize,
     >(
         &self,
-        in_r: u8,
-        in_g: u8,
-        in_b: u8,
-        lut: &[BarycentricWeight; 256],
+        in_r: U,
+        in_g: U,
+        in_b: U,
+        lut: &[BarycentricWeight; BINS],
         r: impl Fetcher<T>,
     ) -> T {
-        let lut_r = lut[in_r as usize];
-        let lut_g = lut[in_g as usize];
-        let lut_b = lut[in_b as usize];
+        let lut_r = lut[in_r.as_()];
+        let lut_g = lut[in_g.as_()];
+        let lut_b = lut[in_b.as_()];
 
         let x: i32 = lut_r.x;
         let y: i32 = lut_g.x;
@@ -437,7 +490,7 @@ impl<const GRID_SIZE: usize> Prismatic<'_, GRID_SIZE> {
 }
 
 impl<const GRID_SIZE: usize> Trilinear<'_, GRID_SIZE> {
-    #[inline]
+    #[inline(always)]
     fn interpolate<
         T: Copy
             + Sub<T, Output = T>
@@ -447,17 +500,19 @@ impl<const GRID_SIZE: usize> Trilinear<'_, GRID_SIZE> {
             + From<f32>
             + FusedMultiplyAdd<T>
             + FusedMultiplyNegAdd<T>,
+        U: AsPrimitive<usize>,
+        const BINS: usize,
     >(
         &self,
-        in_r: u8,
-        in_g: u8,
-        in_b: u8,
-        lut: &[BarycentricWeight; 256],
+        in_r: U,
+        in_g: U,
+        in_b: U,
+        lut: &[BarycentricWeight; BINS],
         r: impl Fetcher<T>,
     ) -> T {
-        let lut_r = lut[in_r as usize];
-        let lut_g = lut[in_g as usize];
-        let lut_b = lut[in_b as usize];
+        let lut_r = lut[in_r.as_()];
+        let lut_g = lut[in_g.as_()];
+        let lut_b = lut[in_b.as_()];
 
         let x: i32 = lut_r.x;
         let y: i32 = lut_g.x;
@@ -499,5 +554,81 @@ impl<const GRID_SIZE: usize> Trilinear<'_, GRID_SIZE> {
         let dz = T::from(db);
 
         c0.neg_mla(c0, dz).mla(c1, w2)
+    }
+}
+
+pub(crate) trait LutBarycentricReduction<T, U> {
+    fn reduce<const SRC_BP: usize, const BINS: usize>(v: T) -> U;
+}
+
+impl LutBarycentricReduction<u8, u8> for () {
+    #[inline(always)]
+    fn reduce<const SRC_BP: usize, const BINS: usize>(v: u8) -> u8 {
+        v
+    }
+}
+
+impl LutBarycentricReduction<u8, u16> for () {
+    #[inline(always)]
+    fn reduce<const SRC_BP: usize, const BINS: usize>(v: u8) -> u16 {
+        if BINS == 65536 {
+            return u16::from_ne_bytes([v, v]);
+        }
+        if BINS == 16384 {
+            return u16::from_ne_bytes([v, v]) >> 2;
+        }
+        unimplemented!()
+    }
+}
+
+impl LutBarycentricReduction<f32, u8> for () {
+    #[inline(always)]
+    fn reduce<const SRC_BP: usize, const BINS: usize>(v: f32) -> u8 {
+        (v * 255.).round().min(255.).max(0.) as u8
+    }
+}
+
+impl LutBarycentricReduction<f32, u16> for () {
+    #[inline(always)]
+    fn reduce<const SRC_BP: usize, const BINS: usize>(v: f32) -> u16 {
+        let scale = (BINS - 1) as f32;
+        (v * scale).round().min(scale).max(0.) as u16
+    }
+}
+
+impl LutBarycentricReduction<f64, u8> for () {
+    #[inline(always)]
+    fn reduce<const SRC_BP: usize, const BINS: usize>(v: f64) -> u8 {
+        (v * 255.).round().min(255.).max(0.) as u8
+    }
+}
+
+impl LutBarycentricReduction<f64, u16> for () {
+    #[inline(always)]
+    fn reduce<const SRC_BP: usize, const BINS: usize>(v: f64) -> u16 {
+        let scale = (BINS - 1) as f64;
+        (v * scale).round().min(scale).max(0.) as u16
+    }
+}
+
+impl LutBarycentricReduction<u16, u16> for () {
+    #[inline(always)]
+    fn reduce<const SRC_BP: usize, const BINS: usize>(v: u16) -> u16 {
+        let src_scale = 1. / ((1 << SRC_BP) - 1) as f32;
+        let scale = src_scale * (BINS - 1) as f32;
+        (v as f32 * scale).round().min(scale).max(0.) as u16
+    }
+}
+
+impl LutBarycentricReduction<u16, u8> for () {
+    #[inline(always)]
+    fn reduce<const SRC_BP: usize, const BINS: usize>(v: u16) -> u8 {
+        let shift = SRC_BP as u16 - 8;
+        let rnd = (1 << (shift - 1)) as u16;
+        if SRC_BP == 16 {
+            (v >> 8) as u8
+        } else {
+            ((v + rnd) >> shift).min(shift) as u8
+        }
     }
 }

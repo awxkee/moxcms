@@ -6,7 +6,7 @@
  */
 use criterion::{Criterion, criterion_group, criterion_main};
 use lcms2::{Intent, PixelFormat, Profile, Transform};
-use moxcms::{ColorProfile, InterpolationMethod, Layout, TransformOptions};
+use moxcms::{BarycentricWeightScale, ColorProfile, InterpolationMethod, Layout, TransformOptions};
 use std::fs;
 use std::fs::File;
 use std::io::BufReader;
@@ -70,6 +70,51 @@ pub fn criterion_benchmark(c: &mut Criterion) {
                 TransformOptions {
                     interpolation_method: InterpolationMethod::Tetrahedral,
                     prefer_fixed_point: false,
+                    barycentric_weight_scale: BarycentricWeightScale::Low,
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        b.iter(|| {
+            transform.transform(&rgb, &mut dst).unwrap();
+        })
+    });
+
+    c.bench_function("moxcms: LUT BarMedium Tetra RGB -> RGB", |b| {
+        let color_profile = ColorProfile::new_from_slice(&srgb_perceptual_icc).unwrap();
+        let dest_profile = ColorProfile::new_srgb();
+        let mut dst = vec![0u8; rgb.len()];
+        let transform = color_profile
+            .create_transform_8bit(
+                Layout::Rgb,
+                &dest_profile,
+                Layout::Rgb,
+                TransformOptions {
+                    interpolation_method: InterpolationMethod::Tetrahedral,
+                    prefer_fixed_point: false,
+                    barycentric_weight_scale: BarycentricWeightScale::Medium,
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        b.iter(|| {
+            transform.transform(&rgb, &mut dst).unwrap();
+        })
+    });
+
+    c.bench_function("moxcms: LUT BarHigh Tetra RGB -> RGB", |b| {
+        let color_profile = ColorProfile::new_from_slice(&srgb_perceptual_icc).unwrap();
+        let dest_profile = ColorProfile::new_srgb();
+        let mut dst = vec![0u8; rgb.len()];
+        let transform = color_profile
+            .create_transform_8bit(
+                Layout::Rgb,
+                &dest_profile,
+                Layout::Rgb,
+                TransformOptions {
+                    interpolation_method: InterpolationMethod::Tetrahedral,
+                    prefer_fixed_point: false,
+                    barycentric_weight_scale: BarycentricWeightScale::High,
                     ..Default::default()
                 },
             )

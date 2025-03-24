@@ -102,9 +102,9 @@ pub use profile::{
 };
 pub use rgb::Rgb;
 pub use transform::{
-    InPlaceStage, InterpolationMethod, Layout, PointeeSizeExpressible, Stage,
-    Transform8BitExecutor, Transform16BitExecutor, TransformExecutor, TransformF32BitExecutor,
-    TransformF64BitExecutor, TransformOptions,
+    BarycentricWeightScale, InPlaceStage, InterpolationMethod, Layout, PointeeSizeExpressible,
+    Stage, Transform8BitExecutor, Transform16BitExecutor, TransformExecutor,
+    TransformF32BitExecutor, TransformF64BitExecutor, TransformOptions,
 };
 pub use trc::{GammaLutInterpolate, ToneReprCurve, curve_from_gamma};
 pub use yrg::{Ych, Yrg, cie_y_1931_to_cie_y_2006};

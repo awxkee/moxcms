@@ -26,7 +26,6 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-use crate::conversions::CompressForLut;
 use crate::conversions::avx::interpolator::{
     AvxMdInterpolationDouble, PrismaticAvxFmaDouble, PyramidAvxFmaDouble, SseAlignedF32,
     TetrahedralAvxFmaDouble, TrilinearAvxFmaDouble,
@@ -35,8 +34,12 @@ use crate::conversions::avx::interpolator_q1_15::SseAlignedI16;
 use crate::conversions::avx::lut4_to_3_q1_15::TransformLut4XyzToRgbAvxQ1_15;
 use crate::conversions::interpolator::{BarycentricWeight, BarycentricWeightQ1_15};
 use crate::conversions::lut_transforms::Lut4x3Factory;
+use crate::conversions::{CompressForLut, LutBarycentricReduction};
 use crate::transform::PointeeSizeExpressible;
-use crate::{CmsError, InterpolationMethod, Layout, TransformExecutor, TransformOptions};
+use crate::{
+    BarycentricWeightScale, CmsError, InterpolationMethod, Layout, TransformExecutor,
+    TransformOptions,
+};
 use num_traits::AsPrimitive;
 #[cfg(target_arch = "x86")]
 use std::arch::x86::*;
@@ -44,23 +47,35 @@ use std::arch::x86::*;
 use std::arch::x86_64::*;
 use std::marker::PhantomData;
 
-struct TransformLut4XyzToRgbAvx<T, const LAYOUT: u8, const GRID_SIZE: usize, const BIT_DEPTH: usize>
-{
+struct TransformLut4XyzToRgbAvx<
+    T,
+    U,
+    const LAYOUT: u8,
+    const GRID_SIZE: usize,
+    const BIT_DEPTH: usize,
+    const BINS: usize,
+    const BARYCENTRIC_BINS: usize,
+> {
     lut: Vec<SseAlignedF32>,
     _phantom: PhantomData<T>,
+    _phantom1: PhantomData<U>,
     interpolation_method: InterpolationMethod,
-    weights: Box<[BarycentricWeight; 256]>,
+    weights: Box<[BarycentricWeight; BINS]>,
 }
 
 impl<
     T: Copy + AsPrimitive<f32> + Default + CompressForLut + PointeeSizeExpressible,
+    U: AsPrimitive<usize>,
     const LAYOUT: u8,
     const GRID_SIZE: usize,
     const BIT_DEPTH: usize,
-> TransformLut4XyzToRgbAvx<T, LAYOUT, GRID_SIZE, BIT_DEPTH>
+    const BINS: usize,
+    const BARYCENTRIC_BINS: usize,
+> TransformLut4XyzToRgbAvx<T, U, LAYOUT, GRID_SIZE, BIT_DEPTH, BINS, BARYCENTRIC_BINS>
 where
     f32: AsPrimitive<T>,
     u32: AsPrimitive<T>,
+    (): LutBarycentricReduction<T, U>,
 {
     #[allow(unused_unsafe)]
     #[target_feature(enable = "avx2", enable = "fma")]
@@ -78,12 +93,20 @@ where
         let max_value = ((1 << BIT_DEPTH) - 1u32).as_();
 
         for (src, dst) in src.chunks_exact(4).zip(dst.chunks_exact_mut(channels)) {
-            let c = src[0].compress_lut::<BIT_DEPTH>();
-            let m = src[1].compress_lut::<BIT_DEPTH>();
-            let y = src[2].compress_lut::<BIT_DEPTH>();
-            let k = src[3].compress_lut::<BIT_DEPTH>();
+            let c = <() as LutBarycentricReduction<T, U>>::reduce::<BIT_DEPTH, BARYCENTRIC_BINS>(
+                src[0],
+            );
+            let m = <() as LutBarycentricReduction<T, U>>::reduce::<BIT_DEPTH, BARYCENTRIC_BINS>(
+                src[1],
+            );
+            let y = <() as LutBarycentricReduction<T, U>>::reduce::<BIT_DEPTH, BARYCENTRIC_BINS>(
+                src[2],
+            );
+            let k = <() as LutBarycentricReduction<T, U>>::reduce::<BIT_DEPTH, BARYCENTRIC_BINS>(
+                src[3],
+            );
 
-            let k_weights = self.weights[k as usize];
+            let k_weights = self.weights[k.as_()];
 
             let w: i32 = k_weights.x;
             let w_n: i32 = k_weights.x_n;
@@ -135,13 +158,18 @@ where
 
 impl<
     T: Copy + AsPrimitive<f32> + Default + CompressForLut + PointeeSizeExpressible,
+    U: AsPrimitive<usize>,
     const LAYOUT: u8,
     const GRID_SIZE: usize,
     const BIT_DEPTH: usize,
-> TransformExecutor<T> for TransformLut4XyzToRgbAvx<T, LAYOUT, GRID_SIZE, BIT_DEPTH>
+    const BINS: usize,
+    const BARYCENTRIC_BINS: usize,
+> TransformExecutor<T>
+    for TransformLut4XyzToRgbAvx<T, U, LAYOUT, GRID_SIZE, BIT_DEPTH, BINS, BARYCENTRIC_BINS>
 where
     f32: AsPrimitive<T>,
     u32: AsPrimitive<T>,
+    (): LutBarycentricReduction<T, U>,
 {
     fn transform(&self, src: &[T], dst: &mut [T]) -> Result<(), CmsError> {
         let cn = Layout::from(LAYOUT);
@@ -201,6 +229,8 @@ impl Lut4x3Factory for AvxLut4x3Factory {
     where
         f32: AsPrimitive<T>,
         u32: AsPrimitive<T>,
+        (): LutBarycentricReduction<T, u8>,
+        (): LutBarycentricReduction<T, u16>,
     {
         if options.prefer_fixed_point && BIT_DEPTH < 15 {
             const Q_SCALE: f32 = ((1 << 15) - 1) as f32;
@@ -215,14 +245,53 @@ impl Lut4x3Factory for AvxLut4x3Factory {
                     ])
                 })
                 .collect::<Vec<_>>();
-            return Box::new(
-                TransformLut4XyzToRgbAvxQ1_15::<T, LAYOUT, GRID_SIZE, BIT_DEPTH> {
+            return match options.barycentric_weight_scale {
+                BarycentricWeightScale::Low => Box::new(TransformLut4XyzToRgbAvxQ1_15::<
+                    T,
+                    u8,
+                    LAYOUT,
+                    GRID_SIZE,
+                    BIT_DEPTH,
+                    256,
+                    256,
+                > {
                     lut,
                     _phantom: PhantomData,
+                    _phantom1: PhantomData,
                     interpolation_method: options.interpolation_method,
                     weights: BarycentricWeightQ1_15::create_ranged_256::<GRID_SIZE>(),
-                },
-            );
+                }),
+                BarycentricWeightScale::Medium => Box::new(TransformLut4XyzToRgbAvxQ1_15::<
+                    T,
+                    u16,
+                    LAYOUT,
+                    GRID_SIZE,
+                    BIT_DEPTH,
+                    65536,
+                    16384,
+                > {
+                    lut,
+                    _phantom: PhantomData,
+                    _phantom1: PhantomData,
+                    interpolation_method: options.interpolation_method,
+                    weights: BarycentricWeightQ1_15::create_binned::<GRID_SIZE, 16384>(),
+                }),
+                BarycentricWeightScale::High => Box::new(TransformLut4XyzToRgbAvxQ1_15::<
+                    T,
+                    u16,
+                    LAYOUT,
+                    GRID_SIZE,
+                    BIT_DEPTH,
+                    65536,
+                    65536,
+                > {
+                    lut,
+                    _phantom: PhantomData,
+                    _phantom1: PhantomData,
+                    interpolation_method: options.interpolation_method,
+                    weights: BarycentricWeightQ1_15::create_binned::<GRID_SIZE, 65536>(),
+                }),
+            };
         }
         assert!(
             std::arch::is_x86_feature_detected!("fma"),
@@ -232,13 +301,48 @@ impl Lut4x3Factory for AvxLut4x3Factory {
             .chunks_exact(3)
             .map(|x| SseAlignedF32([x[0], x[1], x[2], 0f32]))
             .collect::<Vec<_>>();
-        Box::new(
-            TransformLut4XyzToRgbAvx::<T, LAYOUT, GRID_SIZE, BIT_DEPTH> {
+        match options.barycentric_weight_scale {
+            BarycentricWeightScale::Low => {
+                Box::new(
+                    TransformLut4XyzToRgbAvx::<T, u8, LAYOUT, GRID_SIZE, BIT_DEPTH, 256, 256> {
+                        lut,
+                        interpolation_method: options.interpolation_method,
+                        weights: BarycentricWeight::create_ranged_256::<GRID_SIZE>(),
+                        _phantom: PhantomData,
+                        _phantom1: PhantomData,
+                    },
+                )
+            }
+            BarycentricWeightScale::Medium => Box::new(TransformLut4XyzToRgbAvx::<
+                T,
+                u16,
+                LAYOUT,
+                GRID_SIZE,
+                BIT_DEPTH,
+                65536,
+                16384,
+            > {
                 lut,
-                _phantom: PhantomData,
                 interpolation_method: options.interpolation_method,
-                weights: BarycentricWeight::create_ranged_256::<GRID_SIZE>(),
-            },
-        )
+                weights: BarycentricWeight::create_binned::<GRID_SIZE, 16384>(),
+                _phantom: PhantomData,
+                _phantom1: PhantomData,
+            }),
+            BarycentricWeightScale::High => Box::new(TransformLut4XyzToRgbAvx::<
+                T,
+                u16,
+                LAYOUT,
+                GRID_SIZE,
+                BIT_DEPTH,
+                65536,
+                65536,
+            > {
+                lut,
+                interpolation_method: options.interpolation_method,
+                weights: BarycentricWeight::create_binned::<GRID_SIZE, 65536>(),
+                _phantom: PhantomData,
+                _phantom1: PhantomData,
+            }),
+        }
     }
 }

@@ -28,7 +28,10 @@
  */
 // use jxl_oxide::{JxlImage, JxlThreadPool, Lcms2, Moxcms};
 use lcms2::Profile;
-use moxcms::{ColorProfile, InterpolationMethod, Layout, RenderingIntent, TransformOptions};
+use moxcms::{
+    BarycentricWeightScale, ColorProfile, InterpolationMethod, Layout, RenderingIntent,
+    TransformOptions,
+};
 use rand::Rng;
 use std::fs;
 use std::fs::File;
@@ -165,6 +168,7 @@ fn main() {
                 allow_use_cicp_transfer: false,
                 prefer_fixed_point: true,
                 interpolation_method: InterpolationMethod::Linear,
+                barycentric_weight_scale: BarycentricWeightScale::High,
             },
         )
         .unwrap();
@@ -183,6 +187,7 @@ fn main() {
                 allow_use_cicp_transfer: false,
                 prefer_fixed_point: true,
                 interpolation_method: InterpolationMethod::Linear,
+                barycentric_weight_scale: BarycentricWeightScale::High,
             },
         )
         .unwrap();
