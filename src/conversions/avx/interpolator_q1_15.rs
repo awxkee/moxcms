@@ -64,7 +64,7 @@ pub(crate) struct TrilinearAvxFmaQ1_15Double<'a, const GRID_SIZE: usize> {
     pub(crate) cube1: &'a [SseAlignedI16],
 }
 
-pub(crate) struct PyramidAvxFmaDouble<'a, const GRID_SIZE: usize> {
+pub(crate) struct PyramidAvxFmaQ1_15Double<'a, const GRID_SIZE: usize> {
     pub(crate) cube0: &'a [SseAlignedI16],
     pub(crate) cube1: &'a [SseAlignedI16],
 }
@@ -199,7 +199,7 @@ impl AvxVectorQ1_15 {
     #[inline(always)]
     pub(crate) fn neg_mla(self, b: AvxVectorQ1_15, c: AvxVectorQ1_15) -> Self {
         Self {
-            v: unsafe { _mm256_sub_epi16(self.v, _mm256_mulhi_epi16(b.v, c.v)) },
+            v: unsafe { _mm256_sub_epi16(self.v, _mm256_mulhrs_epi16(b.v, c.v)) },
         }
     }
 }
@@ -228,7 +228,7 @@ impl Mul<AvxVectorQ1_15> for AvxVectorQ1_15 {
     #[inline(always)]
     fn mul(self, rhs: AvxVectorQ1_15) -> Self::Output {
         AvxVectorQ1_15 {
-            v: unsafe { _mm256_mulhi_epi16(self.v, rhs.v) },
+            v: unsafe { _mm256_mulhrs_epi16(self.v, rhs.v) },
         }
     }
 }
@@ -246,7 +246,7 @@ impl FusedMultiplyAdd<AvxVectorQ1_15> for AvxVectorQ1_15 {
     #[inline(always)]
     fn mla(&self, b: AvxVectorQ1_15, c: AvxVectorQ1_15) -> AvxVectorQ1_15 {
         AvxVectorQ1_15 {
-            v: unsafe { _mm256_add_epi16(_mm256_add_epi16(b.v, c.v), self.v) },
+            v: unsafe { _mm256_add_epi16(_mm256_mulhrs_epi16(b.v, c.v), self.v) },
         }
     }
 }
@@ -433,7 +433,7 @@ define_interp_avx!(PyramidalAvxFmaQ1_15);
 define_interp_avx!(PrismaticAvxFmaQ1_15);
 define_interp_avx!(TrilinearAvxFmaQ1_15);
 define_interp_avx_d!(PrismaticAvxFmaQ1_15Double);
-define_interp_avx_d!(PyramidAvxFmaDouble);
+define_interp_avx_d!(PyramidAvxFmaQ1_15Double);
 
 impl<'a, const GRID_SIZE: usize> AvxMdInterpolationQ1_15Double<'a, GRID_SIZE>
     for TetrahedralAvxFmaQ1_15Double<'a, GRID_SIZE>
@@ -763,7 +763,7 @@ impl<const GRID_SIZE: usize> PrismaticAvxFmaQ1_15Double<'_, GRID_SIZE> {
     }
 }
 
-impl<const GRID_SIZE: usize> PyramidAvxFmaDouble<'_, GRID_SIZE> {
+impl<const GRID_SIZE: usize> PyramidAvxFmaQ1_15Double<'_, GRID_SIZE> {
     #[inline(always)]
     fn interpolate(
         &self,

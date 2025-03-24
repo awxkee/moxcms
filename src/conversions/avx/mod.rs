@@ -29,6 +29,7 @@
 mod interpolator;
 mod interpolator_q1_15;
 mod lut4_to_3;
+mod lut4_to_3_q1_15;
 mod rgb_xyz_q4_12;
 mod stages;
 mod transform_lut3_to_3;

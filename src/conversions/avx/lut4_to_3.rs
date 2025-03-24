@@ -31,7 +31,9 @@ use crate::conversions::avx::interpolator::{
     AvxMdInterpolationDouble, PrismaticAvxFmaDouble, PyramidAvxFmaDouble, SseAlignedF32,
     TetrahedralAvxFmaDouble, TrilinearAvxFmaDouble,
 };
-use crate::conversions::interpolator::BarycentricWeight;
+use crate::conversions::avx::interpolator_q1_15::SseAlignedI16;
+use crate::conversions::avx::lut4_to_3_q1_15::TransformLut4XyzToRgbAvxQ1_15;
+use crate::conversions::interpolator::{BarycentricWeight, BarycentricWeightQ1_15};
 use crate::conversions::lut_transforms::Lut4x3Factory;
 use crate::transform::PointeeSizeExpressible;
 use crate::{CmsError, InterpolationMethod, Layout, TransformExecutor, TransformOptions};
@@ -200,6 +202,32 @@ impl Lut4x3Factory for AvxLut4x3Factory {
         f32: AsPrimitive<T>,
         u32: AsPrimitive<T>,
     {
+        if options.prefer_fixed_point && BIT_DEPTH < 15 {
+            const Q_SCALE: f32 = ((1 << 15) - 1) as f32;
+            let lut = lut
+                .chunks_exact(3)
+                .map(|x| {
+                    SseAlignedI16([
+                        (x[0] * Q_SCALE).round() as i16,
+                        (x[1] * Q_SCALE).round() as i16,
+                        (x[2] * Q_SCALE).round() as i16,
+                        0,
+                    ])
+                })
+                .collect::<Vec<_>>();
+            return Box::new(
+                TransformLut4XyzToRgbAvxQ1_15::<T, LAYOUT, GRID_SIZE, BIT_DEPTH> {
+                    lut,
+                    _phantom: PhantomData,
+                    interpolation_method: options.interpolation_method,
+                    weights: BarycentricWeightQ1_15::create_ranged_256::<GRID_SIZE>(),
+                },
+            );
+        }
+        assert!(
+            std::arch::is_x86_feature_detected!("fma"),
+            "Internal configuration error, this might not be called without `fma` feature"
+        );
         let lut = lut
             .chunks_exact(3)
             .map(|x| SseAlignedF32([x[0], x[1], x[2], 0f32]))

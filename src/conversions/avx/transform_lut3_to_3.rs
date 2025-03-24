@@ -204,7 +204,11 @@ impl Lut3x3Factory for AvxLut3x3Factory {
         f32: AsPrimitive<T>,
         u32: AsPrimitive<T>,
     {
-        if options.prefer_fixed_point && BIT_DEPTH < 15 && T::FINITE {
+        // Linear interpolation is faster on floating
+        if options.prefer_fixed_point
+            && BIT_DEPTH < 15
+            && options.interpolation_method != InterpolationMethod::Linear
+        {
             const Q_SCALE: f32 = ((1 << 15) - 1) as f32;
             let lut = lut
                 .chunks_exact(3)
