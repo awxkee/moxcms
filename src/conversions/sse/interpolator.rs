@@ -26,9 +26,8 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-use crate::conversions::lut_transforms::LUT_SAMPLING;
+use crate::conversions::interpolator::BarycentricWeight;
 use crate::math::FusedMultiplyAdd;
-use crate::rounding_div_ceil;
 #[cfg(target_arch = "x86")]
 use std::arch::x86::*;
 #[cfg(target_arch = "x86_64")]
@@ -131,28 +130,37 @@ impl<const GRID_SIZE: usize> Fetcher<SseVector> for TetrahedralSseFetchVector<'_
 
 pub(crate) trait SseMdInterpolation<'a, const GRID_SIZE: usize> {
     fn new(table: &'a [SseAlignedF32]) -> Self;
-    fn inter3_sse(&self, in_r: u8, in_g: u8, in_b: u8) -> SseVector;
+    fn inter3_sse(&self, in_r: u8, in_g: u8, in_b: u8, lut: &[BarycentricWeight; 256])
+    -> SseVector;
 }
 
 impl<const GRID_SIZE: usize> TetrahedralSse<'_, GRID_SIZE> {
     #[inline(always)]
-    fn interpolate(&self, in_r: u8, in_g: u8, in_b: u8, r: impl Fetcher<SseVector>) -> SseVector {
-        const SCALE: f32 = 1.0 / LUT_SAMPLING as f32;
-        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
-        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
-        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
+    fn interpolate(
+        &self,
+        in_r: u8,
+        in_g: u8,
+        in_b: u8,
+        lut: &[BarycentricWeight; 256],
+        r: impl Fetcher<SseVector>,
+    ) -> SseVector {
+        let lut_r = lut[in_r as usize];
+        let lut_g = lut[in_g as usize];
+        let lut_b = lut[in_b as usize];
+
+        let x: i32 = lut_r.x;
+        let y: i32 = lut_g.x;
+        let z: i32 = lut_b.x;
+
+        let x_n: i32 = lut_r.x_n;
+        let y_n: i32 = lut_g.x_n;
+        let z_n: i32 = lut_b.x_n;
+
+        let rx = lut_r.w;
+        let ry = lut_g.w;
+        let rz = lut_b.w;
 
         let c0 = r.fetch(x, y, z);
-
-        let x_n: i32 = rounding_div_ceil(in_r as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
-        let y_n: i32 = rounding_div_ceil(in_g as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
-        let z_n: i32 = rounding_div_ceil(in_b as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
-
-        let scale = (GRID_SIZE as i32 - 1) as f32 * SCALE;
-
-        let rx = in_r as f32 * scale - x as f32;
-        let ry = in_g as f32 * scale - y as f32;
-        let rz = in_b as f32 * scale - z as f32;
 
         let c2;
         let c1;
@@ -207,11 +215,18 @@ macro_rules! define_inter_sse {
             }
 
             #[inline(always)]
-            fn inter3_sse(&self, in_r: u8, in_g: u8, in_b: u8) -> SseVector {
+            fn inter3_sse(
+                &self,
+                in_r: u8,
+                in_g: u8,
+                in_b: u8,
+                lut: &[BarycentricWeight; 256],
+            ) -> SseVector {
                 self.interpolate(
                     in_r,
                     in_g,
                     in_b,
+                    lut,
                     TetrahedralSseFetchVector::<GRID_SIZE> { cube: self.cube },
                 )
             }
@@ -226,23 +241,31 @@ define_inter_sse!(TrilinearSse);
 
 impl<const GRID_SIZE: usize> PyramidalSse<'_, GRID_SIZE> {
     #[inline(always)]
-    fn interpolate(&self, in_r: u8, in_g: u8, in_b: u8, r: impl Fetcher<SseVector>) -> SseVector {
-        const SCALE: f32 = 1.0 / LUT_SAMPLING as f32;
-        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
-        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
-        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
+    fn interpolate(
+        &self,
+        in_r: u8,
+        in_g: u8,
+        in_b: u8,
+        lut: &[BarycentricWeight; 256],
+        r: impl Fetcher<SseVector>,
+    ) -> SseVector {
+        let lut_r = lut[in_r as usize];
+        let lut_g = lut[in_g as usize];
+        let lut_b = lut[in_b as usize];
+
+        let x: i32 = lut_r.x;
+        let y: i32 = lut_g.x;
+        let z: i32 = lut_b.x;
+
+        let x_n: i32 = lut_r.x_n;
+        let y_n: i32 = lut_g.x_n;
+        let z_n: i32 = lut_b.x_n;
+
+        let dr = lut_r.w;
+        let dg = lut_g.w;
+        let db = lut_b.w;
 
         let c0 = r.fetch(x, y, z);
-
-        let x_n: i32 = rounding_div_ceil(in_r as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
-        let y_n: i32 = rounding_div_ceil(in_g as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
-        let z_n: i32 = rounding_div_ceil(in_b as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
-
-        let scale = (GRID_SIZE as i32 - 1) as f32 * SCALE;
-
-        let dr = in_r as f32 * scale - x as f32;
-        let dg = in_g as f32 * scale - y as f32;
-        let db = in_b as f32 * scale - z as f32;
 
         if dr > db && dg > db {
             let x0 = r.fetch(x_n, y_n, z_n);
@@ -295,23 +318,31 @@ impl<const GRID_SIZE: usize> PyramidalSse<'_, GRID_SIZE> {
 
 impl<const GRID_SIZE: usize> PrismaticSse<'_, GRID_SIZE> {
     #[inline(always)]
-    fn interpolate(&self, in_r: u8, in_g: u8, in_b: u8, r: impl Fetcher<SseVector>) -> SseVector {
-        const SCALE: f32 = 1.0 / LUT_SAMPLING as f32;
-        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
-        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
-        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
+    fn interpolate(
+        &self,
+        in_r: u8,
+        in_g: u8,
+        in_b: u8,
+        lut: &[BarycentricWeight; 256],
+        r: impl Fetcher<SseVector>,
+    ) -> SseVector {
+        let lut_r = lut[in_r as usize];
+        let lut_g = lut[in_g as usize];
+        let lut_b = lut[in_b as usize];
+
+        let x: i32 = lut_r.x;
+        let y: i32 = lut_g.x;
+        let z: i32 = lut_b.x;
+
+        let x_n: i32 = lut_r.x_n;
+        let y_n: i32 = lut_g.x_n;
+        let z_n: i32 = lut_b.x_n;
+
+        let dr = lut_r.w;
+        let dg = lut_g.w;
+        let db = lut_b.w;
 
         let c0 = r.fetch(x, y, z);
-
-        let x_n: i32 = rounding_div_ceil(in_r as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
-        let y_n: i32 = rounding_div_ceil(in_g as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
-        let z_n: i32 = rounding_div_ceil(in_b as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
-
-        let scale = (GRID_SIZE as i32 - 1) as f32 * SCALE;
-
-        let dr = in_r as f32 * scale - x as f32;
-        let dg = in_g as f32 * scale - y as f32;
-        let db = in_b as f32 * scale - z as f32;
 
         if db > dr {
             let x0 = r.fetch(x, y, z_n);
@@ -355,21 +386,29 @@ impl<const GRID_SIZE: usize> PrismaticSse<'_, GRID_SIZE> {
 
 impl<const GRID_SIZE: usize> TrilinearSse<'_, GRID_SIZE> {
     #[inline(always)]
-    fn interpolate(&self, in_r: u8, in_g: u8, in_b: u8, r: impl Fetcher<SseVector>) -> SseVector {
-        const SCALE: f32 = 1.0 / LUT_SAMPLING as f32;
-        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
-        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
-        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
+    fn interpolate(
+        &self,
+        in_r: u8,
+        in_g: u8,
+        in_b: u8,
+        lut: &[BarycentricWeight; 256],
+        r: impl Fetcher<SseVector>,
+    ) -> SseVector {
+        let lut_r = lut[in_r as usize];
+        let lut_g = lut[in_g as usize];
+        let lut_b = lut[in_b as usize];
 
-        let x_n: i32 = rounding_div_ceil(in_r as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
-        let y_n: i32 = rounding_div_ceil(in_g as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
-        let z_n: i32 = rounding_div_ceil(in_b as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
+        let x: i32 = lut_r.x;
+        let y: i32 = lut_g.x;
+        let z: i32 = lut_b.x;
 
-        let scale = (GRID_SIZE as i32 - 1) as f32 * SCALE;
+        let x_n: i32 = lut_r.x_n;
+        let y_n: i32 = lut_g.x_n;
+        let z_n: i32 = lut_b.x_n;
 
-        let dr = in_r as f32 * scale - x as f32;
-        let dg = in_g as f32 * scale - y as f32;
-        let db = in_b as f32 * scale - z as f32;
+        let dr = lut_r.w;
+        let dg = lut_g.w;
+        let db = lut_b.w;
 
         let w0 = SseVector::from(dr);
         let w1 = SseVector::from(dg);

@@ -27,9 +27,8 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 #![allow(dead_code)]
-use crate::conversions::lut_transforms::LUT_SAMPLING;
+use crate::conversions::interpolator::BarycentricWeight;
 use crate::math::FusedMultiplyAdd;
-use crate::rounding_div_ceil;
 #[cfg(target_arch = "x86")]
 use std::arch::x86::*;
 #[cfg(target_arch = "x86_64")]
@@ -77,12 +76,24 @@ pub(crate) struct TetrahedralAvxFmaDouble<'a, const GRID_SIZE: usize> {
 
 pub(crate) trait AvxMdInterpolationDouble<'a, const GRID_SIZE: usize> {
     fn new(table0: &'a [SseAlignedF32], table1: &'a [SseAlignedF32]) -> Self;
-    fn inter3_sse(&self, in_r: u8, in_g: u8, in_b: u8) -> (AvxVectorSse, AvxVectorSse);
+    fn inter3_sse(
+        &self,
+        in_r: u8,
+        in_g: u8,
+        in_b: u8,
+        lut: &[BarycentricWeight; 256],
+    ) -> (AvxVectorSse, AvxVectorSse);
 }
 
 pub(crate) trait AvxMdInterpolation<'a, const GRID_SIZE: usize> {
     fn new(table: &'a [SseAlignedF32]) -> Self;
-    fn inter3_sse(&self, in_r: u8, in_g: u8, in_b: u8) -> AvxVectorSse;
+    fn inter3_sse(
+        &self,
+        in_r: u8,
+        in_g: u8,
+        in_b: u8,
+        lut: &[BarycentricWeight; 256],
+    ) -> AvxVectorSse;
 }
 
 trait Fetcher<T> {
@@ -288,24 +299,26 @@ impl<const GRID_SIZE: usize> TetrahedralAvxFma<'_, GRID_SIZE> {
         in_r: u8,
         in_g: u8,
         in_b: u8,
+        lut: &[BarycentricWeight; 256],
         r: impl Fetcher<AvxVectorSse>,
     ) -> AvxVectorSse {
-        const SCALE: f32 = 1.0 / LUT_SAMPLING as f32;
-        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
-        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
-        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
+        let lut_r = lut[in_r as usize];
+        let lut_g = lut[in_g as usize];
+        let lut_b = lut[in_b as usize];
+
+        let x: i32 = lut_r.x;
+        let y: i32 = lut_g.x;
+        let z: i32 = lut_b.x;
+
+        let x_n: i32 = lut_r.x_n;
+        let y_n: i32 = lut_g.x_n;
+        let z_n: i32 = lut_b.x_n;
+
+        let rx = lut_r.w;
+        let ry = lut_g.w;
+        let rz = lut_b.w;
 
         let c0 = r.fetch(x, y, z);
-
-        let x_n: i32 = rounding_div_ceil(in_r as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
-        let y_n: i32 = rounding_div_ceil(in_g as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
-        let z_n: i32 = rounding_div_ceil(in_b as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
-
-        let scale = (GRID_SIZE as i32 - 1) as f32 * SCALE;
-
-        let rx = in_r as f32 * scale - x as f32;
-        let ry = in_g as f32 * scale - y as f32;
-        let rz = in_b as f32 * scale - z as f32;
 
         let c2;
         let c1;
@@ -360,11 +373,18 @@ macro_rules! define_interp_avx {
             }
 
             #[inline(always)]
-            fn inter3_sse(&self, in_r: u8, in_g: u8, in_b: u8) -> AvxVectorSse {
+            fn inter3_sse(
+                &self,
+                in_r: u8,
+                in_g: u8,
+                in_b: u8,
+                lut: &[BarycentricWeight; 256],
+            ) -> AvxVectorSse {
                 self.interpolate(
                     in_r,
                     in_g,
                     in_b,
+                    lut,
                     TetrahedralAvxSseFetchVector::<GRID_SIZE> { cube: self.cube },
                 )
             }
@@ -386,11 +406,18 @@ macro_rules! define_interp_avx_d {
             }
 
             #[inline(always)]
-            fn inter3_sse(&self, in_r: u8, in_g: u8, in_b: u8) -> (AvxVectorSse, AvxVectorSse) {
+            fn inter3_sse(
+                &self,
+                in_r: u8,
+                in_g: u8,
+                in_b: u8,
+                lut: &[BarycentricWeight; 256],
+            ) -> (AvxVectorSse, AvxVectorSse) {
                 self.interpolate(
                     in_r,
                     in_g,
                     in_b,
+                    lut,
                     TetrahedralAvxSseFetchVector::<GRID_SIZE> { cube: self.cube0 },
                     TetrahedralAvxSseFetchVector::<GRID_SIZE> { cube: self.cube1 },
                 )
@@ -418,11 +445,18 @@ impl<'a, const GRID_SIZE: usize> AvxMdInterpolationDouble<'a, GRID_SIZE>
     }
 
     #[inline(always)]
-    fn inter3_sse(&self, in_r: u8, in_g: u8, in_b: u8) -> (AvxVectorSse, AvxVectorSse) {
+    fn inter3_sse(
+        &self,
+        in_r: u8,
+        in_g: u8,
+        in_b: u8,
+        lut: &[BarycentricWeight; 256],
+    ) -> (AvxVectorSse, AvxVectorSse) {
         self.interpolate(
             in_r,
             in_g,
             in_b,
+            lut,
             TetrahedralAvxSseFetchVector::<GRID_SIZE> { cube: self.cube0 },
             TetrahedralAvxSseFetchVector::<GRID_SIZE> { cube: self.cube1 },
             TetrahedralAvxFetchVector::<GRID_SIZE> {
@@ -445,11 +479,18 @@ impl<'a, const GRID_SIZE: usize> AvxMdInterpolationDouble<'a, GRID_SIZE>
     }
 
     #[inline(always)]
-    fn inter3_sse(&self, in_r: u8, in_g: u8, in_b: u8) -> (AvxVectorSse, AvxVectorSse) {
+    fn inter3_sse(
+        &self,
+        in_r: u8,
+        in_g: u8,
+        in_b: u8,
+        lut: &[BarycentricWeight; 256],
+    ) -> (AvxVectorSse, AvxVectorSse) {
         self.interpolate(
             in_r,
             in_g,
             in_b,
+            lut,
             TetrahedralAvxFetchVector::<GRID_SIZE> {
                 cube0: self.cube0,
                 cube1: self.cube1,
@@ -465,24 +506,26 @@ impl<const GRID_SIZE: usize> PyramidalAvxFma<'_, GRID_SIZE> {
         in_r: u8,
         in_g: u8,
         in_b: u8,
+        lut: &[BarycentricWeight; 256],
         r: impl Fetcher<AvxVectorSse>,
     ) -> AvxVectorSse {
-        const SCALE: f32 = 1.0 / LUT_SAMPLING as f32;
-        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
-        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
-        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
+        let lut_r = lut[in_r as usize];
+        let lut_g = lut[in_g as usize];
+        let lut_b = lut[in_b as usize];
+
+        let x: i32 = lut_r.x;
+        let y: i32 = lut_g.x;
+        let z: i32 = lut_b.x;
+
+        let x_n: i32 = lut_r.x_n;
+        let y_n: i32 = lut_g.x_n;
+        let z_n: i32 = lut_b.x_n;
+
+        let dr = lut_r.w;
+        let dg = lut_g.w;
+        let db = lut_b.w;
 
         let c0 = r.fetch(x, y, z);
-
-        let x_n: i32 = rounding_div_ceil(in_r as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
-        let y_n: i32 = rounding_div_ceil(in_g as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
-        let z_n: i32 = rounding_div_ceil(in_b as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
-
-        let scale = (GRID_SIZE as i32 - 1) as f32 * SCALE;
-
-        let dr = in_r as f32 * scale - x as f32;
-        let dg = in_g as f32 * scale - y as f32;
-        let db = in_b as f32 * scale - z as f32;
 
         let w0 = AvxVectorSse::from(db);
         let w1 = AvxVectorSse::from(dr);
@@ -549,24 +592,26 @@ impl<const GRID_SIZE: usize> PrismaticAvxFma<'_, GRID_SIZE> {
         in_r: u8,
         in_g: u8,
         in_b: u8,
+        lut: &[BarycentricWeight; 256],
         r: impl Fetcher<AvxVectorSse>,
     ) -> AvxVectorSse {
-        const SCALE: f32 = 1.0 / LUT_SAMPLING as f32;
-        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
-        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
-        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
+        let lut_r = lut[in_r as usize];
+        let lut_g = lut[in_g as usize];
+        let lut_b = lut[in_b as usize];
+
+        let x: i32 = lut_r.x;
+        let y: i32 = lut_g.x;
+        let z: i32 = lut_b.x;
+
+        let x_n: i32 = lut_r.x_n;
+        let y_n: i32 = lut_g.x_n;
+        let z_n: i32 = lut_b.x_n;
+
+        let dr = lut_r.w;
+        let dg = lut_g.w;
+        let db = lut_b.w;
 
         let c0 = r.fetch(x, y, z);
-
-        let x_n: i32 = rounding_div_ceil(in_r as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
-        let y_n: i32 = rounding_div_ceil(in_g as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
-        let z_n: i32 = rounding_div_ceil(in_b as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
-
-        let scale = (GRID_SIZE as i32 - 1) as f32 * SCALE;
-
-        let dr = in_r as f32 * scale - x as f32;
-        let dg = in_g as f32 * scale - y as f32;
-        let db = in_b as f32 * scale - z as f32;
 
         let w0 = AvxVectorSse::from(db);
         let w1 = AvxVectorSse::from(dr);
@@ -621,26 +666,28 @@ impl<const GRID_SIZE: usize> PrismaticAvxFmaDouble<'_, GRID_SIZE> {
         in_r: u8,
         in_g: u8,
         in_b: u8,
+        lut: &[BarycentricWeight; 256],
         r0: impl Fetcher<AvxVectorSse>,
         r1: impl Fetcher<AvxVectorSse>,
     ) -> (AvxVectorSse, AvxVectorSse) {
-        const SCALE: f32 = 1.0 / LUT_SAMPLING as f32;
-        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
-        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
-        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
+        let lut_r = lut[in_r as usize];
+        let lut_g = lut[in_g as usize];
+        let lut_b = lut[in_b as usize];
+
+        let x: i32 = lut_r.x;
+        let y: i32 = lut_g.x;
+        let z: i32 = lut_b.x;
+
+        let x_n: i32 = lut_r.x_n;
+        let y_n: i32 = lut_g.x_n;
+        let z_n: i32 = lut_b.x_n;
+
+        let dr = lut_r.w;
+        let dg = lut_g.w;
+        let db = lut_b.w;
 
         let c0_0 = r0.fetch(x, y, z);
         let c0_1 = r0.fetch(x, y, z);
-
-        let x_n: i32 = rounding_div_ceil(in_r as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
-        let y_n: i32 = rounding_div_ceil(in_g as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
-        let z_n: i32 = rounding_div_ceil(in_b as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
-
-        let scale = (GRID_SIZE as i32 - 1) as f32 * SCALE;
-
-        let dr = in_r as f32 * scale - x as f32;
-        let dg = in_g as f32 * scale - y as f32;
-        let db = in_b as f32 * scale - z as f32;
 
         let w0 = AvxVector::from(db);
         let w1 = AvxVector::from(dr);
@@ -721,26 +768,28 @@ impl<const GRID_SIZE: usize> PyramidAvxFmaDouble<'_, GRID_SIZE> {
         in_r: u8,
         in_g: u8,
         in_b: u8,
+        lut: &[BarycentricWeight; 256],
         r0: impl Fetcher<AvxVectorSse>,
         r1: impl Fetcher<AvxVectorSse>,
     ) -> (AvxVectorSse, AvxVectorSse) {
-        const SCALE: f32 = 1.0 / LUT_SAMPLING as f32;
-        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
-        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
-        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
+        let lut_r = lut[in_r as usize];
+        let lut_g = lut[in_g as usize];
+        let lut_b = lut[in_b as usize];
+
+        let x: i32 = lut_r.x;
+        let y: i32 = lut_g.x;
+        let z: i32 = lut_b.x;
+
+        let x_n: i32 = lut_r.x_n;
+        let y_n: i32 = lut_g.x_n;
+        let z_n: i32 = lut_b.x_n;
+
+        let dr = lut_r.w;
+        let dg = lut_g.w;
+        let db = lut_b.w;
 
         let c0_0 = r0.fetch(x, y, z);
         let c0_1 = r1.fetch(x, y, z);
-
-        let x_n: i32 = rounding_div_ceil(in_r as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
-        let y_n: i32 = rounding_div_ceil(in_g as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
-        let z_n: i32 = rounding_div_ceil(in_b as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
-
-        let scale = (GRID_SIZE as i32 - 1) as f32 * SCALE;
-
-        let dr = in_r as f32 * scale - x as f32;
-        let dg = in_g as f32 * scale - y as f32;
-        let db = in_b as f32 * scale - z as f32;
 
         let w0 = AvxVector::from(db);
         let w1 = AvxVector::from(dr);
@@ -840,27 +889,29 @@ impl<const GRID_SIZE: usize> TetrahedralAvxFmaDouble<'_, GRID_SIZE> {
         in_r: u8,
         in_g: u8,
         in_b: u8,
+        lut: &[BarycentricWeight; 256],
         r0: impl Fetcher<AvxVectorSse>,
         r1: impl Fetcher<AvxVectorSse>,
         rv: impl Fetcher<AvxVector>,
     ) -> (AvxVectorSse, AvxVectorSse) {
-        const SCALE: f32 = 1.0 / LUT_SAMPLING as f32;
-        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
-        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
-        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
+        let lut_r = lut[in_r as usize];
+        let lut_g = lut[in_g as usize];
+        let lut_b = lut[in_b as usize];
+
+        let x: i32 = lut_r.x;
+        let y: i32 = lut_g.x;
+        let z: i32 = lut_b.x;
+
+        let x_n: i32 = lut_r.x_n;
+        let y_n: i32 = lut_g.x_n;
+        let z_n: i32 = lut_b.x_n;
+
+        let rx = lut_r.w;
+        let ry = lut_g.w;
+        let rz = lut_b.w;
 
         let c0_0 = r0.fetch(x, y, z);
         let c0_1 = r1.fetch(x, y, z);
-
-        let x_n: i32 = rounding_div_ceil(in_r as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
-        let y_n: i32 = rounding_div_ceil(in_g as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
-        let z_n: i32 = rounding_div_ceil(in_b as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
-
-        let scale = (GRID_SIZE as i32 - 1) as f32 * SCALE;
-
-        let rx = in_r as f32 * scale - x as f32;
-        let ry = in_g as f32 * scale - y as f32;
-        let rz = in_b as f32 * scale - z as f32;
 
         let c0 = AvxVector::from_sse(c0_0, c0_1);
 
@@ -917,22 +968,24 @@ impl<const GRID_SIZE: usize> TrilinearAvxFmaDouble<'_, GRID_SIZE> {
         in_r: u8,
         in_g: u8,
         in_b: u8,
+        lut: &[BarycentricWeight; 256],
         rv: impl Fetcher<AvxVector>,
     ) -> (AvxVectorSse, AvxVectorSse) {
-        const SCALE: f32 = 1.0 / LUT_SAMPLING as f32;
-        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
-        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
-        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
+        let lut_r = lut[in_r as usize];
+        let lut_g = lut[in_g as usize];
+        let lut_b = lut[in_b as usize];
 
-        let x_n: i32 = rounding_div_ceil(in_r as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
-        let y_n: i32 = rounding_div_ceil(in_g as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
-        let z_n: i32 = rounding_div_ceil(in_b as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
+        let x: i32 = lut_r.x;
+        let y: i32 = lut_g.x;
+        let z: i32 = lut_b.x;
 
-        let scale = (GRID_SIZE as i32 - 1) as f32 * SCALE;
+        let x_n: i32 = lut_r.x_n;
+        let y_n: i32 = lut_g.x_n;
+        let z_n: i32 = lut_b.x_n;
 
-        let rx = in_r as f32 * scale - x as f32;
-        let ry = in_g as f32 * scale - y as f32;
-        let rz = in_b as f32 * scale - z as f32;
+        let rx = lut_r.w;
+        let ry = lut_g.w;
+        let rz = lut_b.w;
 
         let w0 = AvxVector::from(rx);
         let w1 = AvxVector::from(ry);
@@ -972,22 +1025,24 @@ impl<const GRID_SIZE: usize> TrilinearAvxFma<'_, GRID_SIZE> {
         in_r: u8,
         in_g: u8,
         in_b: u8,
+        lut: &[BarycentricWeight; 256],
         r: impl Fetcher<AvxVectorSse>,
     ) -> AvxVectorSse {
-        const SCALE: f32 = 1.0 / LUT_SAMPLING as f32;
-        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
-        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
-        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
+        let lut_r = lut[in_r as usize];
+        let lut_g = lut[in_g as usize];
+        let lut_b = lut[in_b as usize];
 
-        let x_n: i32 = rounding_div_ceil(in_r as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
-        let y_n: i32 = rounding_div_ceil(in_g as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
-        let z_n: i32 = rounding_div_ceil(in_b as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
+        let x: i32 = lut_r.x;
+        let y: i32 = lut_g.x;
+        let z: i32 = lut_b.x;
 
-        let scale = (GRID_SIZE as i32 - 1) as f32 * SCALE;
+        let x_n: i32 = lut_r.x_n;
+        let y_n: i32 = lut_g.x_n;
+        let z_n: i32 = lut_b.x_n;
 
-        let dr = in_r as f32 * scale - x as f32;
-        let dg = in_g as f32 * scale - y as f32;
-        let db = in_b as f32 * scale - z as f32;
+        let dr = lut_r.w;
+        let dg = lut_g.w;
+        let db = lut_b.w;
 
         let w0 = AvxVectorSse::from(dr);
         let w1 = AvxVectorSse::from(dg);

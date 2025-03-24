@@ -27,15 +27,14 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::conversions::CompressForLut;
-use crate::conversions::lut_transforms::{LUT_SAMPLING, Lut4x3Factory};
+use crate::conversions::interpolator::BarycentricWeight;
+use crate::conversions::lut_transforms::Lut4x3Factory;
 use crate::conversions::sse::TetrahedralSse;
 use crate::conversions::sse::interpolator::{
-    PrismaticSse, PyramidalSse, SseAlignedF32, SseMdInterpolation,
+    PrismaticSse, PyramidalSse, SseAlignedF32, SseMdInterpolation, TrilinearSse,
 };
 use crate::transform::PointeeSizeExpressible;
-use crate::{
-    CmsError, InterpolationMethod, Layout, TransformExecutor, TransformOptions, rounding_div_ceil,
-};
+use crate::{CmsError, InterpolationMethod, Layout, TransformExecutor, TransformOptions};
 use num_traits::AsPrimitive;
 #[cfg(target_arch = "x86")]
 use std::arch::x86::*;
@@ -48,6 +47,7 @@ struct TransformLut4XyzToRgbSse<T, const LAYOUT: u8, const GRID_SIZE: usize, con
     lut: Vec<SseAlignedF32>,
     _phantom: PhantomData<T>,
     interpolation_method: InterpolationMethod,
+    weights: Box<[BarycentricWeight; 256]>,
 }
 
 impl<
@@ -80,19 +80,20 @@ where
             let m = src[1].compress_lut::<BIT_DEPTH>();
             let y = src[2].compress_lut::<BIT_DEPTH>();
             let k = src[3].compress_lut::<BIT_DEPTH>();
-            let linear_k: f32 = k as i32 as f32 / LUT_SAMPLING as f32;
-            let w: i32 = k as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
-            let w_n: i32 =
-                rounding_div_ceil(k as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
-            let t: f32 = linear_k * (GRID_SIZE as i32 - 1) as f32 - w as f32;
+
+            let k_weights = self.weights[k as usize];
+
+            let w: i32 = k_weights.x;
+            let w_n: i32 = k_weights.x_n;
+            let t: f32 = k_weights.w;
 
             let table1 = &self.lut[(w * grid_size3) as usize..];
             let table2 = &self.lut[(w_n * grid_size3) as usize..];
 
             let tetrahedral1 = Interpolator::new(table1);
             let tetrahedral2 = Interpolator::new(table2);
-            let a0 = tetrahedral1.inter3_sse(c, m, y).v;
-            let b0 = tetrahedral2.inter3_sse(c, m, y).v;
+            let a0 = tetrahedral1.inter3_sse(c, m, y, &self.weights).v;
+            let b0 = tetrahedral2.inter3_sse(c, m, y, &self.weights).v;
 
             if T::FINITE {
                 unsafe {
@@ -170,7 +171,9 @@ where
                 InterpolationMethod::Prism => {
                     self.transform_chunk::<PrismaticSse<GRID_SIZE>>(src, dst);
                 }
-                InterpolationMethod::Linear => {}
+                InterpolationMethod::Linear => {
+                    self.transform_chunk::<TrilinearSse<GRID_SIZE>>(src, dst);
+                }
             }
         }
 
@@ -210,6 +213,7 @@ impl Lut4x3Factory for SseLut4x3Factory {
                 lut,
                 _phantom: PhantomData,
                 interpolation_method: options.interpolation_method,
+                weights: BarycentricWeight::create_ranged_256::<GRID_SIZE>(),
             },
         )
     }

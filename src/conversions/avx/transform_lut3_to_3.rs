@@ -31,6 +31,7 @@ use crate::conversions::avx::TetrahedralAvxFma;
 use crate::conversions::avx::interpolator::{
     AvxMdInterpolation, PrismaticAvxFma, PyramidalAvxFma, SseAlignedF32, TrilinearAvxFma,
 };
+use crate::conversions::interpolator::BarycentricWeight;
 use crate::conversions::lut_transforms::Lut3x3Factory;
 use crate::transform::PointeeSizeExpressible;
 use crate::{CmsError, InterpolationMethod, Layout, TransformExecutor, TransformOptions};
@@ -51,6 +52,7 @@ struct TransformLut3x3AvxFma<
     lut: Vec<SseAlignedF32>,
     _phantom: PhantomData<T>,
     interpolation_method: InterpolationMethod,
+    weights: Box<[BarycentricWeight; 256]>,
 }
 
 impl<
@@ -95,7 +97,7 @@ where
             };
 
             let tetrahedral = Interpolator::new(&self.lut);
-            let v = tetrahedral.inter3_sse(x, y, z);
+            let v = tetrahedral.inter3_sse(x, y, z, &self.weights);
             if T::FINITE {
                 unsafe {
                     let mut r = _mm_mul_ps(v.v, value_scale);
@@ -209,6 +211,7 @@ impl Lut3x3Factory for AvxLut3x3Factory {
                 lut,
                 _phantom: PhantomData,
                 interpolation_method: options.interpolation_method,
+                weights: BarycentricWeight::create_ranged_256::<GRID_SIZE>(),
             },
         )
     }
