@@ -59,7 +59,6 @@ pub trait InPlaceStage {
 pub enum BarycentricWeightScale {
     #[default]
     Low,
-    Medium,
     High,
 }
 

@@ -261,21 +261,6 @@ impl Lut4x3Factory for AvxLut4x3Factory {
                     interpolation_method: options.interpolation_method,
                     weights: BarycentricWeightQ1_15::create_ranged_256::<GRID_SIZE>(),
                 }),
-                BarycentricWeightScale::Medium => Box::new(TransformLut4XyzToRgbAvxQ1_15::<
-                    T,
-                    u16,
-                    LAYOUT,
-                    GRID_SIZE,
-                    BIT_DEPTH,
-                    65536,
-                    16384,
-                > {
-                    lut,
-                    _phantom: PhantomData,
-                    _phantom1: PhantomData,
-                    interpolation_method: options.interpolation_method,
-                    weights: BarycentricWeightQ1_15::create_binned::<GRID_SIZE, 16384>(),
-                }),
                 BarycentricWeightScale::High => Box::new(TransformLut4XyzToRgbAvxQ1_15::<
                     T,
                     u16,
@@ -313,21 +298,6 @@ impl Lut4x3Factory for AvxLut4x3Factory {
                     },
                 )
             }
-            BarycentricWeightScale::Medium => Box::new(TransformLut4XyzToRgbAvx::<
-                T,
-                u16,
-                LAYOUT,
-                GRID_SIZE,
-                BIT_DEPTH,
-                65536,
-                16384,
-            > {
-                lut,
-                interpolation_method: options.interpolation_method,
-                weights: BarycentricWeight::create_binned::<GRID_SIZE, 16384>(),
-                _phantom: PhantomData,
-                _phantom1: PhantomData,
-            }),
             BarycentricWeightScale::High => Box::new(TransformLut4XyzToRgbAvx::<
                 T,
                 u16,

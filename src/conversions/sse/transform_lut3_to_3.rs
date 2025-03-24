@@ -250,22 +250,6 @@ impl Lut3x3Factory for SseLut3x3Factory {
                 interpolation_method: options.interpolation_method,
                 weights: BarycentricWeight::create_ranged_256::<GRID_SIZE>(),
             }),
-            BarycentricWeightScale::Medium => Box::new(TransformLut3x3Sse::<
-                T,
-                u16,
-                SRC_LAYOUT,
-                DST_LAYOUT,
-                GRID_SIZE,
-                BIT_DEPTH,
-                65536,
-                16384,
-            > {
-                lut,
-                _phantom: PhantomData,
-                _phantom2: PhantomData,
-                interpolation_method: options.interpolation_method,
-                weights: BarycentricWeight::create_binned::<GRID_SIZE, 16384>(),
-            }),
             BarycentricWeightScale::High => Box::new(TransformLut3x3Sse::<
                 T,
                 u16,
