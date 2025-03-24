@@ -122,34 +122,20 @@ fn main() {
     let file = File::open(f_str).expect("Failed to open file");
 
     let img = image::ImageReader::open(f_str).unwrap().decode().unwrap();
-    let rgb = img.to_rgb8();
+    let img = img.resize(10, 220, image::imageops::FilterType::Lanczos3);
 
     let reader = BufReader::new(file);
     let ref_reader = &reader;
 
     let options = DecoderOptions::new_fast().jpeg_set_out_colorspace(ColorSpace::RGB);
 
-    let mut decoder = JpegDecoder::new_with_options(reader, options);
-
-    // let mut decoder = JpegDecoder::new(reader);
-    decoder.options().set_use_unsafe(true);
-    decoder.decode_headers().unwrap();
-    let mut real_dst = vec![0u8; decoder.output_buffer_size().unwrap()];
-
-    let custom_profile = Profile::new_icc(&srgb_perceptual_icc).unwrap();
-    //
-    let srgb_profile = Profile::new_srgb();
-
-    decoder.decode_into(&mut real_dst).unwrap();
-
-    let real_dst = real_dst
+    let real_dst = img.as_bytes()
         .chunks_exact(3)
         .flat_map(|x| [x[0], x[1], x[2], 255u8])
         .collect::<Vec<_>>();
 
-    let mut cmyk = vec![0u8; (decoder.output_buffer_size().unwrap() / 3) * 4];
+    let mut cmyk = vec![0u8; (img.as_bytes().len() / 3) * 4];
 
-    let icc = decoder.icc_profile().unwrap();
     let color_profile = ColorProfile::new_from_slice(&srgb_perceptual_icc).unwrap();
     // let color_profile = ColorProfile::new_gray_with_gamma(2.2);
     let mut dest_profile = ColorProfile::new_srgb();

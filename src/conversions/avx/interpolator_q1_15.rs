@@ -535,7 +535,7 @@ impl<const GRID_SIZE: usize> PyramidalAvxFmaQ1_15<'_, GRID_SIZE> {
         let w2 = AvxVectorQ1_15Sse::from(dg);
 
         if dr > db && dg > db {
-            let w3 = AvxVectorQ1_15Sse::from(dr * dg);
+            let w3 = AvxVectorQ1_15Sse::from(dr) * AvxVectorQ1_15Sse::from(dg);
             let x0 = r.fetch(x_n, y_n, z_n);
             let x1 = r.fetch(x_n, y_n, z);
             let x2 = r.fetch(x_n, y, z);
@@ -551,7 +551,7 @@ impl<const GRID_SIZE: usize> PyramidalAvxFmaQ1_15<'_, GRID_SIZE> {
             let s2 = s1.mla(c3, w2);
             s2.mla(c4, w3)
         } else if db > dr && dg > dr {
-            let w3 = AvxVectorQ1_15Sse::from(dg * db);
+            let w3 = AvxVectorQ1_15Sse::from(dg) * AvxVectorQ1_15Sse::from(db);
 
             let x0 = r.fetch(x, y, z_n);
             let x1 = r.fetch(x_n, y_n, z_n);
@@ -568,7 +568,7 @@ impl<const GRID_SIZE: usize> PyramidalAvxFmaQ1_15<'_, GRID_SIZE> {
             let s2 = s1.mla(c3, w2);
             s2.mla(c4, w3)
         } else {
-            let w3 = AvxVectorQ1_15Sse::from(db * dr);
+            let w3 = AvxVectorQ1_15Sse::from(db) * AvxVectorQ1_15Sse::from(dr);
 
             let x0 = r.fetch(x, y, z_n);
             let x1 = r.fetch(x_n, y, z);
@@ -619,8 +619,8 @@ impl<const GRID_SIZE: usize> PrismaticAvxFmaQ1_15<'_, GRID_SIZE> {
         let w0 = AvxVectorQ1_15Sse::from(db);
         let w1 = AvxVectorQ1_15Sse::from(dr);
         let w2 = AvxVectorQ1_15Sse::from(dg);
-        let w3 = AvxVectorQ1_15Sse::from(dg * db);
-        let w4 = AvxVectorQ1_15Sse::from(dr * dg);
+        let w3 = AvxVectorQ1_15Sse::from(dg) * AvxVectorQ1_15Sse::from(db);
+        let w4 = AvxVectorQ1_15Sse::from(dr) * AvxVectorQ1_15Sse::from(dg);
 
         if db > dr {
             let x0 = r.fetch(x, y, z_n);
@@ -695,8 +695,8 @@ impl<const GRID_SIZE: usize> PrismaticAvxFmaQ1_15Double<'_, GRID_SIZE> {
         let w0 = AvxVectorQ1_15::from(db);
         let w1 = AvxVectorQ1_15::from(dr);
         let w2 = AvxVectorQ1_15::from(dg);
-        let w3 = AvxVectorQ1_15::from(dg * db);
-        let w4 = AvxVectorQ1_15::from(dr * dg);
+        let w3 = AvxVectorQ1_15::from(dg) * AvxVectorQ1_15::from(db);
+        let w4 = AvxVectorQ1_15::from(dr) * AvxVectorQ1_15::from(dg);
 
         let c0 = AvxVectorQ1_15::from_sse(c0_0, c0_1);
 
@@ -801,7 +801,7 @@ impl<const GRID_SIZE: usize> PyramidAvxFmaQ1_15Double<'_, GRID_SIZE> {
         let c0 = AvxVectorQ1_15::from_sse(c0_0, c0_1);
 
         if dr > db && dg > db {
-            let w3 = AvxVectorQ1_15::from(dr * dg);
+            let w3 = AvxVectorQ1_15::from(dr) * AvxVectorQ1_15::from(dg);
 
             let x0_0 = r0.fetch(x_n, y_n, z_n);
             let x1_0 = r0.fetch(x_n, y_n, z);
@@ -828,7 +828,7 @@ impl<const GRID_SIZE: usize> PyramidAvxFmaQ1_15Double<'_, GRID_SIZE> {
             let s2 = s1.mla(c3, w2);
             s2.mla(c4, w3).split()
         } else if db > dr && dg > dr {
-            let w3 = AvxVectorQ1_15::from(dg * db);
+            let w3 = AvxVectorQ1_15::from(dg) * AvxVectorQ1_15::from(db);
 
             let x0_0 = r0.fetch(x, y, z_n);
             let x1_0 = r0.fetch(x_n, y_n, z_n);
@@ -855,7 +855,7 @@ impl<const GRID_SIZE: usize> PyramidAvxFmaQ1_15Double<'_, GRID_SIZE> {
             let s2 = s1.mla(c3, w2);
             s2.mla(c4, w3).split()
         } else {
-            let w3 = AvxVectorQ1_15::from(db * dr);
+            let w3 = AvxVectorQ1_15::from(db) * AvxVectorQ1_15::from(dr);
 
             let x0_0 = r0.fetch(x, y, z_n);
             let x1_0 = r0.fetch(x_n, y, z);

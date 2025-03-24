@@ -533,7 +533,7 @@ impl<const GRID_SIZE: usize> PyramidalNeonQ1_15<'_, GRID_SIZE> {
             let s0 = c0.mla(c1, NeonVectorQ1_15::from(db));
             let s1 = s0.mla(c2, NeonVectorQ1_15::from(dr));
             let s2 = s1.mla(c3, NeonVectorQ1_15::from(dg));
-            s2.mla(c4, NeonVectorQ1_15::from(dr * dg))
+            s2.mla(c4, NeonVectorQ1_15::from(dr) * NeonVectorQ1_15::from(dg))
         } else if db > dr && dg > dr {
             let x0 = r.fetch(x, y, z_n);
             let x1 = r.fetch(x_n, y_n, z_n);
@@ -548,7 +548,7 @@ impl<const GRID_SIZE: usize> PyramidalNeonQ1_15<'_, GRID_SIZE> {
             let s0 = c0.mla(c1, NeonVectorQ1_15::from(db));
             let s1 = s0.mla(c2, NeonVectorQ1_15::from(dr));
             let s2 = s1.mla(c3, NeonVectorQ1_15::from(dg));
-            s2.mla(c4, NeonVectorQ1_15::from(dg * db))
+            s2.mla(c4, NeonVectorQ1_15::from(dg) * NeonVectorQ1_15::from(db))
         } else {
             let x0 = r.fetch(x, y, z_n);
             let x1 = r.fetch(x_n, y, z);
@@ -563,7 +563,7 @@ impl<const GRID_SIZE: usize> PyramidalNeonQ1_15<'_, GRID_SIZE> {
             let s0 = c0.mla(c1, NeonVectorQ1_15::from(db));
             let s1 = s0.mla(c2, NeonVectorQ1_15::from(dr));
             let s2 = s1.mla(c3, NeonVectorQ1_15::from(dg));
-            s2.mla(c4, NeonVectorQ1_15::from(db * dr))
+            s2.mla(c4, NeonVectorQ1_15::from(db) * NeonVectorQ1_15::from(dr))
         }
     }
 }
@@ -611,7 +611,7 @@ impl<const GRID_SIZE: usize> PyramidalNeonQ1_15Double<'_, GRID_SIZE> {
             let c3 = x3 - c0;
             let c4 = c0 - x3 - x2 + x1;
 
-            let w3 = NeonVectorQ1_15::from(dr * dg);
+            let w3 = NeonVectorQ1_15::from(dr) * NeonVectorQ1_15::from(dg);
 
             let s0 = c0.mla(c1, w0);
             let s1 = s0.mla(c2, w1);
@@ -628,7 +628,7 @@ impl<const GRID_SIZE: usize> PyramidalNeonQ1_15Double<'_, GRID_SIZE> {
             let c3 = x3 - c0;
             let c4 = c0 - x3 - x0 + x2;
 
-            let w3 = NeonVectorQ1_15::from(dg * db);
+            let w3 = NeonVectorQ1_15::from(dg) * NeonVectorQ1_15::from(db);
 
             let s0 = c0.mla(c1, w0);
             let s1 = s0.mla(c2, w1);
@@ -645,7 +645,7 @@ impl<const GRID_SIZE: usize> PyramidalNeonQ1_15Double<'_, GRID_SIZE> {
             let c3 = x3 - x2;
             let c4 = c0 - x1 - x0 + x2;
 
-            let w3 = NeonVectorQ1_15::from(db * dr);
+            let w3 = NeonVectorQ1_15::from(db) * NeonVectorQ1_15::from(dr);
 
             let s0 = c0.mla(c1, w0);
             let s1 = s0.mla(c2, w1);
@@ -699,8 +699,8 @@ impl<const GRID_SIZE: usize> PrismaticNeonQ1_15<'_, GRID_SIZE> {
             let s0 = c0.mla(c1, NeonVectorQ1_15::from(db));
             let s1 = s0.mla(c2, NeonVectorQ1_15::from(dr));
             let s2 = s1.mla(c3, NeonVectorQ1_15::from(dg));
-            let s3 = s2.mla(c4, NeonVectorQ1_15::from(dg * db));
-            s3.mla(c5, NeonVectorQ1_15::from(dr * dg))
+            let s3 = s2.mla(c4, NeonVectorQ1_15::from(dg) * NeonVectorQ1_15::from(db));
+            s3.mla(c5, NeonVectorQ1_15::from(dr) * NeonVectorQ1_15::from(dg))
         } else {
             let x0 = r.fetch(x_n, y, z);
             let x1 = r.fetch(x_n, y, z_n);
@@ -717,8 +717,8 @@ impl<const GRID_SIZE: usize> PrismaticNeonQ1_15<'_, GRID_SIZE> {
             let s0 = c0.mla(c1, NeonVectorQ1_15::from(db));
             let s1 = s0.mla(c2, NeonVectorQ1_15::from(dr));
             let s2 = s1.mla(c3, NeonVectorQ1_15::from(dg));
-            let s3 = s2.mla(c4, NeonVectorQ1_15::from(dg * db));
-            s3.mla(c5, NeonVectorQ1_15::from(dr * dg))
+            let s3 = s2.mla(c4, NeonVectorQ1_15::from(dg) * NeonVectorQ1_15::from(db));
+            s3.mla(c5, NeonVectorQ1_15::from(dr) * NeonVectorQ1_15::from(dg))
         }
     }
 }
@@ -754,8 +754,8 @@ impl<const GRID_SIZE: usize> PrismaticNeonQ1_15Double<'_, GRID_SIZE> {
         let w0 = NeonVectorQ1_15::from(db);
         let w1 = NeonVectorQ1_15::from(dr);
         let w2 = NeonVectorQ1_15::from(dg);
-        let w3 = NeonVectorQ1_15::from(dg * db);
-        let w4 = NeonVectorQ1_15::from(dr * dg);
+        let w3 = NeonVectorQ1_15::from(dg) * NeonVectorQ1_15::from(db);
+        let w4 = NeonVectorQ1_15::from(dr) * NeonVectorQ1_15::from(dg);
 
         if db > dr {
             let x0 = rv.fetch(x, y, z_n);
