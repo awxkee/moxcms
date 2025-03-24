@@ -27,9 +27,9 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 #![allow(dead_code)]
+use crate::conversions::LutBarycentricReduction;
 use crate::conversions::interpolator::{BarycentricWeight, MultidimensionalInterpolation};
 use crate::conversions::lut_transforms::Lut3x3Factory;
-use crate::conversions::{CompressForLut, LutBarycentricReduction};
 use crate::transform::PointeeSizeExpressible;
 use crate::{
     BarycentricWeightScale, CmsError, InterpolationMethod, Layout, TransformExecutor,
@@ -56,7 +56,7 @@ pub(crate) struct TransformLut3x3<
 }
 
 impl<
-    T: Copy + AsPrimitive<f32> + Default + CompressForLut + PointeeSizeExpressible,
+    T: Copy + AsPrimitive<f32> + Default + PointeeSizeExpressible,
     U: AsPrimitive<usize>,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
@@ -123,7 +123,7 @@ where
 }
 
 impl<
-    T: Copy + AsPrimitive<f32> + Default + CompressForLut + PointeeSizeExpressible,
+    T: Copy + AsPrimitive<f32> + Default + PointeeSizeExpressible,
     U: AsPrimitive<usize>,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
@@ -183,14 +183,7 @@ pub(crate) struct DefaultLut3x3Factory {}
 
 impl Lut3x3Factory for DefaultLut3x3Factory {
     fn make_transform_3x3<
-        T: Copy
-            + AsPrimitive<f32>
-            + Default
-            + CompressForLut
-            + PointeeSizeExpressible
-            + 'static
-            + Send
-            + Sync,
+        T: Copy + AsPrimitive<f32> + Default + PointeeSizeExpressible + 'static + Send + Sync,
         const SRC_LAYOUT: u8,
         const DST_LAYOUT: u8,
         const GRID_SIZE: usize,

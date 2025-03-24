@@ -26,7 +26,7 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-use crate::conversions::CompressForLut;
+use crate::conversions::LutBarycentricReduction;
 use crate::conversions::interpolator::BarycentricWeightQ1_15;
 use crate::conversions::neon::interpolator_q1_15::{
     NeonAlignedI16x4, NeonMdInterpolationQ1_15, PrismaticNeonQ1_15, PyramidalNeonQ1_15,
@@ -40,27 +40,45 @@ use std::marker::PhantomData;
 
 pub(crate) struct TransformLut3x3NeonQ1_15<
     T,
+    U,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
     const GRID_SIZE: usize,
     const BIT_DEPTH: usize,
+    const BINS: usize,
+    const BARYCENTRIC_BINS: usize,
 > {
     pub(crate) lut: Vec<NeonAlignedI16x4>,
     pub(crate) _phantom: PhantomData<T>,
+    pub(crate) _phantom1: PhantomData<U>,
     pub(crate) interpolation_method: InterpolationMethod,
-    pub(crate) weights: Box<[BarycentricWeightQ1_15; 256]>,
+    pub(crate) weights: Box<[BarycentricWeightQ1_15; BINS]>,
 }
 
 impl<
-    T: Copy + AsPrimitive<f32> + Default + CompressForLut + PointeeSizeExpressible,
+    T: Copy + AsPrimitive<f32> + Default + PointeeSizeExpressible,
+    U: AsPrimitive<usize>,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
     const GRID_SIZE: usize,
     const BIT_DEPTH: usize,
-> TransformLut3x3NeonQ1_15<T, SRC_LAYOUT, DST_LAYOUT, GRID_SIZE, BIT_DEPTH>
+    const BINS: usize,
+    const BARYCENTRIC_BINS: usize,
+>
+    TransformLut3x3NeonQ1_15<
+        T,
+        U,
+        SRC_LAYOUT,
+        DST_LAYOUT,
+        GRID_SIZE,
+        BIT_DEPTH,
+        BINS,
+        BARYCENTRIC_BINS,
+    >
 where
     f32: AsPrimitive<T>,
     u32: AsPrimitive<T>,
+    (): LutBarycentricReduction<T, U>,
 {
     #[inline(always)]
     fn transform_chunk<'b, Interpolator: NeonMdInterpolationQ1_15<'b, GRID_SIZE>>(
@@ -87,9 +105,15 @@ where
                 .chunks_exact(src_channels)
                 .zip(dst.chunks_exact_mut(dst_channels))
             {
-                let x = src[src_cn.r_i()].compress_lut::<BIT_DEPTH>();
-                let y = src[src_cn.g_i()].compress_lut::<BIT_DEPTH>();
-                let z = src[src_cn.b_i()].compress_lut::<BIT_DEPTH>();
+                let x = <() as LutBarycentricReduction<T, U>>::reduce::<BIT_DEPTH, BARYCENTRIC_BINS>(
+                    src[src_cn.r_i()],
+                );
+                let y = <() as LutBarycentricReduction<T, U>>::reduce::<BIT_DEPTH, BARYCENTRIC_BINS>(
+                    src[src_cn.g_i()],
+                );
+                let z = <() as LutBarycentricReduction<T, U>>::reduce::<BIT_DEPTH, BARYCENTRIC_BINS>(
+                    src[src_cn.b_i()],
+                );
 
                 let a = if src_channels == 4 {
                     src[src_cn.a_i()]
@@ -142,15 +166,29 @@ where
 }
 
 impl<
-    T: Copy + AsPrimitive<f32> + Default + CompressForLut + PointeeSizeExpressible,
+    T: Copy + AsPrimitive<f32> + Default + PointeeSizeExpressible,
+    U: AsPrimitive<usize>,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
     const GRID_SIZE: usize,
     const BIT_DEPTH: usize,
-> TransformExecutor<T> for TransformLut3x3NeonQ1_15<T, SRC_LAYOUT, DST_LAYOUT, GRID_SIZE, BIT_DEPTH>
+    const BINS: usize,
+    const BARYCENTRIC_BINS: usize,
+> TransformExecutor<T>
+    for TransformLut3x3NeonQ1_15<
+        T,
+        U,
+        SRC_LAYOUT,
+        DST_LAYOUT,
+        GRID_SIZE,
+        BIT_DEPTH,
+        BINS,
+        BARYCENTRIC_BINS,
+    >
 where
     f32: AsPrimitive<T>,
     u32: AsPrimitive<T>,
+    (): LutBarycentricReduction<T, U>,
 {
     fn transform(&self, src: &[T], dst: &mut [T]) -> Result<(), CmsError> {
         let src_cn = Layout::from(SRC_LAYOUT);

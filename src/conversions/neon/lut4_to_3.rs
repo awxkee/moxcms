@@ -26,7 +26,7 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-use crate::conversions::CompressForLut;
+use crate::conversions::LutBarycentricReduction;
 use crate::conversions::interpolator::{BarycentricWeight, BarycentricWeightQ1_15};
 use crate::conversions::lut_transforms::Lut4x3Factory;
 use crate::conversions::neon::interpolator::{
@@ -37,32 +37,43 @@ use crate::conversions::neon::interpolator_q1_15::NeonAlignedI16x4;
 use crate::conversions::neon::lut4_to_3_q1_15::TransformLut4XyzToRgbNeonQ1_15;
 use crate::conversions::neon::rgb_xyz::NeonAlignedF32;
 use crate::transform::PointeeSizeExpressible;
-use crate::{CmsError, InterpolationMethod, Layout, TransformExecutor, TransformOptions};
+use crate::{
+    BarycentricWeightScale, CmsError, InterpolationMethod, Layout, TransformExecutor,
+    TransformOptions,
+};
 use num_traits::AsPrimitive;
 use std::arch::aarch64::*;
 use std::marker::PhantomData;
 
 struct TransformLut4XyzToRgbNeon<
     T,
+    U,
     const LAYOUT: u8,
     const GRID_SIZE: usize,
     const BIT_DEPTH: usize,
+    const BINS: usize,
+    const BARYCENTRIC_BINS: usize,
 > {
     lut: Vec<NeonAlignedF32>,
     _phantom: PhantomData<T>,
+    _phantom1: PhantomData<U>,
     interpolation_method: InterpolationMethod,
-    weights: Box<[BarycentricWeight; 256]>,
+    weights: Box<[BarycentricWeight; BINS]>,
 }
 
 impl<
-    T: Copy + AsPrimitive<f32> + Default + CompressForLut + PointeeSizeExpressible,
+    T: Copy + AsPrimitive<f32> + Default + PointeeSizeExpressible,
+    U: AsPrimitive<usize>,
     const LAYOUT: u8,
     const GRID_SIZE: usize,
     const BIT_DEPTH: usize,
-> TransformLut4XyzToRgbNeon<T, LAYOUT, GRID_SIZE, BIT_DEPTH>
+    const BINS: usize,
+    const BARYCENTRIC_BINS: usize,
+> TransformLut4XyzToRgbNeon<T, U, LAYOUT, GRID_SIZE, BIT_DEPTH, BINS, BARYCENTRIC_BINS>
 where
     f32: AsPrimitive<T>,
     u32: AsPrimitive<T>,
+    (): LutBarycentricReduction<T, U>,
 {
     #[allow(unused_unsafe)]
     fn transform_chunk<'b, Interpolator: NeonMdInterpolationDouble<'b, GRID_SIZE>>(
@@ -79,12 +90,20 @@ where
         let max_value = ((1 << BIT_DEPTH) - 1u32).as_();
 
         for (src, dst) in src.chunks_exact(4).zip(dst.chunks_exact_mut(channels)) {
-            let c = src[0].compress_lut::<BIT_DEPTH>();
-            let m = src[1].compress_lut::<BIT_DEPTH>();
-            let y = src[2].compress_lut::<BIT_DEPTH>();
-            let k = src[3].compress_lut::<BIT_DEPTH>();
+            let c = <() as LutBarycentricReduction<T, U>>::reduce::<BIT_DEPTH, BARYCENTRIC_BINS>(
+                src[0],
+            );
+            let m = <() as LutBarycentricReduction<T, U>>::reduce::<BIT_DEPTH, BARYCENTRIC_BINS>(
+                src[1],
+            );
+            let y = <() as LutBarycentricReduction<T, U>>::reduce::<BIT_DEPTH, BARYCENTRIC_BINS>(
+                src[2],
+            );
+            let k = <() as LutBarycentricReduction<T, U>>::reduce::<BIT_DEPTH, BARYCENTRIC_BINS>(
+                src[3],
+            );
 
-            let k_weights = self.weights[k as usize];
+            let k_weights = self.weights[k.as_()];
 
             let w: i32 = k_weights.x;
             let w_n: i32 = k_weights.x_n;
@@ -132,14 +151,19 @@ where
 }
 
 impl<
-    T: Copy + AsPrimitive<f32> + Default + CompressForLut + PointeeSizeExpressible,
+    T: Copy + AsPrimitive<f32> + Default + PointeeSizeExpressible,
+    U: AsPrimitive<usize>,
     const LAYOUT: u8,
     const GRID_SIZE: usize,
     const BIT_DEPTH: usize,
-> TransformExecutor<T> for TransformLut4XyzToRgbNeon<T, LAYOUT, GRID_SIZE, BIT_DEPTH>
+    const BINS: usize,
+    const BARYCENTRIC_BINS: usize,
+> TransformExecutor<T>
+    for TransformLut4XyzToRgbNeon<T, U, LAYOUT, GRID_SIZE, BIT_DEPTH, BINS, BARYCENTRIC_BINS>
 where
     f32: AsPrimitive<T>,
     u32: AsPrimitive<T>,
+    (): LutBarycentricReduction<T, U>,
 {
     fn transform(&self, src: &[T], dst: &mut [T]) -> Result<(), CmsError> {
         let cn = Layout::from(LAYOUT);
@@ -179,14 +203,7 @@ pub(crate) struct NeonLut4x3Factory {}
 
 impl Lut4x3Factory for NeonLut4x3Factory {
     fn make_transform_4x3<
-        T: Copy
-            + AsPrimitive<f32>
-            + Default
-            + CompressForLut
-            + PointeeSizeExpressible
-            + 'static
-            + Send
-            + Sync,
+        T: Copy + AsPrimitive<f32> + Default + PointeeSizeExpressible + 'static + Send + Sync,
         const LAYOUT: u8,
         const GRID_SIZE: usize,
         const BIT_DEPTH: usize,
@@ -197,6 +214,8 @@ impl Lut4x3Factory for NeonLut4x3Factory {
     where
         f32: AsPrimitive<T>,
         u32: AsPrimitive<T>,
+        (): LutBarycentricReduction<T, u8>,
+        (): LutBarycentricReduction<T, u16>,
     {
         if options.prefer_fixed_point
             && std::arch::is_aarch64_feature_detected!("rdm")
@@ -214,26 +233,70 @@ impl Lut4x3Factory for NeonLut4x3Factory {
                     ])
                 })
                 .collect::<Vec<_>>();
-            return Box::new(
-                TransformLut4XyzToRgbNeonQ1_15::<T, LAYOUT, GRID_SIZE, BIT_DEPTH> {
+            return match options.barycentric_weight_scale {
+                BarycentricWeightScale::Low => Box::new(TransformLut4XyzToRgbNeonQ1_15::<
+                    T,
+                    u8,
+                    LAYOUT,
+                    GRID_SIZE,
+                    BIT_DEPTH,
+                    256,
+                    256,
+                > {
                     lut,
                     _phantom: PhantomData,
+                    _phantom1: PhantomData,
                     interpolation_method: options.interpolation_method,
                     weights: BarycentricWeightQ1_15::create_ranged_256::<GRID_SIZE>(),
-                },
-            );
+                }),
+                BarycentricWeightScale::High => Box::new(TransformLut4XyzToRgbNeonQ1_15::<
+                    T,
+                    u16,
+                    LAYOUT,
+                    GRID_SIZE,
+                    BIT_DEPTH,
+                    65536,
+                    65536,
+                > {
+                    lut,
+                    _phantom: PhantomData,
+                    _phantom1: PhantomData,
+                    interpolation_method: options.interpolation_method,
+                    weights: BarycentricWeightQ1_15::create_binned::<GRID_SIZE, 65536>(),
+                }),
+            };
         }
         let lut = lut
             .chunks_exact(3)
             .map(|x| NeonAlignedF32([x[0], x[1], x[2], 0f32]))
             .collect::<Vec<_>>();
-        Box::new(
-            TransformLut4XyzToRgbNeon::<T, LAYOUT, GRID_SIZE, BIT_DEPTH> {
+        match options.barycentric_weight_scale {
+            BarycentricWeightScale::Low => {
+                Box::new(
+                    TransformLut4XyzToRgbNeon::<T, u8, LAYOUT, GRID_SIZE, BIT_DEPTH, 256, 256> {
+                        lut,
+                        _phantom: PhantomData,
+                        _phantom1: PhantomData,
+                        interpolation_method: options.interpolation_method,
+                        weights: BarycentricWeight::create_ranged_256::<GRID_SIZE>(),
+                    },
+                )
+            }
+            BarycentricWeightScale::High => Box::new(TransformLut4XyzToRgbNeon::<
+                T,
+                u16,
+                LAYOUT,
+                GRID_SIZE,
+                BIT_DEPTH,
+                65536,
+                65536,
+            > {
                 lut,
                 _phantom: PhantomData,
+                _phantom1: PhantomData,
                 interpolation_method: options.interpolation_method,
-                weights: BarycentricWeight::create_ranged_256::<GRID_SIZE>(),
-            },
-        )
+                weights: BarycentricWeight::create_binned::<GRID_SIZE, 65536>(),
+            }),
+        }
     }
 }

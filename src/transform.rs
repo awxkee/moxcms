@@ -27,8 +27,8 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::conversions::{
-    CompressForLut, LutBarycentricReduction, RgbXyzFactory, ToneReproductionRgbToGray,
-    TransformProfileRgb, make_gray_to_x, make_lut_transform, make_rgb_to_gray,
+    LutBarycentricReduction, RgbXyzFactory, ToneReproductionRgbToGray, TransformProfileRgb,
+    make_gray_to_x, make_lut_transform, make_rgb_to_gray,
 };
 use crate::err::CmsError;
 use crate::trc::GammaLutInterpolate;
@@ -58,6 +58,10 @@ pub trait InPlaceStage {
 #[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Default)]
 pub enum BarycentricWeightScale {
     #[default]
+    /// Low scale weights is enough for common case.
+    ///
+    /// However, it might crush dark zones and gradients.
+    /// Weights increasing costs 5% performance.
     Low,
     High,
 }
@@ -376,7 +380,6 @@ impl ColorProfile {
             + Send
             + Sync
             + AsPrimitive<f32>
-            + CompressForLut
             + RgbXyzFactory<T>
             + GammaLutInterpolate,
         const BIT_DEPTH: usize,

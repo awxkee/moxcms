@@ -26,8 +26,8 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+use crate::conversions::LutBarycentricReduction;
 use crate::conversions::interpolator::{BarycentricWeight, MultidimensionalInterpolation};
-use crate::conversions::{CompressForLut, LutBarycentricReduction};
 use crate::transform::PointeeSizeExpressible;
 use crate::{
     BarycentricWeightScale, CmsError, InterpolationMethod, Layout, TransformExecutor,
@@ -157,14 +157,7 @@ where
 }
 
 pub(crate) fn make_transform_3x4<
-    T: Copy
-        + AsPrimitive<f32>
-        + Default
-        + CompressForLut
-        + PointeeSizeExpressible
-        + 'static
-        + Send
-        + Sync,
+    T: Copy + AsPrimitive<f32> + Default + PointeeSizeExpressible + 'static + Send + Sync,
     const GRID_SIZE: usize,
     const BIT_DEPTH: usize,
 >(

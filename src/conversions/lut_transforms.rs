@@ -32,7 +32,6 @@ use crate::conversions::lut4::{create_lut4, create_lut4_norm_samples};
 use crate::conversions::mab::{prepare_mab_3x3, prepare_mba_3x3};
 use crate::conversions::transform_lut3_to_4::make_transform_3x4;
 use crate::lab::Lab;
-use crate::math::m_clamp;
 use crate::mlaf::mlaf;
 use crate::{
     CmsError, ColorProfile, DataColorSpace, InPlaceStage, Layout, LutWarehouse, Matrix3f,
@@ -158,64 +157,11 @@ impl InPlaceStage for MatrixStage {
     }
 }
 
-pub(crate) trait CompressForLut {
-    fn compress_lut<const BIT_DEPTH: usize>(self) -> u8;
-}
-
 pub(crate) const LUT_SAMPLING: u16 = 255;
-
-impl CompressForLut for u8 {
-    #[inline(always)]
-    fn compress_lut<const BIT_DEPTH: usize>(self) -> u8 {
-        self
-    }
-}
-
-impl CompressForLut for u16 {
-    #[inline(always)]
-    fn compress_lut<const BIT_DEPTH: usize>(self) -> u8 {
-        let shift = BIT_DEPTH - 8;
-        if BIT_DEPTH != 16 {
-            let rnd_shift = (1 << (shift - 1)) - 1;
-            ((shift + rnd_shift) >> shift) as u8
-        } else {
-            (self >> shift) as u8
-        }
-    }
-}
-
-impl CompressForLut for f32 {
-    #[inline(always)]
-    fn compress_lut<const BIT_DEPTH: usize>(self) -> u8 {
-        m_clamp(
-            (self * LUT_SAMPLING as f32).round(),
-            0.0,
-            LUT_SAMPLING as f32,
-        ) as u8
-    }
-}
-
-impl CompressForLut for f64 {
-    #[inline(always)]
-    fn compress_lut<const BIT_DEPTH: usize>(self) -> u8 {
-        m_clamp(
-            (self * LUT_SAMPLING as f64).round(),
-            0.0,
-            LUT_SAMPLING as f64,
-        ) as u8
-    }
-}
 
 pub(crate) trait Lut3x3Factory {
     fn make_transform_3x3<
-        T: Copy
-            + AsPrimitive<f32>
-            + Default
-            + CompressForLut
-            + PointeeSizeExpressible
-            + 'static
-            + Send
-            + Sync,
+        T: Copy + AsPrimitive<f32> + Default + PointeeSizeExpressible + 'static + Send + Sync,
         const SRC_LAYOUT: u8,
         const DST_LAYOUT: u8,
         const GRID_SIZE: usize,
@@ -233,14 +179,7 @@ pub(crate) trait Lut3x3Factory {
 
 pub(crate) trait Lut4x3Factory {
     fn make_transform_4x3<
-        T: Copy
-            + AsPrimitive<f32>
-            + Default
-            + CompressForLut
-            + PointeeSizeExpressible
-            + 'static
-            + Send
-            + Sync,
+        T: Copy + AsPrimitive<f32> + Default + PointeeSizeExpressible + 'static + Send + Sync,
         const LAYOUT: u8,
         const GRID_SIZE: usize,
         const BIT_DEPTH: usize,
@@ -354,7 +293,6 @@ macro_rules! make_transform_3x3_fn {
                 + AsPrimitive<f32>
                 + Send
                 + Sync
-                + CompressForLut
                 + AsPrimitive<usize>
                 + PointeeSizeExpressible,
             const GRID_SIZE: usize,
@@ -420,7 +358,6 @@ macro_rules! make_transform_4x3_fn {
                 + AsPrimitive<f32>
                 + Send
                 + Sync
-                + CompressForLut
                 + AsPrimitive<usize>
                 + PointeeSizeExpressible,
             const GRID_SIZE: usize,
@@ -510,7 +447,6 @@ pub(crate) fn make_lut_transform<
         + AsPrimitive<f32>
         + Send
         + Sync
-        + CompressForLut
         + AsPrimitive<usize>
         + PointeeSizeExpressible
         + GammaLutInterpolate,
@@ -760,14 +696,7 @@ where
 }
 
 fn create_rgb_lin_lut<
-    T: Copy
-        + Default
-        + AsPrimitive<f32>
-        + Send
-        + Sync
-        + CompressForLut
-        + AsPrimitive<usize>
-        + PointeeSizeExpressible,
+    T: Copy + Default + AsPrimitive<f32> + Send + Sync + AsPrimitive<usize> + PointeeSizeExpressible,
     const BIT_DEPTH: usize,
     const LINEAR_CAP: usize,
     const GRID_SIZE: usize,
@@ -824,7 +753,6 @@ fn prepare_inverse_lut_rgb_xyz<
         + AsPrimitive<f32>
         + Send
         + Sync
-        + CompressForLut
         + AsPrimitive<usize>
         + PointeeSizeExpressible
         + GammaLutInterpolate,

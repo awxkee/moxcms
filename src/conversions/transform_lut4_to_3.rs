@@ -26,7 +26,6 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-use crate::conversions::CompressForLut;
 use crate::conversions::interpolator::{
     BarycentricWeight, LutBarycentricReduction, MultidimensionalInterpolation, Prismatic,
     Pyramidal, Tetrahedral, Trilinear,
@@ -248,14 +247,7 @@ pub(crate) struct DefaultLut4x3Factory {}
 #[allow(dead_code)]
 impl Lut4x3Factory for DefaultLut4x3Factory {
     fn make_transform_4x3<
-        T: Copy
-            + AsPrimitive<f32>
-            + Default
-            + CompressForLut
-            + PointeeSizeExpressible
-            + 'static
-            + Send
-            + Sync,
+        T: Copy + AsPrimitive<f32> + Default + PointeeSizeExpressible + 'static + Send + Sync,
         const LAYOUT: u8,
         const GRID_SIZE: usize,
         const BIT_DEPTH: usize,

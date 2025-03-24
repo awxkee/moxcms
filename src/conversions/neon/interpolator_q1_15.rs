@@ -29,6 +29,7 @@
 #![allow(dead_code)]
 use crate::conversions::interpolator::BarycentricWeightQ1_15;
 use crate::math::FusedMultiplyAdd;
+use num_traits::AsPrimitive;
 use std::arch::aarch64::*;
 use std::ops::{Add, Mul, Sub};
 
@@ -255,39 +256,39 @@ impl<const GRID_SIZE: usize> Fetcher<NeonVectorQ1_15Double>
 
 pub(crate) trait NeonMdInterpolationQ1_15<'a, const GRID_SIZE: usize> {
     fn new(table: &'a [NeonAlignedI16x4]) -> Self;
-    fn inter3_neon(
+    fn inter3_neon<U: AsPrimitive<usize>, const BINS: usize>(
         &self,
-        in_r: u8,
-        in_g: u8,
-        in_b: u8,
-        lut: &[BarycentricWeightQ1_15; 256],
+        in_r: U,
+        in_g: U,
+        in_b: U,
+        lut: &[BarycentricWeightQ1_15; BINS],
     ) -> NeonVectorQ1_15;
 }
 
 pub(crate) trait NeonMdInterpolationQ1_15Double<'a, const GRID_SIZE: usize> {
     fn new(table0: &'a [NeonAlignedI16x4], table1: &'a [NeonAlignedI16x4]) -> Self;
-    fn inter3_neon(
+    fn inter3_neon<U: AsPrimitive<usize>, const BINS: usize>(
         &self,
-        in_r: u8,
-        in_g: u8,
-        in_b: u8,
-        lut: &[BarycentricWeightQ1_15; 256],
+        in_r: U,
+        in_g: U,
+        in_b: U,
+        lut: &[BarycentricWeightQ1_15; BINS],
     ) -> (NeonVectorQ1_15, NeonVectorQ1_15);
 }
 
 impl<const GRID_SIZE: usize> TetrahedralNeonQ1_15<'_, GRID_SIZE> {
     #[inline(always)]
-    fn interpolate(
+    fn interpolate<U: AsPrimitive<usize>, const BINS: usize>(
         &self,
-        in_r: u8,
-        in_g: u8,
-        in_b: u8,
-        lut: &[BarycentricWeightQ1_15; 256],
+        in_r: U,
+        in_g: U,
+        in_b: U,
+        lut: &[BarycentricWeightQ1_15; BINS],
         r: impl Fetcher<NeonVectorQ1_15>,
     ) -> NeonVectorQ1_15 {
-        let lut_r = lut[in_r as usize];
-        let lut_g = lut[in_g as usize];
-        let lut_b = lut[in_b as usize];
+        let lut_r = lut[in_r.as_()];
+        let lut_g = lut[in_g.as_()];
+        let lut_b = lut[in_b.as_()];
 
         let x: i32 = lut_r.x;
         let y: i32 = lut_g.x;
@@ -347,17 +348,17 @@ impl<const GRID_SIZE: usize> TetrahedralNeonQ1_15<'_, GRID_SIZE> {
 
 impl<const GRID_SIZE: usize> TetrahedralNeonQ1_15Double<'_, GRID_SIZE> {
     #[inline(always)]
-    fn interpolate(
+    fn interpolate<U: AsPrimitive<usize>, const BINS: usize>(
         &self,
-        in_r: u8,
-        in_g: u8,
-        in_b: u8,
-        lut: &[BarycentricWeightQ1_15; 256],
+        in_r: U,
+        in_g: U,
+        in_b: U,
+        lut: &[BarycentricWeightQ1_15; BINS],
         r: impl Fetcher<NeonVectorQ1_15Double>,
     ) -> (NeonVectorQ1_15, NeonVectorQ1_15) {
-        let lut_r = lut[in_r as usize];
-        let lut_g = lut[in_g as usize];
-        let lut_b = lut[in_b as usize];
+        let lut_r = lut[in_r.as_()];
+        let lut_g = lut[in_g.as_()];
+        let lut_b = lut[in_b.as_()];
 
         let x: i32 = lut_r.x;
         let y: i32 = lut_g.x;
@@ -426,12 +427,12 @@ macro_rules! define_md_inter_neon {
             }
 
             #[inline(always)]
-            fn inter3_neon(
+            fn inter3_neon<U: AsPrimitive<usize>, const BINS: usize>(
                 &self,
-                in_r: u8,
-                in_g: u8,
-                in_b: u8,
-                lut: &[BarycentricWeightQ1_15; 256],
+                in_r: U,
+                in_g: U,
+                in_b: U,
+                lut: &[BarycentricWeightQ1_15; BINS],
             ) -> NeonVectorQ1_15 {
                 self.interpolate(
                     in_r,
@@ -459,12 +460,12 @@ macro_rules! define_md_inter_neon_d {
             }
 
             #[inline(always)]
-            fn inter3_neon(
+            fn inter3_neon<U: AsPrimitive<usize>, const BINS: usize>(
                 &self,
-                in_r: u8,
-                in_g: u8,
-                in_b: u8,
-                lut: &[BarycentricWeightQ1_15; 256],
+                in_r: U,
+                in_g: U,
+                in_b: U,
+                lut: &[BarycentricWeightQ1_15; BINS],
             ) -> (NeonVectorQ1_15, NeonVectorQ1_15) {
                 self.interpolate(
                     in_r,
@@ -492,17 +493,17 @@ define_md_inter_neon_d!(TrilinearNeonQ1_15Double);
 
 impl<const GRID_SIZE: usize> PyramidalNeonQ1_15<'_, GRID_SIZE> {
     #[inline(always)]
-    fn interpolate(
+    fn interpolate<U: AsPrimitive<usize>, const BINS: usize>(
         &self,
-        in_r: u8,
-        in_g: u8,
-        in_b: u8,
-        lut: &[BarycentricWeightQ1_15; 256],
+        in_r: U,
+        in_g: U,
+        in_b: U,
+        lut: &[BarycentricWeightQ1_15; BINS],
         r: impl Fetcher<NeonVectorQ1_15>,
     ) -> NeonVectorQ1_15 {
-        let lut_r = lut[in_r as usize];
-        let lut_g = lut[in_g as usize];
-        let lut_b = lut[in_b as usize];
+        let lut_r = lut[in_r.as_()];
+        let lut_g = lut[in_g.as_()];
+        let lut_b = lut[in_b.as_()];
 
         let x: i32 = lut_r.x;
         let y: i32 = lut_g.x;
@@ -569,17 +570,17 @@ impl<const GRID_SIZE: usize> PyramidalNeonQ1_15<'_, GRID_SIZE> {
 
 impl<const GRID_SIZE: usize> PyramidalNeonQ1_15Double<'_, GRID_SIZE> {
     #[inline(always)]
-    fn interpolate(
+    fn interpolate<U: AsPrimitive<usize>, const BINS: usize>(
         &self,
-        in_r: u8,
-        in_g: u8,
-        in_b: u8,
-        lut: &[BarycentricWeightQ1_15; 256],
+        in_r: U,
+        in_g: U,
+        in_b: U,
+        lut: &[BarycentricWeightQ1_15; BINS],
         r: impl Fetcher<NeonVectorQ1_15Double>,
     ) -> (NeonVectorQ1_15, NeonVectorQ1_15) {
-        let lut_r = lut[in_r as usize];
-        let lut_g = lut[in_g as usize];
-        let lut_b = lut[in_b as usize];
+        let lut_r = lut[in_r.as_()];
+        let lut_g = lut[in_g.as_()];
+        let lut_b = lut[in_b.as_()];
 
         let x: i32 = lut_r.x;
         let y: i32 = lut_g.x;
@@ -656,17 +657,17 @@ impl<const GRID_SIZE: usize> PyramidalNeonQ1_15Double<'_, GRID_SIZE> {
 
 impl<const GRID_SIZE: usize> PrismaticNeonQ1_15<'_, GRID_SIZE> {
     #[inline(always)]
-    fn interpolate(
+    fn interpolate<U: AsPrimitive<usize>, const BINS: usize>(
         &self,
-        in_r: u8,
-        in_g: u8,
-        in_b: u8,
-        lut: &[BarycentricWeightQ1_15; 256],
+        in_r: U,
+        in_g: U,
+        in_b: U,
+        lut: &[BarycentricWeightQ1_15; BINS],
         r: impl Fetcher<NeonVectorQ1_15>,
     ) -> NeonVectorQ1_15 {
-        let lut_r = lut[in_r as usize];
-        let lut_g = lut[in_g as usize];
-        let lut_b = lut[in_b as usize];
+        let lut_r = lut[in_r.as_()];
+        let lut_g = lut[in_g.as_()];
+        let lut_b = lut[in_b.as_()];
 
         let x: i32 = lut_r.x;
         let y: i32 = lut_g.x;
@@ -724,17 +725,17 @@ impl<const GRID_SIZE: usize> PrismaticNeonQ1_15<'_, GRID_SIZE> {
 
 impl<const GRID_SIZE: usize> PrismaticNeonQ1_15Double<'_, GRID_SIZE> {
     #[inline(always)]
-    fn interpolate(
+    fn interpolate<U: AsPrimitive<usize>, const BINS: usize>(
         &self,
-        in_r: u8,
-        in_g: u8,
-        in_b: u8,
-        lut: &[BarycentricWeightQ1_15; 256],
+        in_r: U,
+        in_g: U,
+        in_b: U,
+        lut: &[BarycentricWeightQ1_15; BINS],
         rv: impl Fetcher<NeonVectorQ1_15Double>,
     ) -> (NeonVectorQ1_15, NeonVectorQ1_15) {
-        let lut_r = lut[in_r as usize];
-        let lut_g = lut[in_g as usize];
-        let lut_b = lut[in_b as usize];
+        let lut_r = lut[in_r.as_()];
+        let lut_g = lut[in_g.as_()];
+        let lut_b = lut[in_b.as_()];
 
         let x: i32 = lut_r.x;
         let y: i32 = lut_g.x;
@@ -798,17 +799,17 @@ impl<const GRID_SIZE: usize> PrismaticNeonQ1_15Double<'_, GRID_SIZE> {
 
 impl<const GRID_SIZE: usize> TrilinearNeonQ1_15Double<'_, GRID_SIZE> {
     #[inline(always)]
-    fn interpolate(
+    fn interpolate<U: AsPrimitive<usize>, const BINS: usize>(
         &self,
-        in_r: u8,
-        in_g: u8,
-        in_b: u8,
-        lut: &[BarycentricWeightQ1_15; 256],
+        in_r: U,
+        in_g: U,
+        in_b: U,
+        lut: &[BarycentricWeightQ1_15; BINS],
         r: impl Fetcher<NeonVectorQ1_15Double>,
     ) -> (NeonVectorQ1_15, NeonVectorQ1_15) {
-        let lut_r = lut[in_r as usize];
-        let lut_g = lut[in_g as usize];
-        let lut_b = lut[in_b as usize];
+        let lut_r = lut[in_r.as_()];
+        let lut_g = lut[in_g.as_()];
+        let lut_b = lut[in_b.as_()];
 
         let x: i32 = lut_r.x;
         let y: i32 = lut_g.x;
@@ -855,17 +856,17 @@ impl<const GRID_SIZE: usize> TrilinearNeonQ1_15Double<'_, GRID_SIZE> {
 
 impl<const GRID_SIZE: usize> TrilinearNeonQ1_15<'_, GRID_SIZE> {
     #[inline(always)]
-    fn interpolate(
+    fn interpolate<U: AsPrimitive<usize>, const BINS: usize>(
         &self,
-        in_r: u8,
-        in_g: u8,
-        in_b: u8,
-        lut: &[BarycentricWeightQ1_15; 256],
+        in_r: U,
+        in_g: U,
+        in_b: U,
+        lut: &[BarycentricWeightQ1_15; BINS],
         r: impl Fetcher<NeonVectorQ1_15>,
     ) -> NeonVectorQ1_15 {
-        let lut_r = lut[in_r as usize];
-        let lut_g = lut[in_g as usize];
-        let lut_b = lut[in_b as usize];
+        let lut_r = lut[in_r.as_()];
+        let lut_g = lut[in_g.as_()];
+        let lut_b = lut[in_b.as_()];
 
         let x: i32 = lut_r.x;
         let y: i32 = lut_g.x;
