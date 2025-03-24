@@ -92,7 +92,9 @@ impl BarycentricWeightQ1_15 {
 
             let scale = (GRID_SIZE as i32 - 1) as f32 * SCALE;
 
-            let dr = ((index as f32 * scale - x as f32) * (1 << 15) as f32).round() as i16;
+            const Q_WEIGHT: f32 = ((1 << 15) - 1) as f32;
+
+            let dr = ((index as f32 * scale - x as f32) * Q_WEIGHT).round() as i16;
             *weight = BarycentricWeightQ1_15 { x, x_n, w: dr };
         }
         weights
