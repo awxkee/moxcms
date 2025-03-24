@@ -159,7 +159,7 @@ where
         if src_chunks != dst_chunks {
             return Err(CmsError::LaneSizeMismatch);
         }
-        
+
         unsafe {
             match self.interpolation_method {
                 InterpolationMethod::Tetrahedral => {
@@ -204,11 +204,8 @@ impl Lut3x3Factory for AvxLut3x3Factory {
         f32: AsPrimitive<T>,
         u32: AsPrimitive<T>,
     {
-        if options.prefer_fixed_point
-            && BIT_DEPTH < 15
-            && T::FINITE
-        {
-            const Q_SCALE: f32 = (1 << 15) as f32;
+        if options.prefer_fixed_point && BIT_DEPTH < 15 && T::FINITE {
+            const Q_SCALE: f32 = ((1 << 15) - 1) as f32;
             let lut = lut
                 .chunks_exact(3)
                 .map(|x| {
@@ -233,6 +230,10 @@ impl Lut3x3Factory for AvxLut3x3Factory {
                 weights: BarycentricWeightQ1_15::create_ranged_256::<GRID_SIZE>(),
             });
         }
+        assert!(
+            std::arch::is_x86_feature_detected!("fma"),
+            "Internal configuration error, this might not be called without `fma` feature"
+        );
         let lut = lut
             .chunks_exact(3)
             .map(|x| SseAlignedF32([x[0], x[1], x[2], 0f32]))

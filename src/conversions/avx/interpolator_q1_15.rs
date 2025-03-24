@@ -190,7 +190,7 @@ impl Mul<AvxVectorQ1_15Sse> for AvxVectorQ1_15Sse {
     #[inline(always)]
     fn mul(self, rhs: AvxVectorQ1_15Sse) -> Self::Output {
         AvxVectorQ1_15Sse {
-            v: unsafe { _mm_mulhi_epi16(self.v, rhs.v) },
+            v: unsafe { _mm_mulhrs_epi16(self.v, rhs.v) },
         }
     }
 }
@@ -208,7 +208,7 @@ impl AvxVectorQ1_15Sse {
     #[inline(always)]
     pub(crate) fn neg_mla(self, b: AvxVectorQ1_15Sse, c: AvxVectorQ1_15Sse) -> Self {
         Self {
-            v: unsafe { _mm_mulhi_epi16(b.v, c.v) },
+            v: unsafe { _mm_sub_epi16(self.v, _mm_mulhrs_epi16(b.v, c.v)) },
         }
     }
 }
@@ -237,7 +237,7 @@ impl FusedMultiplyAdd<AvxVectorQ1_15Sse> for AvxVectorQ1_15Sse {
     #[inline(always)]
     fn mla(&self, b: AvxVectorQ1_15Sse, c: AvxVectorQ1_15Sse) -> AvxVectorQ1_15Sse {
         AvxVectorQ1_15Sse {
-            v: unsafe { _mm_add_epi16(_mm_mulhi_epi16(b.v, c.v), self.v) },
+            v: unsafe { _mm_add_epi16(_mm_mulhrs_epi16(b.v, c.v), self.v) },
         }
     }
 }

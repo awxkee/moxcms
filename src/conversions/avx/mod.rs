@@ -27,11 +27,11 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 mod interpolator;
+mod interpolator_q1_15;
 mod lut4_to_3;
 mod rgb_xyz_q4_12;
 mod stages;
 mod transform_lut3_to_3;
-mod interpolator_q1_15;
 mod transform_lut3_to_3_q1_15;
 
 pub(crate) use interpolator::TetrahedralAvxFma;

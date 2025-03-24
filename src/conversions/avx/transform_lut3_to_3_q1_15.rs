@@ -78,7 +78,7 @@ where
         let dst_cn = Layout::from(DST_LAYOUT);
         let dst_channels = dst_cn.channels();
 
-        // let value_scale = unsafe { _mm_set1_ps(((1 << BIT_DEPTH) - 1) as f32) };
+        let value_scale = unsafe { _mm_set1_ps(1. / (1 << 15) as f32) };
         let max_value = ((1u32 << BIT_DEPTH) - 1).as_();
         let v_max = unsafe { _mm_set1_epi16(((1u32 << BIT_DEPTH) - 1) as i16) };
         let rnd = unsafe {
@@ -128,13 +128,15 @@ where
                     dst[dst_cn.b_i()] = (z as u32).as_();
                 }
             } else {
-                // unsafe {
-                //     let mut r = _mm_max_ps(v.v, _mm_setzero_ps());
-                //     r = _mm_min_ps(r, value_scale);
-                //     dst[dst_cn.r_i()] = f32::from_bits(_mm_extract_ps::<0>(r) as u32).as_();
-                //     dst[dst_cn.g_i()] = f32::from_bits(_mm_extract_ps::<1>(r) as u32).as_();
-                //     dst[dst_cn.b_i()] = f32::from_bits(_mm_extract_ps::<2>(r) as u32).as_();
-                // }
+                unsafe {
+                    let mut o = _mm_cvtepi32_ps(_mm_unpacklo_epi16(v.v, _mm_setzero_si128()));
+                    o = _mm_mul_ps(o, value_scale);
+                    o = _mm_min_ps(o, value_scale);
+                    o = _mm_max_ps(o, _mm_set1_ps(1.0));
+                    dst[dst_cn.r_i()] = f32::from_bits(_mm_extract_ps::<0>(o) as u32).as_();
+                    dst[dst_cn.g_i()] = f32::from_bits(_mm_extract_ps::<1>(o) as u32).as_();
+                    dst[dst_cn.b_i()] = f32::from_bits(_mm_extract_ps::<2>(o) as u32).as_();
+                }
             }
             if dst_channels == 4 {
                 dst[dst_cn.a_i()] = a;

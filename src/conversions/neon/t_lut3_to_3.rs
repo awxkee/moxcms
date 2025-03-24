@@ -198,7 +198,7 @@ impl Lut3x3Factory for NeonLut3x3Factory {
             && BIT_DEPTH < 15
             && T::FINITE
         {
-            const Q_SCALE: f32 = (1 << 15) as f32;
+            const Q_SCALE: f32 = ((1 << 15) - 1) as f32;
             let lut = lut
                 .chunks_exact(3)
                 .map(|x| {
