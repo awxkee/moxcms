@@ -24,7 +24,7 @@ fuzz_target!(|data: (u8, u8, u16, u8, u8, u8, f32, bool)| {
     } else {
         16
     };
-    let barycentric_high = if data.6 {
+    let barycentric_high = if data.7 {
         BarycentricWeightScale::High
     } else {
         BarycentricWeightScale::Low
