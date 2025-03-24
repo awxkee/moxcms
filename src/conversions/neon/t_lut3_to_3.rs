@@ -27,11 +27,13 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::conversions::CompressForLut;
-use crate::conversions::interpolator::BarycentricWeight;
+use crate::conversions::interpolator::{BarycentricWeight, BarycentricWeightQ1_15};
 use crate::conversions::lut_transforms::Lut3x3Factory;
 use crate::conversions::neon::interpolator::*;
 use crate::conversions::neon::interpolator::{NeonMdInterpolation, PyramidalNeon};
+use crate::conversions::neon::interpolator_q1_15::NeonAlignedI16x4;
 use crate::conversions::neon::rgb_xyz::NeonAlignedF32;
+use crate::conversions::neon::t_lut3_to_3_q1_15::TransformLut3x3NeonQ1_15;
 use crate::transform::PointeeSizeExpressible;
 use crate::{CmsError, InterpolationMethod, Layout, TransformExecutor, TransformOptions};
 use num_traits::AsPrimitive;
@@ -191,6 +193,36 @@ impl Lut3x3Factory for NeonLut3x3Factory {
         f32: AsPrimitive<T>,
         u32: AsPrimitive<T>,
     {
+        if options.prefer_fixed_point
+            && std::arch::is_aarch64_feature_detected!("rdm")
+            && BIT_DEPTH < 15
+            && T::FINITE
+        {
+            const Q_SCALE: f32 = (1 << 15) as f32;
+            let lut = lut
+                .chunks_exact(3)
+                .map(|x| {
+                    NeonAlignedI16x4([
+                        (x[0] * Q_SCALE).round() as i16,
+                        (x[1] * Q_SCALE).round() as i16,
+                        (x[2] * Q_SCALE).round() as i16,
+                        0,
+                    ])
+                })
+                .collect::<Vec<_>>();
+            return Box::new(TransformLut3x3NeonQ1_15::<
+                T,
+                SRC_LAYOUT,
+                DST_LAYOUT,
+                GRID_SIZE,
+                BIT_DEPTH,
+            > {
+                lut,
+                _phantom: PhantomData,
+                interpolation_method: options.interpolation_method,
+                weights: BarycentricWeightQ1_15::create_ranged_256::<GRID_SIZE>(),
+            });
+        }
         let lut = lut
             .chunks_exact(3)
             .map(|x| NeonAlignedF32([x[0], x[1], x[2], 0f32]))

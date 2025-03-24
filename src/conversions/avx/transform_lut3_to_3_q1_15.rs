@@ -27,16 +27,13 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::conversions::CompressForLut;
-use crate::conversions::avx::TetrahedralAvxFma;
-use crate::conversions::avx::interpolator::{
-    AvxMdInterpolation, PrismaticAvxFma, PyramidalAvxFma, SseAlignedF32, TrilinearAvxFma,
+use crate::conversions::avx::interpolator_q1_15::{
+    AvxMdInterpolationQ1_15, PrismaticAvxFmaQ1_15, PyramidalAvxFmaQ1_15, SseAlignedI16,
+    TetrahedralAvxFmaQ1_15, TrilinearAvxFmaQ1_15,
 };
-use crate::conversions::avx::interpolator_q1_15::SseAlignedI16;
-use crate::conversions::avx::transform_lut3_to_3_q1_15::TransformLut3x3AvxQ1_15;
-use crate::conversions::interpolator::{BarycentricWeight, BarycentricWeightQ1_15};
-use crate::conversions::lut_transforms::Lut3x3Factory;
+use crate::conversions::interpolator::BarycentricWeightQ1_15;
 use crate::transform::PointeeSizeExpressible;
-use crate::{CmsError, InterpolationMethod, Layout, TransformExecutor, TransformOptions};
+use crate::{CmsError, InterpolationMethod, Layout, TransformExecutor};
 use num_traits::AsPrimitive;
 #[cfg(target_arch = "x86")]
 use std::arch::x86::*;
@@ -44,17 +41,17 @@ use std::arch::x86::*;
 use std::arch::x86_64::*;
 use std::marker::PhantomData;
 
-struct TransformLut3x3AvxFma<
+pub(crate) struct TransformLut3x3AvxQ1_15<
     T,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
     const GRID_SIZE: usize,
     const BIT_DEPTH: usize,
 > {
-    lut: Vec<SseAlignedF32>,
-    _phantom: PhantomData<T>,
-    interpolation_method: InterpolationMethod,
-    weights: Box<[BarycentricWeight; 256]>,
+    pub(crate) lut: Vec<SseAlignedI16>,
+    pub(crate) _phantom: PhantomData<T>,
+    pub(crate) interpolation_method: InterpolationMethod,
+    pub(crate) weights: Box<[BarycentricWeightQ1_15; 256]>,
 }
 
 impl<
@@ -63,14 +60,14 @@ impl<
     const DST_LAYOUT: u8,
     const GRID_SIZE: usize,
     const BIT_DEPTH: usize,
-> TransformLut3x3AvxFma<T, SRC_LAYOUT, DST_LAYOUT, GRID_SIZE, BIT_DEPTH>
+> TransformLut3x3AvxQ1_15<T, SRC_LAYOUT, DST_LAYOUT, GRID_SIZE, BIT_DEPTH>
 where
     f32: AsPrimitive<T>,
     u32: AsPrimitive<T>,
 {
     #[allow(unused_unsafe)]
-    #[target_feature(enable = "avx2", enable = "fma")]
-    unsafe fn transform_chunk<'b, Interpolator: AvxMdInterpolation<'b, GRID_SIZE>>(
+    #[target_feature(enable = "avx2")]
+    unsafe fn transform_chunk<'b, Interpolator: AvxMdInterpolationQ1_15<'b, GRID_SIZE>>(
         &'b self,
         src: &[T],
         dst: &mut [T],
@@ -81,8 +78,18 @@ where
         let dst_cn = Layout::from(DST_LAYOUT);
         let dst_channels = dst_cn.channels();
 
-        let value_scale = unsafe { _mm_set1_ps(((1 << BIT_DEPTH) - 1) as f32) };
+        // let value_scale = unsafe { _mm_set1_ps(((1 << BIT_DEPTH) - 1) as f32) };
         let max_value = ((1u32 << BIT_DEPTH) - 1).as_();
+        let v_max = unsafe { _mm_set1_epi16(((1u32 << BIT_DEPTH) - 1) as i16) };
+        let rnd = unsafe {
+            if BIT_DEPTH == 12 {
+                _mm_set1_epi16((1 << (3 - 1)) - 1)
+            } else if BIT_DEPTH == 10 {
+                _mm_set1_epi16((1 << (5 - 1)) - 1)
+            } else {
+                _mm_set1_epi16((1 << (7 - 1)) - 1)
+            }
+        };
 
         for (src, dst) in src
             .chunks_exact(src_channels)
@@ -102,27 +109,32 @@ where
             let v = tetrahedral.inter3_sse(x, y, z, &self.weights);
             if T::FINITE {
                 unsafe {
-                    let mut r = _mm_mul_ps(v.v, value_scale);
-                    r = _mm_max_ps(r, _mm_setzero_ps());
-                    r = _mm_min_ps(r, value_scale);
-                    let jvz = _mm_cvtps_epi32(r);
+                    let mut r = if BIT_DEPTH == 12 {
+                        _mm_srai_epi16::<3>(_mm_adds_epi16(v.v, rnd))
+                    } else if BIT_DEPTH == 10 {
+                        _mm_srai_epi16::<5>(_mm_adds_epi16(v.v, rnd))
+                    } else {
+                        _mm_srai_epi16::<7>(_mm_adds_epi16(v.v, rnd))
+                    };
+                    r = _mm_max_epi16(r, _mm_setzero_si128());
+                    r = _mm_min_epi16(r, v_max);
 
-                    let x = _mm_extract_epi32::<0>(jvz);
-                    let y = _mm_extract_epi32::<1>(jvz);
-                    let z = _mm_extract_epi32::<2>(jvz);
+                    let x = _mm_extract_epi16::<0>(r);
+                    let y = _mm_extract_epi16::<1>(r);
+                    let z = _mm_extract_epi16::<2>(r);
 
                     dst[dst_cn.r_i()] = (x as u32).as_();
                     dst[dst_cn.g_i()] = (y as u32).as_();
                     dst[dst_cn.b_i()] = (z as u32).as_();
                 }
             } else {
-                unsafe {
-                    let mut r = _mm_max_ps(v.v, _mm_setzero_ps());
-                    r = _mm_min_ps(r, value_scale);
-                    dst[dst_cn.r_i()] = f32::from_bits(_mm_extract_ps::<0>(r) as u32).as_();
-                    dst[dst_cn.g_i()] = f32::from_bits(_mm_extract_ps::<1>(r) as u32).as_();
-                    dst[dst_cn.b_i()] = f32::from_bits(_mm_extract_ps::<2>(r) as u32).as_();
-                }
+                // unsafe {
+                //     let mut r = _mm_max_ps(v.v, _mm_setzero_ps());
+                //     r = _mm_min_ps(r, value_scale);
+                //     dst[dst_cn.r_i()] = f32::from_bits(_mm_extract_ps::<0>(r) as u32).as_();
+                //     dst[dst_cn.g_i()] = f32::from_bits(_mm_extract_ps::<1>(r) as u32).as_();
+                //     dst[dst_cn.b_i()] = f32::from_bits(_mm_extract_ps::<2>(r) as u32).as_();
+                // }
             }
             if dst_channels == 4 {
                 dst[dst_cn.a_i()] = a;
@@ -137,7 +149,7 @@ impl<
     const DST_LAYOUT: u8,
     const GRID_SIZE: usize,
     const BIT_DEPTH: usize,
-> TransformExecutor<T> for TransformLut3x3AvxFma<T, SRC_LAYOUT, DST_LAYOUT, GRID_SIZE, BIT_DEPTH>
+> TransformExecutor<T> for TransformLut3x3AvxQ1_15<T, SRC_LAYOUT, DST_LAYOUT, GRID_SIZE, BIT_DEPTH>
 where
     f32: AsPrimitive<T>,
     u32: AsPrimitive<T>,
@@ -159,91 +171,23 @@ where
         if src_chunks != dst_chunks {
             return Err(CmsError::LaneSizeMismatch);
         }
-        
+
         unsafe {
             match self.interpolation_method {
                 InterpolationMethod::Tetrahedral => {
-                    self.transform_chunk::<TetrahedralAvxFma<GRID_SIZE>>(src, dst);
+                    self.transform_chunk::<TetrahedralAvxFmaQ1_15<GRID_SIZE>>(src, dst);
                 }
                 InterpolationMethod::Pyramid => {
-                    self.transform_chunk::<PyramidalAvxFma<GRID_SIZE>>(src, dst);
+                    self.transform_chunk::<PyramidalAvxFmaQ1_15<GRID_SIZE>>(src, dst);
                 }
                 InterpolationMethod::Prism => {
-                    self.transform_chunk::<PrismaticAvxFma<GRID_SIZE>>(src, dst);
+                    self.transform_chunk::<PrismaticAvxFmaQ1_15<GRID_SIZE>>(src, dst);
                 }
                 InterpolationMethod::Linear => {
-                    self.transform_chunk::<TrilinearAvxFma<GRID_SIZE>>(src, dst);
+                    self.transform_chunk::<TrilinearAvxFmaQ1_15<GRID_SIZE>>(src, dst);
                 }
             }
         }
         Ok(())
-    }
-}
-
-pub(crate) struct AvxLut3x3Factory {}
-
-impl Lut3x3Factory for AvxLut3x3Factory {
-    fn make_transform_3x3<
-        T: Copy
-            + AsPrimitive<f32>
-            + Default
-            + CompressForLut
-            + PointeeSizeExpressible
-            + 'static
-            + Send
-            + Sync,
-        const SRC_LAYOUT: u8,
-        const DST_LAYOUT: u8,
-        const GRID_SIZE: usize,
-        const BIT_DEPTH: usize,
-    >(
-        lut: Vec<f32>,
-        options: TransformOptions,
-    ) -> Box<dyn TransformExecutor<T> + Send + Sync>
-    where
-        f32: AsPrimitive<T>,
-        u32: AsPrimitive<T>,
-    {
-        if options.prefer_fixed_point
-            && BIT_DEPTH < 15
-            && T::FINITE
-        {
-            const Q_SCALE: f32 = (1 << 15) as f32;
-            let lut = lut
-                .chunks_exact(3)
-                .map(|x| {
-                    SseAlignedI16([
-                        (x[0] * Q_SCALE).round() as i16,
-                        (x[1] * Q_SCALE).round() as i16,
-                        (x[2] * Q_SCALE).round() as i16,
-                        0,
-                    ])
-                })
-                .collect::<Vec<_>>();
-            return Box::new(TransformLut3x3AvxQ1_15::<
-                T,
-                SRC_LAYOUT,
-                DST_LAYOUT,
-                GRID_SIZE,
-                BIT_DEPTH,
-            > {
-                lut,
-                _phantom: PhantomData,
-                interpolation_method: options.interpolation_method,
-                weights: BarycentricWeightQ1_15::create_ranged_256::<GRID_SIZE>(),
-            });
-        }
-        let lut = lut
-            .chunks_exact(3)
-            .map(|x| SseAlignedF32([x[0], x[1], x[2], 0f32]))
-            .collect::<Vec<_>>();
-        Box::new(
-            TransformLut3x3AvxFma::<T, SRC_LAYOUT, DST_LAYOUT, GRID_SIZE, BIT_DEPTH> {
-                lut,
-                _phantom: PhantomData,
-                interpolation_method: options.interpolation_method,
-                weights: BarycentricWeight::create_ranged_256::<GRID_SIZE>(),
-            },
-        )
     }
 }

@@ -55,6 +55,13 @@ pub(crate) struct BarycentricWeight {
     pub w: f32,
 }
 
+#[derive(Debug, Copy, Clone, Default)]
+pub(crate) struct BarycentricWeightQ1_15 {
+    pub x: i32,
+    pub x_n: i32,
+    pub w: i16,
+}
+
 impl BarycentricWeight {
     pub(crate) fn create_ranged_256<const GRID_SIZE: usize>() -> Box<[BarycentricWeight; 256]> {
         let mut weights = Box::new([BarycentricWeight::default(); 256]);
@@ -68,6 +75,25 @@ impl BarycentricWeight {
 
             let dr = index as f32 * scale - x as f32;
             *weight = BarycentricWeight { x, x_n, w: dr };
+        }
+        weights
+    }
+}
+
+impl BarycentricWeightQ1_15 {
+    pub(crate) fn create_ranged_256<const GRID_SIZE: usize>() -> Box<[BarycentricWeightQ1_15; 256]>
+    {
+        let mut weights = Box::new([BarycentricWeightQ1_15::default(); 256]);
+        for (index, weight) in weights.iter_mut().enumerate() {
+            const SCALE: f32 = 1.0 / LUT_SAMPLING as f32;
+            let x: i32 = index as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
+
+            let x_n: i32 = (x + 1).min(GRID_SIZE as i32 - 1);
+
+            let scale = (GRID_SIZE as i32 - 1) as f32 * SCALE;
+
+            let dr = ((index as f32 * scale - x as f32) * (1 << 15) as f32).round() as i16;
+            *weight = BarycentricWeightQ1_15 { x, x_n, w: dr };
         }
         weights
     }

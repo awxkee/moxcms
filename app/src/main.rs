@@ -104,7 +104,7 @@ fn compute_abs_diff42(src: &[f32], dst: &[f32]) {
 }
 
 fn main() {
-    let funny_icc = fs::read("./assets/us_swop_coated.icc").unwrap();
+    let funny_icc = fs::read("./assets/srgb_perceptual.icc").unwrap();
 
     // println!("{:?}", decoded);
 
@@ -163,7 +163,7 @@ fn main() {
             TransformOptions {
                 rendering_intent: RenderingIntent::Perceptual,
                 allow_use_cicp_transfer: false,
-                prefer_fixed_point: false,
+                prefer_fixed_point: true,
                 interpolation_method: InterpolationMethod::Linear,
             },
         )
@@ -181,7 +181,7 @@ fn main() {
             TransformOptions {
                 rendering_intent: RenderingIntent::Perceptual,
                 allow_use_cicp_transfer: false,
-                prefer_fixed_point: false,
+                prefer_fixed_point: true,
                 interpolation_method: InterpolationMethod::Linear,
             },
         )

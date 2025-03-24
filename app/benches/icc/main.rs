@@ -69,6 +69,28 @@ pub fn criterion_benchmark(c: &mut Criterion) {
                 Layout::Rgb,
                 TransformOptions {
                     interpolation_method: InterpolationMethod::Tetrahedral,
+                    prefer_fixed_point: false,
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        b.iter(|| {
+            transform.transform(&rgb, &mut dst).unwrap();
+        })
+    });
+
+    c.bench_function("moxcms: LUT Fixed Tetra RGB -> RGB", |b| {
+        let color_profile = ColorProfile::new_from_slice(&srgb_perceptual_icc).unwrap();
+        let dest_profile = ColorProfile::new_srgb();
+        let mut dst = vec![0u8; rgb.len()];
+        let transform = color_profile
+            .create_transform_8bit(
+                Layout::Rgb,
+                &dest_profile,
+                Layout::Rgb,
+                TransformOptions {
+                    interpolation_method: InterpolationMethod::Tetrahedral,
+                    prefer_fixed_point: true,
                     ..Default::default()
                 },
             )
@@ -89,6 +111,28 @@ pub fn criterion_benchmark(c: &mut Criterion) {
                 Layout::Rgb,
                 TransformOptions {
                     interpolation_method: InterpolationMethod::Pyramid,
+                    prefer_fixed_point: false,
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        b.iter(|| {
+            transform.transform(&rgb, &mut dst).unwrap();
+        })
+    });
+
+    c.bench_function("moxcms: LUT Fixed Pyramid RGB -> RGB", |b| {
+        let color_profile = ColorProfile::new_from_slice(&srgb_perceptual_icc).unwrap();
+        let dest_profile = ColorProfile::new_srgb();
+        let mut dst = vec![0u8; rgb.len()];
+        let transform = color_profile
+            .create_transform_8bit(
+                Layout::Rgb,
+                &dest_profile,
+                Layout::Rgb,
+                TransformOptions {
+                    interpolation_method: InterpolationMethod::Pyramid,
+                    prefer_fixed_point: true,
                     ..Default::default()
                 },
             )
@@ -109,6 +153,28 @@ pub fn criterion_benchmark(c: &mut Criterion) {
                 Layout::Rgb,
                 TransformOptions {
                     interpolation_method: InterpolationMethod::Prism,
+                    prefer_fixed_point: false,
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        b.iter(|| {
+            transform.transform(&rgb, &mut dst).unwrap();
+        })
+    });
+
+    c.bench_function("moxcms: LUT Fixed Prism RGB -> RGB", |b| {
+        let color_profile = ColorProfile::new_from_slice(&srgb_perceptual_icc).unwrap();
+        let dest_profile = ColorProfile::new_srgb();
+        let mut dst = vec![0u8; rgb.len()];
+        let transform = color_profile
+            .create_transform_8bit(
+                Layout::Rgb,
+                &dest_profile,
+                Layout::Rgb,
+                TransformOptions {
+                    interpolation_method: InterpolationMethod::Prism,
+                    prefer_fixed_point: true,
                     ..Default::default()
                 },
             )
@@ -129,6 +195,28 @@ pub fn criterion_benchmark(c: &mut Criterion) {
                 Layout::Rgb,
                 TransformOptions {
                     interpolation_method: InterpolationMethod::Linear,
+                    prefer_fixed_point: false,
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        b.iter(|| {
+            transform.transform(&rgb, &mut dst).unwrap();
+        })
+    });
+
+    c.bench_function("moxcms: LUT Fixed Linear RGB -> RGB", |b| {
+        let color_profile = ColorProfile::new_from_slice(&srgb_perceptual_icc).unwrap();
+        let dest_profile = ColorProfile::new_srgb();
+        let mut dst = vec![0u8; rgb.len()];
+        let transform = color_profile
+            .create_transform_8bit(
+                Layout::Rgb,
+                &dest_profile,
+                Layout::Rgb,
+                TransformOptions {
+                    interpolation_method: InterpolationMethod::Linear,
+                    prefer_fixed_point: true,
                     ..Default::default()
                 },
             )
