@@ -26,13 +26,13 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+use crate::conversions::LutBarycentricReduction;
 use crate::conversions::interpolator::BarycentricWeight;
 use crate::conversions::lut_transforms::Lut3x3Factory;
 use crate::conversions::sse::TetrahedralSse;
 use crate::conversions::sse::interpolator::{
     PrismaticSse, PyramidalSse, SseAlignedF32, SseMdInterpolation, TrilinearSse,
 };
-use crate::conversions::{CompressForLut, LutBarycentricReduction};
 use crate::transform::PointeeSizeExpressible;
 use crate::{
     BarycentricWeightScale, CmsError, InterpolationMethod, Layout, TransformExecutor,
@@ -63,7 +63,7 @@ struct TransformLut3x3Sse<
 }
 
 impl<
-    T: Copy + AsPrimitive<f32> + Default + CompressForLut + PointeeSizeExpressible,
+    T: Copy + AsPrimitive<f32> + Default + PointeeSizeExpressible,
     U: AsPrimitive<usize>,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
@@ -97,10 +97,16 @@ where
             .chunks_exact(src_channels)
             .zip(dst.chunks_exact_mut(dst_channels))
         {
-            let x = src[src_cn.r_i()].compress_lut::<BIT_DEPTH>();
-            let y = src[src_cn.g_i()].compress_lut::<BIT_DEPTH>();
-            let z = src[src_cn.b_i()].compress_lut::<BIT_DEPTH>();
-
+            let x = <() as LutBarycentricReduction<T, U>>::reduce::<BIT_DEPTH, BARYCENTRIC_BINS>(
+                src[src_cn.r_i()],
+            );
+            let y = <() as LutBarycentricReduction<T, U>>::reduce::<BIT_DEPTH, BARYCENTRIC_BINS>(
+                src[src_cn.g_i()],
+            );
+            let z = <() as LutBarycentricReduction<T, U>>::reduce::<BIT_DEPTH, BARYCENTRIC_BINS>(
+                src[src_cn.b_i()],
+            );
+            
             let a = if src_channels == 4 {
                 src[src_cn.a_i()]
             } else {
@@ -141,7 +147,7 @@ where
 }
 
 impl<
-    T: Copy + AsPrimitive<f32> + Default + CompressForLut + PointeeSizeExpressible,
+    T: Copy + AsPrimitive<f32> + Default + PointeeSizeExpressible,
     U: AsPrimitive<usize>,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
@@ -207,14 +213,7 @@ pub(crate) struct SseLut3x3Factory {}
 
 impl Lut3x3Factory for SseLut3x3Factory {
     fn make_transform_3x3<
-        T: Copy
-            + AsPrimitive<f32>
-            + Default
-            + CompressForLut
-            + PointeeSizeExpressible
-            + 'static
-            + Send
-            + Sync,
+        T: Copy + AsPrimitive<f32> + Default + PointeeSizeExpressible + 'static + Send + Sync,
         const SRC_LAYOUT: u8,
         const DST_LAYOUT: u8,
         const GRID_SIZE: usize,

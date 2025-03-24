@@ -26,12 +26,12 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+use crate::conversions::LutBarycentricReduction;
 use crate::conversions::avx::interpolator_q1_15::{
     AvxMdInterpolationQ1_15Double, PrismaticAvxFmaQ1_15Double, PyramidAvxFmaQ1_15Double,
     SseAlignedI16, TetrahedralAvxFmaQ1_15Double, TrilinearAvxFmaQ1_15Double,
 };
 use crate::conversions::interpolator::BarycentricWeightQ1_15;
-use crate::conversions::{CompressForLut, LutBarycentricReduction};
 use crate::transform::PointeeSizeExpressible;
 use crate::{CmsError, InterpolationMethod, Layout, TransformExecutor};
 use num_traits::AsPrimitive;
@@ -58,7 +58,7 @@ pub(crate) struct TransformLut4XyzToRgbAvxQ1_15<
 }
 
 impl<
-    T: Copy + AsPrimitive<f32> + Default + CompressForLut + PointeeSizeExpressible,
+    T: Copy + AsPrimitive<f32> + Default + PointeeSizeExpressible,
     U: AsPrimitive<usize>,
     const LAYOUT: u8,
     const GRID_SIZE: usize,
@@ -182,7 +182,7 @@ where
 }
 
 impl<
-    T: Copy + AsPrimitive<f32> + Default + CompressForLut + PointeeSizeExpressible,
+    T: Copy + AsPrimitive<f32> + Default + PointeeSizeExpressible,
     U: AsPrimitive<usize>,
     const LAYOUT: u8,
     const GRID_SIZE: usize,

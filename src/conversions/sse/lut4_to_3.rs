@@ -26,13 +26,13 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+use crate::conversions::LutBarycentricReduction;
 use crate::conversions::interpolator::BarycentricWeight;
 use crate::conversions::lut_transforms::Lut4x3Factory;
 use crate::conversions::sse::TetrahedralSse;
 use crate::conversions::sse::interpolator::{
     PrismaticSse, PyramidalSse, SseAlignedF32, SseMdInterpolation, TrilinearSse,
 };
-use crate::conversions::{CompressForLut, LutBarycentricReduction};
 use crate::transform::PointeeSizeExpressible;
 use crate::{
     BarycentricWeightScale, CmsError, InterpolationMethod, Layout, TransformExecutor,
@@ -62,7 +62,7 @@ struct TransformLut4XyzToRgbSse<
 }
 
 impl<
-    T: Copy + AsPrimitive<f32> + Default + CompressForLut + PointeeSizeExpressible,
+    T: Copy + AsPrimitive<f32> + Default + PointeeSizeExpressible,
     U: AsPrimitive<usize>,
     const LAYOUT: u8,
     const GRID_SIZE: usize,
@@ -159,7 +159,7 @@ where
 }
 
 impl<
-    T: Copy + AsPrimitive<f32> + Default + CompressForLut + PointeeSizeExpressible,
+    T: Copy + AsPrimitive<f32> + Default + PointeeSizeExpressible,
     U: AsPrimitive<usize>,
     const LAYOUT: u8,
     const GRID_SIZE: usize,
@@ -213,14 +213,7 @@ pub(crate) struct SseLut4x3Factory {}
 
 impl Lut4x3Factory for SseLut4x3Factory {
     fn make_transform_4x3<
-        T: Copy
-            + AsPrimitive<f32>
-            + Default
-            + CompressForLut
-            + PointeeSizeExpressible
-            + 'static
-            + Send
-            + Sync,
+        T: Copy + AsPrimitive<f32> + Default + PointeeSizeExpressible + 'static + Send + Sync,
         const LAYOUT: u8,
         const GRID_SIZE: usize,
         const BIT_DEPTH: usize,

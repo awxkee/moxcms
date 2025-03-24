@@ -26,6 +26,7 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+use crate::conversions::LutBarycentricReduction;
 use crate::conversions::avx::interpolator::{
     AvxMdInterpolationDouble, PrismaticAvxFmaDouble, PyramidAvxFmaDouble, SseAlignedF32,
     TetrahedralAvxFmaDouble, TrilinearAvxFmaDouble,
@@ -34,7 +35,6 @@ use crate::conversions::avx::interpolator_q1_15::SseAlignedI16;
 use crate::conversions::avx::lut4_to_3_q1_15::TransformLut4XyzToRgbAvxQ1_15;
 use crate::conversions::interpolator::{BarycentricWeight, BarycentricWeightQ1_15};
 use crate::conversions::lut_transforms::Lut4x3Factory;
-use crate::conversions::{CompressForLut, LutBarycentricReduction};
 use crate::transform::PointeeSizeExpressible;
 use crate::{
     BarycentricWeightScale, CmsError, InterpolationMethod, Layout, TransformExecutor,
@@ -64,7 +64,7 @@ struct TransformLut4XyzToRgbAvx<
 }
 
 impl<
-    T: Copy + AsPrimitive<f32> + Default + CompressForLut + PointeeSizeExpressible,
+    T: Copy + AsPrimitive<f32> + Default + PointeeSizeExpressible,
     U: AsPrimitive<usize>,
     const LAYOUT: u8,
     const GRID_SIZE: usize,
@@ -157,7 +157,7 @@ where
 }
 
 impl<
-    T: Copy + AsPrimitive<f32> + Default + CompressForLut + PointeeSizeExpressible,
+    T: Copy + AsPrimitive<f32> + Default + PointeeSizeExpressible,
     U: AsPrimitive<usize>,
     const LAYOUT: u8,
     const GRID_SIZE: usize,
@@ -211,14 +211,7 @@ pub(crate) struct AvxLut4x3Factory {}
 
 impl Lut4x3Factory for AvxLut4x3Factory {
     fn make_transform_4x3<
-        T: Copy
-            + AsPrimitive<f32>
-            + Default
-            + CompressForLut
-            + PointeeSizeExpressible
-            + 'static
-            + Send
-            + Sync,
+        T: Copy + AsPrimitive<f32> + Default + PointeeSizeExpressible + 'static + Send + Sync,
         const LAYOUT: u8,
         const GRID_SIZE: usize,
         const BIT_DEPTH: usize,
