@@ -117,7 +117,7 @@ where
                         let x = m_once[0];
                         let y = m_once[1];
                         let z = m_once[2];
-                        
+
                         dst[dst_cn.r_i()] = (x as u32).as_();
                         dst[dst_cn.g_i()] = (y as u32).as_();
                         dst[dst_cn.b_i()] = (z as u32).as_();
