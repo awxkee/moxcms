@@ -110,27 +110,43 @@ where
                 let v = interpolator.inter3_sse(c, m, y, &self.weights);
                 let (a0, b0) = (v.0.v, v.1.v);
 
-                let hp = _mm_sub_epi16(a0, _mm_mulhrs_epi16(t0, a0));
-                let v = _mm_add_epi16(_mm_mulhrs_epi16(b0, t0), hp);
+                let j0 = _mm_mulhrs_epi16(t0, a0);
+                let j1 = _mm_mulhrs_epi16(b0, t0);
+
+                let hp = _mm_sub_epi16(a0, j0);
+                let v = _mm_add_epi16(j1, hp);
 
                 if T::FINITE {
-                    let mut r = if BIT_DEPTH == 12 {
-                        _mm_srai_epi16::<3>(_mm_adds_epi16(v, rnd))
-                    } else if BIT_DEPTH == 10 {
-                        _mm_srai_epi16::<5>(_mm_adds_epi16(v, rnd))
+                    if BIT_DEPTH == 8 {
+                        let mut r = _mm_srai_epi16::<7>(_mm_adds_epi16(v, rnd));
+                        r = _mm_packus_epi16(r, r);
+
+                        let x = _mm_extract_epi8::<0>(r);
+                        let y = _mm_extract_epi8::<1>(r);
+                        let z = _mm_extract_epi8::<2>(r);
+
+                        dst[cn.r_i()] = (x as u32).as_();
+                        dst[cn.g_i()] = (y as u32).as_();
+                        dst[cn.b_i()] = (z as u32).as_();
                     } else {
-                        _mm_srai_epi16::<7>(_mm_adds_epi16(v, rnd))
-                    };
-                    r = _mm_max_epi16(r, _mm_setzero_si128());
-                    r = _mm_min_epi16(r, v_max);
+                        let mut r = if BIT_DEPTH == 12 {
+                            _mm_srai_epi16::<3>(_mm_adds_epi16(v, rnd))
+                        } else if BIT_DEPTH == 10 {
+                            _mm_srai_epi16::<5>(_mm_adds_epi16(v, rnd))
+                        } else {
+                            _mm_srai_epi16::<7>(_mm_adds_epi16(v, rnd))
+                        };
+                        r = _mm_max_epi16(r, _mm_setzero_si128());
+                        r = _mm_min_epi16(r, v_max);
 
-                    let x = _mm_extract_epi16::<0>(r);
-                    let y = _mm_extract_epi16::<1>(r);
-                    let z = _mm_extract_epi16::<2>(r);
+                        let x = _mm_extract_epi16::<0>(r);
+                        let y = _mm_extract_epi16::<1>(r);
+                        let z = _mm_extract_epi16::<2>(r);
 
-                    dst[cn.r_i()] = (x as u32).as_();
-                    dst[cn.g_i()] = (y as u32).as_();
-                    dst[cn.b_i()] = (z as u32).as_();
+                        dst[cn.r_i()] = (x as u32).as_();
+                        dst[cn.g_i()] = (y as u32).as_();
+                        dst[cn.b_i()] = (z as u32).as_();
+                    }
                 } else {
                     let mut o = _mm_cvtepi32_ps(_mm_unpacklo_epi16(v, _mm_setzero_si128()));
                     o = _mm_mul_ps(o, value_scale);

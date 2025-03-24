@@ -72,63 +72,74 @@ where
         src: &[T],
         dst: &mut [T],
     ) {
-        let src_cn = Layout::from(SRC_LAYOUT);
-        let src_channels = src_cn.channels();
+        unsafe {
+            let src_cn = Layout::from(SRC_LAYOUT);
+            let src_channels = src_cn.channels();
 
-        let dst_cn = Layout::from(DST_LAYOUT);
-        let dst_channels = dst_cn.channels();
+            let dst_cn = Layout::from(DST_LAYOUT);
+            let dst_channels = dst_cn.channels();
 
-        let value_scale = unsafe { _mm_set1_ps(1. / (1 << 15) as f32) };
-        let max_value = ((1u32 << BIT_DEPTH) - 1).as_();
-        let v_max = unsafe { _mm_set1_epi16(((1u32 << BIT_DEPTH) - 1) as i16) };
-        let rnd = unsafe {
-            if BIT_DEPTH == 12 {
-                _mm_set1_epi16((1 << (3 - 1)) - 1)
-            } else if BIT_DEPTH == 10 {
-                _mm_set1_epi16((1 << (5 - 1)) - 1)
-            } else {
-                _mm_set1_epi16((1 << (7 - 1)) - 1)
-            }
-        };
-
-        for (src, dst) in src
-            .chunks_exact(src_channels)
-            .zip(dst.chunks_exact_mut(dst_channels))
-        {
-            let x = src[src_cn.r_i()].compress_lut::<BIT_DEPTH>();
-            let y = src[src_cn.g_i()].compress_lut::<BIT_DEPTH>();
-            let z = src[src_cn.b_i()].compress_lut::<BIT_DEPTH>();
-
-            let a = if src_channels == 4 {
-                src[src_cn.a_i()]
-            } else {
-                max_value
+            let value_scale = unsafe { _mm_set1_ps(1. / (1 << 15) as f32) };
+            let max_value = ((1u32 << BIT_DEPTH) - 1).as_();
+            let v_max = unsafe { _mm_set1_epi16(((1u32 << BIT_DEPTH) - 1) as i16) };
+            let rnd = unsafe {
+                if BIT_DEPTH == 12 {
+                    _mm_set1_epi16((1 << (3 - 1)) - 1)
+                } else if BIT_DEPTH == 10 {
+                    _mm_set1_epi16((1 << (5 - 1)) - 1)
+                } else {
+                    _mm_set1_epi16((1 << (7 - 1)) - 1)
+                }
             };
 
-            let tetrahedral = Interpolator::new(&self.lut);
-            let v = tetrahedral.inter3_sse(x, y, z, &self.weights);
-            if T::FINITE {
-                unsafe {
-                    let mut r = if BIT_DEPTH == 12 {
-                        _mm_srai_epi16::<3>(_mm_adds_epi16(v.v, rnd))
-                    } else if BIT_DEPTH == 10 {
-                        _mm_srai_epi16::<5>(_mm_adds_epi16(v.v, rnd))
+            for (src, dst) in src
+                .chunks_exact(src_channels)
+                .zip(dst.chunks_exact_mut(dst_channels))
+            {
+                let x = src[src_cn.r_i()].compress_lut::<BIT_DEPTH>();
+                let y = src[src_cn.g_i()].compress_lut::<BIT_DEPTH>();
+                let z = src[src_cn.b_i()].compress_lut::<BIT_DEPTH>();
+
+                let a = if src_channels == 4 {
+                    src[src_cn.a_i()]
+                } else {
+                    max_value
+                };
+
+                let tetrahedral = Interpolator::new(&self.lut);
+                let v = tetrahedral.inter3_sse(x, y, z, &self.weights);
+                if T::FINITE {
+                    if BIT_DEPTH == 8 {
+                        let mut r = _mm_srai_epi16::<7>(_mm_adds_epi16(v.v, rnd));
+                        r = _mm_packus_epi16(r, r);
+
+                        let x = _mm_extract_epi8::<0>(r);
+                        let y = _mm_extract_epi8::<1>(r);
+                        let z = _mm_extract_epi8::<2>(r);
+
+                        dst[dst_cn.r_i()] = (x as u32).as_();
+                        dst[dst_cn.g_i()] = (y as u32).as_();
+                        dst[dst_cn.b_i()] = (z as u32).as_();
                     } else {
-                        _mm_srai_epi16::<7>(_mm_adds_epi16(v.v, rnd))
-                    };
-                    r = _mm_max_epi16(r, _mm_setzero_si128());
-                    r = _mm_min_epi16(r, v_max);
+                        let mut r = if BIT_DEPTH == 12 {
+                            _mm_srai_epi16::<3>(_mm_adds_epi16(v.v, rnd))
+                        } else if BIT_DEPTH == 10 {
+                            _mm_srai_epi16::<5>(_mm_adds_epi16(v.v, rnd))
+                        } else {
+                            _mm_srai_epi16::<7>(_mm_adds_epi16(v.v, rnd))
+                        };
+                        r = _mm_max_epi16(r, _mm_setzero_si128());
+                        r = _mm_min_epi16(r, v_max);
 
-                    let x = _mm_extract_epi16::<0>(r);
-                    let y = _mm_extract_epi16::<1>(r);
-                    let z = _mm_extract_epi16::<2>(r);
+                        let x = _mm_extract_epi16::<0>(r);
+                        let y = _mm_extract_epi16::<1>(r);
+                        let z = _mm_extract_epi16::<2>(r);
 
-                    dst[dst_cn.r_i()] = (x as u32).as_();
-                    dst[dst_cn.g_i()] = (y as u32).as_();
-                    dst[dst_cn.b_i()] = (z as u32).as_();
-                }
-            } else {
-                unsafe {
+                        dst[dst_cn.r_i()] = (x as u32).as_();
+                        dst[dst_cn.g_i()] = (y as u32).as_();
+                        dst[dst_cn.b_i()] = (z as u32).as_();
+                    }
+                } else {
                     let mut o = _mm_cvtepi32_ps(_mm_unpacklo_epi16(v.v, _mm_setzero_si128()));
                     o = _mm_mul_ps(o, value_scale);
                     o = _mm_min_ps(o, value_scale);
@@ -137,9 +148,9 @@ where
                     dst[dst_cn.g_i()] = f32::from_bits(_mm_extract_ps::<1>(o) as u32).as_();
                     dst[dst_cn.b_i()] = f32::from_bits(_mm_extract_ps::<2>(o) as u32).as_();
                 }
-            }
-            if dst_channels == 4 {
-                dst[dst_cn.a_i()] = a;
+                if dst_channels == 4 {
+                    dst[dst_cn.a_i()] = a;
+                }
             }
         }
     }
