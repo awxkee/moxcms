@@ -27,7 +27,7 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use num_traits::MulAdd;
-use std::ops::{Add, Mul};
+use std::ops::{Add, Mul, Neg};
 
 #[cfg(any(
     all(
@@ -59,4 +59,15 @@ pub(crate) fn mlaf<T: Copy + Mul<T, Output = T> + Add<T, Output = T> + MulAdd<T,
     b: T,
 ) -> T {
     acc + a * b
+}
+
+#[inline(always)]
+pub(crate) fn neg_mlaf<
+    T: Copy + Mul<T, Output = T> + Add<T, Output = T> + MulAdd<T, Output = T> + Neg<Output = T>,
+>(
+    acc: T,
+    a: T,
+    b: T,
+) -> T {
+    mlaf(acc, a, -b)
 }

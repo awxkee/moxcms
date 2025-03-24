@@ -28,7 +28,7 @@
  */
 #![allow(dead_code)]
 use crate::conversions::lut_transforms::LUT_SAMPLING;
-use crate::math::FusedMultiplyAdd;
+use crate::math::{FusedMultiplyAdd, FusedMultiplyNegAdd};
 use crate::{Vector3f, Vector4f, rounding_div_ceil};
 use std::ops::{Add, Mul, Sub};
 
@@ -357,7 +357,8 @@ impl<const GRID_SIZE: usize> Trilinear<'_, GRID_SIZE> {
             + Mul<f32, Output = T>
             + Add<T, Output = T>
             + From<f32>
-            + FusedMultiplyAdd<T>,
+            + FusedMultiplyAdd<T>
+            + FusedMultiplyNegAdd<T>,
     >(
         &self,
         in_r: u8,
@@ -388,21 +389,20 @@ impl<const GRID_SIZE: usize> Trilinear<'_, GRID_SIZE> {
         let c011 = r.fetch(x, y_n, z_n);
         let c111 = r.fetch(x_n, y_n, z_n);
 
-        let dx = T::from(1.0 - dr);
+        let dx = T::from(dr);
 
-        // Perform trilinear interpolation
-        let c00 = (c000 * dx).mla(c100, w0);
-        let c10 = (c010 * dx).mla(c110, w0);
-        let c01 = (c001 * dx).mla(c101, w0);
-        let c11 = (c011 * dx).mla(c111, w0);
+        let c00 = c000.neg_mla(c000, dx).mla(c100, w0);
+        let c10 = c010.neg_mla(c010, dx).mla(c110, w0);
+        let c01 = c001.neg_mla(c001, dx).mla(c101, w0);
+        let c11 = c011.neg_mla(c011, dx).mla(c111, w0);
 
-        let dy = T::from(1.0 - dg);
+        let dy = T::from(dg);
 
-        let c0 = (c00 * dy).mla(c10, w1);
-        let c1 = (c01 * dy).mla(c11, w1);
+        let c0 = c00.neg_mla(c00, dy).mla(c10, w1);
+        let c1 = c01.neg_mla(c01, dy).mla(c11, w1);
 
-        let dz = T::from(1.0 - db);
+        let dz = T::from(db);
 
-        (c0 * dz).mla(c1, w2)
+        c0.neg_mla(c0, dz).mla(c1, w2)
     }
 }

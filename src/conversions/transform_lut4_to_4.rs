@@ -31,7 +31,7 @@ use crate::conversions::interpolator::{
     MultidimensionalInterpolation, Prismatic, Pyramidal, Tetrahedral, Trilinear,
 };
 use crate::conversions::lut_transforms::{LUT_SAMPLING, Lut4x3Factory};
-use crate::math::{FusedMultiplyAdd, m_clamp};
+use crate::math::{FusedMultiplyAdd, FusedMultiplyNegAdd, m_clamp};
 use crate::{
     CmsError, InterpolationMethod, Layout, PointeeSizeExpressible, TransformExecutor,
     TransformOptions, Vector3f,
@@ -51,7 +51,7 @@ impl Vector3fCmykLerp for DefaultVector3fLerp {
     #[inline(always)]
     fn interpolate(a: Vector3f, b: Vector3f, t: f32, scale: f32) -> Vector3f {
         let t = Vector3f::from(t);
-        let mut new_vec = (a * (Vector3f::from(1.0) - t)).mla(b, t) * scale + 0.5f32;
+        let mut new_vec = a.neg_mla(a, t).mla(b, t) * scale + 0.5f32;
         new_vec.v[0] = m_clamp(new_vec.v[0], 0.0, scale);
         new_vec.v[1] = m_clamp(new_vec.v[1], 0.0, scale);
         new_vec.v[2] = m_clamp(new_vec.v[2], 0.0, scale);
@@ -67,7 +67,7 @@ impl Vector3fCmykLerp for NonFiniteVector3fLerp {
     #[inline(always)]
     fn interpolate(a: Vector3f, b: Vector3f, t: f32, _: f32) -> Vector3f {
         let t = Vector3f::from(t);
-        let mut new_vec = (a * (Vector3f::from(1.0) - t)).mla(b, t);
+        let mut new_vec = a.neg_mla(a, t).mla(b, t);
         new_vec.v[0] = m_clamp(new_vec.v[0], 0.0, 1.0);
         new_vec.v[1] = m_clamp(new_vec.v[1], 0.0, 1.0);
         new_vec.v[2] = m_clamp(new_vec.v[2], 0.0, 1.0);
@@ -83,7 +83,7 @@ impl Vector3fCmykLerp for NonFiniteVector3fLerpUnbound {
     #[inline(always)]
     fn interpolate(a: Vector3f, b: Vector3f, t: f32, _: f32) -> Vector3f {
         let t = Vector3f::from(t);
-        (a * (Vector3f::from(1.0) - t)).mla(b, t)
+        a.neg_mla(a, t).mla(b, t)
     }
 }
 

@@ -604,6 +604,10 @@ pub(crate) trait FusedMultiplyAdd<T> {
     fn mla(&self, b: T, c: T) -> T;
 }
 
+pub(crate) trait FusedMultiplyNegAdd<T> {
+    fn neg_mla(&self, b: T, c: T) -> T;
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
