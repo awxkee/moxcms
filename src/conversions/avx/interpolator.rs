@@ -458,8 +458,6 @@ impl<'a, const GRID_SIZE: usize> AvxMdInterpolationDouble<'a, GRID_SIZE>
             in_g,
             in_b,
             lut,
-            TetrahedralAvxSseFetchVector::<GRID_SIZE> { cube: self.cube0 },
-            TetrahedralAvxSseFetchVector::<GRID_SIZE> { cube: self.cube1 },
             TetrahedralAvxFetchVector::<GRID_SIZE> {
                 cube0: self.cube0,
                 cube1: self.cube1,
@@ -891,8 +889,6 @@ impl<const GRID_SIZE: usize> TetrahedralAvxFmaDouble<'_, GRID_SIZE> {
         in_g: U,
         in_b: U,
         lut: &[BarycentricWeight; BINS],
-        r0: impl Fetcher<AvxVectorSse>,
-        r1: impl Fetcher<AvxVectorSse>,
         rv: impl Fetcher<AvxVector>,
     ) -> (AvxVectorSse, AvxVectorSse) {
         let lut_r = lut[in_r.as_()];
@@ -911,10 +907,7 @@ impl<const GRID_SIZE: usize> TetrahedralAvxFmaDouble<'_, GRID_SIZE> {
         let ry = lut_g.w;
         let rz = lut_b.w;
 
-        let c0_0 = r0.fetch(x, y, z);
-        let c0_1 = r1.fetch(x, y, z);
-
-        let c0 = AvxVector::from_sse(c0_0, c0_1);
+        let c0 = rv.fetch(x, y, z);
 
         let w0 = AvxVector::from(rx);
         let w1 = AvxVector::from(ry);

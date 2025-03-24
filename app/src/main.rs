@@ -129,7 +129,8 @@ fn main() {
 
     let options = DecoderOptions::new_fast().jpeg_set_out_colorspace(ColorSpace::RGB);
 
-    let real_dst = img.as_bytes()
+    let real_dst = img
+        .as_bytes()
         .chunks_exact(3)
         .flat_map(|x| [x[0], x[1], x[2], 255u8])
         .collect::<Vec<_>>();

@@ -106,7 +106,7 @@ where
             let z = <() as LutBarycentricReduction<T, U>>::reduce::<BIT_DEPTH, BARYCENTRIC_BINS>(
                 src[src_cn.b_i()],
             );
-            
+
             let a = if src_channels == 4 {
                 src[src_cn.a_i()]
             } else {

@@ -624,11 +624,10 @@ impl LutBarycentricReduction<u16, u8> for () {
     #[inline(always)]
     fn reduce<const SRC_BP: usize, const BINS: usize>(v: u16) -> u8 {
         let shift = SRC_BP as u16 - 8;
-        let rnd = (1 << (shift - 1)) as u16;
         if SRC_BP == 16 {
             (v >> 8) as u8
         } else {
-            ((v + rnd) >> shift).min(shift) as u8
+            (v >> shift).min(shift) as u8
         }
     }
 }
