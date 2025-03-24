@@ -1,7 +1,7 @@
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
-use moxcms::{ColorProfile, InterpolationMethod, Layout, TransformOptions};
+use moxcms::{BarycentricWeightScale, ColorProfile, InterpolationMethod, Layout, TransformOptions};
 use std::fs;
 use std::sync::LazyLock;
 
@@ -10,7 +10,7 @@ static STATIC_US_SWOP: LazyLock<ColorProfile> = LazyLock::new(|| {
     ColorProfile::new_from_slice(&cmyk_icc).unwrap()
 });
 
-fuzz_target!(|data: (u8, u8, u16, u8, u8, u8, f32)| {
+fuzz_target!(|data: (u8, u8, u16, u8, u8, u8, f32, bool)| {
     let dst_layout = if data.3 % 2 == 0 {
         Layout::Rgba
     } else {
@@ -23,6 +23,11 @@ fuzz_target!(|data: (u8, u8, u16, u8, u8, u8, f32)| {
         12
     } else {
         16
+    };
+    let barycentric_high = if data.6 {
+        BarycentricWeightScale::High
+    } else {
+        BarycentricWeightScale::Low
     };
     let inter = data.4 % 4;
     let interpolation_method = if inter == 0 {
@@ -40,6 +45,7 @@ fuzz_target!(|data: (u8, u8, u16, u8, u8, u8, f32)| {
         (data.2 >> 8) as u8,
         dst_layout,
         interpolation_method,
+        barycentric_high,
     );
     fuzz_lut_rgb_8_bit(
         data.0 as usize,
@@ -47,6 +53,7 @@ fuzz_target!(|data: (u8, u8, u16, u8, u8, u8, f32)| {
         (data.2 >> 8) as u8,
         dst_layout,
         interpolation_method,
+        barycentric_high,
     );
     fuzz_lut_f32(
         data.0 as usize,
@@ -54,6 +61,7 @@ fuzz_target!(|data: (u8, u8, u16, u8, u8, u8, f32)| {
         data.6,
         dst_layout,
         interpolation_method,
+        barycentric_high,
     );
     fuzz_lut_16(
         data.0 as usize,
@@ -61,6 +69,7 @@ fuzz_target!(|data: (u8, u8, u16, u8, u8, u8, f32)| {
         data.2,
         dst_layout,
         interpolation_method,
+        barycentric_high,
         bit_depth,
     );
 });
@@ -71,6 +80,7 @@ fn fuzz_lut_f32(
     px: f32,
     dst_layout: Layout,
     interpolation_method: InterpolationMethod,
+    barycentric_weight_scale: BarycentricWeightScale,
 ) {
     if width == 0 || height == 0 {
         return;
@@ -86,6 +96,7 @@ fn fuzz_lut_f32(
             dst_layout,
             TransformOptions {
                 interpolation_method,
+                barycentric_weight_scale,
                 ..Default::default()
             },
         )
@@ -101,6 +112,7 @@ fn fuzz_lut_16(
     px: u16,
     dst_layout: Layout,
     interpolation_method: InterpolationMethod,
+    barycentric_weight_scale: BarycentricWeightScale,
     bit_depth: usize,
 ) {
     if width == 0 || height == 0 {
@@ -118,6 +130,7 @@ fn fuzz_lut_16(
                 dst_layout,
                 TransformOptions {
                     interpolation_method,
+                    barycentric_weight_scale,
                     ..Default::default()
                 },
             )
@@ -130,6 +143,7 @@ fn fuzz_lut_16(
                 dst_layout,
                 TransformOptions {
                     interpolation_method,
+                    barycentric_weight_scale,
                     ..Default::default()
                 },
             )
@@ -142,6 +156,7 @@ fn fuzz_lut_16(
                 dst_layout,
                 TransformOptions {
                     interpolation_method,
+                    barycentric_weight_scale,
                     ..Default::default()
                 },
             )
@@ -158,6 +173,7 @@ fn fuzz_cmyk_8_bit(
     px: u8,
     dst_layout: Layout,
     interpolation_method: InterpolationMethod,
+    barycentric_weight_scale: BarycentricWeightScale,
 ) {
     if width == 0 || height == 0 {
         return;
@@ -173,6 +189,7 @@ fn fuzz_cmyk_8_bit(
             dst_layout,
             TransformOptions {
                 interpolation_method,
+                barycentric_weight_scale,
                 ..Default::default()
             },
         )
@@ -188,6 +205,7 @@ fn fuzz_lut_rgb_8_bit(
     px: u8,
     dst_layout: Layout,
     interpolation_method: InterpolationMethod,
+    barycentric_weight_scale: BarycentricWeightScale,
 ) {
     if width == 0 || height == 0 {
         return;
@@ -203,6 +221,7 @@ fn fuzz_lut_rgb_8_bit(
             dst_layout,
             TransformOptions {
                 interpolation_method,
+                barycentric_weight_scale,
                 ..Default::default()
             },
         )
