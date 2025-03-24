@@ -27,6 +27,7 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::conversions::CompressForLut;
+use crate::conversions::interpolator::BarycentricWeight;
 use crate::conversions::lut_transforms::Lut3x3Factory;
 use crate::conversions::neon::interpolator::*;
 use crate::conversions::neon::interpolator::{NeonMdInterpolation, PyramidalNeon};
@@ -47,6 +48,7 @@ struct TransformLut3x3Neon<
     lut: Vec<NeonAlignedF32>,
     _phantom: PhantomData<T>,
     interpolation_method: InterpolationMethod,
+    weights: Box<[BarycentricWeight; 256]>,
 }
 
 impl<
@@ -90,7 +92,7 @@ where
             };
 
             let tetrahedral = Interpolator::new(&self.lut);
-            let v = tetrahedral.inter3_neon(x, y, z);
+            let v = tetrahedral.inter3_neon(x, y, z, &self.weights);
             if T::FINITE {
                 unsafe {
                     let mut r = vfmaq_f32(vdupq_n_f32(0.5f32), v.v, value_scale);
@@ -198,6 +200,7 @@ impl Lut3x3Factory for NeonLut3x3Factory {
                 lut,
                 _phantom: PhantomData,
                 interpolation_method: options.interpolation_method,
+                weights: BarycentricWeight::create_ranged_256::<GRID_SIZE>(),
             },
         )
     }

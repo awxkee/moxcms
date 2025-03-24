@@ -27,16 +27,15 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::conversions::CompressForLut;
-use crate::conversions::lut_transforms::{LUT_SAMPLING, Lut4x3Factory};
+use crate::conversions::interpolator::BarycentricWeight;
+use crate::conversions::lut_transforms::Lut4x3Factory;
 use crate::conversions::neon::interpolator::{
     NeonMdInterpolationDouble, PrismaticNeonDouble, PyramidalNeonDouble, TetrahedralNeonDouble,
     TrilinearNeonDouble,
 };
 use crate::conversions::neon::rgb_xyz::NeonAlignedF32;
 use crate::transform::PointeeSizeExpressible;
-use crate::{
-    CmsError, InterpolationMethod, Layout, TransformExecutor, TransformOptions, rounding_div_ceil,
-};
+use crate::{CmsError, InterpolationMethod, Layout, TransformExecutor, TransformOptions};
 use num_traits::AsPrimitive;
 use std::arch::aarch64::*;
 use std::marker::PhantomData;
@@ -50,6 +49,7 @@ struct TransformLut4XyzToRgbNeon<
     lut: Vec<NeonAlignedF32>,
     _phantom: PhantomData<T>,
     interpolation_method: InterpolationMethod,
+    weights: Box<[BarycentricWeight; 256]>,
 }
 
 impl<
@@ -81,17 +81,18 @@ where
             let m = src[1].compress_lut::<BIT_DEPTH>();
             let y = src[2].compress_lut::<BIT_DEPTH>();
             let k = src[3].compress_lut::<BIT_DEPTH>();
-            let linear_k: f32 = k as i32 as f32 / LUT_SAMPLING as f32;
-            let w: i32 = k as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
-            let w_n: i32 =
-                rounding_div_ceil(k as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
-            let t: f32 = linear_k * (GRID_SIZE as i32 - 1) as f32 - w as f32;
+
+            let k_weights = self.weights[k as usize];
+
+            let w: i32 = k_weights.x;
+            let w_n: i32 = k_weights.x_n;
+            let t: f32 = k_weights.w;
 
             let table1 = &self.lut[(w * grid_size3) as usize..];
             let table2 = &self.lut[(w_n * grid_size3) as usize..];
 
             let tetrahedral1 = Interpolator::new(table1, table2);
-            let (a0, b0) = tetrahedral1.inter3_neon(c, m, y);
+            let (a0, b0) = tetrahedral1.inter3_neon(c, m, y, &self.weights);
             let (a0, b0) = (a0.v, b0.v);
 
             if T::FINITE {
@@ -204,6 +205,7 @@ impl Lut4x3Factory for NeonLut4x3Factory {
                 lut,
                 _phantom: PhantomData,
                 interpolation_method: options.interpolation_method,
+                weights: BarycentricWeight::create_ranged_256::<GRID_SIZE>(),
             },
         )
     }

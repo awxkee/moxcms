@@ -469,6 +469,7 @@ make_transform_3x3_fn!(make_transformer_3x3_sse41, SseLut3x3Factory);
 
 #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "avx"))]
 use crate::conversions::avx::AvxLut4x3Factory;
+use crate::conversions::interpolator::BarycentricWeight;
 use crate::conversions::mab4x3::prepare_mab_4x3;
 use crate::conversions::mba3x4::prepare_mba_3x4;
 // use crate::conversions::bpc::compensate_bpc_in_lut;
@@ -661,6 +662,8 @@ where
             LutWarehouse::MCurves(m_curves) => prepare_mba_3x4(m_curves, &mut lut, options)?,
         };
 
+        let weights = BarycentricWeight::create_ranged_256::<GRID_SIZE>();
+
         return Ok(match src_layout {
             Layout::Rgb => {
                 Box::new(
@@ -668,6 +671,7 @@ where
                         lut,
                         _phantom: PhantomData,
                         interpolation_method: options.interpolation_method,
+                        weights,
                     },
                 )
             }
@@ -677,6 +681,7 @@ where
                         lut,
                         _phantom: PhantomData,
                         interpolation_method: options.interpolation_method,
+                        weights,
                     },
                 )
             }

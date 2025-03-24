@@ -27,7 +27,7 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::conversions::CompressForLut;
-use crate::conversions::interpolator::MultidimensionalInterpolation;
+use crate::conversions::interpolator::{BarycentricWeight, MultidimensionalInterpolation};
 use crate::transform::PointeeSizeExpressible;
 use crate::{CmsError, InterpolationMethod, Layout, TransformExecutor};
 use num_traits::AsPrimitive;
@@ -42,6 +42,7 @@ pub(crate) struct TransformLut3x4<
     pub(crate) lut: Vec<f32>,
     pub(crate) _phantom: PhantomData<T>,
     pub(crate) interpolation_method: InterpolationMethod,
+    pub(crate) weights: Box<[BarycentricWeight; 256]>,
 }
 
 impl<
@@ -71,7 +72,7 @@ where
             let z = src[cn.b_i()].compress_lut::<BIT_DEPTH>();
 
             let tetrahedral = Tetrahedral::new(&self.lut);
-            let v = tetrahedral.inter4(x, y, z);
+            let v = tetrahedral.inter4(x, y, z, &self.weights);
             let r = if T::FINITE {
                 v * value_scale + 0.5f32
             } else {

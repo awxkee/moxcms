@@ -29,6 +29,7 @@
 // use jxl_oxide::{JxlImage, JxlThreadPool, Lcms2, Moxcms};
 use lcms2::Profile;
 use moxcms::{ColorProfile, InterpolationMethod, Layout, RenderingIntent, TransformOptions};
+use rand::Rng;
 use std::fs;
 use std::fs::File;
 use std::io::BufReader;
@@ -103,7 +104,7 @@ fn compute_abs_diff42(src: &[f32], dst: &[f32]) {
 }
 
 fn main() {
-    let funny_icc = fs::read("./assets/us_swop_coated.icc").unwrap();
+    let funny_icc = fs::read("./assets/srgb_perceptual.icc").unwrap();
 
     // println!("{:?}", decoded);
 
@@ -300,7 +301,7 @@ fn main() {
 }
 
 // fn main() {
-//     let us_swop_icc = fs::read("./assets/us_swop_coated.icc").unwrap();
+//     let us_swop_icc = fs::read("./assets/srgb_perceptual.icc").unwrap();
 //
 //     let width = 5000;
 //     let height = 5000;

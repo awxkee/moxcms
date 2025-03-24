@@ -27,7 +27,7 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 #![allow(dead_code)]
-use crate::conversions::lut_transforms::LUT_SAMPLING;
+use crate::conversions::interpolator::BarycentricWeight;
 use crate::conversions::neon::rgb_xyz::NeonAlignedF32;
 use crate::math::FusedMultiplyAdd;
 use std::arch::aarch64::*;
@@ -248,33 +248,53 @@ impl<const GRID_SIZE: usize> Fetcher<NeonVectorDouble>
 
 pub(crate) trait NeonMdInterpolation<'a, const GRID_SIZE: usize> {
     fn new(table: &'a [NeonAlignedF32]) -> Self;
-    fn inter3_neon(&self, in_r: u8, in_g: u8, in_b: u8) -> NeonVector;
+    fn inter3_neon(
+        &self,
+        in_r: u8,
+        in_g: u8,
+        in_b: u8,
+        lut: &[BarycentricWeight; 256],
+    ) -> NeonVector;
 }
 
 pub(crate) trait NeonMdInterpolationDouble<'a, const GRID_SIZE: usize> {
     fn new(table0: &'a [NeonAlignedF32], table1: &'a [NeonAlignedF32]) -> Self;
-    fn inter3_neon(&self, in_r: u8, in_g: u8, in_b: u8) -> (NeonVector, NeonVector);
+    fn inter3_neon(
+        &self,
+        in_r: u8,
+        in_g: u8,
+        in_b: u8,
+        lut: &[BarycentricWeight; 256],
+    ) -> (NeonVector, NeonVector);
 }
 
 impl<const GRID_SIZE: usize> TetrahedralNeon<'_, GRID_SIZE> {
     #[inline(always)]
-    fn interpolate(&self, in_r: u8, in_g: u8, in_b: u8, r: impl Fetcher<NeonVector>) -> NeonVector {
-        const SCALE: f32 = 1.0 / LUT_SAMPLING as f32;
-        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
-        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
-        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
+    fn interpolate(
+        &self,
+        in_r: u8,
+        in_g: u8,
+        in_b: u8,
+        lut: &[BarycentricWeight; 256],
+        r: impl Fetcher<NeonVector>,
+    ) -> NeonVector {
+        let lut_r = lut[in_r as usize];
+        let lut_g = lut[in_g as usize];
+        let lut_b = lut[in_b as usize];
+
+        let x: i32 = lut_r.x;
+        let y: i32 = lut_g.x;
+        let z: i32 = lut_b.x;
+
+        let x_n: i32 = lut_r.x_n;
+        let y_n: i32 = lut_g.x_n;
+        let z_n: i32 = lut_b.x_n;
+
+        let rx = lut_r.w;
+        let ry = lut_g.w;
+        let rz = lut_b.w;
 
         let c0 = r.fetch(x, y, z);
-
-        let x_n: i32 = (x + 1).min(GRID_SIZE as i32 - 1);
-        let y_n: i32 = (y + 1).min(GRID_SIZE as i32 - 1);
-        let z_n: i32 = (z + 1).min(GRID_SIZE as i32 - 1);
-
-        let scale = (GRID_SIZE as i32 - 1) as f32 * SCALE;
-
-        let rx = in_r as f32 * scale - x as f32;
-        let ry = in_g as f32 * scale - y as f32;
-        let rz = in_b as f32 * scale - z as f32;
 
         let c2;
         let c1;
@@ -325,24 +345,26 @@ impl<const GRID_SIZE: usize> TetrahedralNeonDouble<'_, GRID_SIZE> {
         in_r: u8,
         in_g: u8,
         in_b: u8,
+        lut: &[BarycentricWeight; 256],
         r: impl Fetcher<NeonVectorDouble>,
     ) -> (NeonVector, NeonVector) {
-        const SCALE: f32 = 1.0 / LUT_SAMPLING as f32;
-        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
-        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
-        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
+        let lut_r = lut[in_r as usize];
+        let lut_g = lut[in_g as usize];
+        let lut_b = lut[in_b as usize];
+
+        let x: i32 = lut_r.x;
+        let y: i32 = lut_g.x;
+        let z: i32 = lut_b.x;
+
+        let x_n: i32 = lut_r.x_n;
+        let y_n: i32 = lut_g.x_n;
+        let z_n: i32 = lut_b.x_n;
+
+        let rx = lut_r.w;
+        let ry = lut_g.w;
+        let rz = lut_b.w;
 
         let c0 = r.fetch(x, y, z);
-
-        let x_n: i32 = (x + 1).min(GRID_SIZE as i32 - 1);
-        let y_n: i32 = (y + 1).min(GRID_SIZE as i32 - 1);
-        let z_n: i32 = (z + 1).min(GRID_SIZE as i32 - 1);
-
-        let scale = (GRID_SIZE as i32 - 1) as f32 * SCALE;
-
-        let rx = in_r as f32 * scale - x as f32;
-        let ry = in_g as f32 * scale - y as f32;
-        let rz = in_b as f32 * scale - z as f32;
 
         let c2;
         let c1;
@@ -397,11 +419,18 @@ macro_rules! define_md_inter_neon {
             }
 
             #[inline(always)]
-            fn inter3_neon(&self, in_r: u8, in_g: u8, in_b: u8) -> NeonVector {
+            fn inter3_neon(
+                &self,
+                in_r: u8,
+                in_g: u8,
+                in_b: u8,
+                lut: &[BarycentricWeight; 256],
+            ) -> NeonVector {
                 self.interpolate(
                     in_r,
                     in_g,
                     in_b,
+                    lut,
                     TetrahedralNeonFetchVector::<GRID_SIZE> { cube: self.cube },
                 )
             }
@@ -423,11 +452,18 @@ macro_rules! define_md_inter_neon_d {
             }
 
             #[inline(always)]
-            fn inter3_neon(&self, in_r: u8, in_g: u8, in_b: u8) -> (NeonVector, NeonVector) {
+            fn inter3_neon(
+                &self,
+                in_r: u8,
+                in_g: u8,
+                in_b: u8,
+                lut: &[BarycentricWeight; 256],
+            ) -> (NeonVector, NeonVector) {
                 self.interpolate(
                     in_r,
                     in_g,
                     in_b,
+                    lut,
                     TetrahedralNeonFetchVectorDouble::<GRID_SIZE> {
                         cube0: self.cube0,
                         cube1: self.cube1,
@@ -449,23 +485,31 @@ define_md_inter_neon_d!(TrilinearNeonDouble);
 
 impl<const GRID_SIZE: usize> PyramidalNeon<'_, GRID_SIZE> {
     #[inline(always)]
-    fn interpolate(&self, in_r: u8, in_g: u8, in_b: u8, r: impl Fetcher<NeonVector>) -> NeonVector {
-        const SCALE: f32 = 1.0 / LUT_SAMPLING as f32;
-        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
-        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
-        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
+    fn interpolate(
+        &self,
+        in_r: u8,
+        in_g: u8,
+        in_b: u8,
+        lut: &[BarycentricWeight; 256],
+        r: impl Fetcher<NeonVector>,
+    ) -> NeonVector {
+        let lut_r = lut[in_r as usize];
+        let lut_g = lut[in_g as usize];
+        let lut_b = lut[in_b as usize];
+
+        let x: i32 = lut_r.x;
+        let y: i32 = lut_g.x;
+        let z: i32 = lut_b.x;
+
+        let x_n: i32 = lut_r.x_n;
+        let y_n: i32 = lut_g.x_n;
+        let z_n: i32 = lut_b.x_n;
+
+        let dr = lut_r.w;
+        let dg = lut_g.w;
+        let db = lut_b.w;
 
         let c0 = r.fetch(x, y, z);
-
-        let x_n: i32 = (x + 1).min(GRID_SIZE as i32 - 1);
-        let y_n: i32 = (y + 1).min(GRID_SIZE as i32 - 1);
-        let z_n: i32 = (z + 1).min(GRID_SIZE as i32 - 1);
-
-        let scale = (GRID_SIZE as i32 - 1) as f32 * SCALE;
-
-        let dr = in_r as f32 * scale - x as f32;
-        let dg = in_g as f32 * scale - y as f32;
-        let db = in_b as f32 * scale - z as f32;
 
         if dr > db && dg > db {
             let x0 = r.fetch(x_n, y_n, z_n);
@@ -523,24 +567,26 @@ impl<const GRID_SIZE: usize> PyramidalNeonDouble<'_, GRID_SIZE> {
         in_r: u8,
         in_g: u8,
         in_b: u8,
+        lut: &[BarycentricWeight; 256],
         r: impl Fetcher<NeonVectorDouble>,
     ) -> (NeonVector, NeonVector) {
-        const SCALE: f32 = 1.0 / LUT_SAMPLING as f32;
-        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
-        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
-        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
+        let lut_r = lut[in_r as usize];
+        let lut_g = lut[in_g as usize];
+        let lut_b = lut[in_b as usize];
+
+        let x: i32 = lut_r.x;
+        let y: i32 = lut_g.x;
+        let z: i32 = lut_b.x;
+
+        let x_n: i32 = lut_r.x_n;
+        let y_n: i32 = lut_g.x_n;
+        let z_n: i32 = lut_b.x_n;
+
+        let dr = lut_r.w;
+        let dg = lut_g.w;
+        let db = lut_b.w;
 
         let c0 = r.fetch(x, y, z);
-
-        let x_n: i32 = (x + 1).min(GRID_SIZE as i32 - 1);
-        let y_n: i32 = (y + 1).min(GRID_SIZE as i32 - 1);
-        let z_n: i32 = (z + 1).min(GRID_SIZE as i32 - 1);
-
-        let scale = (GRID_SIZE as i32 - 1) as f32 * SCALE;
-
-        let dr = in_r as f32 * scale - x as f32;
-        let dg = in_g as f32 * scale - y as f32;
-        let db = in_b as f32 * scale - z as f32;
 
         let w0 = NeonVector::from(db);
         let w1 = NeonVector::from(dr);
@@ -603,23 +649,31 @@ impl<const GRID_SIZE: usize> PyramidalNeonDouble<'_, GRID_SIZE> {
 
 impl<const GRID_SIZE: usize> PrismaticNeon<'_, GRID_SIZE> {
     #[inline(always)]
-    fn interpolate(&self, in_r: u8, in_g: u8, in_b: u8, r: impl Fetcher<NeonVector>) -> NeonVector {
-        const SCALE: f32 = 1.0 / LUT_SAMPLING as f32;
-        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
-        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
-        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
+    fn interpolate(
+        &self,
+        in_r: u8,
+        in_g: u8,
+        in_b: u8,
+        lut: &[BarycentricWeight; 256],
+        r: impl Fetcher<NeonVector>,
+    ) -> NeonVector {
+        let lut_r = lut[in_r as usize];
+        let lut_g = lut[in_g as usize];
+        let lut_b = lut[in_b as usize];
+
+        let x: i32 = lut_r.x;
+        let y: i32 = lut_g.x;
+        let z: i32 = lut_b.x;
+
+        let x_n: i32 = lut_r.x_n;
+        let y_n: i32 = lut_g.x_n;
+        let z_n: i32 = lut_b.x_n;
+
+        let dr = lut_r.w;
+        let dg = lut_g.w;
+        let db = lut_b.w;
 
         let c0 = r.fetch(x, y, z);
-
-        let x_n: i32 = (x + 1).min(GRID_SIZE as i32 - 1);
-        let y_n: i32 = (y + 1).min(GRID_SIZE as i32 - 1);
-        let z_n: i32 = (z + 1).min(GRID_SIZE as i32 - 1);
-
-        let scale = (GRID_SIZE as i32 - 1) as f32 * SCALE;
-
-        let dr = in_r as f32 * scale - x as f32;
-        let dg = in_g as f32 * scale - y as f32;
-        let db = in_b as f32 * scale - z as f32;
 
         if db > dr {
             let x0 = r.fetch(x, y, z_n);
@@ -668,24 +722,26 @@ impl<const GRID_SIZE: usize> PrismaticNeonDouble<'_, GRID_SIZE> {
         in_r: u8,
         in_g: u8,
         in_b: u8,
+        lut: &[BarycentricWeight; 256],
         rv: impl Fetcher<NeonVectorDouble>,
     ) -> (NeonVector, NeonVector) {
-        const SCALE: f32 = 1.0 / LUT_SAMPLING as f32;
-        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
-        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
-        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
+        let lut_r = lut[in_r as usize];
+        let lut_g = lut[in_g as usize];
+        let lut_b = lut[in_b as usize];
+
+        let x: i32 = lut_r.x;
+        let y: i32 = lut_g.x;
+        let z: i32 = lut_b.x;
+
+        let x_n: i32 = lut_r.x_n;
+        let y_n: i32 = lut_g.x_n;
+        let z_n: i32 = lut_b.x_n;
+
+        let dr = lut_r.w;
+        let dg = lut_g.w;
+        let db = lut_b.w;
 
         let c0 = rv.fetch(x, y, z);
-
-        let x_n: i32 = (x + 1).min(GRID_SIZE as i32 - 1);
-        let y_n: i32 = (y + 1).min(GRID_SIZE as i32 - 1);
-        let z_n: i32 = (z + 1).min(GRID_SIZE as i32 - 1);
-
-        let scale = (GRID_SIZE as i32 - 1) as f32 * SCALE;
-
-        let dr = in_r as f32 * scale - x as f32;
-        let dg = in_g as f32 * scale - y as f32;
-        let db = in_b as f32 * scale - z as f32;
 
         let w0 = NeonVector::from(db);
         let w1 = NeonVector::from(dr);
@@ -740,22 +796,24 @@ impl<const GRID_SIZE: usize> TrilinearNeonDouble<'_, GRID_SIZE> {
         in_r: u8,
         in_g: u8,
         in_b: u8,
+        lut: &[BarycentricWeight; 256],
         r: impl Fetcher<NeonVectorDouble>,
     ) -> (NeonVector, NeonVector) {
-        const SCALE: f32 = 1.0 / LUT_SAMPLING as f32;
-        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
-        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
-        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
+        let lut_r = lut[in_r as usize];
+        let lut_g = lut[in_g as usize];
+        let lut_b = lut[in_b as usize];
 
-        let x_n: i32 = (x + 1).min(GRID_SIZE as i32 - 1);
-        let y_n: i32 = (y + 1).min(GRID_SIZE as i32 - 1);
-        let z_n: i32 = (z + 1).min(GRID_SIZE as i32 - 1);
+        let x: i32 = lut_r.x;
+        let y: i32 = lut_g.x;
+        let z: i32 = lut_b.x;
 
-        let scale = (GRID_SIZE as i32 - 1) as f32 * SCALE;
+        let x_n: i32 = lut_r.x_n;
+        let y_n: i32 = lut_g.x_n;
+        let z_n: i32 = lut_b.x_n;
 
-        let dr = in_r as f32 * scale - x as f32;
-        let dg = in_g as f32 * scale - y as f32;
-        let db = in_b as f32 * scale - z as f32;
+        let dr = lut_r.w;
+        let dg = lut_g.w;
+        let db = lut_b.w;
 
         let w0 = NeonVector::from(dr);
         let w1 = NeonVector::from(dg);
@@ -790,21 +848,29 @@ impl<const GRID_SIZE: usize> TrilinearNeonDouble<'_, GRID_SIZE> {
 
 impl<const GRID_SIZE: usize> TrilinearNeon<'_, GRID_SIZE> {
     #[inline(always)]
-    fn interpolate(&self, in_r: u8, in_g: u8, in_b: u8, r: impl Fetcher<NeonVector>) -> NeonVector {
-        const SCALE: f32 = 1.0 / LUT_SAMPLING as f32;
-        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
-        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
-        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
+    fn interpolate(
+        &self,
+        in_r: u8,
+        in_g: u8,
+        in_b: u8,
+        lut: &[BarycentricWeight; 256],
+        r: impl Fetcher<NeonVector>,
+    ) -> NeonVector {
+        let lut_r = lut[in_r as usize];
+        let lut_g = lut[in_g as usize];
+        let lut_b = lut[in_b as usize];
 
-        let x_n: i32 = (x + 1).min(GRID_SIZE as i32 - 1);
-        let y_n: i32 = (y + 1).min(GRID_SIZE as i32 - 1);
-        let z_n: i32 = (z + 1).min(GRID_SIZE as i32 - 1);
+        let x: i32 = lut_r.x;
+        let y: i32 = lut_g.x;
+        let z: i32 = lut_b.x;
 
-        let scale = (GRID_SIZE as i32 - 1) as f32 * SCALE;
+        let x_n: i32 = lut_r.x_n;
+        let y_n: i32 = lut_g.x_n;
+        let z_n: i32 = lut_b.x_n;
 
-        let dr = in_r as f32 * scale - x as f32;
-        let dg = in_g as f32 * scale - y as f32;
-        let db = in_b as f32 * scale - z as f32;
+        let dr = lut_r.w;
+        let dg = lut_g.w;
+        let db = lut_b.w;
 
         let w0 = NeonVector::from(dr);
         let w1 = NeonVector::from(dg);

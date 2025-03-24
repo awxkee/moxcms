@@ -29,7 +29,7 @@
 #![allow(dead_code)]
 use crate::conversions::lut_transforms::LUT_SAMPLING;
 use crate::math::{FusedMultiplyAdd, FusedMultiplyNegAdd};
-use crate::{Vector3f, Vector4f, rounding_div_ceil};
+use crate::{Vector3f, Vector4f};
 use std::ops::{Add, Mul, Sub};
 
 pub(crate) struct Tetrahedral<'a, const GRID_SIZE: usize> {
@@ -48,6 +48,31 @@ pub(crate) struct Trilinear<'a, const GRID_SIZE: usize> {
     pub(crate) cube: &'a [f32],
 }
 
+#[derive(Debug, Copy, Clone, Default)]
+pub(crate) struct BarycentricWeight {
+    pub x: i32,
+    pub x_n: i32,
+    pub w: f32,
+}
+
+impl BarycentricWeight {
+    pub(crate) fn create_ranged_256<const GRID_SIZE: usize>() -> Box<[BarycentricWeight; 256]> {
+        let mut weights = Box::new([BarycentricWeight::default(); 256]);
+        for (index, weight) in weights.iter_mut().enumerate() {
+            const SCALE: f32 = 1.0 / LUT_SAMPLING as f32;
+            let x: i32 = index as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
+
+            let x_n: i32 = (x + 1).min(GRID_SIZE as i32 - 1);
+
+            let scale = (GRID_SIZE as i32 - 1) as f32 * SCALE;
+
+            let dr = index as f32 * scale - x as f32;
+            *weight = BarycentricWeight { x, x_n, w: dr };
+        }
+        weights
+    }
+}
+
 trait Fetcher<T> {
     fn fetch(&self, x: i32, y: i32, z: i32) -> T;
 }
@@ -58,8 +83,8 @@ struct TetrahedralFetchVector3f<'a, const GRID_SIZE: usize> {
 
 pub(crate) trait MultidimensionalInterpolation<'a, const GRID_SIZE: usize> {
     fn new(table: &'a [f32]) -> Self;
-    fn inter3(&self, in_r: u8, in_g: u8, in_b: u8) -> Vector3f;
-    fn inter4(&self, in_r: u8, in_g: u8, in_b: u8) -> Vector4f;
+    fn inter3(&self, in_r: u8, in_g: u8, in_b: u8, lut: &[BarycentricWeight; 256]) -> Vector3f;
+    fn inter4(&self, in_r: u8, in_g: u8, in_b: u8, lut: &[BarycentricWeight; 256]) -> Vector4f;
 }
 
 impl<const GRID_SIZE: usize> Fetcher<Vector3f> for TetrahedralFetchVector3f<'_, GRID_SIZE> {
@@ -109,18 +134,25 @@ impl<const GRID_SIZE: usize> Tetrahedral<'_, GRID_SIZE> {
         in_r: u8,
         in_g: u8,
         in_b: u8,
+        lut: &[BarycentricWeight; 256],
         r: impl Fetcher<T>,
     ) -> T {
-        const SCALE: f32 = 1.0 / LUT_SAMPLING as f32;
-        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
-        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
-        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
-        let x_n: i32 = rounding_div_ceil(in_r as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
-        let y_n: i32 = rounding_div_ceil(in_g as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
-        let z_n: i32 = rounding_div_ceil(in_b as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
-        let rx = in_r as f32 * ((GRID_SIZE as i32 - 1) as f32 * SCALE) - x as f32;
-        let ry = in_g as f32 * ((GRID_SIZE as i32 - 1) as f32 * SCALE) - y as f32;
-        let rz = in_b as f32 * ((GRID_SIZE as i32 - 1) as f32 * SCALE) - z as f32;
+        let lut_r = lut[in_r as usize];
+        let lut_g = lut[in_g as usize];
+        let lut_b = lut[in_b as usize];
+
+        let x: i32 = lut_r.x;
+        let y: i32 = lut_g.x;
+        let z: i32 = lut_b.x;
+
+        let x_n: i32 = lut_r.x_n;
+        let y_n: i32 = lut_g.x_n;
+        let z_n: i32 = lut_b.x_n;
+
+        let rx = lut_r.w;
+        let ry = lut_g.w;
+        let rz = lut_b.w;
+
         let c0 = r.fetch(x, y, z);
         let c2;
         let c1;
@@ -174,21 +206,35 @@ macro_rules! define_md_inter {
             }
 
             #[inline(always)]
-            fn inter3(&self, in_r: u8, in_g: u8, in_b: u8) -> Vector3f {
+            fn inter3(
+                &self,
+                in_r: u8,
+                in_g: u8,
+                in_b: u8,
+                lut: &[BarycentricWeight; 256],
+            ) -> Vector3f {
                 self.interpolate(
                     in_r,
                     in_g,
                     in_b,
+                    lut,
                     TetrahedralFetchVector3f::<GRID_SIZE> { cube: self.cube },
                 )
             }
 
             #[inline(always)]
-            fn inter4(&self, in_r: u8, in_g: u8, in_b: u8) -> Vector4f {
+            fn inter4(
+                &self,
+                in_r: u8,
+                in_g: u8,
+                in_b: u8,
+                lut: &[BarycentricWeight; 256],
+            ) -> Vector4f {
                 self.interpolate(
                     in_r,
                     in_g,
                     in_b,
+                    lut,
                     TetrahedralFetchVector4f::<GRID_SIZE> { cube: self.cube },
                 )
             }
@@ -216,18 +262,25 @@ impl<const GRID_SIZE: usize> Pyramidal<'_, GRID_SIZE> {
         in_r: u8,
         in_g: u8,
         in_b: u8,
+        lut: &[BarycentricWeight; 256],
         r: impl Fetcher<T>,
     ) -> T {
-        const SCALE: f32 = 1.0 / LUT_SAMPLING as f32;
-        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
-        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
-        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
-        let x_n: i32 = rounding_div_ceil(in_r as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
-        let y_n: i32 = rounding_div_ceil(in_g as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
-        let z_n: i32 = rounding_div_ceil(in_b as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
-        let dr = in_r as f32 * ((GRID_SIZE as i32 - 1) as f32 * SCALE) - x as f32;
-        let dg = in_g as f32 * ((GRID_SIZE as i32 - 1) as f32 * SCALE) - y as f32;
-        let db = in_b as f32 * ((GRID_SIZE as i32 - 1) as f32 * SCALE) - z as f32;
+        let lut_r = lut[in_r as usize];
+        let lut_g = lut[in_g as usize];
+        let lut_b = lut[in_b as usize];
+
+        let x: i32 = lut_r.x;
+        let y: i32 = lut_g.x;
+        let z: i32 = lut_b.x;
+
+        let x_n: i32 = lut_r.x_n;
+        let y_n: i32 = lut_g.x_n;
+        let z_n: i32 = lut_b.x_n;
+
+        let dr = lut_r.w;
+        let dg = lut_g.w;
+        let db = lut_b.w;
+
         let c0 = r.fetch(x, y, z);
 
         if dr > db && dg > db {
@@ -294,18 +347,25 @@ impl<const GRID_SIZE: usize> Prismatic<'_, GRID_SIZE> {
         in_r: u8,
         in_g: u8,
         in_b: u8,
+        lut: &[BarycentricWeight; 256],
         r: impl Fetcher<T>,
     ) -> T {
-        const SCALE: f32 = 1.0 / LUT_SAMPLING as f32;
-        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
-        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
-        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
-        let x_n: i32 = rounding_div_ceil(in_r as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
-        let y_n: i32 = rounding_div_ceil(in_g as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
-        let z_n: i32 = rounding_div_ceil(in_b as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
-        let dr = in_r as f32 * ((GRID_SIZE as i32 - 1) as f32 * SCALE) - x as f32;
-        let dg = in_g as f32 * ((GRID_SIZE as i32 - 1) as f32 * SCALE) - y as f32;
-        let db = in_b as f32 * ((GRID_SIZE as i32 - 1) as f32 * SCALE) - z as f32;
+        let lut_r = lut[in_r as usize];
+        let lut_g = lut[in_g as usize];
+        let lut_b = lut[in_b as usize];
+
+        let x: i32 = lut_r.x;
+        let y: i32 = lut_g.x;
+        let z: i32 = lut_b.x;
+
+        let x_n: i32 = lut_r.x_n;
+        let y_n: i32 = lut_g.x_n;
+        let z_n: i32 = lut_b.x_n;
+
+        let dr = lut_r.w;
+        let dg = lut_g.w;
+        let db = lut_b.w;
+
         let c0 = r.fetch(x, y, z);
 
         if db >= dr {
@@ -364,18 +424,25 @@ impl<const GRID_SIZE: usize> Trilinear<'_, GRID_SIZE> {
         in_r: u8,
         in_g: u8,
         in_b: u8,
+        lut: &[BarycentricWeight; 256],
         r: impl Fetcher<T>,
     ) -> T {
-        const SCALE: f32 = 1.0 / LUT_SAMPLING as f32;
-        let x: i32 = in_r as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
-        let y: i32 = in_g as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
-        let z: i32 = in_b as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
-        let x_n: i32 = rounding_div_ceil(in_r as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
-        let y_n: i32 = rounding_div_ceil(in_g as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
-        let z_n: i32 = rounding_div_ceil(in_b as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
-        let dr = in_r as f32 * ((GRID_SIZE as i32 - 1) as f32 * SCALE) - x as f32;
-        let dg = in_g as f32 * ((GRID_SIZE as i32 - 1) as f32 * SCALE) - y as f32;
-        let db = in_b as f32 * ((GRID_SIZE as i32 - 1) as f32 * SCALE) - z as f32;
+        let lut_r = lut[in_r as usize];
+        let lut_g = lut[in_g as usize];
+        let lut_b = lut[in_b as usize];
+
+        let x: i32 = lut_r.x;
+        let y: i32 = lut_g.x;
+        let z: i32 = lut_b.x;
+
+        let x_n: i32 = lut_r.x_n;
+        let y_n: i32 = lut_g.x_n;
+        let z_n: i32 = lut_b.x_n;
+
+        let dr = lut_r.w;
+        let dg = lut_g.w;
+        let db = lut_b.w;
+
         let w0 = T::from(dr);
         let w1 = T::from(dg);
         let w2 = T::from(db);

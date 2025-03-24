@@ -28,7 +28,7 @@
  */
 #![allow(dead_code)]
 use crate::conversions::CompressForLut;
-use crate::conversions::interpolator::MultidimensionalInterpolation;
+use crate::conversions::interpolator::{BarycentricWeight, MultidimensionalInterpolation};
 use crate::conversions::lut_transforms::Lut3x3Factory;
 use crate::transform::PointeeSizeExpressible;
 use crate::{CmsError, InterpolationMethod, Layout, TransformExecutor, TransformOptions};
@@ -45,6 +45,7 @@ pub(crate) struct TransformLut3x3<
     pub(crate) lut: Vec<f32>,
     pub(crate) _phantom: PhantomData<T>,
     pub(crate) interpolation_method: InterpolationMethod,
+    pub(crate) weights: Box<[BarycentricWeight; 256]>,
 }
 
 impl<
@@ -88,7 +89,7 @@ where
             };
 
             let tetrahedral = Tetrahedral::new(&self.lut);
-            let v = tetrahedral.inter3(x, y, z);
+            let v = tetrahedral.inter3(x, y, z, &self.weights);
             let r = if T::FINITE {
                 v * value_scale + 0.5f32
             } else {
@@ -185,6 +186,7 @@ impl Lut3x3Factory for DefaultLut3x3Factory {
                 lut,
                 _phantom: PhantomData,
                 interpolation_method: options.interpolation_method,
+                weights: BarycentricWeight::create_ranged_256::<GRID_SIZE>(),
             },
         )
     }

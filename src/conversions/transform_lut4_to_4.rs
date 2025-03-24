@@ -28,9 +28,9 @@
  */
 use crate::conversions::CompressForLut;
 use crate::conversions::interpolator::{
-    MultidimensionalInterpolation, Prismatic, Pyramidal, Tetrahedral, Trilinear,
+    BarycentricWeight, MultidimensionalInterpolation, Prismatic, Pyramidal, Tetrahedral, Trilinear,
 };
-use crate::conversions::lut_transforms::{LUT_SAMPLING, Lut4x3Factory};
+use crate::conversions::lut_transforms::Lut4x3Factory;
 use crate::math::{FusedMultiplyAdd, FusedMultiplyNegAdd, m_clamp};
 use crate::{
     CmsError, InterpolationMethod, Layout, PointeeSizeExpressible, TransformExecutor,
@@ -92,6 +92,7 @@ struct TransformLut4XyzToRgb<T, const LAYOUT: u8, const GRID_SIZE: usize, const 
     lut: Vec<f32>,
     _phantom: PhantomData<T>,
     interpolation_method: InterpolationMethod,
+    weights: Box<[BarycentricWeight; 256]>,
 }
 
 #[allow(unused)]
@@ -128,18 +129,20 @@ where
             let m = src[1].compress_lut::<BIT_DEPTH>();
             let y = src[2].compress_lut::<BIT_DEPTH>();
             let k = src[3].compress_lut::<BIT_DEPTH>();
-            let linear_k: f32 = k as i32 as f32 * (1. / LUT_SAMPLING as f32);
-            let w: i32 = k as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
-            let w_n: i32 = (w + 1).min(GRID_SIZE as i32 - 1);
-            let t: f32 = linear_k * (GRID_SIZE as i32 - 1) as f32 - w as f32;
+
+            let k_weights = self.weights[k as usize];
+
+            let w: i32 = k_weights.x;
+            let w_n: i32 = k_weights.x_n;
+            let t: f32 = k_weights.w;
 
             let table1 = &self.lut[(w * grid_size3 * 3) as usize..];
             let table2 = &self.lut[(w_n * grid_size3 * 3) as usize..];
 
             let tetrahedral1 = Tetrahedral::new(table1);
             let tetrahedral2 = Tetrahedral::new(table2);
-            let r1 = tetrahedral1.inter3(c, m, y);
-            let r2 = tetrahedral2.inter3(c, m, y);
+            let r1 = tetrahedral1.inter3(c, m, y, &self.weights);
+            let r2 = tetrahedral2.inter3(c, m, y, &self.weights);
             let r = Interpolation::interpolate(r1, r2, t, value_scale);
             dst[cn.r_i()] = r.v[0].as_();
             dst[cn.g_i()] = r.v[1].as_();
@@ -241,6 +244,7 @@ impl Lut4x3Factory for DefaultLut4x3Factory {
             lut,
             _phantom: PhantomData,
             interpolation_method: options.interpolation_method,
+            weights: BarycentricWeight::create_ranged_256::<GRID_SIZE>(),
         })
     }
 }

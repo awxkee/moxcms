@@ -59,7 +59,7 @@ impl<T> PartialEq<Self> for Vector3<T>
 where
     T: AsPrimitive<f32>,
 {
-    #[inline]
+    #[inline(always)]
     fn eq(&self, other: &Self) -> bool {
         const TOLERANCE: f32 = 0.0001f32;
         let dx = (self.v[0].as_() - other.v[0].as_()).abs();
@@ -70,7 +70,7 @@ where
 }
 
 impl<T> Vector3<T> {
-    #[inline]
+    #[inline(always)]
     pub fn to_<Z: Copy + 'static>(self) -> Vector3<Z>
     where
         T: AsPrimitive<Z>,
@@ -87,7 +87,7 @@ where
 {
     type Output = Vector3<T>;
 
-    #[inline]
+    #[inline(always)]
     fn mul(self, rhs: Vector3<T>) -> Self::Output {
         Self {
             v: [
@@ -105,7 +105,7 @@ where
 {
     type Output = Vector4<T>;
 
-    #[inline]
+    #[inline(always)]
     fn mul(self, rhs: Vector4<T>) -> Self::Output {
         Self {
             v: [
@@ -124,7 +124,7 @@ where
 {
     type Output = Vector3<T>;
 
-    #[inline]
+    #[inline(always)]
     fn mul(self, rhs: T) -> Self::Output {
         Self {
             v: [self.v[0] * rhs, self.v[1] * rhs, self.v[2] * rhs],
@@ -133,7 +133,7 @@ where
 }
 
 impl Vector3<f32> {
-    #[inline]
+    #[inline(always)]
     const fn const_mul_vector(self, v: Vector3f) -> Vector3f {
         Vector3f {
             v: [self.v[0] * v.v[0], self.v[1] * v.v[1], self.v[2] * v.v[2]],
@@ -142,7 +142,7 @@ impl Vector3<f32> {
 }
 
 impl Vector3d {
-    #[inline]
+    #[inline(always)]
     const fn const_mul_vector(self, v: Vector3d) -> Vector3d {
         Vector3d {
             v: [self.v[0] * v.v[0], self.v[1] * v.v[1], self.v[2] * v.v[2]],
@@ -167,7 +167,7 @@ where
 {
     type Output = Vector4<T>;
 
-    #[inline]
+    #[inline(always)]
     fn mul(self, rhs: T) -> Self::Output {
         Self {
             v: [
@@ -262,7 +262,7 @@ where
 {
     type Output = Vector3<T>;
 
-    #[inline]
+    #[inline(always)]
     fn add(self, rhs: Vector3<T>) -> Self::Output {
         Self {
             v: [
@@ -280,7 +280,7 @@ where
 {
     type Output = Vector4<T>;
 
-    #[inline]
+    #[inline(always)]
     fn add(self, rhs: Vector4<T>) -> Self::Output {
         Self {
             v: [
@@ -299,7 +299,7 @@ where
 {
     type Output = Vector3<T>;
 
-    #[inline]
+    #[inline(always)]
     fn add(self, rhs: T) -> Self::Output {
         Self {
             v: [self.v[0] + rhs, self.v[1] + rhs, self.v[2] + rhs],
@@ -313,7 +313,7 @@ where
 {
     type Output = Vector4<T>;
 
-    #[inline]
+    #[inline(always)]
     fn add(self, rhs: T) -> Self::Output {
         Self {
             v: [
@@ -332,7 +332,7 @@ where
 {
     type Output = Vector3<T>;
 
-    #[inline]
+    #[inline(always)]
     fn sub(self, rhs: Vector3<T>) -> Self::Output {
         Self {
             v: [
@@ -350,7 +350,7 @@ where
 {
     type Output = Vector4<T>;
 
-    #[inline]
+    #[inline(always)]
     fn sub(self, rhs: Vector4<T>) -> Self::Output {
         Self {
             v: [
