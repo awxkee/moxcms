@@ -96,45 +96,6 @@ impl BarycentricWeight<f32> {
     }
 }
 
-impl BarycentricWeight<i16> {
-    pub(crate) fn create_ranged_256<const GRID_SIZE: usize>() -> Box<[BarycentricWeight<i16>; 256]>
-    {
-        let mut weights = Box::new([BarycentricWeight::<i16>::default(); 256]);
-        const SCALE: f32 = 1.0 / LUT_SAMPLING as f32;
-        let scale = (GRID_SIZE as i32 - 1) as f32 * SCALE;
-        const Q_WEIGHT: f32 = ((1 << 15) - 1) as f32;
-
-        for (index, weight) in weights.iter_mut().enumerate() {
-            let x: i32 = index as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
-
-            let x_n: i32 = (x + 1).min(GRID_SIZE as i32 - 1);
-
-            let dr = ((index as f32 * scale - x as f32) * Q_WEIGHT).round() as i16;
-            *weight = BarycentricWeight { x, x_n, w: dr };
-        }
-        weights
-    }
-
-    #[cfg(feature = "options")]
-    pub(crate) fn create_binned<const GRID_SIZE: usize, const BINS: usize>()
-    -> Box<[BarycentricWeight<i16>; 65536]> {
-        let mut weights = Box::new([BarycentricWeight::default(); 65536]);
-        let b_scale: f32 = 1.0 / (BINS - 1) as f32;
-        const Q_WEIGHT: f32 = ((1 << 15) - 1) as f32;
-        let scale = (GRID_SIZE as i32 - 1) as f32 * b_scale;
-
-        for (index, weight) in weights.iter_mut().enumerate().take(BINS) {
-            let x: i32 = (index as f32 * (GRID_SIZE as i32 - 1) as f32 * b_scale).floor() as i32;
-
-            let x_n: i32 = (x + 1).min(GRID_SIZE as i32 - 1);
-
-            let dr = ((index as f32 * scale - x as f32) * Q_WEIGHT).round() as i16;
-            *weight = BarycentricWeight { x, x_n, w: dr };
-        }
-        weights
-    }
-}
-
 trait Fetcher<T> {
     fn fetch(&self, x: i32, y: i32, z: i32) -> T;
 }
