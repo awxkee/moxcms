@@ -80,8 +80,9 @@ where
     u32: AsPrimitive<T>,
     (): LutBarycentricReduction<T, U>,
 {
-    #[inline(always)]
-    fn transform_chunk<'b, Interpolator: NeonMdInterpolationQ1_15<'b, GRID_SIZE>>(
+    #[allow(unused_unsafe)]
+    #[target_feature(enable = "rdm")]
+    unsafe fn transform_chunk<'b, Interpolator: NeonMdInterpolationQ1_15<'b, GRID_SIZE>>(
         &'b self,
         src: &[T],
         dst: &mut [T],
@@ -208,18 +209,20 @@ where
             return Err(CmsError::LaneSizeMismatch);
         }
 
-        match self.interpolation_method {
-            InterpolationMethod::Tetrahedral => {
-                self.transform_chunk::<TetrahedralNeonQ1_15<GRID_SIZE>>(src, dst);
-            }
-            InterpolationMethod::Pyramid => {
-                self.transform_chunk::<PyramidalNeonQ1_15<GRID_SIZE>>(src, dst);
-            }
-            InterpolationMethod::Prism => {
-                self.transform_chunk::<PrismaticNeonQ1_15<GRID_SIZE>>(src, dst);
-            }
-            InterpolationMethod::Linear => {
-                self.transform_chunk::<TrilinearNeonQ1_15<GRID_SIZE>>(src, dst);
+        unsafe {
+            match self.interpolation_method {
+                InterpolationMethod::Tetrahedral => {
+                    self.transform_chunk::<TetrahedralNeonQ1_15<GRID_SIZE>>(src, dst);
+                }
+                InterpolationMethod::Pyramid => {
+                    self.transform_chunk::<PyramidalNeonQ1_15<GRID_SIZE>>(src, dst);
+                }
+                InterpolationMethod::Prism => {
+                    self.transform_chunk::<PrismaticNeonQ1_15<GRID_SIZE>>(src, dst);
+                }
+                InterpolationMethod::Linear => {
+                    self.transform_chunk::<TrilinearNeonQ1_15<GRID_SIZE>>(src, dst);
+                }
             }
         }
 
