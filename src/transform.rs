@@ -83,7 +83,7 @@ pub struct TransformOptions {
     /// Interpolation method for 3D LUT
     pub interpolation_method: InterpolationMethod,
     /// Barycentrial weights scale.
-    /// 
+    ///
     /// This value controls LUT weights precision.
     pub barycentric_weight_scale: BarycentricWeightScale,
     // pub black_point_compensation: bool,
