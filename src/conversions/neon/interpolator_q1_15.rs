@@ -118,15 +118,6 @@ impl From<i16> for NeonVectorQ1_15Double {
     }
 }
 
-impl NeonVectorQ1_15Double {
-    #[inline(always)]
-    fn from_half(lo: NeonVectorQ1_15, hi: NeonVectorQ1_15) -> Self {
-        NeonVectorQ1_15Double {
-            v: unsafe { vcombine_s16(lo.v, hi.v) },
-        }
-    }
-}
-
 impl Sub<NeonVectorQ1_15> for NeonVectorQ1_15 {
     type Output = Self;
     #[inline(always)]
@@ -192,6 +183,24 @@ impl FusedMultiplyAdd<NeonVectorQ1_15> for NeonVectorQ1_15 {
     fn mla(&self, b: NeonVectorQ1_15, c: NeonVectorQ1_15) -> NeonVectorQ1_15 {
         NeonVectorQ1_15 {
             v: unsafe { vqrdmlah_s16(self.v, b.v, c.v) },
+        }
+    }
+}
+
+impl NeonVectorQ1_15 {
+    #[inline(always)]
+    fn neg_mla(&self, b: NeonVectorQ1_15, c: NeonVectorQ1_15) -> NeonVectorQ1_15 {
+        NeonVectorQ1_15 {
+            v: unsafe { vqrdmlsh_s16(self.v, b.v, c.v) },
+        }
+    }
+}
+
+impl NeonVectorQ1_15Double {
+    #[inline(always)]
+    fn neg_mla(&self, b: NeonVectorQ1_15Double, c: NeonVectorQ1_15Double) -> NeonVectorQ1_15Double {
+        NeonVectorQ1_15Double {
+            v: unsafe { vqrdmlshq_s16(self.v, b.v, c.v) },
         }
     }
 }
@@ -849,14 +858,9 @@ impl<const GRID_SIZE: usize> TrilinearNeonQ1_15Double<'_, GRID_SIZE> {
         let dg = lut_g.w;
         let db = lut_b.w;
 
-        const Q_MAX: i16 = ((1i32 << 15i32) - 1) as i16;
         let w0 = NeonVectorQ1_15::from(dr);
         let w1 = NeonVectorQ1_15::from(dg);
         let w2 = NeonVectorQ1_15::from(db);
-        let q0 = NeonVectorQ1_15Double::from(Q_MAX);
-        let dx = q0 - NeonVectorQ1_15Double::from(dr);
-        let dy = q0 - NeonVectorQ1_15Double::from(dg);
-        let dz = q0 - NeonVectorQ1_15Double::from(db);
 
         let c000 = r.fetch(x, y, z);
         let c100 = r.fetch(x_n, y, z);
@@ -867,15 +871,21 @@ impl<const GRID_SIZE: usize> TrilinearNeonQ1_15Double<'_, GRID_SIZE> {
         let c011 = r.fetch(x, y_n, z_n);
         let c111 = r.fetch(x_n, y_n, z_n);
 
-        let c00 = (c000 * dx).mla(c100, w0);
-        let c10 = (c010 * dx).mla(c110, w0);
-        let c01 = (c001 * dx).mla(c101, w0);
-        let c11 = (c011 * dx).mla(c111, w0);
+        let dx = NeonVectorQ1_15Double::from(dr);
 
-        let c0 = (c00 * dy).mla(c10, w1);
-        let c1 = (c01 * dy).mla(c11, w1);
+        let c00 = c000.neg_mla(c000, dx).mla(c100, w0);
+        let c10 = c010.neg_mla(c010, dx).mla(c110, w0);
+        let c01 = c001.neg_mla(c001, dx).mla(c101, w0);
+        let c11 = c011.neg_mla(c011, dx).mla(c111, w0);
 
-        (c0 * dz).mla(c1, w2).split()
+        let dy = NeonVectorQ1_15Double::from(dg);
+
+        let c0 = c00.neg_mla(c00, dy).mla(c10, w1);
+        let c1 = c01.neg_mla(c01, dy).mla(c11, w1);
+
+        let dz = NeonVectorQ1_15Double::from(db);
+
+        c0.neg_mla(c0, dz).mla(c1, w2).split()
     }
 }
 
@@ -905,15 +915,9 @@ impl<const GRID_SIZE: usize> TrilinearNeonQ1_15<'_, GRID_SIZE> {
         let dg = lut_g.w;
         let db = lut_b.w;
 
-        const Q_MAX: i16 = ((1i32 << 15i32) - 1) as i16;
         let w0 = NeonVectorQ1_15::from(dr);
         let w1 = NeonVectorQ1_15::from(dg);
         let w2 = NeonVectorQ1_15::from(db);
-        let q0 = NeonVectorQ1_15::from(Q_MAX);
-        let q1 = NeonVectorQ1_15Double::from(Q_MAX);
-        let dx = q1 - NeonVectorQ1_15Double::from(dr);
-        let dy = q1 - NeonVectorQ1_15Double::from(dg);
-        let dz = q0 - NeonVectorQ1_15::from(db);
 
         let c000 = r.fetch(x, y, z);
         let c100 = r.fetch(x_n, y, z);
@@ -924,18 +928,20 @@ impl<const GRID_SIZE: usize> TrilinearNeonQ1_15<'_, GRID_SIZE> {
         let c011 = r.fetch(x, y_n, z_n);
         let c111 = r.fetch(x_n, y_n, z_n);
 
-        let x000 = NeonVectorQ1_15Double::from_half(c000, c001);
-        let x010 = NeonVectorQ1_15Double::from_half(c010, c011);
-        let x011 = NeonVectorQ1_15Double::from_half(c100, c101);
-        let x111 = NeonVectorQ1_15Double::from_half(c110, c111);
+        let dx = NeonVectorQ1_15::from(dr);
 
-        let c00 = (x000 * dx).mla(x011, w0);
-        let c10 = (x010 * dx).mla(x111, w0);
+        let c00 = c000.neg_mla(c000, dx).mla(c100, w0);
+        let c10 = c010.neg_mla(c010, dx).mla(c110, w0);
+        let c01 = c001.neg_mla(c001, dx).mla(c101, w0);
+        let c11 = c011.neg_mla(c011, dx).mla(c111, w0);
 
-        let c0 = (c00 * dy).mla(c10, w1);
+        let dy = NeonVectorQ1_15::from(dg);
 
-        let (c0, c1) = c0.split();
+        let c0 = c00.neg_mla(c00, dy).mla(c10, w1);
+        let c1 = c01.neg_mla(c01, dy).mla(c11, w1);
 
-        (c0 * dz).mla(c1, w2)
+        let dz = NeonVectorQ1_15::from(db);
+
+        c0.neg_mla(c0, dz).mla(c1, w2)
     }
 }
