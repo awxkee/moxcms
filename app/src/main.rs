@@ -153,7 +153,7 @@ fn main() {
                 rendering_intent: RenderingIntent::Perceptual,
                 allow_use_cicp_transfer: false,
                 prefer_fixed_point: true,
-                interpolation_method: InterpolationMethod::Prism,
+                interpolation_method: InterpolationMethod::Linear,
                 barycentric_weight_scale: BarycentricWeightScale::High,
             },
         )
@@ -172,7 +172,7 @@ fn main() {
                 rendering_intent: RenderingIntent::Perceptual,
                 allow_use_cicp_transfer: false,
                 prefer_fixed_point: true,
-                interpolation_method: InterpolationMethod::Prism,
+                interpolation_method: InterpolationMethod::Linear,
                 barycentric_weight_scale: BarycentricWeightScale::High,
             },
         )

@@ -199,20 +199,6 @@ impl NeonVectorQ1_15Double {
     }
 
     #[inline(always)]
-    fn mla2(&self, b: NeonVectorQ1_15Double, c: NeonVectorQ1_15Double) -> NeonVectorQ1_15Double {
-        NeonVectorQ1_15Double {
-            v: unsafe { vqrdmlahq_s16(self.v, b.v, c.v) },
-        }
-    }
-
-    #[inline(always)]
-    fn sum_hi_lo(&self) -> NeonVectorQ1_15 {
-        NeonVectorQ1_15 {
-            v: unsafe { vadd_s16(vget_low_s16(self.v), vget_high_s16(self.v)) },
-        }
-    }
-
-    #[inline(always)]
     pub(crate) fn split(self) -> (NeonVectorQ1_15, NeonVectorQ1_15) {
         unsafe {
             (
@@ -700,8 +686,6 @@ impl<const GRID_SIZE: usize> PrismaticNeonQ1_15<'_, GRID_SIZE> {
         let w0 = NeonVectorQ1_15::from(db);
         let w1 = NeonVectorQ1_15::from(dr);
         let w2 = NeonVectorQ1_15::from(dg);
-        let w0l = NeonVectorQ1_15Double::from_half(w0, w1);
-        let c0l = NeonVectorQ1_15Double::from_half(c0, NeonVectorQ1_15::from(0));
 
         if db > dr {
             let w3 = w2 * w0;
@@ -718,13 +702,11 @@ impl<const GRID_SIZE: usize> PrismaticNeonQ1_15<'_, GRID_SIZE> {
             let c4 = c0 - x2 - x0 + x3;
             let c5 = x0 - x3 - x1 + x4;
 
-            let w1l = NeonVectorQ1_15Double::from_half(w2, w3);
-            let x0 = NeonVectorQ1_15Double::from_half(c1, c2);
-            let x1 = NeonVectorQ1_15Double::from_half(c3, c4);
-
-            let s0 = c0l.mla2(x0, w0l);
-            let s1 = s0.mla2(x1, w1l);
-            s1.sum_hi_lo().mla(c5, w4)
+            let s0 = c0.mla(c1, w0);
+            let s1 = s0.mla(c2, w1);
+            let s2 = s1.mla(c3, w2);
+            let s3 = s2.mla(c4, w3);
+            s3.mla(c5, w4)
         } else {
             let w3 = w2 * w0;
             let w4 = w1 * w2;
@@ -740,13 +722,11 @@ impl<const GRID_SIZE: usize> PrismaticNeonQ1_15<'_, GRID_SIZE> {
             let c4 = x0 - x3 - x1 + x4;
             let c5 = c0 - x2 - x0 + x3;
 
-            let w1l = NeonVectorQ1_15Double::from_half(w2, w3);
-            let x0 = NeonVectorQ1_15Double::from_half(c1, c2);
-            let x1 = NeonVectorQ1_15Double::from_half(c3, c4);
-
-            let s0 = c0l.mla2(x0, w0l);
-            let s1 = s0.mla2(x1, w1l);
-            s1.sum_hi_lo().mla(c5, w4)
+            let s0 = c0.mla(c1, w0);
+            let s1 = s0.mla(c2, w1);
+            let s2 = s1.mla(c3, w2);
+            let s3 = s2.mla(c4, w3);
+            s3.mla(c5, w4)
         }
     }
 }
