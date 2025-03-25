@@ -79,6 +79,10 @@ pub struct TransformOptions {
     /// Do not change it if you're not sure that extreme precision is required,
     /// in most cases it is a simple way to spend energy to warming up environment
     /// a little.
+    ///
+    /// LUT interpolation in fixed point often have very different speed on
+    /// x86 AMD and Intel CPUs.
+    /// If you're targeting specific x86 CPU always benchmark first.
     pub prefer_fixed_point: bool,
     /// Interpolation method for 3D LUT
     pub interpolation_method: InterpolationMethod,
