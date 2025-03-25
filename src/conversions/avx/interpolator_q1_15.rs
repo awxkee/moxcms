@@ -989,9 +989,9 @@ impl<const GRID_SIZE: usize> TrilinearAvxFmaQ1_15Double<'_, GRID_SIZE> {
         let w0 = AvxVectorQ1_15::from(rx);
         let w1 = AvxVectorQ1_15::from(ry);
         let w2 = AvxVectorQ1_15::from(rz);
-        let dz = q_max - w0;
+        let dx = q_max - w0;
         let dy = q_max - w1;
-        let dx = q_max - w2;
+        let dz = q_max - w2;
 
         let c000 = rv.fetch(x, y, z);
         let c100 = rv.fetch(x_n, y, z);
@@ -1043,12 +1043,13 @@ impl<const GRID_SIZE: usize> TrilinearAvxFmaQ1_15<'_, GRID_SIZE> {
         const Q_MAX: i16 = ((1i32 << 15i32) - 1) as i16;
 
         let q_max = AvxVectorQ1_15Sse::from(Q_MAX);
-        let w0 = AvxVectorQ1_15Sse::from(dr);
-        let w1 = AvxVectorQ1_15Sse::from(dg);
+        let q_max_avx = AvxVectorQ1_15::from(Q_MAX);
+        let w0 = AvxVectorQ1_15::from(dr);
+        let w1 = AvxVectorQ1_15::from(dg);
         let w2 = AvxVectorQ1_15Sse::from(db);
-        let dz = q_max - w0;
-        let dy = q_max - w1;
-        let dx = q_max - w2;
+        let dx = q_max_avx - w0;
+        let dy = q_max_avx - w1;
+        let dz = q_max - w2;
 
         let c000 = r.fetch(x, y, z);
         let c100 = r.fetch(x_n, y, z);
@@ -1059,13 +1060,18 @@ impl<const GRID_SIZE: usize> TrilinearAvxFmaQ1_15<'_, GRID_SIZE> {
         let c011 = r.fetch(x, y_n, z_n);
         let c111 = r.fetch(x_n, y_n, z_n);
 
-        let c00 = (c000 * dx).mla(c100, w0);
-        let c10 = (c010 * dx).mla(c110, w0);
-        let c01 = (c001 * dx).mla(c101, w0);
-        let c11 = (c011 * dx).mla(c111, w0);
+        let x000 = AvxVectorQ1_15::from_sse(c000, c001);
+        let x010 = AvxVectorQ1_15::from_sse(c010, c011);
+        let x011 = AvxVectorQ1_15::from_sse(c100, c101);
+        let x111 = AvxVectorQ1_15::from_sse(c110, c111);
+
+        let c00 = (x000 * dx).mla(x011, w0);
+        let c10 = (x010 * dx).mla(x111, w0);
 
         let c0 = (c00 * dy).mla(c10, w1);
-        let c1 = (c01 * dy).mla(c11, w1);
+
+        let (c0, c1) = c0.split();
+
         (c0 * dz).mla(c1, w2)
     }
 }
