@@ -112,12 +112,15 @@ where
                 let table1 = &self.lut[(w * grid_size3) as usize..];
                 let table2 = &self.lut[(w_n * grid_size3) as usize..];
 
+                const Q_MAX: i16 = ((1i32 << 15i32) - 1) as i16;
+                let t0 = vdup_n_s16(t);
+                let t1 = vdup_n_s16(Q_MAX - t);
+
                 let tetrahedral1 = Interpolator::new(table1, table2);
                 let (a0, b0) = tetrahedral1.inter3_neon(c, m, y, &self.weights);
                 let (a0, b0) = (a0.v, b0.v);
 
-                let t0 = vdup_n_s16(t);
-                let hp = vqrdmlsh_s16(a0, a0, t0);
+                let hp = vqrdmulh_s16(a0, t1);
                 let v = vqrdmlah_s16(hp, b0, t0);
 
                 if T::FINITE {
