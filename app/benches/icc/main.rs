@@ -121,7 +121,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
             transform.transform(&rgb, &mut dst).unwrap();
         })
     });
-    
+
     c.bench_function("moxcms: LUT Linear RGB -> RGB", |b| {
         let color_profile = ColorProfile::new_from_slice(&srgb_perceptual_icc).unwrap();
         let dest_profile = ColorProfile::new_srgb();
@@ -142,7 +142,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
             transform.transform(&rgb, &mut dst).unwrap();
         })
     });
-    
+
     c.bench_function("moxcms: RGBA -> RGBA", |b| {
         let color_profile = ColorProfile::new_from_slice(&src_icc_profile).unwrap();
         let dest_profile = ColorProfile::new_srgb();
@@ -295,27 +295,6 @@ pub fn criterion_benchmark(c: &mut Criterion) {
         })
     });
 
-    c.bench_function("moxcms: CMYK Fixed Tetrahedral -> RGBA", |b| {
-        let color_profile = ColorProfile::new_from_slice(&us_swop_icc).unwrap();
-        let dest_profile = ColorProfile::new_srgb();
-        let mut dst = vec![0u8; rgba.len()];
-        let transform = color_profile
-            .create_transform_8bit(
-                Layout::Rgba,
-                &dest_profile,
-                Layout::Rgba,
-                TransformOptions {
-                    interpolation_method: InterpolationMethod::Tetrahedral,
-                    prefer_fixed_point: true,
-                    ..Default::default()
-                },
-            )
-            .unwrap();
-        b.iter(|| {
-            transform.transform(&cmyk, &mut dst).unwrap();
-        })
-    });
-
     c.bench_function("moxcms: CMYK Pyramid -> RGBA", |b| {
         let color_profile = ColorProfile::new_from_slice(&us_swop_icc).unwrap();
         let dest_profile = ColorProfile::new_srgb();
@@ -328,27 +307,6 @@ pub fn criterion_benchmark(c: &mut Criterion) {
                 TransformOptions {
                     interpolation_method: InterpolationMethod::Pyramid,
                     prefer_fixed_point: false,
-                    ..Default::default()
-                },
-            )
-            .unwrap();
-        b.iter(|| {
-            transform.transform(&cmyk, &mut dst).unwrap();
-        })
-    });
-
-    c.bench_function("moxcms: CMYK Fixed Pyramid -> RGBA", |b| {
-        let color_profile = ColorProfile::new_from_slice(&us_swop_icc).unwrap();
-        let dest_profile = ColorProfile::new_srgb();
-        let mut dst = vec![0u8; rgba.len()];
-        let transform = color_profile
-            .create_transform_8bit(
-                Layout::Rgba,
-                &dest_profile,
-                Layout::Rgba,
-                TransformOptions {
-                    interpolation_method: InterpolationMethod::Pyramid,
-                    prefer_fixed_point: true,
                     ..Default::default()
                 },
             )
@@ -379,27 +337,6 @@ pub fn criterion_benchmark(c: &mut Criterion) {
         })
     });
 
-    c.bench_function("moxcms: CMYK Fixed Prism -> RGBA", |b| {
-        let color_profile = ColorProfile::new_from_slice(&us_swop_icc).unwrap();
-        let dest_profile = ColorProfile::new_srgb();
-        let mut dst = vec![0u8; rgba.len()];
-        let transform = color_profile
-            .create_transform_8bit(
-                Layout::Rgba,
-                &dest_profile,
-                Layout::Rgba,
-                TransformOptions {
-                    interpolation_method: InterpolationMethod::Prism,
-                    prefer_fixed_point: true,
-                    ..Default::default()
-                },
-            )
-            .unwrap();
-        b.iter(|| {
-            transform.transform(&cmyk, &mut dst).unwrap();
-        })
-    });
-
     c.bench_function("moxcms: CMYK Linear -> RGBA", |b| {
         let color_profile = ColorProfile::new_from_slice(&us_swop_icc).unwrap();
         let dest_profile = ColorProfile::new_srgb();
@@ -412,27 +349,6 @@ pub fn criterion_benchmark(c: &mut Criterion) {
                 TransformOptions {
                     interpolation_method: InterpolationMethod::Linear,
                     prefer_fixed_point: false,
-                    ..Default::default()
-                },
-            )
-            .unwrap();
-        b.iter(|| {
-            transform.transform(&cmyk, &mut dst).unwrap();
-        })
-    });
-
-    c.bench_function("moxcms: CMYK Fixed Linear -> RGBA", |b| {
-        let color_profile = ColorProfile::new_from_slice(&us_swop_icc).unwrap();
-        let dest_profile = ColorProfile::new_srgb();
-        let mut dst = vec![0u8; rgba.len()];
-        let transform = color_profile
-            .create_transform_8bit(
-                Layout::Rgba,
-                &dest_profile,
-                Layout::Rgba,
-                TransformOptions {
-                    interpolation_method: InterpolationMethod::Linear,
-                    prefer_fixed_point: true,
                     ..Default::default()
                 },
             )
