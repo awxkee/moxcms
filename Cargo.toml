@@ -32,6 +32,9 @@ avx = []
 sse = []
 # Enables NEON intrinsics where possible
 neon = []
+# Allows configuring interpolation methods and LUT weights precision.
+# Disabled by default to prevent binary bloat.
+options = []
 
 [package.metadata.docs.rs]
 # To build locally:

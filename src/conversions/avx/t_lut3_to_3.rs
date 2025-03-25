@@ -27,10 +27,7 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::conversions::LutBarycentricReduction;
-use crate::conversions::avx::TetrahedralAvxFma;
-use crate::conversions::avx::interpolator::{
-    AvxMdInterpolation, PrismaticAvxFma, PyramidalAvxFma, SseAlignedF32, TrilinearAvxFma,
-};
+use crate::conversions::avx::interpolator::*;
 use crate::conversions::avx::interpolator_q1_15::SseAlignedI16;
 use crate::conversions::avx::t_lut3_to_3_q1_15::TransformLut3x3AvxQ1_15;
 use crate::conversions::interpolator::BarycentricWeight;
@@ -193,12 +190,15 @@ where
 
         unsafe {
             match self.interpolation_method {
+                #[cfg(feature = "options")]
                 InterpolationMethod::Tetrahedral => {
                     self.transform_chunk::<TetrahedralAvxFma<GRID_SIZE>>(src, dst);
                 }
+                #[cfg(feature = "options")]
                 InterpolationMethod::Pyramid => {
                     self.transform_chunk::<PyramidalAvxFma<GRID_SIZE>>(src, dst);
                 }
+                #[cfg(feature = "options")]
                 InterpolationMethod::Prism => {
                     self.transform_chunk::<PrismaticAvxFma<GRID_SIZE>>(src, dst);
                 }
@@ -260,6 +260,7 @@ impl Lut3x3Factory for AvxLut3x3Factory {
                     interpolation_method: options.interpolation_method,
                     weights: BarycentricWeight::<i16>::create_ranged_256::<GRID_SIZE>(),
                 }),
+                #[cfg(feature = "options")]
                 BarycentricWeightScale::High => Box::new(TransformLut3x3AvxQ1_15::<
                     T,
                     u16,
@@ -303,6 +304,7 @@ impl Lut3x3Factory for AvxLut3x3Factory {
                 interpolation_method: options.interpolation_method,
                 weights: BarycentricWeight::<f32>::create_ranged_256::<GRID_SIZE>(),
             }),
+            #[cfg(feature = "options")]
             BarycentricWeightScale::High => Box::new(TransformLut3x3AvxFma::<
                 T,
                 u16,

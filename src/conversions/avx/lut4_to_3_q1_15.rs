@@ -27,10 +27,7 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::conversions::LutBarycentricReduction;
-use crate::conversions::avx::interpolator_q1_15::{
-    AvxMdInterpolationQ1_15Double, PrismaticAvxFmaQ1_15Double, PyramidAvxFmaQ1_15Double,
-    SseAlignedI16, TetrahedralAvxFmaQ1_15Double, TrilinearAvxFmaQ1_15Double,
-};
+use crate::conversions::avx::interpolator_q1_15::*;
 use crate::conversions::interpolator::BarycentricWeight;
 use crate::transform::PointeeSizeExpressible;
 use crate::{CmsError, InterpolationMethod, Layout, TransformExecutor};
@@ -213,12 +210,15 @@ where
 
         unsafe {
             match self.interpolation_method {
+                #[cfg(feature = "options")]
                 InterpolationMethod::Tetrahedral => {
                     self.transform_chunk::<TetrahedralAvxFmaQ1_15Double<GRID_SIZE>>(src, dst);
                 }
+                #[cfg(feature = "options")]
                 InterpolationMethod::Pyramid => {
                     self.transform_chunk::<PyramidAvxFmaQ1_15Double<GRID_SIZE>>(src, dst);
                 }
+                #[cfg(feature = "options")]
                 InterpolationMethod::Prism => {
                     self.transform_chunk::<PrismaticAvxFmaQ1_15Double<GRID_SIZE>>(src, dst);
                 }

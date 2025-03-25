@@ -28,10 +28,7 @@
  */
 use crate::conversions::LutBarycentricReduction;
 use crate::conversions::interpolator::BarycentricWeight;
-use crate::conversions::sse::interpolator_q1_15::{
-    PrismaticSseQ1_15, PyramidalSseQ1_15, SseAlignedI16x4, SseMdInterpolationQ1_15,
-    TetrahedralSseQ1_15, TrilinearSseQ1_15,
-};
+use crate::conversions::sse::interpolator_q1_15::*;
 use crate::transform::PointeeSizeExpressible;
 use crate::{CmsError, InterpolationMethod, Layout, TransformExecutor};
 use num_traits::AsPrimitive;
@@ -224,12 +221,15 @@ where
 
         unsafe {
             match self.interpolation_method {
+                #[cfg(feature = "options")]
                 InterpolationMethod::Tetrahedral => {
                     self.transform_chunk::<TetrahedralSseQ1_15<GRID_SIZE>>(src, dst);
                 }
+                #[cfg(feature = "options")]
                 InterpolationMethod::Pyramid => {
                     self.transform_chunk::<PyramidalSseQ1_15<GRID_SIZE>>(src, dst);
                 }
+                #[cfg(feature = "options")]
                 InterpolationMethod::Prism => {
                     self.transform_chunk::<PrismaticSseQ1_15<GRID_SIZE>>(src, dst);
                 }

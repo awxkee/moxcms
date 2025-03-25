@@ -26,10 +26,7 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-use crate::conversions::interpolator::{
-    BarycentricWeight, LutBarycentricReduction, MultidimensionalInterpolation, Prismatic,
-    Pyramidal, Tetrahedral, Trilinear,
-};
+use crate::conversions::interpolator::*;
 use crate::conversions::lut_transforms::Lut4x3Factory;
 use crate::math::{FusedMultiplyAdd, FusedMultiplyNegAdd, m_clamp};
 use crate::{
@@ -207,6 +204,7 @@ where
         }
 
         match self.interpolation_method {
+            #[cfg(feature = "options")]
             InterpolationMethod::Tetrahedral => {
                 if T::FINITE {
                     self.transform_chunk::<Tetrahedral<GRID_SIZE>, DefaultVector3fLerp>(src, dst);
@@ -214,6 +212,7 @@ where
                     self.transform_chunk::<Tetrahedral<GRID_SIZE>, NonFiniteVector3fLerp>(src, dst);
                 }
             }
+            #[cfg(feature = "options")]
             InterpolationMethod::Pyramid => {
                 if T::FINITE {
                     self.transform_chunk::<Pyramidal<GRID_SIZE>, DefaultVector3fLerp>(src, dst);
@@ -221,6 +220,7 @@ where
                     self.transform_chunk::<Pyramidal<GRID_SIZE>, NonFiniteVector3fLerp>(src, dst);
                 }
             }
+            #[cfg(feature = "options")]
             InterpolationMethod::Prism => {
                 if T::FINITE {
                     self.transform_chunk::<Prismatic<GRID_SIZE>, DefaultVector3fLerp>(src, dst);
@@ -273,6 +273,7 @@ impl Lut4x3Factory for DefaultLut4x3Factory {
                     },
                 )
             }
+            #[cfg(feature = "options")]
             BarycentricWeightScale::High => Box::new(TransformLut4XyzToRgb::<
                 T,
                 u16,

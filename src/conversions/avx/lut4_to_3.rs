@@ -27,10 +27,7 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::conversions::LutBarycentricReduction;
-use crate::conversions::avx::interpolator::{
-    AvxMdInterpolationDouble, PrismaticAvxFmaDouble, PyramidAvxFmaDouble, SseAlignedF32,
-    TetrahedralAvxFmaDouble, TrilinearAvxFmaDouble,
-};
+use crate::conversions::avx::interpolator::*;
 use crate::conversions::avx::interpolator_q1_15::SseAlignedI16;
 use crate::conversions::avx::lut4_to_3_q1_15::TransformLut4XyzToRgbAvxQ1_15;
 use crate::conversions::interpolator::BarycentricWeight;
@@ -188,12 +185,15 @@ where
 
         unsafe {
             match self.interpolation_method {
+                #[cfg(feature = "options")]
                 InterpolationMethod::Tetrahedral => {
                     self.transform_chunk::<TetrahedralAvxFmaDouble<GRID_SIZE>>(src, dst);
                 }
+                #[cfg(feature = "options")]
                 InterpolationMethod::Pyramid => {
                     self.transform_chunk::<PyramidAvxFmaDouble<GRID_SIZE>>(src, dst);
                 }
+                #[cfg(feature = "options")]
                 InterpolationMethod::Prism => {
                     self.transform_chunk::<PrismaticAvxFmaDouble<GRID_SIZE>>(src, dst);
                 }
@@ -254,6 +254,7 @@ impl Lut4x3Factory for AvxLut4x3Factory {
                     interpolation_method: options.interpolation_method,
                     weights: BarycentricWeight::<i16>::create_ranged_256::<GRID_SIZE>(),
                 }),
+                #[cfg(feature = "options")]
                 BarycentricWeightScale::High => Box::new(TransformLut4XyzToRgbAvxQ1_15::<
                     T,
                     u16,
@@ -291,6 +292,7 @@ impl Lut4x3Factory for AvxLut4x3Factory {
                     },
                 )
             }
+            #[cfg(feature = "options")]
             BarycentricWeightScale::High => Box::new(TransformLut4XyzToRgbAvx::<
                 T,
                 u16,

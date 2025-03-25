@@ -35,7 +35,6 @@ mod stages;
 mod t_lut3_to_3;
 mod t_lut3_to_3_q1_15;
 
-pub(crate) use interpolator::TetrahedralAvxFma;
 pub(crate) use lut4_to_3::AvxLut4x3Factory;
 pub(crate) use rgb_xyz_q4_12::TransformProfilePcsXYZRgbQ12Avx;
 pub(crate) use stages::TransformProfilePcsXYZRgbAvx;
