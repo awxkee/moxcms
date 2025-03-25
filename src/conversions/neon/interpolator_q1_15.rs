@@ -823,9 +823,14 @@ impl<const GRID_SIZE: usize> TrilinearNeonQ1_15Double<'_, GRID_SIZE> {
         let dg = lut_g.w;
         let db = lut_b.w;
 
+        const Q_MAX: i16 = ((1i32 << 15i32) - 1) as i16;
         let w0 = NeonVectorQ1_15::from(dr);
         let w1 = NeonVectorQ1_15::from(dg);
         let w2 = NeonVectorQ1_15::from(db);
+        let q0 = NeonVectorQ1_15Double::from(Q_MAX);
+        let dx = q0 - NeonVectorQ1_15Double::from(dr);
+        let dy = q0 - NeonVectorQ1_15Double::from(dg);
+        let dz = q0 - NeonVectorQ1_15Double::from(db);
 
         let c000 = r.fetch(x, y, z);
         let c100 = r.fetch(x_n, y, z);
@@ -836,21 +841,15 @@ impl<const GRID_SIZE: usize> TrilinearNeonQ1_15Double<'_, GRID_SIZE> {
         let c011 = r.fetch(x, y_n, z_n);
         let c111 = r.fetch(x_n, y_n, z_n);
 
-        let dx = NeonVectorQ1_15Double::from(dr);
+        let c00 = (c000 * dx).mla(c100, w0);
+        let c10 = (c010 * dx).mla(c110, w0);
+        let c01 = (c001 * dx).mla(c101, w0);
+        let c11 = (c011 * dx).mla(c111, w0);
 
-        let c00 = c000.neg_mla(c000, dx).mla(c100, w0);
-        let c10 = c010.neg_mla(c010, dx).mla(c110, w0);
-        let c01 = c001.neg_mla(c001, dx).mla(c101, w0);
-        let c11 = c011.neg_mla(c011, dx).mla(c111, w0);
+        let c0 = (c00 * dy).mla(c10, w1);
+        let c1 = (c01 * dy).mla(c11, w1);
 
-        let dy = NeonVectorQ1_15Double::from(dg);
-
-        let c0 = c00.neg_mla(c00, dy).mla(c10, w1);
-        let c1 = c01.neg_mla(c01, dy).mla(c11, w1);
-
-        let dz = NeonVectorQ1_15Double::from(db);
-
-        c0.neg_mla(c0, dz).mla(c1, w2).split()
+        (c0 * dz).mla(c1, w2).split()
     }
 }
 
@@ -880,9 +879,14 @@ impl<const GRID_SIZE: usize> TrilinearNeonQ1_15<'_, GRID_SIZE> {
         let dg = lut_g.w;
         let db = lut_b.w;
 
+        const Q_MAX: i16 = ((1i32 << 15i32) - 1) as i16;
         let w0 = NeonVectorQ1_15::from(dr);
         let w1 = NeonVectorQ1_15::from(dg);
         let w2 = NeonVectorQ1_15::from(db);
+        let q0 = NeonVectorQ1_15::from(Q_MAX);
+        let dx = q0 - NeonVectorQ1_15::from(dr);
+        let dy = q0 - NeonVectorQ1_15::from(dg);
+        let dz = q0 - NeonVectorQ1_15::from(db);
 
         let c000 = r.fetch(x, y, z);
         let c100 = r.fetch(x_n, y, z);
@@ -893,20 +897,14 @@ impl<const GRID_SIZE: usize> TrilinearNeonQ1_15<'_, GRID_SIZE> {
         let c011 = r.fetch(x, y_n, z_n);
         let c111 = r.fetch(x_n, y_n, z_n);
 
-        let dx = NeonVectorQ1_15::from(dr);
+        let c00 = (c000 * dx).mla(c100, w0);
+        let c10 = (c010 * dx).mla(c110, w0);
+        let c01 = (c001 * dx).mla(c101, w0);
+        let c11 = (c011 * dx).mla(c111, w0);
 
-        let c00 = c000.neg_mla(c000, dx).mla(c100, w0);
-        let c10 = c010.neg_mla(c010, dx).mla(c110, w0);
-        let c01 = c001.neg_mla(c001, dx).mla(c101, w0);
-        let c11 = c011.neg_mla(c011, dx).mla(c111, w0);
+        let c0 = (c00 * dy).mla(c10, w1);
+        let c1 = (c01 * dy).mla(c11, w1);
 
-        let dy = NeonVectorQ1_15::from(dg);
-
-        let c0 = c00.neg_mla(c00, dy).mla(c10, w1);
-        let c1 = c01.neg_mla(c01, dy).mla(c11, w1);
-
-        let dz = NeonVectorQ1_15::from(db);
-
-        c0.neg_mla(c0, dz).mla(c1, w2)
+        (c0 * dz).mla(c1, w2)
     }
 }
