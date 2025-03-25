@@ -1038,8 +1038,8 @@ impl<const GRID_SIZE: usize> TrilinearAvxFma<'_, GRID_SIZE> {
         let dg = lut_g.w;
         let db = lut_b.w;
 
-        let w0 = AvxVectorSse::from(dr);
-        let w1 = AvxVectorSse::from(dg);
+        let w0 = AvxVector::from(dr);
+        let w1 = AvxVector::from(dg);
         let w2 = AvxVectorSse::from(db);
 
         let c000 = r.fetch(x, y, z);
@@ -1051,20 +1051,18 @@ impl<const GRID_SIZE: usize> TrilinearAvxFma<'_, GRID_SIZE> {
         let c011 = r.fetch(x, y_n, z_n);
         let c111 = r.fetch(x_n, y_n, z_n);
 
-        let dx = AvxVectorSse::from(dr);
+        let x000 = AvxVector::from_sse(c000, c001);
+        let x010 = AvxVector::from_sse(c010, c011);
+        let x011 = AvxVector::from_sse(c100, c101);
+        let x111 = AvxVector::from_sse(c110, c111);
 
-        let c00 = c000.neg_mla(c000, dx).mla(c100, w0);
-        let c10 = c010.neg_mla(c010, dx).mla(c110, w0);
-        let c01 = c001.neg_mla(c001, dx).mla(c101, w0);
-        let c11 = c011.neg_mla(c011, dx).mla(c111, w0);
+        let c00 = x000.neg_mla(x000, w0).mla(x011, w0);
+        let c10 = x010.neg_mla(x010, w0).mla(x111, w0);
 
-        let dy = AvxVectorSse::from(dg);
+        let z0 = c00.neg_mla(c00, w1).mla(c10, w1);
 
-        let c0 = c00.neg_mla(c00, dy).mla(c10, w1);
-        let c1 = c01.neg_mla(c01, dy).mla(c11, w1);
+        let (c0, c1) = z0.split();
 
-        let dz = AvxVectorSse::from(db);
-
-        c0.neg_mla(c0, dz).mla(c1, w2)
+        c0.neg_mla(c0, w2).mla(c1, w2)
     }
 }

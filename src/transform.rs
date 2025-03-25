@@ -82,7 +82,6 @@ pub struct TransformOptions {
     ///
     /// LUT interpolation in fixed point often have very different speed on
     /// x86 AMD and Intel CPUs.
-    /// AMD tends to be more effective on fixed point on LUT interpolation whereas Intel is not.
     /// If you're targeting specific x86 CPU always benchmark first.
     pub prefer_fixed_point: bool,
     /// Interpolation method for 3D LUT
