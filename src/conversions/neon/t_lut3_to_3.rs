@@ -222,7 +222,6 @@ impl Lut3x3Factory for NeonLut3x3Factory {
         if options.prefer_fixed_point
             && std::arch::is_aarch64_feature_detected!("rdm")
             && BIT_DEPTH < 15
-            && T::FINITE
         {
             const Q_SCALE: f32 = ((1 << 15) - 1) as f32;
             let lut = lut
