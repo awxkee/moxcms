@@ -26,22 +26,30 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-use crate::math::FusedMultiplyAdd;
+use crate::math::{FusedMultiplyAdd, FusedMultiplyNegAdd};
 use crate::{Vector3f, Vector4f};
 use std::ops::{Add, Mul, Sub};
 
 #[inline(always)]
 pub(crate) fn lerp<
-    T: Mul<Output = T> + Sub<Output = T> + Add<Output = T> + From<f32> + Copy + FusedMultiplyAdd<T>,
+    T: Mul<Output = T>
+        + Sub<Output = T>
+        + Add<Output = T>
+        + From<f32>
+        + Copy
+        + FusedMultiplyAdd<T>
+        + FusedMultiplyNegAdd<T>,
 >(
     a: T,
     b: T,
     t: T,
 ) -> T {
-    (a * (T::from(1.0) - t)).mla(b, t)
+    a.neg_mla(a, t).mla(b, t)
 }
 
-/// 4D CLUT helper
+/// 4D CLUT helper.
+///
+/// Represents hypercube.
 pub struct Array4D<'a> {
     array: &'a [f32],
     x_stride: u32,
@@ -152,7 +160,8 @@ impl Array4D<'_> {
             + Mul<T, Output = T>
             + FusedMultiplyAdd<T>
             + Sub<T, Output = T>
-            + Copy,
+            + Copy
+            + FusedMultiplyNegAdd<T>,
     >(
         &self,
         lin_x: f32,
@@ -238,7 +247,8 @@ impl Array4D<'_> {
             + Mul<T, Output = T>
             + FusedMultiplyAdd<T>
             + Sub<T, Output = T>
-            + Copy,
+            + Copy
+            + FusedMultiplyNegAdd<T>,
     >(
         &self,
         lin_x: f32,
@@ -364,7 +374,7 @@ impl Array4D<'_> {
             let s2 = s1.mla(c3, T::from(dg));
             s2.mla(c4, T::from(db * dr))
         };
-        (w0 * (T::from(1.0) - T::from(dw))).mla(w1, T::from(dw))
+        w0.neg_mla(w0, T::from(dw)).mla(w1, T::from(dw))
     }
 
     #[inline]
@@ -406,7 +416,8 @@ impl Array4D<'_> {
             + Mul<T, Output = T>
             + FusedMultiplyAdd<T>
             + Sub<T, Output = T>
-            + Copy,
+            + Copy
+            + FusedMultiplyNegAdd<T>,
     >(
         &self,
         lin_x: f32,
@@ -514,7 +525,7 @@ impl Array4D<'_> {
             let s3 = s2.mla(c4, T::from(dg * db));
             s3.mla(c5, T::from(dr * dg))
         };
-        (w0 * (T::from(1.0) - T::from(dw))).mla(w1, T::from(dw))
+        w0.neg_mla(w0, T::from(dw)).mla(w1, T::from(dw))
     }
 
     #[inline]
@@ -556,7 +567,8 @@ impl Array4D<'_> {
             + Mul<T, Output = T>
             + FusedMultiplyAdd<T>
             + Sub<T, Output = T>
-            + Copy,
+            + Copy
+            + FusedMultiplyNegAdd<T>,
     >(
         &self,
         lin_x: f32,
@@ -666,7 +678,7 @@ impl Array4D<'_> {
         let s0 = c0.mla(c1, T::from(rx));
         let s1 = s0.mla(c2, T::from(ry));
         let w1 = s1.mla(c3, T::from(rz));
-        (w0 * (T::from(1.0) - T::from(rw))).mla(w1, T::from(rw))
+        w0.neg_mla(w0, T::from(rw)).mla(w1, T::from(rw))
     }
 
     #[inline]
@@ -703,6 +715,8 @@ impl Array4D<'_> {
 }
 
 /// 3D CLUT helper
+///
+/// Represents hexahedron.
 pub struct Array3D<'a> {
     array: &'a [f32],
     x_stride: u32,
@@ -773,7 +787,13 @@ impl Array3D<'_> {
 
     #[inline(always)]
     fn trilinear<
-        T: Copy + From<f32> + Sub<T, Output = T> + Mul<T, Output = T> + Add<T, Output = T>,
+        T: Copy
+            + From<f32>
+            + Sub<T, Output = T>
+            + Mul<T, Output = T>
+            + Add<T, Output = T>
+            + FusedMultiplyNegAdd<T>
+            + FusedMultiplyAdd<T>,
     >(
         &self,
         lin_x: f32,
@@ -806,16 +826,15 @@ impl Array3D<'_> {
         let c011 = fetch.fetch(x, y_n, z_n);
         let c111 = fetch.fetch(x_n, y_n, z_n);
 
-        // Perform trilinear interpolation
-        let c00 = c000 * (T::from(1.0) - x_d) + c100 * x_d;
-        let c10 = c010 * (T::from(1.0) - x_d) + c110 * x_d;
-        let c01 = c001 * (T::from(1.0) - x_d) + c101 * x_d;
-        let c11 = c011 * (T::from(1.0) - x_d) + c111 * x_d;
+        let c00 = c000.neg_mla(c000, x_d).mla(c100, x_d);
+        let c10 = c010.neg_mla(c010, x_d).mla(c110, x_d);
+        let c01 = c001.neg_mla(c001, x_d).mla(c101, x_d);
+        let c11 = c011.neg_mla(c011, x_d).mla(c111, x_d);
 
-        let c0 = c00 * (T::from(1.0) - y_d) + c10 * y_d;
-        let c1 = c01 * (T::from(1.0) - y_d) + c11 * y_d;
+        let c0 = c00.neg_mla(c00, y_d).mla(c10, y_d);
+        let c1 = c01.neg_mla(c01, y_d).mla(c11, y_d);
 
-        c0 * (T::from(1.0) - z_d) + c1 * z_d
+        c0.neg_mla(c0, z_d).mla(c1, z_d)
     }
 
     #[inline]

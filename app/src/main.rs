@@ -27,8 +27,11 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 // use jxl_oxide::{JxlImage, JxlThreadPool, Lcms2, Moxcms};
-use lcms2::{Intent, PixelFormat, Profile, Transform};
-use moxcms::{ColorProfile, InterpolationMethod, Layout, RenderingIntent, TransformOptions};
+use lcms2::Profile;
+use moxcms::{
+    BarycentricWeightScale, ColorProfile, InterpolationMethod, Layout, RenderingIntent,
+    TransformOptions,
+};
 use rand::Rng;
 use std::fs;
 use std::fs::File;
@@ -119,37 +122,21 @@ fn main() {
     let file = File::open(f_str).expect("Failed to open file");
 
     let img = image::ImageReader::open(f_str).unwrap().decode().unwrap();
-    let rgb = img.to_rgb8();
 
     let reader = BufReader::new(file);
     let ref_reader = &reader;
 
     let options = DecoderOptions::new_fast().jpeg_set_out_colorspace(ColorSpace::RGB);
 
-    let mut decoder = JpegDecoder::new_with_options(reader, options);
-
-    // let mut decoder = JpegDecoder::new(reader);
-    decoder.options().set_use_unsafe(true);
-    decoder.decode_headers().unwrap();
-    let mut real_dst = vec![0u8; decoder.output_buffer_size().unwrap()];
-
-    let custom_profile = Profile::new_icc(&srgb_perceptual_icc).unwrap();
-    //
-    let srgb_profile = Profile::new_srgb();
-
-    decoder.decode_into(&mut real_dst).unwrap();
-
-    let real_dst = real_dst
+    let real_dst = img
+        .as_bytes()
         .chunks_exact(3)
         .flat_map(|x| [x[0], x[1], x[2], 255u8])
-        .map(|x| x as f32 / 255.0)
         .collect::<Vec<_>>();
 
-    let mut cmyk = vec![0f32; (decoder.output_buffer_size().unwrap() / 3) * 4];
+    let mut cmyk = vec![0u8; (img.as_bytes().len() / 3) * 4];
 
-    let icc = decoder.icc_profile().unwrap();
     let color_profile = ColorProfile::new_from_slice(&srgb_perceptual_icc).unwrap();
-    let cmyk_profile = ColorProfile::new_from_slice(&funny_icc).unwrap();
     // let color_profile = ColorProfile::new_gray_with_gamma(2.2);
     let mut dest_profile = ColorProfile::new_srgb();
 
@@ -158,15 +145,16 @@ fn main() {
     let time = Instant::now();
 
     let transform = dest_profile
-        .create_transform_f32(
+        .create_transform_8bit(
             Layout::Rgba,
             &funny_profile,
             Layout::Rgba,
             TransformOptions {
                 rendering_intent: RenderingIntent::Perceptual,
                 allow_use_cicp_transfer: false,
-                prefer_fixed_point: false,
-                interpolation_method: InterpolationMethod::Tetrahedral,
+                prefer_fixed_point: true,
+                interpolation_method: InterpolationMethod::Linear,
+                barycentric_weight_scale: BarycentricWeightScale::High,
             },
         )
         .unwrap();
@@ -176,20 +164,21 @@ fn main() {
     let time = Instant::now();
 
     let transform = funny_profile
-        .create_transform_f32(
+        .create_transform_8bit(
             Layout::Rgba,
             &out_profile,
             Layout::Rgba,
             TransformOptions {
                 rendering_intent: RenderingIntent::Perceptual,
                 allow_use_cicp_transfer: false,
-                prefer_fixed_point: false,
-                interpolation_method: InterpolationMethod::Tetrahedral,
+                prefer_fixed_point: true,
+                interpolation_method: InterpolationMethod::Linear,
+                barycentric_weight_scale: BarycentricWeightScale::High,
             },
         )
         .unwrap();
     println!("Rendering took {:?}", time.elapsed());
-    let mut dst = vec![0f32; real_dst.len()];
+    let mut dst = vec![0u8; real_dst.len()];
 
     for (src, dst) in cmyk
         .chunks_exact(img.width() as usize * 4)
@@ -205,7 +194,7 @@ fn main() {
 
     dst = dst
         .chunks_exact(4)
-        .flat_map(|x| [x[0], x[1], x[2], 1.])
+        .flat_map(|x| [x[0], x[1], x[2], 255])
         .collect();
 
     // println!("Estimated time: {:?}", instant.elapsed());
@@ -288,10 +277,10 @@ fn main() {
     //     [x[0], x[1], x[2], 255]
     // }).flat_map(|x| x).collect::<Vec<u8>>();
 
-    let dst = dst
-        .iter()
-        .map(|&x| (x * 255f32).round() as u8)
-        .collect::<Vec<_>>();
+    // let dst = dst
+    //     .iter()
+    //     .map(|&x| (x * 255f32).round() as u8)
+    //     .collect::<Vec<_>>();
     image::save_buffer(
         "v_new_dst.png",
         &dst,
@@ -303,7 +292,7 @@ fn main() {
 }
 
 // fn main() {
-//     let us_swop_icc = fs::read("./assets/us_swop_coated.icc").unwrap();
+//     let us_swop_icc = fs::read("./assets/srgb_perceptual.icc").unwrap();
 //
 //     let width = 5000;
 //     let height = 5000;

@@ -26,15 +26,17 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-use crate::conversions::CompressForLut;
-use crate::conversions::lut_transforms::{LUT_SAMPLING, Lut4x3Factory};
+use crate::conversions::LutBarycentricReduction;
+use crate::conversions::interpolator::BarycentricWeight;
+use crate::conversions::lut_transforms::Lut4x3Factory;
 use crate::conversions::sse::TetrahedralSse;
 use crate::conversions::sse::interpolator::{
-    PrismaticSse, PyramidalSse, SseAlignedF32, SseMdInterpolation,
+    PrismaticSse, PyramidalSse, SseAlignedF32, SseMdInterpolation, TrilinearSse,
 };
 use crate::transform::PointeeSizeExpressible;
 use crate::{
-    CmsError, InterpolationMethod, Layout, TransformExecutor, TransformOptions, rounding_div_ceil,
+    BarycentricWeightScale, CmsError, InterpolationMethod, Layout, TransformExecutor,
+    TransformOptions,
 };
 use num_traits::AsPrimitive;
 #[cfg(target_arch = "x86")]
@@ -43,22 +45,35 @@ use std::arch::x86::*;
 use std::arch::x86_64::*;
 use std::marker::PhantomData;
 
-struct TransformLut4XyzToRgbSse<T, const LAYOUT: u8, const GRID_SIZE: usize, const BIT_DEPTH: usize>
-{
-    lut: Vec<SseAlignedF32>,
-    _phantom: PhantomData<T>,
-    interpolation_method: InterpolationMethod,
-}
-
-impl<
-    T: Copy + AsPrimitive<f32> + Default + CompressForLut + PointeeSizeExpressible,
+struct TransformLut4XyzToRgbSse<
+    T,
+    U,
     const LAYOUT: u8,
     const GRID_SIZE: usize,
     const BIT_DEPTH: usize,
-> TransformLut4XyzToRgbSse<T, LAYOUT, GRID_SIZE, BIT_DEPTH>
+    const BINS: usize,
+    const BARYCENTRIC_BINS: usize,
+> {
+    lut: Vec<SseAlignedF32>,
+    _phantom: PhantomData<T>,
+    _phantom1: PhantomData<U>,
+    interpolation_method: InterpolationMethod,
+    weights: Box<[BarycentricWeight; BINS]>,
+}
+
+impl<
+    T: Copy + AsPrimitive<f32> + Default + PointeeSizeExpressible,
+    U: AsPrimitive<usize>,
+    const LAYOUT: u8,
+    const GRID_SIZE: usize,
+    const BIT_DEPTH: usize,
+    const BINS: usize,
+    const BARYCENTRIC_BINS: usize,
+> TransformLut4XyzToRgbSse<T, U, LAYOUT, GRID_SIZE, BIT_DEPTH, BINS, BARYCENTRIC_BINS>
 where
     f32: AsPrimitive<T>,
     u32: AsPrimitive<T>,
+    (): LutBarycentricReduction<T, U>,
 {
     #[allow(unused_unsafe)]
     #[target_feature(enable = "sse4.1")]
@@ -76,23 +91,32 @@ where
         let max_value = ((1 << BIT_DEPTH) - 1u32).as_();
 
         for (src, dst) in src.chunks_exact(4).zip(dst.chunks_exact_mut(channels)) {
-            let c = src[0].compress_lut::<BIT_DEPTH>();
-            let m = src[1].compress_lut::<BIT_DEPTH>();
-            let y = src[2].compress_lut::<BIT_DEPTH>();
-            let k = src[3].compress_lut::<BIT_DEPTH>();
-            let linear_k: f32 = k as i32 as f32 / LUT_SAMPLING as f32;
-            let w: i32 = k as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
-            let w_n: i32 =
-                rounding_div_ceil(k as i32 * (GRID_SIZE as i32 - 1), LUT_SAMPLING as i32);
-            let t: f32 = linear_k * (GRID_SIZE as i32 - 1) as f32 - w as f32;
+            let c = <() as LutBarycentricReduction<T, U>>::reduce::<BIT_DEPTH, BARYCENTRIC_BINS>(
+                src[0],
+            );
+            let m = <() as LutBarycentricReduction<T, U>>::reduce::<BIT_DEPTH, BARYCENTRIC_BINS>(
+                src[1],
+            );
+            let y = <() as LutBarycentricReduction<T, U>>::reduce::<BIT_DEPTH, BARYCENTRIC_BINS>(
+                src[2],
+            );
+            let k = <() as LutBarycentricReduction<T, U>>::reduce::<BIT_DEPTH, BARYCENTRIC_BINS>(
+                src[3],
+            );
+
+            let k_weights = self.weights[k.as_()];
+
+            let w: i32 = k_weights.x;
+            let w_n: i32 = k_weights.x_n;
+            let t: f32 = k_weights.w;
 
             let table1 = &self.lut[(w * grid_size3) as usize..];
             let table2 = &self.lut[(w_n * grid_size3) as usize..];
 
             let tetrahedral1 = Interpolator::new(table1);
             let tetrahedral2 = Interpolator::new(table2);
-            let a0 = tetrahedral1.inter3_sse(c, m, y).v;
-            let b0 = tetrahedral2.inter3_sse(c, m, y).v;
+            let a0 = tetrahedral1.inter3_sse(c, m, y, &self.weights).v;
+            let b0 = tetrahedral2.inter3_sse(c, m, y, &self.weights).v;
 
             if T::FINITE {
                 unsafe {
@@ -135,14 +159,19 @@ where
 }
 
 impl<
-    T: Copy + AsPrimitive<f32> + Default + CompressForLut + PointeeSizeExpressible,
+    T: Copy + AsPrimitive<f32> + Default + PointeeSizeExpressible,
+    U: AsPrimitive<usize>,
     const LAYOUT: u8,
     const GRID_SIZE: usize,
     const BIT_DEPTH: usize,
-> TransformExecutor<T> for TransformLut4XyzToRgbSse<T, LAYOUT, GRID_SIZE, BIT_DEPTH>
+    const BINS: usize,
+    const BARYCENTRIC_BINS: usize,
+> TransformExecutor<T>
+    for TransformLut4XyzToRgbSse<T, U, LAYOUT, GRID_SIZE, BIT_DEPTH, BINS, BARYCENTRIC_BINS>
 where
     f32: AsPrimitive<T>,
     u32: AsPrimitive<T>,
+    (): LutBarycentricReduction<T, U>,
 {
     fn transform(&self, src: &[T], dst: &mut [T]) -> Result<(), CmsError> {
         let cn = Layout::from(LAYOUT);
@@ -170,7 +199,9 @@ where
                 InterpolationMethod::Prism => {
                     self.transform_chunk::<PrismaticSse<GRID_SIZE>>(src, dst);
                 }
-                InterpolationMethod::Linear => {}
+                InterpolationMethod::Linear => {
+                    self.transform_chunk::<TrilinearSse<GRID_SIZE>>(src, dst);
+                }
             }
         }
 
@@ -182,14 +213,7 @@ pub(crate) struct SseLut4x3Factory {}
 
 impl Lut4x3Factory for SseLut4x3Factory {
     fn make_transform_4x3<
-        T: Copy
-            + AsPrimitive<f32>
-            + Default
-            + CompressForLut
-            + PointeeSizeExpressible
-            + 'static
-            + Send
-            + Sync,
+        T: Copy + AsPrimitive<f32> + Default + PointeeSizeExpressible + 'static + Send + Sync,
         const LAYOUT: u8,
         const GRID_SIZE: usize,
         const BIT_DEPTH: usize,
@@ -200,17 +224,40 @@ impl Lut4x3Factory for SseLut4x3Factory {
     where
         f32: AsPrimitive<T>,
         u32: AsPrimitive<T>,
+        (): LutBarycentricReduction<T, u8>,
+        (): LutBarycentricReduction<T, u16>,
     {
         let lut = lut
             .chunks_exact(3)
             .map(|x| SseAlignedF32([x[0], x[1], x[2], 0f32]))
             .collect::<Vec<_>>();
-        Box::new(
-            TransformLut4XyzToRgbSse::<T, LAYOUT, GRID_SIZE, BIT_DEPTH> {
+        match options.barycentric_weight_scale {
+            BarycentricWeightScale::Low => {
+                Box::new(
+                    TransformLut4XyzToRgbSse::<T, u8, LAYOUT, GRID_SIZE, BIT_DEPTH, 256, 256> {
+                        lut,
+                        _phantom: PhantomData,
+                        _phantom1: PhantomData,
+                        interpolation_method: options.interpolation_method,
+                        weights: BarycentricWeight::create_ranged_256::<GRID_SIZE>(),
+                    },
+                )
+            }
+            BarycentricWeightScale::High => Box::new(TransformLut4XyzToRgbSse::<
+                T,
+                u16,
+                LAYOUT,
+                GRID_SIZE,
+                BIT_DEPTH,
+                65536,
+                65536,
+            > {
                 lut,
                 _phantom: PhantomData,
+                _phantom1: PhantomData,
                 interpolation_method: options.interpolation_method,
-            },
-        )
+                weights: BarycentricWeight::create_binned::<GRID_SIZE, 65536>(),
+            }),
+        }
     }
 }

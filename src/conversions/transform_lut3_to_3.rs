@@ -27,36 +27,48 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 #![allow(dead_code)]
-use crate::conversions::CompressForLut;
-use crate::conversions::interpolator::MultidimensionalInterpolation;
+use crate::conversions::LutBarycentricReduction;
+use crate::conversions::interpolator::{BarycentricWeight, MultidimensionalInterpolation};
 use crate::conversions::lut_transforms::Lut3x3Factory;
 use crate::transform::PointeeSizeExpressible;
-use crate::{CmsError, InterpolationMethod, Layout, TransformExecutor, TransformOptions};
+use crate::{
+    BarycentricWeightScale, CmsError, InterpolationMethod, Layout, TransformExecutor,
+    TransformOptions,
+};
 use num_traits::AsPrimitive;
 use std::marker::PhantomData;
 
 pub(crate) struct TransformLut3x3<
     T,
+    U,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
     const GRID_SIZE: usize,
     const BIT_DEPTH: usize,
+    const BINS: usize,
+    const BARYCENTRIC_BINS: usize,
 > {
     pub(crate) lut: Vec<f32>,
     pub(crate) _phantom: PhantomData<T>,
+    pub(crate) _phantom1: PhantomData<U>,
     pub(crate) interpolation_method: InterpolationMethod,
+    pub(crate) weights: Box<[BarycentricWeight; BINS]>,
 }
 
 impl<
-    T: Copy + AsPrimitive<f32> + Default + CompressForLut + PointeeSizeExpressible,
+    T: Copy + AsPrimitive<f32> + Default + PointeeSizeExpressible,
+    U: AsPrimitive<usize>,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
     const GRID_SIZE: usize,
     const BIT_DEPTH: usize,
-> TransformLut3x3<T, SRC_LAYOUT, DST_LAYOUT, GRID_SIZE, BIT_DEPTH>
+    const BINS: usize,
+    const BARYCENTRIC_BINS: usize,
+> TransformLut3x3<T, U, SRC_LAYOUT, DST_LAYOUT, GRID_SIZE, BIT_DEPTH, BINS, BARYCENTRIC_BINS>
 where
     f32: AsPrimitive<T>,
     u32: AsPrimitive<T>,
+    (): LutBarycentricReduction<T, U>,
 {
     #[inline(always)]
     fn transform_chunk<'b, Tetrahedral: MultidimensionalInterpolation<'b, GRID_SIZE>>(
@@ -77,9 +89,15 @@ where
             .chunks_exact(src_channels)
             .zip(dst.chunks_exact_mut(dst_channels))
         {
-            let x = src[src_cn.r_i()].compress_lut::<BIT_DEPTH>();
-            let y = src[src_cn.g_i()].compress_lut::<BIT_DEPTH>();
-            let z = src[src_cn.b_i()].compress_lut::<BIT_DEPTH>();
+            let x = <() as LutBarycentricReduction<T, U>>::reduce::<BIT_DEPTH, BARYCENTRIC_BINS>(
+                src[src_cn.r_i()],
+            );
+            let y = <() as LutBarycentricReduction<T, U>>::reduce::<BIT_DEPTH, BARYCENTRIC_BINS>(
+                src[src_cn.g_i()],
+            );
+            let z = <() as LutBarycentricReduction<T, U>>::reduce::<BIT_DEPTH, BARYCENTRIC_BINS>(
+                src[src_cn.b_i()],
+            );
 
             let a = if src_channels == 4 {
                 src[src_cn.a_i()]
@@ -88,7 +106,7 @@ where
             };
 
             let tetrahedral = Tetrahedral::new(&self.lut);
-            let v = tetrahedral.inter3(x, y, z);
+            let v = tetrahedral.inter3(x, y, z, &self.weights);
             let r = if T::FINITE {
                 v * value_scale + 0.5f32
             } else {
@@ -105,15 +123,20 @@ where
 }
 
 impl<
-    T: Copy + AsPrimitive<f32> + Default + CompressForLut + PointeeSizeExpressible,
+    T: Copy + AsPrimitive<f32> + Default + PointeeSizeExpressible,
+    U: AsPrimitive<usize>,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
     const GRID_SIZE: usize,
     const BIT_DEPTH: usize,
-> TransformExecutor<T> for TransformLut3x3<T, SRC_LAYOUT, DST_LAYOUT, GRID_SIZE, BIT_DEPTH>
+    const BINS: usize,
+    const BARYCENTRIC_BINS: usize,
+> TransformExecutor<T>
+    for TransformLut3x3<T, U, SRC_LAYOUT, DST_LAYOUT, GRID_SIZE, BIT_DEPTH, BINS, BARYCENTRIC_BINS>
 where
     f32: AsPrimitive<T>,
     u32: AsPrimitive<T>,
+    (): LutBarycentricReduction<T, U>,
 {
     fn transform(&self, src: &[T], dst: &mut [T]) -> Result<(), CmsError> {
         let src_cn = Layout::from(SRC_LAYOUT);
@@ -160,14 +183,7 @@ pub(crate) struct DefaultLut3x3Factory {}
 
 impl Lut3x3Factory for DefaultLut3x3Factory {
     fn make_transform_3x3<
-        T: Copy
-            + AsPrimitive<f32>
-            + Default
-            + CompressForLut
-            + PointeeSizeExpressible
-            + 'static
-            + Send
-            + Sync,
+        T: Copy + AsPrimitive<f32> + Default + PointeeSizeExpressible + 'static + Send + Sync,
         const SRC_LAYOUT: u8,
         const DST_LAYOUT: u8,
         const GRID_SIZE: usize,
@@ -179,13 +195,42 @@ impl Lut3x3Factory for DefaultLut3x3Factory {
     where
         f32: AsPrimitive<T>,
         u32: AsPrimitive<T>,
+        (): LutBarycentricReduction<T, u8>,
+        (): LutBarycentricReduction<T, u16>,
     {
-        Box::new(
-            TransformLut3x3::<T, SRC_LAYOUT, DST_LAYOUT, GRID_SIZE, BIT_DEPTH> {
+        match options.barycentric_weight_scale {
+            BarycentricWeightScale::Low => Box::new(TransformLut3x3::<
+                T,
+                u8,
+                SRC_LAYOUT,
+                DST_LAYOUT,
+                GRID_SIZE,
+                BIT_DEPTH,
+                256,
+                256,
+            > {
                 lut,
                 _phantom: PhantomData,
+                _phantom1: PhantomData,
                 interpolation_method: options.interpolation_method,
-            },
-        )
+                weights: BarycentricWeight::create_ranged_256::<GRID_SIZE>(),
+            }),
+            BarycentricWeightScale::High => Box::new(TransformLut3x3::<
+                T,
+                u16,
+                SRC_LAYOUT,
+                DST_LAYOUT,
+                GRID_SIZE,
+                BIT_DEPTH,
+                65536,
+                65536,
+            > {
+                lut,
+                _phantom: PhantomData,
+                _phantom1: PhantomData,
+                interpolation_method: options.interpolation_method,
+                weights: BarycentricWeight::create_binned::<GRID_SIZE, 65536>(),
+            }),
+        }
     }
 }

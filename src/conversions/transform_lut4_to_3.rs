@@ -26,15 +26,15 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-use crate::conversions::CompressForLut;
 use crate::conversions::interpolator::{
-    MultidimensionalInterpolation, Prismatic, Pyramidal, Tetrahedral, Trilinear,
+    BarycentricWeight, LutBarycentricReduction, MultidimensionalInterpolation, Prismatic,
+    Pyramidal, Tetrahedral, Trilinear,
 };
-use crate::conversions::lut_transforms::{LUT_SAMPLING, Lut4x3Factory};
-use crate::math::{FusedMultiplyAdd, m_clamp};
+use crate::conversions::lut_transforms::Lut4x3Factory;
+use crate::math::{FusedMultiplyAdd, FusedMultiplyNegAdd, m_clamp};
 use crate::{
-    CmsError, InterpolationMethod, Layout, PointeeSizeExpressible, TransformExecutor,
-    TransformOptions, Vector3f,
+    BarycentricWeightScale, CmsError, InterpolationMethod, Layout, PointeeSizeExpressible,
+    TransformExecutor, TransformOptions, Vector3f,
 };
 use num_traits::AsPrimitive;
 use std::marker::PhantomData;
@@ -51,7 +51,7 @@ impl Vector3fCmykLerp for DefaultVector3fLerp {
     #[inline(always)]
     fn interpolate(a: Vector3f, b: Vector3f, t: f32, scale: f32) -> Vector3f {
         let t = Vector3f::from(t);
-        let mut new_vec = (a * (Vector3f::from(1.0) - t)).mla(b, t) * scale + 0.5f32;
+        let mut new_vec = a.neg_mla(a, t).mla(b, t) * scale + 0.5f32;
         new_vec.v[0] = m_clamp(new_vec.v[0], 0.0, scale);
         new_vec.v[1] = m_clamp(new_vec.v[1], 0.0, scale);
         new_vec.v[2] = m_clamp(new_vec.v[2], 0.0, scale);
@@ -67,7 +67,7 @@ impl Vector3fCmykLerp for NonFiniteVector3fLerp {
     #[inline(always)]
     fn interpolate(a: Vector3f, b: Vector3f, t: f32, _: f32) -> Vector3f {
         let t = Vector3f::from(t);
-        let mut new_vec = (a * (Vector3f::from(1.0) - t)).mla(b, t);
+        let mut new_vec = a.neg_mla(a, t).mla(b, t);
         new_vec.v[0] = m_clamp(new_vec.v[0], 0.0, 1.0);
         new_vec.v[1] = m_clamp(new_vec.v[1], 0.0, 1.0);
         new_vec.v[2] = m_clamp(new_vec.v[2], 0.0, 1.0);
@@ -83,27 +83,41 @@ impl Vector3fCmykLerp for NonFiniteVector3fLerpUnbound {
     #[inline(always)]
     fn interpolate(a: Vector3f, b: Vector3f, t: f32, _: f32) -> Vector3f {
         let t = Vector3f::from(t);
-        (a * (Vector3f::from(1.0) - t)).mla(b, t)
+        a.neg_mla(a, t).mla(b, t)
     }
 }
 
 #[allow(unused)]
-struct TransformLut4XyzToRgb<T, const LAYOUT: u8, const GRID_SIZE: usize, const BIT_DEPTH: usize> {
+struct TransformLut4XyzToRgb<
+    T,
+    U,
+    const LAYOUT: u8,
+    const GRID_SIZE: usize,
+    const BIT_DEPTH: usize,
+    const BINS: usize,
+    const BARYCENTRIC_BINS: usize,
+> {
     lut: Vec<f32>,
     _phantom: PhantomData<T>,
+    _phantom1: PhantomData<U>,
     interpolation_method: InterpolationMethod,
+    weights: Box<[BarycentricWeight; BINS]>,
 }
 
 #[allow(unused)]
 impl<
-    T: Copy + AsPrimitive<f32> + Default + CompressForLut,
+    T: Copy + AsPrimitive<f32> + Default,
+    U: AsPrimitive<usize>,
     const LAYOUT: u8,
     const GRID_SIZE: usize,
     const BIT_DEPTH: usize,
-> TransformLut4XyzToRgb<T, LAYOUT, GRID_SIZE, BIT_DEPTH>
+    const BINS: usize,
+    const BARYCENTRIC_BINS: usize,
+> TransformLut4XyzToRgb<T, U, LAYOUT, GRID_SIZE, BIT_DEPTH, BINS, BARYCENTRIC_BINS>
 where
     f32: AsPrimitive<T>,
     u32: AsPrimitive<T>,
+    (): LutBarycentricReduction<T, U>,
 {
     #[inline(always)]
     fn transform_chunk<
@@ -124,22 +138,32 @@ where
         let max_value = ((1 << BIT_DEPTH) - 1u32).as_();
 
         for (src, dst) in src.chunks_exact(4).zip(dst.chunks_exact_mut(channels)) {
-            let c = src[0].compress_lut::<BIT_DEPTH>();
-            let m = src[1].compress_lut::<BIT_DEPTH>();
-            let y = src[2].compress_lut::<BIT_DEPTH>();
-            let k = src[3].compress_lut::<BIT_DEPTH>();
-            let linear_k: f32 = k as i32 as f32 * (1. / LUT_SAMPLING as f32);
-            let w: i32 = k as i32 * (GRID_SIZE as i32 - 1) / LUT_SAMPLING as i32;
-            let w_n: i32 = (w + 1).min(GRID_SIZE as i32 - 1);
-            let t: f32 = linear_k * (GRID_SIZE as i32 - 1) as f32 - w as f32;
+            let c = <() as LutBarycentricReduction<T, U>>::reduce::<BIT_DEPTH, BARYCENTRIC_BINS>(
+                src[0],
+            );
+            let m = <() as LutBarycentricReduction<T, U>>::reduce::<BIT_DEPTH, BARYCENTRIC_BINS>(
+                src[1],
+            );
+            let y = <() as LutBarycentricReduction<T, U>>::reduce::<BIT_DEPTH, BARYCENTRIC_BINS>(
+                src[2],
+            );
+            let k = <() as LutBarycentricReduction<T, U>>::reduce::<BIT_DEPTH, BARYCENTRIC_BINS>(
+                src[3],
+            );
+
+            let k_weights = self.weights[k.as_()];
+
+            let w: i32 = k_weights.x;
+            let w_n: i32 = k_weights.x_n;
+            let t: f32 = k_weights.w;
 
             let table1 = &self.lut[(w * grid_size3 * 3) as usize..];
             let table2 = &self.lut[(w_n * grid_size3 * 3) as usize..];
 
             let tetrahedral1 = Tetrahedral::new(table1);
             let tetrahedral2 = Tetrahedral::new(table2);
-            let r1 = tetrahedral1.inter3(c, m, y);
-            let r2 = tetrahedral2.inter3(c, m, y);
+            let r1 = tetrahedral1.inter3(c, m, y, &self.weights);
+            let r2 = tetrahedral2.inter3(c, m, y, &self.weights);
             let r = Interpolation::interpolate(r1, r2, t, value_scale);
             dst[cn.r_i()] = r.v[0].as_();
             dst[cn.g_i()] = r.v[1].as_();
@@ -153,14 +177,19 @@ where
 
 #[allow(unused)]
 impl<
-    T: Copy + AsPrimitive<f32> + Default + CompressForLut + PointeeSizeExpressible,
+    T: Copy + AsPrimitive<f32> + Default + PointeeSizeExpressible,
+    U: AsPrimitive<usize>,
     const LAYOUT: u8,
     const GRID_SIZE: usize,
     const BIT_DEPTH: usize,
-> TransformExecutor<T> for TransformLut4XyzToRgb<T, LAYOUT, GRID_SIZE, BIT_DEPTH>
+    const BINS: usize,
+    const BARYCENTRIC_BINS: usize,
+> TransformExecutor<T>
+    for TransformLut4XyzToRgb<T, U, LAYOUT, GRID_SIZE, BIT_DEPTH, BINS, BARYCENTRIC_BINS>
 where
     f32: AsPrimitive<T>,
     u32: AsPrimitive<T>,
+    (): LutBarycentricReduction<T, U>,
 {
     fn transform(&self, src: &[T], dst: &mut [T]) -> Result<(), CmsError> {
         let cn = Layout::from(LAYOUT);
@@ -218,14 +247,7 @@ pub(crate) struct DefaultLut4x3Factory {}
 #[allow(dead_code)]
 impl Lut4x3Factory for DefaultLut4x3Factory {
     fn make_transform_4x3<
-        T: Copy
-            + AsPrimitive<f32>
-            + Default
-            + CompressForLut
-            + PointeeSizeExpressible
-            + 'static
-            + Send
-            + Sync,
+        T: Copy + AsPrimitive<f32> + Default + PointeeSizeExpressible + 'static + Send + Sync,
         const LAYOUT: u8,
         const GRID_SIZE: usize,
         const BIT_DEPTH: usize,
@@ -236,11 +258,36 @@ impl Lut4x3Factory for DefaultLut4x3Factory {
     where
         f32: AsPrimitive<T>,
         u32: AsPrimitive<T>,
+        (): LutBarycentricReduction<T, u8>,
+        (): LutBarycentricReduction<T, u16>,
     {
-        Box::new(TransformLut4XyzToRgb::<T, LAYOUT, GRID_SIZE, BIT_DEPTH> {
-            lut,
-            _phantom: PhantomData,
-            interpolation_method: options.interpolation_method,
-        })
+        match options.barycentric_weight_scale {
+            BarycentricWeightScale::Low => {
+                Box::new(
+                    TransformLut4XyzToRgb::<T, u8, LAYOUT, GRID_SIZE, BIT_DEPTH, 256, 256> {
+                        lut,
+                        _phantom: PhantomData,
+                        _phantom1: PhantomData,
+                        interpolation_method: options.interpolation_method,
+                        weights: BarycentricWeight::create_ranged_256::<GRID_SIZE>(),
+                    },
+                )
+            }
+            BarycentricWeightScale::High => Box::new(TransformLut4XyzToRgb::<
+                T,
+                u16,
+                LAYOUT,
+                GRID_SIZE,
+                BIT_DEPTH,
+                65536,
+                65536,
+            > {
+                lut,
+                _phantom: PhantomData,
+                _phantom1: PhantomData,
+                interpolation_method: options.interpolation_method,
+                weights: BarycentricWeight::create_binned::<GRID_SIZE, 65536>(),
+            }),
+        }
     }
 }

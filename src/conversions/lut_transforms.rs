@@ -30,9 +30,8 @@ use crate::conversions::lut3x3::create_lut3x3;
 use crate::conversions::lut3x4::{create_lut3_samples, create_lut3_samples_norm, create_lut3x4};
 use crate::conversions::lut4::{create_lut4, create_lut4_norm_samples};
 use crate::conversions::mab::{prepare_mab_3x3, prepare_mba_3x3};
-use crate::conversions::transform_lut3_to_4::TransformLut3x4;
+use crate::conversions::transform_lut3_to_4::make_transform_3x4;
 use crate::lab::Lab;
-use crate::math::m_clamp;
 use crate::mlaf::mlaf;
 use crate::{
     CmsError, ColorProfile, DataColorSpace, InPlaceStage, Layout, LutWarehouse, Matrix3f,
@@ -158,64 +157,11 @@ impl InPlaceStage for MatrixStage {
     }
 }
 
-pub(crate) trait CompressForLut {
-    fn compress_lut<const BIT_DEPTH: usize>(self) -> u8;
-}
-
 pub(crate) const LUT_SAMPLING: u16 = 255;
-
-impl CompressForLut for u8 {
-    #[inline(always)]
-    fn compress_lut<const BIT_DEPTH: usize>(self) -> u8 {
-        self
-    }
-}
-
-impl CompressForLut for u16 {
-    #[inline(always)]
-    fn compress_lut<const BIT_DEPTH: usize>(self) -> u8 {
-        let shift = BIT_DEPTH - 8;
-        if BIT_DEPTH != 16 {
-            let rnd_shift = (1 << (shift - 1)) - 1;
-            ((shift + rnd_shift) >> shift) as u8
-        } else {
-            (self >> shift) as u8
-        }
-    }
-}
-
-impl CompressForLut for f32 {
-    #[inline(always)]
-    fn compress_lut<const BIT_DEPTH: usize>(self) -> u8 {
-        m_clamp(
-            (self * LUT_SAMPLING as f32).round(),
-            0.0,
-            LUT_SAMPLING as f32,
-        ) as u8
-    }
-}
-
-impl CompressForLut for f64 {
-    #[inline(always)]
-    fn compress_lut<const BIT_DEPTH: usize>(self) -> u8 {
-        m_clamp(
-            (self * LUT_SAMPLING as f64).round(),
-            0.0,
-            LUT_SAMPLING as f64,
-        ) as u8
-    }
-}
 
 pub(crate) trait Lut3x3Factory {
     fn make_transform_3x3<
-        T: Copy
-            + AsPrimitive<f32>
-            + Default
-            + CompressForLut
-            + PointeeSizeExpressible
-            + 'static
-            + Send
-            + Sync,
+        T: Copy + AsPrimitive<f32> + Default + PointeeSizeExpressible + 'static + Send + Sync,
         const SRC_LAYOUT: u8,
         const DST_LAYOUT: u8,
         const GRID_SIZE: usize,
@@ -226,19 +172,14 @@ pub(crate) trait Lut3x3Factory {
     ) -> Box<dyn TransformExecutor<T> + Send + Sync>
     where
         f32: AsPrimitive<T>,
-        u32: AsPrimitive<T>;
+        u32: AsPrimitive<T>,
+        (): LutBarycentricReduction<T, u8>,
+        (): LutBarycentricReduction<T, u16>;
 }
 
 pub(crate) trait Lut4x3Factory {
     fn make_transform_4x3<
-        T: Copy
-            + AsPrimitive<f32>
-            + Default
-            + CompressForLut
-            + PointeeSizeExpressible
-            + 'static
-            + Send
-            + Sync,
+        T: Copy + AsPrimitive<f32> + Default + PointeeSizeExpressible + 'static + Send + Sync,
         const LAYOUT: u8,
         const GRID_SIZE: usize,
         const BIT_DEPTH: usize,
@@ -248,7 +189,9 @@ pub(crate) trait Lut4x3Factory {
     ) -> Box<dyn TransformExecutor<T> + Sync + Send>
     where
         f32: AsPrimitive<T>,
-        u32: AsPrimitive<T>;
+        u32: AsPrimitive<T>,
+        (): LutBarycentricReduction<T, u8>,
+        (): LutBarycentricReduction<T, u16>;
 }
 
 struct RgbLinearizationStage<
@@ -350,7 +293,6 @@ macro_rules! make_transform_3x3_fn {
                 + AsPrimitive<f32>
                 + Send
                 + Sync
-                + CompressForLut
                 + AsPrimitive<usize>
                 + PointeeSizeExpressible,
             const GRID_SIZE: usize,
@@ -364,6 +306,8 @@ macro_rules! make_transform_3x3_fn {
         where
             f32: AsPrimitive<T>,
             u32: AsPrimitive<T>,
+            (): LutBarycentricReduction<T, u8>,
+            (): LutBarycentricReduction<T, u16>,
         {
             match src_layout {
                 Layout::Rgb => match dst_layout {
@@ -414,7 +358,6 @@ macro_rules! make_transform_4x3_fn {
                 + AsPrimitive<f32>
                 + Send
                 + Sync
-                + CompressForLut
                 + AsPrimitive<usize>
                 + PointeeSizeExpressible,
             const GRID_SIZE: usize,
@@ -427,6 +370,8 @@ macro_rules! make_transform_4x3_fn {
         where
             f32: AsPrimitive<T>,
             u32: AsPrimitive<T>,
+            (): LutBarycentricReduction<T, u8>,
+        (): LutBarycentricReduction<T, u16>,
         {
             match dst_layout {
                 Layout::Rgb => $exec_name::make_transform_4x3::<
@@ -469,6 +414,7 @@ make_transform_3x3_fn!(make_transformer_3x3_sse41, SseLut3x3Factory);
 
 #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "avx"))]
 use crate::conversions::avx::AvxLut4x3Factory;
+use crate::conversions::interpolator::LutBarycentricReduction;
 use crate::conversions::mab4x3::prepare_mab_4x3;
 use crate::conversions::mba3x4::prepare_mba_3x4;
 // use crate::conversions::bpc::compensate_bpc_in_lut;
@@ -482,7 +428,7 @@ use crate::conversions::sse::SseLut4x3Factory;
 make_transform_4x3_fn!(make_transformer_4x3_sse41, SseLut4x3Factory);
 
 #[cfg(not(all(target_arch = "aarch64", target_feature = "neon", feature = "neon")))]
-use crate::conversions::transform_lut4_to_4::DefaultLut4x3Factory;
+use crate::conversions::transform_lut4_to_3::DefaultLut4x3Factory;
 
 #[cfg(not(all(target_arch = "aarch64", target_feature = "neon", feature = "neon")))]
 make_transform_4x3_fn!(make_transformer_4x3, DefaultLut4x3Factory);
@@ -501,7 +447,6 @@ pub(crate) fn make_lut_transform<
         + AsPrimitive<f32>
         + Send
         + Sync
-        + CompressForLut
         + AsPrimitive<usize>
         + PointeeSizeExpressible
         + GammaLutInterpolate,
@@ -518,6 +463,8 @@ pub(crate) fn make_lut_transform<
 where
     f32: AsPrimitive<T>,
     u32: AsPrimitive<T>,
+    (): LutBarycentricReduction<T, u8>,
+    (): LutBarycentricReduction<T, u16>,
 {
     if (source.color_space == DataColorSpace::Cmyk || source.color_space == DataColorSpace::Color4)
         && (dest.color_space == DataColorSpace::Rgb || dest.color_space == DataColorSpace::Lab)
@@ -661,27 +608,9 @@ where
             LutWarehouse::MCurves(m_curves) => prepare_mba_3x4(m_curves, &mut lut, options)?,
         };
 
-        return Ok(match src_layout {
-            Layout::Rgb => {
-                Box::new(
-                    TransformLut3x4::<T, { Layout::Rgb as u8 }, GRID_SIZE, BIT_DEPTH> {
-                        lut,
-                        _phantom: PhantomData,
-                        interpolation_method: options.interpolation_method,
-                    },
-                )
-            }
-            Layout::Rgba => {
-                Box::new(
-                    TransformLut3x4::<T, { Layout::Rgba as u8 }, GRID_SIZE, BIT_DEPTH> {
-                        lut,
-                        _phantom: PhantomData,
-                        interpolation_method: options.interpolation_method,
-                    },
-                )
-            }
-            _ => unimplemented!(),
-        });
+        return Ok(make_transform_3x4::<T, GRID_SIZE, BIT_DEPTH>(
+            src_layout, lut, options,
+        ));
     } else if (source.color_space == DataColorSpace::Rgb
         || source.color_space == DataColorSpace::Lab
         || source.color_space == DataColorSpace::Color3)
@@ -767,14 +696,7 @@ where
 }
 
 fn create_rgb_lin_lut<
-    T: Copy
-        + Default
-        + AsPrimitive<f32>
-        + Send
-        + Sync
-        + CompressForLut
-        + AsPrimitive<usize>
-        + PointeeSizeExpressible,
+    T: Copy + Default + AsPrimitive<f32> + Send + Sync + AsPrimitive<usize> + PointeeSizeExpressible,
     const BIT_DEPTH: usize,
     const LINEAR_CAP: usize,
     const GRID_SIZE: usize,
@@ -831,7 +753,6 @@ fn prepare_inverse_lut_rgb_xyz<
         + AsPrimitive<f32>
         + Send
         + Sync
-        + CompressForLut
         + AsPrimitive<usize>
         + PointeeSizeExpressible
         + GammaLutInterpolate,

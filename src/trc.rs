@@ -27,7 +27,7 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::math::m_clamp;
-use crate::mlaf::mlaf;
+use crate::mlaf::{mlaf, neg_mlaf};
 use crate::transform::PointeeSizeExpressible;
 use crate::writer::FloatToFixedU8Fixed8;
 use crate::{CmsError, ColorProfile, pow, powf};
@@ -295,11 +295,8 @@ pub(crate) fn lut_interp_linear_float(x: f32, table: &[f32]) -> f32 {
     let lower: i32 = value.floor() as i32;
 
     let diff = upper as f32 - value;
-    mlaf(
-        table[upper as usize] * (1.0f32 - diff),
-        table[lower as usize],
-        diff,
-    )
+    let tu = table[upper as usize];
+    mlaf(neg_mlaf(tu, tu, diff), table[lower as usize], diff)
 }
 
 #[inline]

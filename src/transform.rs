@@ -27,8 +27,8 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::conversions::{
-    CompressForLut, RgbXyzFactory, ToneReproductionRgbToGray, TransformProfileRgb, make_gray_to_x,
-    make_lut_transform, make_rgb_to_gray,
+    LutBarycentricReduction, RgbXyzFactory, ToneReproductionRgbToGray, TransformProfileRgb,
+    make_gray_to_x, make_lut_transform, make_rgb_to_gray,
 };
 use crate::err::CmsError;
 use crate::trc::GammaLutInterpolate;
@@ -52,6 +52,20 @@ pub trait InPlaceStage {
     fn transform(&self, dst: &mut [f32]) -> Result<(), CmsError>;
 }
 
+/// Barycentric interpolation weights size.
+///
+/// Bigger weights increases precision.
+#[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Default)]
+pub enum BarycentricWeightScale {
+    #[default]
+    /// Low scale weights is enough for common case.
+    ///
+    /// However, it might crush dark zones and gradients.
+    /// Weights increasing costs 5% performance.
+    Low,
+    High,
+}
+
 /// Declares additional transformation options
 #[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub struct TransformOptions {
@@ -65,9 +79,14 @@ pub struct TransformOptions {
     /// Do not change it if you're not sure that extreme precision is required,
     /// in most cases it is a simple way to spend energy to warming up environment
     /// a little.
+    ///
+    /// LUT interpolation in fixed point often have very different speed on
+    /// x86 AMD and Intel CPUs.
+    /// If you're targeting specific x86 CPU always benchmark first.
     pub prefer_fixed_point: bool,
     /// Interpolation method for 3D LUT
     pub interpolation_method: InterpolationMethod,
+    pub barycentric_weight_scale: BarycentricWeightScale,
     // pub black_point_compensation: bool,
 }
 
@@ -98,6 +117,7 @@ impl Default for TransformOptions {
             allow_use_cicp_transfer: true,
             prefer_fixed_point: true,
             interpolation_method: InterpolationMethod::default(),
+            barycentric_weight_scale: BarycentricWeightScale::default(),
             // black_point_compensation: false,
         }
     }
@@ -215,6 +235,8 @@ pub trait PointeeSizeExpressible {
     const FINITE: bool;
     const NOT_FINITE_GAMMA_TABLE_SIZE: usize;
     const NOT_FINITE_LINEAR_TABLE_SIZE: usize;
+    const IS_U8: bool;
+    const IS_U16: bool;
 }
 
 impl PointeeSizeExpressible for u8 {
@@ -226,6 +248,8 @@ impl PointeeSizeExpressible for u8 {
     const FINITE: bool = true;
     const NOT_FINITE_GAMMA_TABLE_SIZE: usize = 1;
     const NOT_FINITE_LINEAR_TABLE_SIZE: usize = 1;
+    const IS_U8: bool = true;
+    const IS_U16: bool = false;
 }
 
 impl PointeeSizeExpressible for u16 {
@@ -238,6 +262,9 @@ impl PointeeSizeExpressible for u16 {
 
     const NOT_FINITE_GAMMA_TABLE_SIZE: usize = 1;
     const NOT_FINITE_LINEAR_TABLE_SIZE: usize = 1;
+
+    const IS_U8: bool = false;
+    const IS_U16: bool = true;
 }
 
 impl PointeeSizeExpressible for f32 {
@@ -251,6 +278,8 @@ impl PointeeSizeExpressible for f32 {
 
     const NOT_FINITE_GAMMA_TABLE_SIZE: usize = 32768;
     const NOT_FINITE_LINEAR_TABLE_SIZE: usize = 1 << 14u32;
+    const IS_U8: bool = false;
+    const IS_U16: bool = false;
 }
 
 impl PointeeSizeExpressible for f64 {
@@ -264,6 +293,8 @@ impl PointeeSizeExpressible for f64 {
 
     const NOT_FINITE_GAMMA_TABLE_SIZE: usize = 65536;
     const NOT_FINITE_LINEAR_TABLE_SIZE: usize = 1 << 16;
+    const IS_U8: bool = false;
+    const IS_U16: bool = false;
 }
 
 impl ColorProfile {
@@ -348,7 +379,6 @@ impl ColorProfile {
             + Send
             + Sync
             + AsPrimitive<f32>
-            + CompressForLut
             + RgbXyzFactory<T>
             + GammaLutInterpolate,
         const BIT_DEPTH: usize,
@@ -364,6 +394,8 @@ impl ColorProfile {
     where
         f32: AsPrimitive<T>,
         u32: AsPrimitive<T>,
+        (): LutBarycentricReduction<T, u8>,
+        (): LutBarycentricReduction<T, u16>,
     {
         if self.color_space == DataColorSpace::Rgb
             && dst_pr.pcs == DataColorSpace::Xyz

@@ -27,7 +27,7 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 #![allow(dead_code)]
-use crate::conversions::interpolator::BarycentricWeight;
+use crate::conversions::interpolator::BarycentricWeightQ1_15;
 use crate::math::FusedMultiplyAdd;
 use num_traits::AsPrimitive;
 #[cfg(target_arch = "x86")]
@@ -37,64 +37,64 @@ use std::arch::x86_64::*;
 use std::ops::{Add, Mul, Sub};
 
 #[repr(align(16), C)]
-pub(crate) struct SseAlignedF32(pub(crate) [f32; 4]);
+pub(crate) struct SseAlignedI16(pub(crate) [i16; 4]);
 
-pub(crate) struct TetrahedralAvxFma<'a, const GRID_SIZE: usize> {
-    pub(crate) cube: &'a [SseAlignedF32],
+pub(crate) struct TetrahedralAvxFmaQ1_15<'a, const GRID_SIZE: usize> {
+    pub(crate) cube: &'a [SseAlignedI16],
 }
 
-pub(crate) struct PyramidalAvxFma<'a, const GRID_SIZE: usize> {
-    pub(crate) cube: &'a [SseAlignedF32],
+pub(crate) struct PyramidalAvxFmaQ1_15<'a, const GRID_SIZE: usize> {
+    pub(crate) cube: &'a [SseAlignedI16],
 }
 
-pub(crate) struct PrismaticAvxFma<'a, const GRID_SIZE: usize> {
-    pub(crate) cube: &'a [SseAlignedF32],
+pub(crate) struct PrismaticAvxFmaQ1_15<'a, const GRID_SIZE: usize> {
+    pub(crate) cube: &'a [SseAlignedI16],
 }
 
-pub(crate) struct TrilinearAvxFma<'a, const GRID_SIZE: usize> {
-    pub(crate) cube: &'a [SseAlignedF32],
+pub(crate) struct TrilinearAvxFmaQ1_15<'a, const GRID_SIZE: usize> {
+    pub(crate) cube: &'a [SseAlignedI16],
 }
 
-pub(crate) struct PrismaticAvxFmaDouble<'a, const GRID_SIZE: usize> {
-    pub(crate) cube0: &'a [SseAlignedF32],
-    pub(crate) cube1: &'a [SseAlignedF32],
+pub(crate) struct PrismaticAvxFmaQ1_15Double<'a, const GRID_SIZE: usize> {
+    pub(crate) cube0: &'a [SseAlignedI16],
+    pub(crate) cube1: &'a [SseAlignedI16],
 }
 
-pub(crate) struct TrilinearAvxFmaDouble<'a, const GRID_SIZE: usize> {
-    pub(crate) cube0: &'a [SseAlignedF32],
-    pub(crate) cube1: &'a [SseAlignedF32],
+pub(crate) struct TrilinearAvxFmaQ1_15Double<'a, const GRID_SIZE: usize> {
+    pub(crate) cube0: &'a [SseAlignedI16],
+    pub(crate) cube1: &'a [SseAlignedI16],
 }
 
-pub(crate) struct PyramidAvxFmaDouble<'a, const GRID_SIZE: usize> {
-    pub(crate) cube0: &'a [SseAlignedF32],
-    pub(crate) cube1: &'a [SseAlignedF32],
+pub(crate) struct PyramidAvxFmaQ1_15Double<'a, const GRID_SIZE: usize> {
+    pub(crate) cube0: &'a [SseAlignedI16],
+    pub(crate) cube1: &'a [SseAlignedI16],
 }
 
-pub(crate) struct TetrahedralAvxFmaDouble<'a, const GRID_SIZE: usize> {
-    pub(crate) cube0: &'a [SseAlignedF32],
-    pub(crate) cube1: &'a [SseAlignedF32],
+pub(crate) struct TetrahedralAvxFmaQ1_15Double<'a, const GRID_SIZE: usize> {
+    pub(crate) cube0: &'a [SseAlignedI16],
+    pub(crate) cube1: &'a [SseAlignedI16],
 }
 
-pub(crate) trait AvxMdInterpolationDouble<'a, const GRID_SIZE: usize> {
-    fn new(table0: &'a [SseAlignedF32], table1: &'a [SseAlignedF32]) -> Self;
+pub(crate) trait AvxMdInterpolationQ1_15Double<'a, const GRID_SIZE: usize> {
+    fn new(table0: &'a [SseAlignedI16], table1: &'a [SseAlignedI16]) -> Self;
     fn inter3_sse<U: AsPrimitive<usize>, const BINS: usize>(
         &self,
         in_r: U,
         in_g: U,
         in_b: U,
-        lut: &[BarycentricWeight; BINS],
-    ) -> (AvxVectorSse, AvxVectorSse);
+        lut: &[BarycentricWeightQ1_15; BINS],
+    ) -> (AvxVectorQ1_15Sse, AvxVectorQ1_15Sse);
 }
 
-pub(crate) trait AvxMdInterpolation<'a, const GRID_SIZE: usize> {
-    fn new(table: &'a [SseAlignedF32]) -> Self;
+pub(crate) trait AvxMdInterpolationQ1_15<'a, const GRID_SIZE: usize> {
+    fn new(table: &'a [SseAlignedI16]) -> Self;
     fn inter3_sse<U: AsPrimitive<usize>, const BINS: usize>(
         &self,
         in_r: U,
         in_g: U,
         in_b: U,
-        lut: &[BarycentricWeight; BINS],
-    ) -> AvxVectorSse;
+        lut: &[BarycentricWeightQ1_15; BINS],
+    ) -> AvxVectorQ1_15Sse;
 }
 
 trait Fetcher<T> {
@@ -103,206 +103,208 @@ trait Fetcher<T> {
 
 #[derive(Copy, Clone)]
 #[repr(transparent)]
-pub(crate) struct AvxVectorSse {
-    pub(crate) v: __m128,
+pub(crate) struct AvxVectorQ1_15Sse {
+    pub(crate) v: __m128i,
 }
 
 #[derive(Copy, Clone)]
 #[repr(transparent)]
-pub(crate) struct AvxVector {
-    pub(crate) v: __m256,
+pub(crate) struct AvxVectorQ1_15 {
+    pub(crate) v: __m256i,
 }
 
-impl AvxVector {
+impl AvxVectorQ1_15 {
     #[inline(always)]
-    pub(crate) fn from_sse(lo: AvxVectorSse, hi: AvxVectorSse) -> AvxVector {
+    pub(crate) fn from_sse(lo: AvxVectorQ1_15Sse, hi: AvxVectorQ1_15Sse) -> AvxVectorQ1_15 {
         unsafe {
-            AvxVector {
-                v: _mm256_insertf128_ps::<1>(_mm256_castps128_ps256(lo.v), hi.v),
+            AvxVectorQ1_15 {
+                v: _mm256_inserti128_si256::<1>(_mm256_castsi128_si256(lo.v), hi.v),
             }
         }
     }
 
     #[inline(always)]
-    pub(crate) fn split(self) -> (AvxVectorSse, AvxVectorSse) {
+    pub(crate) fn split(self) -> (AvxVectorQ1_15Sse, AvxVectorQ1_15Sse) {
         unsafe {
             (
-                AvxVectorSse {
-                    v: _mm256_castps256_ps128(self.v),
+                AvxVectorQ1_15Sse {
+                    v: _mm256_castsi256_si128(self.v),
                 },
-                AvxVectorSse {
-                    v: _mm256_extractf128_ps::<1>(self.v),
+                AvxVectorQ1_15Sse {
+                    v: _mm256_extracti128_si256::<1>(self.v),
                 },
             )
         }
     }
 }
 
-impl From<f32> for AvxVectorSse {
+impl From<i16> for AvxVectorQ1_15Sse {
     #[inline(always)]
-    fn from(v: f32) -> Self {
-        AvxVectorSse {
-            v: unsafe { _mm_set1_ps(v) },
+    fn from(v: i16) -> Self {
+        AvxVectorQ1_15Sse {
+            v: unsafe { _mm_set1_epi16(v) },
         }
     }
 }
 
-impl From<f32> for AvxVector {
+impl From<i16> for AvxVectorQ1_15 {
     #[inline(always)]
-    fn from(v: f32) -> Self {
-        AvxVector {
-            v: unsafe { _mm256_set1_ps(v) },
+    fn from(v: i16) -> Self {
+        AvxVectorQ1_15 {
+            v: unsafe { _mm256_set1_epi16(v) },
         }
     }
 }
 
-impl Sub<AvxVectorSse> for AvxVectorSse {
+impl Sub<AvxVectorQ1_15Sse> for AvxVectorQ1_15Sse {
     type Output = Self;
     #[inline(always)]
-    fn sub(self, rhs: AvxVectorSse) -> Self::Output {
-        AvxVectorSse {
-            v: unsafe { _mm_sub_ps(self.v, rhs.v) },
+    fn sub(self, rhs: AvxVectorQ1_15Sse) -> Self::Output {
+        AvxVectorQ1_15Sse {
+            v: unsafe { _mm_sub_epi16(self.v, rhs.v) },
         }
     }
 }
 
-impl Sub<AvxVector> for AvxVector {
+impl Sub<AvxVectorQ1_15> for AvxVectorQ1_15 {
     type Output = Self;
     #[inline(always)]
-    fn sub(self, rhs: AvxVector) -> Self::Output {
-        AvxVector {
-            v: unsafe { _mm256_sub_ps(self.v, rhs.v) },
+    fn sub(self, rhs: AvxVectorQ1_15) -> Self::Output {
+        AvxVectorQ1_15 {
+            v: unsafe { _mm256_sub_epi16(self.v, rhs.v) },
         }
     }
 }
 
-impl Add<AvxVectorSse> for AvxVectorSse {
+impl Add<AvxVectorQ1_15Sse> for AvxVectorQ1_15Sse {
     type Output = Self;
     #[inline(always)]
-    fn add(self, rhs: AvxVectorSse) -> Self::Output {
-        AvxVectorSse {
-            v: unsafe { _mm_add_ps(self.v, rhs.v) },
+    fn add(self, rhs: AvxVectorQ1_15Sse) -> Self::Output {
+        AvxVectorQ1_15Sse {
+            v: unsafe { _mm_add_epi16(self.v, rhs.v) },
         }
     }
 }
 
-impl Mul<AvxVectorSse> for AvxVectorSse {
+impl Mul<AvxVectorQ1_15Sse> for AvxVectorQ1_15Sse {
     type Output = Self;
     #[inline(always)]
-    fn mul(self, rhs: AvxVectorSse) -> Self::Output {
-        AvxVectorSse {
-            v: unsafe { _mm_mul_ps(self.v, rhs.v) },
+    fn mul(self, rhs: AvxVectorQ1_15Sse) -> Self::Output {
+        AvxVectorQ1_15Sse {
+            v: unsafe { _mm_mulhrs_epi16(self.v, rhs.v) },
         }
     }
 }
 
-impl AvxVector {
+impl AvxVectorQ1_15 {
     #[inline(always)]
-    pub(crate) fn neg_mla(self, b: AvxVector, c: AvxVector) -> Self {
+    pub(crate) fn neg_mla(self, b: AvxVectorQ1_15, c: AvxVectorQ1_15) -> Self {
         Self {
-            v: unsafe { _mm256_fnmadd_ps(b.v, c.v, self.v) },
+            v: unsafe { _mm256_sub_epi16(self.v, _mm256_mulhrs_epi16(b.v, c.v)) },
         }
     }
 }
 
-impl AvxVectorSse {
+impl AvxVectorQ1_15Sse {
     #[inline(always)]
-    pub(crate) fn neg_mla(self, b: AvxVectorSse, c: AvxVectorSse) -> Self {
+    pub(crate) fn neg_mla(self, b: AvxVectorQ1_15Sse, c: AvxVectorQ1_15Sse) -> Self {
         Self {
-            v: unsafe { _mm_fnmadd_ps(b.v, c.v, self.v) },
+            v: unsafe { _mm_sub_epi16(self.v, _mm_mulhrs_epi16(b.v, c.v)) },
         }
     }
 }
 
-impl Add<AvxVector> for AvxVector {
+impl Add<AvxVectorQ1_15> for AvxVectorQ1_15 {
     type Output = Self;
     #[inline(always)]
-    fn add(self, rhs: AvxVector) -> Self::Output {
-        AvxVector {
-            v: unsafe { _mm256_add_ps(self.v, rhs.v) },
+    fn add(self, rhs: AvxVectorQ1_15) -> Self::Output {
+        AvxVectorQ1_15 {
+            v: unsafe { _mm256_add_epi16(self.v, rhs.v) },
         }
     }
 }
 
-impl Mul<AvxVector> for AvxVector {
+impl Mul<AvxVectorQ1_15> for AvxVectorQ1_15 {
     type Output = Self;
     #[inline(always)]
-    fn mul(self, rhs: AvxVector) -> Self::Output {
-        AvxVector {
-            v: unsafe { _mm256_mul_ps(self.v, rhs.v) },
+    fn mul(self, rhs: AvxVectorQ1_15) -> Self::Output {
+        AvxVectorQ1_15 {
+            v: unsafe { _mm256_mulhrs_epi16(self.v, rhs.v) },
         }
     }
 }
 
-impl FusedMultiplyAdd<AvxVectorSse> for AvxVectorSse {
+impl FusedMultiplyAdd<AvxVectorQ1_15Sse> for AvxVectorQ1_15Sse {
     #[inline(always)]
-    fn mla(&self, b: AvxVectorSse, c: AvxVectorSse) -> AvxVectorSse {
-        AvxVectorSse {
-            v: unsafe { _mm_fmadd_ps(b.v, c.v, self.v) },
+    fn mla(&self, b: AvxVectorQ1_15Sse, c: AvxVectorQ1_15Sse) -> AvxVectorQ1_15Sse {
+        AvxVectorQ1_15Sse {
+            v: unsafe { _mm_add_epi16(_mm_mulhrs_epi16(b.v, c.v), self.v) },
         }
     }
 }
 
-impl FusedMultiplyAdd<AvxVector> for AvxVector {
+impl FusedMultiplyAdd<AvxVectorQ1_15> for AvxVectorQ1_15 {
     #[inline(always)]
-    fn mla(&self, b: AvxVector, c: AvxVector) -> AvxVector {
-        AvxVector {
-            v: unsafe { _mm256_fmadd_ps(b.v, c.v, self.v) },
+    fn mla(&self, b: AvxVectorQ1_15, c: AvxVectorQ1_15) -> AvxVectorQ1_15 {
+        AvxVectorQ1_15 {
+            v: unsafe { _mm256_add_epi16(_mm256_mulhrs_epi16(b.v, c.v), self.v) },
         }
     }
 }
 
 struct TetrahedralAvxSseFetchVector<'a, const GRID_SIZE: usize> {
-    cube: &'a [SseAlignedF32],
+    cube: &'a [SseAlignedI16],
 }
 
 struct TetrahedralAvxFetchVector<'a, const GRID_SIZE: usize> {
-    cube0: &'a [SseAlignedF32],
-    cube1: &'a [SseAlignedF32],
+    cube0: &'a [SseAlignedI16],
+    cube1: &'a [SseAlignedI16],
 }
 
-impl<const GRID_SIZE: usize> Fetcher<AvxVector> for TetrahedralAvxFetchVector<'_, GRID_SIZE> {
+impl<const GRID_SIZE: usize> Fetcher<AvxVectorQ1_15> for TetrahedralAvxFetchVector<'_, GRID_SIZE> {
     #[inline(always)]
-    fn fetch(&self, x: i32, y: i32, z: i32) -> AvxVector {
+    fn fetch(&self, x: i32, y: i32, z: i32) -> AvxVectorQ1_15 {
         let offset = (x as u32 * (GRID_SIZE as u32 * GRID_SIZE as u32)
             + y as u32 * GRID_SIZE as u32
             + z as u32) as usize;
         let jx0 = unsafe { self.cube0.get_unchecked(offset..) };
         let jx1 = unsafe { self.cube1.get_unchecked(offset..) };
-        AvxVector {
+        AvxVectorQ1_15 {
             v: unsafe {
-                _mm256_insertf128_ps::<1>(
-                    _mm256_castps128_ps256(_mm_load_ps(jx0.as_ptr() as *const f32)),
-                    _mm_load_ps(jx1.as_ptr() as *const f32),
+                _mm256_inserti128_si256::<1>(
+                    _mm256_castsi128_si256(_mm_loadu_si64(jx0.as_ptr() as *const _)),
+                    _mm_loadu_si64(jx1.as_ptr() as *const _),
                 )
             },
         }
     }
 }
 
-impl<const GRID_SIZE: usize> Fetcher<AvxVectorSse> for TetrahedralAvxSseFetchVector<'_, GRID_SIZE> {
+impl<const GRID_SIZE: usize> Fetcher<AvxVectorQ1_15Sse>
+    for TetrahedralAvxSseFetchVector<'_, GRID_SIZE>
+{
     #[inline(always)]
-    fn fetch(&self, x: i32, y: i32, z: i32) -> AvxVectorSse {
+    fn fetch(&self, x: i32, y: i32, z: i32) -> AvxVectorQ1_15Sse {
         let offset = (x as u32 * (GRID_SIZE as u32 * GRID_SIZE as u32)
             + y as u32 * GRID_SIZE as u32
             + z as u32) as usize;
         let jx = unsafe { self.cube.get_unchecked(offset..) };
-        AvxVectorSse {
-            v: unsafe { _mm_load_ps(jx.as_ptr() as *const f32) },
+        AvxVectorQ1_15Sse {
+            v: unsafe { _mm_loadu_si64(jx.as_ptr() as *const _) },
         }
     }
 }
 
-impl<const GRID_SIZE: usize> TetrahedralAvxFma<'_, GRID_SIZE> {
+impl<const GRID_SIZE: usize> TetrahedralAvxFmaQ1_15<'_, GRID_SIZE> {
     #[inline(always)]
     fn interpolate<U: AsPrimitive<usize>, const BINS: usize>(
         &self,
         in_r: U,
         in_g: U,
         in_b: U,
-        lut: &[BarycentricWeight; BINS],
-        r: impl Fetcher<AvxVectorSse>,
-    ) -> AvxVectorSse {
+        lut: &[BarycentricWeightQ1_15; BINS],
+        r: impl Fetcher<AvxVectorQ1_15Sse>,
+    ) -> AvxVectorQ1_15Sse {
         let lut_r = lut[in_r.as_()];
         let lut_g = lut[in_g.as_()];
         let lut_b = lut[in_b.as_()];
@@ -357,19 +359,19 @@ impl<const GRID_SIZE: usize> TetrahedralAvxFma<'_, GRID_SIZE> {
             c2 = r.fetch(x, y_n, z_n) - r.fetch(x, y, z_n);
             c3 = r.fetch(x, y, z_n) - c0;
         }
-        let s0 = c0.mla(c1, AvxVectorSse::from(rx));
-        let s1 = s0.mla(c2, AvxVectorSse::from(ry));
-        s1.mla(c3, AvxVectorSse::from(rz))
+        let s0 = c0.mla(c1, AvxVectorQ1_15Sse::from(rx));
+        let s1 = s0.mla(c2, AvxVectorQ1_15Sse::from(ry));
+        s1.mla(c3, AvxVectorQ1_15Sse::from(rz))
     }
 }
 
 macro_rules! define_interp_avx {
     ($interpolator: ident) => {
-        impl<'a, const GRID_SIZE: usize> AvxMdInterpolation<'a, GRID_SIZE>
+        impl<'a, const GRID_SIZE: usize> AvxMdInterpolationQ1_15<'a, GRID_SIZE>
             for $interpolator<'a, GRID_SIZE>
         {
             #[inline(always)]
-            fn new(table: &'a [SseAlignedF32]) -> Self {
+            fn new(table: &'a [SseAlignedI16]) -> Self {
                 Self { cube: table }
             }
 
@@ -379,8 +381,8 @@ macro_rules! define_interp_avx {
                 in_r: U,
                 in_g: U,
                 in_b: U,
-                lut: &[BarycentricWeight; BINS],
-            ) -> AvxVectorSse {
+                lut: &[BarycentricWeightQ1_15; BINS],
+            ) -> AvxVectorQ1_15Sse {
                 self.interpolate(
                     in_r,
                     in_g,
@@ -395,11 +397,11 @@ macro_rules! define_interp_avx {
 
 macro_rules! define_interp_avx_d {
     ($interpolator: ident) => {
-        impl<'a, const GRID_SIZE: usize> AvxMdInterpolationDouble<'a, GRID_SIZE>
+        impl<'a, const GRID_SIZE: usize> AvxMdInterpolationQ1_15Double<'a, GRID_SIZE>
             for $interpolator<'a, GRID_SIZE>
         {
             #[inline(always)]
-            fn new(table0: &'a [SseAlignedF32], table1: &'a [SseAlignedF32]) -> Self {
+            fn new(table0: &'a [SseAlignedI16], table1: &'a [SseAlignedI16]) -> Self {
                 Self {
                     cube0: table0,
                     cube1: table1,
@@ -412,8 +414,8 @@ macro_rules! define_interp_avx_d {
                 in_r: U,
                 in_g: U,
                 in_b: U,
-                lut: &[BarycentricWeight; BINS],
-            ) -> (AvxVectorSse, AvxVectorSse) {
+                lut: &[BarycentricWeightQ1_15; BINS],
+            ) -> (AvxVectorQ1_15Sse, AvxVectorQ1_15Sse) {
                 self.interpolate(
                     in_r,
                     in_g,
@@ -427,18 +429,18 @@ macro_rules! define_interp_avx_d {
     };
 }
 
-define_interp_avx!(TetrahedralAvxFma);
-define_interp_avx!(PyramidalAvxFma);
-define_interp_avx!(PrismaticAvxFma);
-define_interp_avx!(TrilinearAvxFma);
-define_interp_avx_d!(PrismaticAvxFmaDouble);
-define_interp_avx_d!(PyramidAvxFmaDouble);
+define_interp_avx!(TetrahedralAvxFmaQ1_15);
+define_interp_avx!(PyramidalAvxFmaQ1_15);
+define_interp_avx!(PrismaticAvxFmaQ1_15);
+define_interp_avx!(TrilinearAvxFmaQ1_15);
+define_interp_avx_d!(PrismaticAvxFmaQ1_15Double);
+define_interp_avx_d!(PyramidAvxFmaQ1_15Double);
 
-impl<'a, const GRID_SIZE: usize> AvxMdInterpolationDouble<'a, GRID_SIZE>
-    for TetrahedralAvxFmaDouble<'a, GRID_SIZE>
+impl<'a, const GRID_SIZE: usize> AvxMdInterpolationQ1_15Double<'a, GRID_SIZE>
+    for TetrahedralAvxFmaQ1_15Double<'a, GRID_SIZE>
 {
     #[inline(always)]
-    fn new(table0: &'a [SseAlignedF32], table1: &'a [SseAlignedF32]) -> Self {
+    fn new(table0: &'a [SseAlignedI16], table1: &'a [SseAlignedI16]) -> Self {
         Self {
             cube0: table0,
             cube1: table1,
@@ -451,8 +453,8 @@ impl<'a, const GRID_SIZE: usize> AvxMdInterpolationDouble<'a, GRID_SIZE>
         in_r: U,
         in_g: U,
         in_b: U,
-        lut: &[BarycentricWeight; BINS],
-    ) -> (AvxVectorSse, AvxVectorSse) {
+        lut: &[BarycentricWeightQ1_15; BINS],
+    ) -> (AvxVectorQ1_15Sse, AvxVectorQ1_15Sse) {
         self.interpolate(
             in_r,
             in_g,
@@ -466,11 +468,11 @@ impl<'a, const GRID_SIZE: usize> AvxMdInterpolationDouble<'a, GRID_SIZE>
     }
 }
 
-impl<'a, const GRID_SIZE: usize> AvxMdInterpolationDouble<'a, GRID_SIZE>
-    for TrilinearAvxFmaDouble<'a, GRID_SIZE>
+impl<'a, const GRID_SIZE: usize> AvxMdInterpolationQ1_15Double<'a, GRID_SIZE>
+    for TrilinearAvxFmaQ1_15Double<'a, GRID_SIZE>
 {
     #[inline(always)]
-    fn new(table0: &'a [SseAlignedF32], table1: &'a [SseAlignedF32]) -> Self {
+    fn new(table0: &'a [SseAlignedI16], table1: &'a [SseAlignedI16]) -> Self {
         Self {
             cube0: table0,
             cube1: table1,
@@ -483,8 +485,8 @@ impl<'a, const GRID_SIZE: usize> AvxMdInterpolationDouble<'a, GRID_SIZE>
         in_r: U,
         in_g: U,
         in_b: U,
-        lut: &[BarycentricWeight; BINS],
-    ) -> (AvxVectorSse, AvxVectorSse) {
+        lut: &[BarycentricWeightQ1_15; BINS],
+    ) -> (AvxVectorQ1_15Sse, AvxVectorQ1_15Sse) {
         self.interpolate(
             in_r,
             in_g,
@@ -498,16 +500,16 @@ impl<'a, const GRID_SIZE: usize> AvxMdInterpolationDouble<'a, GRID_SIZE>
     }
 }
 
-impl<const GRID_SIZE: usize> PyramidalAvxFma<'_, GRID_SIZE> {
+impl<const GRID_SIZE: usize> PyramidalAvxFmaQ1_15<'_, GRID_SIZE> {
     #[inline(always)]
     fn interpolate<U: AsPrimitive<usize>, const BINS: usize>(
         &self,
         in_r: U,
         in_g: U,
         in_b: U,
-        lut: &[BarycentricWeight; BINS],
-        r: impl Fetcher<AvxVectorSse>,
-    ) -> AvxVectorSse {
+        lut: &[BarycentricWeightQ1_15; BINS],
+        r: impl Fetcher<AvxVectorQ1_15Sse>,
+    ) -> AvxVectorQ1_15Sse {
         let lut_r = lut[in_r.as_()];
         let lut_g = lut[in_g.as_()];
         let lut_b = lut[in_b.as_()];
@@ -526,12 +528,12 @@ impl<const GRID_SIZE: usize> PyramidalAvxFma<'_, GRID_SIZE> {
 
         let c0 = r.fetch(x, y, z);
 
-        let w0 = AvxVectorSse::from(db);
-        let w1 = AvxVectorSse::from(dr);
-        let w2 = AvxVectorSse::from(dg);
+        let w0 = AvxVectorQ1_15Sse::from(db);
+        let w1 = AvxVectorQ1_15Sse::from(dr);
+        let w2 = AvxVectorQ1_15Sse::from(dg);
 
         if dr > db && dg > db {
-            let w3 = AvxVectorSse::from(dr * dg);
+            let w3 = AvxVectorQ1_15Sse::from(dr) * AvxVectorQ1_15Sse::from(dg);
             let x0 = r.fetch(x_n, y_n, z_n);
             let x1 = r.fetch(x_n, y_n, z);
             let x2 = r.fetch(x_n, y, z);
@@ -547,7 +549,7 @@ impl<const GRID_SIZE: usize> PyramidalAvxFma<'_, GRID_SIZE> {
             let s2 = s1.mla(c3, w2);
             s2.mla(c4, w3)
         } else if db > dr && dg > dr {
-            let w3 = AvxVectorSse::from(dg * db);
+            let w3 = AvxVectorQ1_15Sse::from(dg) * AvxVectorQ1_15Sse::from(db);
 
             let x0 = r.fetch(x, y, z_n);
             let x1 = r.fetch(x_n, y_n, z_n);
@@ -564,7 +566,7 @@ impl<const GRID_SIZE: usize> PyramidalAvxFma<'_, GRID_SIZE> {
             let s2 = s1.mla(c3, w2);
             s2.mla(c4, w3)
         } else {
-            let w3 = AvxVectorSse::from(db * dr);
+            let w3 = AvxVectorQ1_15Sse::from(db) * AvxVectorQ1_15Sse::from(dr);
 
             let x0 = r.fetch(x, y, z_n);
             let x1 = r.fetch(x_n, y, z);
@@ -584,16 +586,16 @@ impl<const GRID_SIZE: usize> PyramidalAvxFma<'_, GRID_SIZE> {
     }
 }
 
-impl<const GRID_SIZE: usize> PrismaticAvxFma<'_, GRID_SIZE> {
+impl<const GRID_SIZE: usize> PrismaticAvxFmaQ1_15<'_, GRID_SIZE> {
     #[inline(always)]
     fn interpolate<U: AsPrimitive<usize>, const BINS: usize>(
         &self,
         in_r: U,
         in_g: U,
         in_b: U,
-        lut: &[BarycentricWeight; BINS],
-        r: impl Fetcher<AvxVectorSse>,
-    ) -> AvxVectorSse {
+        lut: &[BarycentricWeightQ1_15; BINS],
+        r: impl Fetcher<AvxVectorQ1_15Sse>,
+    ) -> AvxVectorQ1_15Sse {
         let lut_r = lut[in_r.as_()];
         let lut_g = lut[in_g.as_()];
         let lut_b = lut[in_b.as_()];
@@ -612,11 +614,11 @@ impl<const GRID_SIZE: usize> PrismaticAvxFma<'_, GRID_SIZE> {
 
         let c0 = r.fetch(x, y, z);
 
-        let w0 = AvxVectorSse::from(db);
-        let w1 = AvxVectorSse::from(dr);
-        let w2 = AvxVectorSse::from(dg);
-        let w3 = AvxVectorSse::from(dg * db);
-        let w4 = AvxVectorSse::from(dr * dg);
+        let w0 = AvxVectorQ1_15Sse::from(db);
+        let w1 = AvxVectorQ1_15Sse::from(dr);
+        let w2 = AvxVectorQ1_15Sse::from(dg);
+        let w3 = AvxVectorQ1_15Sse::from(dg) * AvxVectorQ1_15Sse::from(db);
+        let w4 = AvxVectorQ1_15Sse::from(dr) * AvxVectorQ1_15Sse::from(dg);
 
         if db > dr {
             let x0 = r.fetch(x, y, z_n);
@@ -658,17 +660,17 @@ impl<const GRID_SIZE: usize> PrismaticAvxFma<'_, GRID_SIZE> {
     }
 }
 
-impl<const GRID_SIZE: usize> PrismaticAvxFmaDouble<'_, GRID_SIZE> {
+impl<const GRID_SIZE: usize> PrismaticAvxFmaQ1_15Double<'_, GRID_SIZE> {
     #[inline(always)]
     fn interpolate<U: AsPrimitive<usize>, const BINS: usize>(
         &self,
         in_r: U,
         in_g: U,
         in_b: U,
-        lut: &[BarycentricWeight; BINS],
-        r0: impl Fetcher<AvxVectorSse>,
-        r1: impl Fetcher<AvxVectorSse>,
-    ) -> (AvxVectorSse, AvxVectorSse) {
+        lut: &[BarycentricWeightQ1_15; BINS],
+        r0: impl Fetcher<AvxVectorQ1_15Sse>,
+        r1: impl Fetcher<AvxVectorQ1_15Sse>,
+    ) -> (AvxVectorQ1_15Sse, AvxVectorQ1_15Sse) {
         let lut_r = lut[in_r.as_()];
         let lut_g = lut[in_g.as_()];
         let lut_b = lut[in_b.as_()];
@@ -688,13 +690,13 @@ impl<const GRID_SIZE: usize> PrismaticAvxFmaDouble<'_, GRID_SIZE> {
         let c0_0 = r0.fetch(x, y, z);
         let c0_1 = r0.fetch(x, y, z);
 
-        let w0 = AvxVector::from(db);
-        let w1 = AvxVector::from(dr);
-        let w2 = AvxVector::from(dg);
-        let w3 = AvxVector::from(dg * db);
-        let w4 = AvxVector::from(dr * dg);
+        let w0 = AvxVectorQ1_15::from(db);
+        let w1 = AvxVectorQ1_15::from(dr);
+        let w2 = AvxVectorQ1_15::from(dg);
+        let w3 = AvxVectorQ1_15::from(dg) * AvxVectorQ1_15::from(db);
+        let w4 = AvxVectorQ1_15::from(dr) * AvxVectorQ1_15::from(dg);
 
-        let c0 = AvxVector::from_sse(c0_0, c0_1);
+        let c0 = AvxVectorQ1_15::from_sse(c0_0, c0_1);
 
         if db > dr {
             let x0_0 = r0.fetch(x, y, z_n);
@@ -709,11 +711,11 @@ impl<const GRID_SIZE: usize> PrismaticAvxFmaDouble<'_, GRID_SIZE> {
             let x3_1 = r1.fetch(x, y_n, z_n);
             let x4_1 = r1.fetch(x_n, y_n, z_n);
 
-            let x0 = AvxVector::from_sse(x0_0, x0_1);
-            let x1 = AvxVector::from_sse(x1_0, x1_1);
-            let x2 = AvxVector::from_sse(x2_0, x2_1);
-            let x3 = AvxVector::from_sse(x3_0, x3_1);
-            let x4 = AvxVector::from_sse(x4_0, x4_1);
+            let x0 = AvxVectorQ1_15::from_sse(x0_0, x0_1);
+            let x1 = AvxVectorQ1_15::from_sse(x1_0, x1_1);
+            let x2 = AvxVectorQ1_15::from_sse(x2_0, x2_1);
+            let x3 = AvxVectorQ1_15::from_sse(x3_0, x3_1);
+            let x4 = AvxVectorQ1_15::from_sse(x4_0, x4_1);
 
             let c1 = x0 - c0;
             let c2 = x1 - x0;
@@ -739,11 +741,11 @@ impl<const GRID_SIZE: usize> PrismaticAvxFmaDouble<'_, GRID_SIZE> {
             let x3_1 = r1.fetch(x_n, y_n, z);
             let x4_1 = r1.fetch(x_n, y_n, z_n);
 
-            let x0 = AvxVector::from_sse(x0_0, x0_1);
-            let x1 = AvxVector::from_sse(x1_0, x1_1);
-            let x2 = AvxVector::from_sse(x2_0, x2_1);
-            let x3 = AvxVector::from_sse(x3_0, x3_1);
-            let x4 = AvxVector::from_sse(x4_0, x4_1);
+            let x0 = AvxVectorQ1_15::from_sse(x0_0, x0_1);
+            let x1 = AvxVectorQ1_15::from_sse(x1_0, x1_1);
+            let x2 = AvxVectorQ1_15::from_sse(x2_0, x2_1);
+            let x3 = AvxVectorQ1_15::from_sse(x3_0, x3_1);
+            let x4 = AvxVectorQ1_15::from_sse(x4_0, x4_1);
 
             let c1 = x1 - x0;
             let c2 = x0 - c0;
@@ -760,17 +762,17 @@ impl<const GRID_SIZE: usize> PrismaticAvxFmaDouble<'_, GRID_SIZE> {
     }
 }
 
-impl<const GRID_SIZE: usize> PyramidAvxFmaDouble<'_, GRID_SIZE> {
+impl<const GRID_SIZE: usize> PyramidAvxFmaQ1_15Double<'_, GRID_SIZE> {
     #[inline(always)]
     fn interpolate<U: AsPrimitive<usize>, const BINS: usize>(
         &self,
         in_r: U,
         in_g: U,
         in_b: U,
-        lut: &[BarycentricWeight; BINS],
-        r0: impl Fetcher<AvxVectorSse>,
-        r1: impl Fetcher<AvxVectorSse>,
-    ) -> (AvxVectorSse, AvxVectorSse) {
+        lut: &[BarycentricWeightQ1_15; BINS],
+        r0: impl Fetcher<AvxVectorQ1_15Sse>,
+        r1: impl Fetcher<AvxVectorQ1_15Sse>,
+    ) -> (AvxVectorQ1_15Sse, AvxVectorQ1_15Sse) {
         let lut_r = lut[in_r.as_()];
         let lut_g = lut[in_g.as_()];
         let lut_b = lut[in_b.as_()];
@@ -790,14 +792,14 @@ impl<const GRID_SIZE: usize> PyramidAvxFmaDouble<'_, GRID_SIZE> {
         let c0_0 = r0.fetch(x, y, z);
         let c0_1 = r1.fetch(x, y, z);
 
-        let w0 = AvxVector::from(db);
-        let w1 = AvxVector::from(dr);
-        let w2 = AvxVector::from(dg);
+        let w0 = AvxVectorQ1_15::from(db);
+        let w1 = AvxVectorQ1_15::from(dr);
+        let w2 = AvxVectorQ1_15::from(dg);
 
-        let c0 = AvxVector::from_sse(c0_0, c0_1);
+        let c0 = AvxVectorQ1_15::from_sse(c0_0, c0_1);
 
         if dr > db && dg > db {
-            let w3 = AvxVector::from(dr * dg);
+            let w3 = AvxVectorQ1_15::from(dr) * AvxVectorQ1_15::from(dg);
 
             let x0_0 = r0.fetch(x_n, y_n, z_n);
             let x1_0 = r0.fetch(x_n, y_n, z);
@@ -809,10 +811,10 @@ impl<const GRID_SIZE: usize> PyramidAvxFmaDouble<'_, GRID_SIZE> {
             let x2_1 = r1.fetch(x_n, y, z);
             let x3_1 = r1.fetch(x, y_n, z);
 
-            let x0 = AvxVector::from_sse(x0_0, x0_1);
-            let x1 = AvxVector::from_sse(x1_0, x1_1);
-            let x2 = AvxVector::from_sse(x2_0, x2_1);
-            let x3 = AvxVector::from_sse(x3_0, x3_1);
+            let x0 = AvxVectorQ1_15::from_sse(x0_0, x0_1);
+            let x1 = AvxVectorQ1_15::from_sse(x1_0, x1_1);
+            let x2 = AvxVectorQ1_15::from_sse(x2_0, x2_1);
+            let x3 = AvxVectorQ1_15::from_sse(x3_0, x3_1);
 
             let c1 = x0 - x1;
             let c2 = x2 - c0;
@@ -824,7 +826,7 @@ impl<const GRID_SIZE: usize> PyramidAvxFmaDouble<'_, GRID_SIZE> {
             let s2 = s1.mla(c3, w2);
             s2.mla(c4, w3).split()
         } else if db > dr && dg > dr {
-            let w3 = AvxVector::from(dg * db);
+            let w3 = AvxVectorQ1_15::from(dg) * AvxVectorQ1_15::from(db);
 
             let x0_0 = r0.fetch(x, y, z_n);
             let x1_0 = r0.fetch(x_n, y_n, z_n);
@@ -836,10 +838,10 @@ impl<const GRID_SIZE: usize> PyramidAvxFmaDouble<'_, GRID_SIZE> {
             let x2_1 = r1.fetch(x, y_n, z_n);
             let x3_1 = r1.fetch(x, y_n, z);
 
-            let x0 = AvxVector::from_sse(x0_0, x0_1);
-            let x1 = AvxVector::from_sse(x1_0, x1_1);
-            let x2 = AvxVector::from_sse(x2_0, x2_1);
-            let x3 = AvxVector::from_sse(x3_0, x3_1);
+            let x0 = AvxVectorQ1_15::from_sse(x0_0, x0_1);
+            let x1 = AvxVectorQ1_15::from_sse(x1_0, x1_1);
+            let x2 = AvxVectorQ1_15::from_sse(x2_0, x2_1);
+            let x3 = AvxVectorQ1_15::from_sse(x3_0, x3_1);
 
             let c1 = x0 - c0;
             let c2 = x1 - x2;
@@ -851,7 +853,7 @@ impl<const GRID_SIZE: usize> PyramidAvxFmaDouble<'_, GRID_SIZE> {
             let s2 = s1.mla(c3, w2);
             s2.mla(c4, w3).split()
         } else {
-            let w3 = AvxVector::from(db * dr);
+            let w3 = AvxVectorQ1_15::from(db) * AvxVectorQ1_15::from(dr);
 
             let x0_0 = r0.fetch(x, y, z_n);
             let x1_0 = r0.fetch(x_n, y, z);
@@ -863,10 +865,10 @@ impl<const GRID_SIZE: usize> PyramidAvxFmaDouble<'_, GRID_SIZE> {
             let x2_1 = r1.fetch(x_n, y, z_n);
             let x3_1 = r1.fetch(x_n, y_n, z_n);
 
-            let x0 = AvxVector::from_sse(x0_0, x0_1);
-            let x1 = AvxVector::from_sse(x1_0, x1_1);
-            let x2 = AvxVector::from_sse(x2_0, x2_1);
-            let x3 = AvxVector::from_sse(x3_0, x3_1);
+            let x0 = AvxVectorQ1_15::from_sse(x0_0, x0_1);
+            let x1 = AvxVectorQ1_15::from_sse(x1_0, x1_1);
+            let x2 = AvxVectorQ1_15::from_sse(x2_0, x2_1);
+            let x3 = AvxVectorQ1_15::from_sse(x3_0, x3_1);
 
             let c1 = x0 - c0;
             let c2 = x1 - c0;
@@ -881,16 +883,16 @@ impl<const GRID_SIZE: usize> PyramidAvxFmaDouble<'_, GRID_SIZE> {
     }
 }
 
-impl<const GRID_SIZE: usize> TetrahedralAvxFmaDouble<'_, GRID_SIZE> {
+impl<const GRID_SIZE: usize> TetrahedralAvxFmaQ1_15Double<'_, GRID_SIZE> {
     #[inline(always)]
     fn interpolate<U: AsPrimitive<usize>, const BINS: usize>(
         &self,
         in_r: U,
         in_g: U,
         in_b: U,
-        lut: &[BarycentricWeight; BINS],
-        rv: impl Fetcher<AvxVector>,
-    ) -> (AvxVectorSse, AvxVectorSse) {
+        lut: &[BarycentricWeightQ1_15; BINS],
+        rv: impl Fetcher<AvxVectorQ1_15>,
+    ) -> (AvxVectorQ1_15Sse, AvxVectorQ1_15Sse) {
         let lut_r = lut[in_r.as_()];
         let lut_g = lut[in_g.as_()];
         let lut_b = lut[in_b.as_()];
@@ -909,9 +911,9 @@ impl<const GRID_SIZE: usize> TetrahedralAvxFmaDouble<'_, GRID_SIZE> {
 
         let c0 = rv.fetch(x, y, z);
 
-        let w0 = AvxVector::from(rx);
-        let w1 = AvxVector::from(ry);
-        let w2 = AvxVector::from(rz);
+        let w0 = AvxVectorQ1_15::from(rx);
+        let w1 = AvxVectorQ1_15::from(ry);
+        let w2 = AvxVectorQ1_15::from(rz);
 
         let c2;
         let c1;
@@ -955,16 +957,16 @@ impl<const GRID_SIZE: usize> TetrahedralAvxFmaDouble<'_, GRID_SIZE> {
     }
 }
 
-impl<const GRID_SIZE: usize> TrilinearAvxFmaDouble<'_, GRID_SIZE> {
+impl<const GRID_SIZE: usize> TrilinearAvxFmaQ1_15Double<'_, GRID_SIZE> {
     #[inline(always)]
     fn interpolate<U: AsPrimitive<usize>, const BINS: usize>(
         &self,
         in_r: U,
         in_g: U,
         in_b: U,
-        lut: &[BarycentricWeight; BINS],
-        rv: impl Fetcher<AvxVector>,
-    ) -> (AvxVectorSse, AvxVectorSse) {
+        lut: &[BarycentricWeightQ1_15; BINS],
+        rv: impl Fetcher<AvxVectorQ1_15>,
+    ) -> (AvxVectorQ1_15Sse, AvxVectorQ1_15Sse) {
         let lut_r = lut[in_r.as_()];
         let lut_g = lut[in_g.as_()];
         let lut_b = lut[in_b.as_()];
@@ -981,9 +983,15 @@ impl<const GRID_SIZE: usize> TrilinearAvxFmaDouble<'_, GRID_SIZE> {
         let ry = lut_g.w;
         let rz = lut_b.w;
 
-        let w0 = AvxVector::from(rx);
-        let w1 = AvxVector::from(ry);
-        let w2 = AvxVector::from(rz);
+        const Q_MAX: i16 = ((1i32 << 15i32) - 1) as i16;
+
+        let q_max = AvxVectorQ1_15::from(Q_MAX);
+        let w0 = AvxVectorQ1_15::from(rx);
+        let w1 = AvxVectorQ1_15::from(ry);
+        let w2 = AvxVectorQ1_15::from(rz);
+        let dx = q_max - w0;
+        let dy = q_max - w1;
+        let dz = q_max - w2;
 
         let c000 = rv.fetch(x, y, z);
         let c100 = rv.fetch(x_n, y, z);
@@ -994,34 +1002,28 @@ impl<const GRID_SIZE: usize> TrilinearAvxFmaDouble<'_, GRID_SIZE> {
         let c011 = rv.fetch(x, y_n, z_n);
         let c111 = rv.fetch(x_n, y_n, z_n);
 
-        let dx = AvxVector::from(rx);
+        let c00 = (c000 * dx).mla(c100, w0);
+        let c10 = (c010 * dx).mla(c110, w0);
+        let c01 = (c001 * dx).mla(c101, w0);
+        let c11 = (c011 * dx).mla(c111, w0);
 
-        let c00 = c000.neg_mla(c000, dx).mla(c100, w0);
-        let c10 = c010.neg_mla(c010, dx).mla(c110, w0);
-        let c01 = c001.neg_mla(c001, dx).mla(c101, w0);
-        let c11 = c011.neg_mla(c011, dx).mla(c111, w0);
+        let c0 = (c00 * dy).mla(c10, w1);
+        let c1 = (c01 * dy).mla(c11, w1);
 
-        let dy = AvxVector::from(ry);
-
-        let c0 = c00.neg_mla(c00, dy).mla(c10, w1);
-        let c1 = c01.neg_mla(c01, dy).mla(c11, w1);
-
-        let dz = AvxVector::from(rz);
-
-        c0.neg_mla(c0, dz).mla(c1, w2).split()
+        (c0 * dz).mla(c1, w2).split()
     }
 }
 
-impl<const GRID_SIZE: usize> TrilinearAvxFma<'_, GRID_SIZE> {
+impl<const GRID_SIZE: usize> TrilinearAvxFmaQ1_15<'_, GRID_SIZE> {
     #[inline(always)]
     fn interpolate<U: AsPrimitive<usize>, const BINS: usize>(
         &self,
         in_r: U,
         in_g: U,
         in_b: U,
-        lut: &[BarycentricWeight; BINS],
-        r: impl Fetcher<AvxVectorSse>,
-    ) -> AvxVectorSse {
+        lut: &[BarycentricWeightQ1_15; BINS],
+        r: impl Fetcher<AvxVectorQ1_15Sse>,
+    ) -> AvxVectorQ1_15Sse {
         let lut_r = lut[in_r.as_()];
         let lut_g = lut[in_g.as_()];
         let lut_b = lut[in_b.as_()];
@@ -1038,9 +1040,16 @@ impl<const GRID_SIZE: usize> TrilinearAvxFma<'_, GRID_SIZE> {
         let dg = lut_g.w;
         let db = lut_b.w;
 
-        let w0 = AvxVector::from(dr);
-        let w1 = AvxVector::from(dg);
-        let w2 = AvxVectorSse::from(db);
+        const Q_MAX: i16 = ((1i32 << 15i32) - 1) as i16;
+
+        let q_max = AvxVectorQ1_15Sse::from(Q_MAX);
+        let q_max_avx = AvxVectorQ1_15::from(Q_MAX);
+        let w0 = AvxVectorQ1_15::from(dr);
+        let w1 = AvxVectorQ1_15::from(dg);
+        let w2 = AvxVectorQ1_15Sse::from(db);
+        let dx = q_max_avx - w0;
+        let dy = q_max_avx - w1;
+        let dz = q_max - w2;
 
         let c000 = r.fetch(x, y, z);
         let c100 = r.fetch(x_n, y, z);
@@ -1051,18 +1060,18 @@ impl<const GRID_SIZE: usize> TrilinearAvxFma<'_, GRID_SIZE> {
         let c011 = r.fetch(x, y_n, z_n);
         let c111 = r.fetch(x_n, y_n, z_n);
 
-        let x000 = AvxVector::from_sse(c000, c001);
-        let x010 = AvxVector::from_sse(c010, c011);
-        let x011 = AvxVector::from_sse(c100, c101);
-        let x111 = AvxVector::from_sse(c110, c111);
+        let x000 = AvxVectorQ1_15::from_sse(c000, c001);
+        let x010 = AvxVectorQ1_15::from_sse(c010, c011);
+        let x011 = AvxVectorQ1_15::from_sse(c100, c101);
+        let x111 = AvxVectorQ1_15::from_sse(c110, c111);
 
-        let c00 = x000.neg_mla(x000, w0).mla(x011, w0);
-        let c10 = x010.neg_mla(x010, w0).mla(x111, w0);
+        let c00 = (x000 * dx).mla(x011, w0);
+        let c10 = (x010 * dx).mla(x111, w0);
 
-        let z0 = c00.neg_mla(c00, w1).mla(c10, w1);
+        let c0 = (c00 * dy).mla(c10, w1);
 
-        let (c0, c1) = z0.split();
+        let (c0, c1) = c0.split();
 
-        c0.neg_mla(c0, w2).mla(c1, w2)
+        (c0 * dz).mla(c1, w2)
     }
 }

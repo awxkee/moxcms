@@ -27,11 +27,11 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::err::CmsError;
-use crate::math::FusedMultiplyAdd;
-use crate::mlaf::mlaf;
+use crate::math::{FusedMultiplyAdd, FusedMultiplyNegAdd};
+use crate::mlaf::{mlaf, neg_mlaf};
 use crate::profile::s15_fixed16_number_to_float;
 use num_traits::{AsPrimitive, MulAdd};
-use std::ops::{Add, Div, Mul, Sub};
+use std::ops::{Add, Div, Mul, Neg, Sub};
 
 /// Vector math helper
 #[repr(transparent)]
@@ -59,7 +59,7 @@ impl<T> PartialEq<Self> for Vector3<T>
 where
     T: AsPrimitive<f32>,
 {
-    #[inline]
+    #[inline(always)]
     fn eq(&self, other: &Self) -> bool {
         const TOLERANCE: f32 = 0.0001f32;
         let dx = (self.v[0].as_() - other.v[0].as_()).abs();
@@ -70,7 +70,7 @@ where
 }
 
 impl<T> Vector3<T> {
-    #[inline]
+    #[inline(always)]
     pub fn to_<Z: Copy + 'static>(self) -> Vector3<Z>
     where
         T: AsPrimitive<Z>,
@@ -87,7 +87,7 @@ where
 {
     type Output = Vector3<T>;
 
-    #[inline]
+    #[inline(always)]
     fn mul(self, rhs: Vector3<T>) -> Self::Output {
         Self {
             v: [
@@ -105,7 +105,7 @@ where
 {
     type Output = Vector4<T>;
 
-    #[inline]
+    #[inline(always)]
     fn mul(self, rhs: Vector4<T>) -> Self::Output {
         Self {
             v: [
@@ -124,7 +124,7 @@ where
 {
     type Output = Vector3<T>;
 
-    #[inline]
+    #[inline(always)]
     fn mul(self, rhs: T) -> Self::Output {
         Self {
             v: [self.v[0] * rhs, self.v[1] * rhs, self.v[2] * rhs],
@@ -133,7 +133,7 @@ where
 }
 
 impl Vector3<f32> {
-    #[inline]
+    #[inline(always)]
     const fn const_mul_vector(self, v: Vector3f) -> Vector3f {
         Vector3f {
             v: [self.v[0] * v.v[0], self.v[1] * v.v[1], self.v[2] * v.v[2]],
@@ -142,7 +142,7 @@ impl Vector3<f32> {
 }
 
 impl Vector3d {
-    #[inline]
+    #[inline(always)]
     const fn const_mul_vector(self, v: Vector3d) -> Vector3d {
         Vector3d {
             v: [self.v[0] * v.v[0], self.v[1] * v.v[1], self.v[2] * v.v[2]],
@@ -167,7 +167,7 @@ where
 {
     type Output = Vector4<T>;
 
-    #[inline]
+    #[inline(always)]
     fn mul(self, rhs: T) -> Self::Output {
         Self {
             v: [
@@ -192,6 +192,18 @@ impl<T: Copy + Mul<T, Output = T> + Add<T, Output = T> + MulAdd<T, Output = T>>
     }
 }
 
+impl<T: Copy + Mul<T, Output = T> + Add<T, Output = T> + MulAdd<T, Output = T> + Neg<Output = T>>
+    FusedMultiplyNegAdd<Vector3<T>> for Vector3<T>
+{
+    #[inline(always)]
+    fn neg_mla(&self, b: Vector3<T>, c: Vector3<T>) -> Vector3<T> {
+        let x0 = neg_mlaf(self.v[0], b.v[0], c.v[0]);
+        let x1 = neg_mlaf(self.v[1], b.v[1], c.v[1]);
+        let x2 = neg_mlaf(self.v[2], b.v[2], c.v[2]);
+        Vector3 { v: [x0, x1, x2] }
+    }
+}
+
 impl<T: Copy + Mul<T, Output = T> + Add<T, Output = T> + MulAdd<T, Output = T>>
     FusedMultiplyAdd<Vector4<T>> for Vector4<T>
 {
@@ -201,6 +213,21 @@ impl<T: Copy + Mul<T, Output = T> + Add<T, Output = T> + MulAdd<T, Output = T>>
         let x1 = mlaf(self.v[1], b.v[1], c.v[1]);
         let x2 = mlaf(self.v[2], b.v[2], c.v[2]);
         let x3 = mlaf(self.v[3], b.v[3], c.v[3]);
+        Vector4 {
+            v: [x0, x1, x2, x3],
+        }
+    }
+}
+
+impl<T: Copy + Mul<T, Output = T> + Add<T, Output = T> + MulAdd<T, Output = T> + Neg<Output = T>>
+    FusedMultiplyNegAdd<Vector4<T>> for Vector4<T>
+{
+    #[inline(always)]
+    fn neg_mla(&self, b: Vector4<T>, c: Vector4<T>) -> Vector4<T> {
+        let x0 = neg_mlaf(self.v[0], b.v[0], c.v[0]);
+        let x1 = neg_mlaf(self.v[1], b.v[1], c.v[1]);
+        let x2 = neg_mlaf(self.v[2], b.v[2], c.v[2]);
+        let x3 = neg_mlaf(self.v[3], b.v[3], c.v[3]);
         Vector4 {
             v: [x0, x1, x2, x3],
         }
@@ -235,7 +262,7 @@ where
 {
     type Output = Vector3<T>;
 
-    #[inline]
+    #[inline(always)]
     fn add(self, rhs: Vector3<T>) -> Self::Output {
         Self {
             v: [
@@ -253,7 +280,7 @@ where
 {
     type Output = Vector4<T>;
 
-    #[inline]
+    #[inline(always)]
     fn add(self, rhs: Vector4<T>) -> Self::Output {
         Self {
             v: [
@@ -272,7 +299,7 @@ where
 {
     type Output = Vector3<T>;
 
-    #[inline]
+    #[inline(always)]
     fn add(self, rhs: T) -> Self::Output {
         Self {
             v: [self.v[0] + rhs, self.v[1] + rhs, self.v[2] + rhs],
@@ -286,7 +313,7 @@ where
 {
     type Output = Vector4<T>;
 
-    #[inline]
+    #[inline(always)]
     fn add(self, rhs: T) -> Self::Output {
         Self {
             v: [
@@ -305,7 +332,7 @@ where
 {
     type Output = Vector3<T>;
 
-    #[inline]
+    #[inline(always)]
     fn sub(self, rhs: Vector3<T>) -> Self::Output {
         Self {
             v: [
@@ -323,7 +350,7 @@ where
 {
     type Output = Vector4<T>;
 
-    #[inline]
+    #[inline(always)]
     fn sub(self, rhs: Vector4<T>) -> Self::Output {
         Self {
             v: [
