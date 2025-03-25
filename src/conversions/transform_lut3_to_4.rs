@@ -49,7 +49,7 @@ pub(crate) struct TransformLut3x4<
     pub(crate) _phantom: PhantomData<T>,
     pub(crate) _phantom1: PhantomData<U>,
     pub(crate) interpolation_method: InterpolationMethod,
-    pub(crate) weights: Box<[BarycentricWeight; BINS]>,
+    pub(crate) weights: Box<[BarycentricWeight<f32>; BINS]>,
 }
 
 impl<
@@ -186,7 +186,7 @@ where
                 _phantom: PhantomData,
                 _phantom1: PhantomData,
                 interpolation_method: options.interpolation_method,
-                weights: BarycentricWeight::create_ranged_256::<GRID_SIZE>(),
+                weights: BarycentricWeight::<f32>::create_ranged_256::<GRID_SIZE>(),
             }),
             BarycentricWeightScale::High => Box::new(TransformLut3x4::<
                 T,
@@ -201,7 +201,7 @@ where
                 _phantom: PhantomData,
                 _phantom1: PhantomData,
                 interpolation_method: options.interpolation_method,
-                weights: BarycentricWeight::create_binned::<GRID_SIZE, 65536>(),
+                weights: BarycentricWeight::<f32>::create_binned::<GRID_SIZE, 65536>(),
             }),
         },
         Layout::Rgba => match options.barycentric_weight_scale {
@@ -218,7 +218,7 @@ where
                 _phantom: PhantomData,
                 _phantom1: PhantomData,
                 interpolation_method: options.interpolation_method,
-                weights: BarycentricWeight::create_ranged_256::<GRID_SIZE>(),
+                weights: BarycentricWeight::<f32>::create_ranged_256::<GRID_SIZE>(),
             }),
             BarycentricWeightScale::High => Box::new(TransformLut3x4::<
                 T,
@@ -233,7 +233,7 @@ where
                 _phantom: PhantomData,
                 _phantom1: PhantomData,
                 interpolation_method: options.interpolation_method,
-                weights: BarycentricWeight::create_binned::<GRID_SIZE, 65536>(),
+                weights: BarycentricWeight::<f32>::create_binned::<GRID_SIZE, 65536>(),
             }),
         },
         _ => unimplemented!(),

@@ -26,8 +26,7 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-#![allow(dead_code)]
-use crate::conversions::interpolator::BarycentricWeightQ1_15;
+use crate::conversions::interpolator::BarycentricWeight;
 use crate::math::FusedMultiplyAdd;
 use num_traits::AsPrimitive;
 #[cfg(target_arch = "x86")]
@@ -82,7 +81,7 @@ pub(crate) trait AvxMdInterpolationQ1_15Double<'a, const GRID_SIZE: usize> {
         in_r: U,
         in_g: U,
         in_b: U,
-        lut: &[BarycentricWeightQ1_15; BINS],
+        lut: &[BarycentricWeight<i16>; BINS],
     ) -> (AvxVectorQ1_15Sse, AvxVectorQ1_15Sse);
 }
 
@@ -93,7 +92,7 @@ pub(crate) trait AvxMdInterpolationQ1_15<'a, const GRID_SIZE: usize> {
         in_r: U,
         in_g: U,
         in_b: U,
-        lut: &[BarycentricWeightQ1_15; BINS],
+        lut: &[BarycentricWeight<i16>; BINS],
     ) -> AvxVectorQ1_15Sse;
 }
 
@@ -196,24 +195,6 @@ impl Mul<AvxVectorQ1_15Sse> for AvxVectorQ1_15Sse {
     }
 }
 
-impl AvxVectorQ1_15 {
-    #[inline(always)]
-    pub(crate) fn neg_mla(self, b: AvxVectorQ1_15, c: AvxVectorQ1_15) -> Self {
-        Self {
-            v: unsafe { _mm256_sub_epi16(self.v, _mm256_mulhrs_epi16(b.v, c.v)) },
-        }
-    }
-}
-
-impl AvxVectorQ1_15Sse {
-    #[inline(always)]
-    pub(crate) fn neg_mla(self, b: AvxVectorQ1_15Sse, c: AvxVectorQ1_15Sse) -> Self {
-        Self {
-            v: unsafe { _mm_sub_epi16(self.v, _mm_mulhrs_epi16(b.v, c.v)) },
-        }
-    }
-}
-
 impl Add<AvxVectorQ1_15> for AvxVectorQ1_15 {
     type Output = Self;
     #[inline(always)]
@@ -302,7 +283,7 @@ impl<const GRID_SIZE: usize> TetrahedralAvxFmaQ1_15<'_, GRID_SIZE> {
         in_r: U,
         in_g: U,
         in_b: U,
-        lut: &[BarycentricWeightQ1_15; BINS],
+        lut: &[BarycentricWeight<i16>; BINS],
         r: impl Fetcher<AvxVectorQ1_15Sse>,
     ) -> AvxVectorQ1_15Sse {
         let lut_r = lut[in_r.as_()];
@@ -381,7 +362,7 @@ macro_rules! define_interp_avx {
                 in_r: U,
                 in_g: U,
                 in_b: U,
-                lut: &[BarycentricWeightQ1_15; BINS],
+                lut: &[BarycentricWeight<i16>; BINS],
             ) -> AvxVectorQ1_15Sse {
                 self.interpolate(
                     in_r,
@@ -414,7 +395,7 @@ macro_rules! define_interp_avx_d {
                 in_r: U,
                 in_g: U,
                 in_b: U,
-                lut: &[BarycentricWeightQ1_15; BINS],
+                lut: &[BarycentricWeight<i16>; BINS],
             ) -> (AvxVectorQ1_15Sse, AvxVectorQ1_15Sse) {
                 self.interpolate(
                     in_r,
@@ -453,7 +434,7 @@ impl<'a, const GRID_SIZE: usize> AvxMdInterpolationQ1_15Double<'a, GRID_SIZE>
         in_r: U,
         in_g: U,
         in_b: U,
-        lut: &[BarycentricWeightQ1_15; BINS],
+        lut: &[BarycentricWeight<i16>; BINS],
     ) -> (AvxVectorQ1_15Sse, AvxVectorQ1_15Sse) {
         self.interpolate(
             in_r,
@@ -485,7 +466,7 @@ impl<'a, const GRID_SIZE: usize> AvxMdInterpolationQ1_15Double<'a, GRID_SIZE>
         in_r: U,
         in_g: U,
         in_b: U,
-        lut: &[BarycentricWeightQ1_15; BINS],
+        lut: &[BarycentricWeight<i16>; BINS],
     ) -> (AvxVectorQ1_15Sse, AvxVectorQ1_15Sse) {
         self.interpolate(
             in_r,
@@ -507,7 +488,7 @@ impl<const GRID_SIZE: usize> PyramidalAvxFmaQ1_15<'_, GRID_SIZE> {
         in_r: U,
         in_g: U,
         in_b: U,
-        lut: &[BarycentricWeightQ1_15; BINS],
+        lut: &[BarycentricWeight<i16>; BINS],
         r: impl Fetcher<AvxVectorQ1_15Sse>,
     ) -> AvxVectorQ1_15Sse {
         let lut_r = lut[in_r.as_()];
@@ -593,7 +574,7 @@ impl<const GRID_SIZE: usize> PrismaticAvxFmaQ1_15<'_, GRID_SIZE> {
         in_r: U,
         in_g: U,
         in_b: U,
-        lut: &[BarycentricWeightQ1_15; BINS],
+        lut: &[BarycentricWeight<i16>; BINS],
         r: impl Fetcher<AvxVectorQ1_15Sse>,
     ) -> AvxVectorQ1_15Sse {
         let lut_r = lut[in_r.as_()];
@@ -667,7 +648,7 @@ impl<const GRID_SIZE: usize> PrismaticAvxFmaQ1_15Double<'_, GRID_SIZE> {
         in_r: U,
         in_g: U,
         in_b: U,
-        lut: &[BarycentricWeightQ1_15; BINS],
+        lut: &[BarycentricWeight<i16>; BINS],
         r0: impl Fetcher<AvxVectorQ1_15Sse>,
         r1: impl Fetcher<AvxVectorQ1_15Sse>,
     ) -> (AvxVectorQ1_15Sse, AvxVectorQ1_15Sse) {
@@ -769,7 +750,7 @@ impl<const GRID_SIZE: usize> PyramidAvxFmaQ1_15Double<'_, GRID_SIZE> {
         in_r: U,
         in_g: U,
         in_b: U,
-        lut: &[BarycentricWeightQ1_15; BINS],
+        lut: &[BarycentricWeight<i16>; BINS],
         r0: impl Fetcher<AvxVectorQ1_15Sse>,
         r1: impl Fetcher<AvxVectorQ1_15Sse>,
     ) -> (AvxVectorQ1_15Sse, AvxVectorQ1_15Sse) {
@@ -890,7 +871,7 @@ impl<const GRID_SIZE: usize> TetrahedralAvxFmaQ1_15Double<'_, GRID_SIZE> {
         in_r: U,
         in_g: U,
         in_b: U,
-        lut: &[BarycentricWeightQ1_15; BINS],
+        lut: &[BarycentricWeight<i16>; BINS],
         rv: impl Fetcher<AvxVectorQ1_15>,
     ) -> (AvxVectorQ1_15Sse, AvxVectorQ1_15Sse) {
         let lut_r = lut[in_r.as_()];
@@ -964,7 +945,7 @@ impl<const GRID_SIZE: usize> TrilinearAvxFmaQ1_15Double<'_, GRID_SIZE> {
         in_r: U,
         in_g: U,
         in_b: U,
-        lut: &[BarycentricWeightQ1_15; BINS],
+        lut: &[BarycentricWeight<i16>; BINS],
         rv: impl Fetcher<AvxVectorQ1_15>,
     ) -> (AvxVectorQ1_15Sse, AvxVectorQ1_15Sse) {
         let lut_r = lut[in_r.as_()];
@@ -1021,7 +1002,7 @@ impl<const GRID_SIZE: usize> TrilinearAvxFmaQ1_15<'_, GRID_SIZE> {
         in_r: U,
         in_g: U,
         in_b: U,
-        lut: &[BarycentricWeightQ1_15; BINS],
+        lut: &[BarycentricWeight<i16>; BINS],
         r: impl Fetcher<AvxVectorQ1_15Sse>,
     ) -> AvxVectorQ1_15Sse {
         let lut_r = lut[in_r.as_()];

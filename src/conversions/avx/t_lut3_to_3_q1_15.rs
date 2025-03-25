@@ -31,7 +31,7 @@ use crate::conversions::avx::interpolator_q1_15::{
     AvxMdInterpolationQ1_15, PrismaticAvxFmaQ1_15, PyramidalAvxFmaQ1_15, SseAlignedI16,
     TetrahedralAvxFmaQ1_15, TrilinearAvxFmaQ1_15,
 };
-use crate::conversions::interpolator::BarycentricWeightQ1_15;
+use crate::conversions::interpolator::BarycentricWeight;
 use crate::transform::PointeeSizeExpressible;
 use crate::{CmsError, InterpolationMethod, Layout, TransformExecutor};
 use num_traits::AsPrimitive;
@@ -55,7 +55,7 @@ pub(crate) struct TransformLut3x3AvxQ1_15<
     pub(crate) _phantom: PhantomData<T>,
     pub(crate) _phantom1: PhantomData<U>,
     pub(crate) interpolation_method: InterpolationMethod,
-    pub(crate) weights: Box<[BarycentricWeightQ1_15; BINS]>,
+    pub(crate) weights: Box<[BarycentricWeight<i16>; BINS]>,
 }
 
 impl<

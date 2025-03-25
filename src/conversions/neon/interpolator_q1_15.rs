@@ -26,8 +26,7 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-#![allow(dead_code)]
-use crate::conversions::interpolator::BarycentricWeightQ1_15;
+use crate::conversions::interpolator::BarycentricWeight;
 use crate::math::FusedMultiplyAdd;
 use num_traits::AsPrimitive;
 use std::arch::aarch64::*;
@@ -92,8 +91,7 @@ pub(crate) struct NeonVectorQ1_15 {
 
 #[derive(Copy, Clone)]
 pub(crate) struct NeonVectorQ1_15Double {
-    pub(crate) v0: int16x4_t,
-    pub(crate) v1: int16x4_t,
+    pub(crate) v: int16x8_t,
 }
 
 impl From<i16> for NeonVectorQ1_15 {
@@ -109,8 +107,16 @@ impl From<i16> for NeonVectorQ1_15Double {
     #[inline(always)]
     fn from(v: i16) -> Self {
         NeonVectorQ1_15Double {
-            v0: unsafe { vdup_n_s16(v) },
-            v1: unsafe { vdup_n_s16(v) },
+            v: unsafe { vdupq_n_s16(v) },
+        }
+    }
+}
+
+impl NeonVectorQ1_15Double {
+    #[inline(always)]
+    fn from_half(lo: NeonVectorQ1_15, hi: NeonVectorQ1_15) -> Self {
+        NeonVectorQ1_15Double {
+            v: unsafe { vcombine_s16(lo.v, hi.v) },
         }
     }
 }
@@ -140,8 +146,7 @@ impl Sub<NeonVectorQ1_15Double> for NeonVectorQ1_15Double {
     #[inline(always)]
     fn sub(self, rhs: NeonVectorQ1_15Double) -> Self::Output {
         NeonVectorQ1_15Double {
-            v0: unsafe { vsub_s16(self.v0, rhs.v0) },
-            v1: unsafe { vsub_s16(self.v1, rhs.v1) },
+            v: unsafe { vsubq_s16(self.v, rhs.v) },
         }
     }
 }
@@ -151,8 +156,7 @@ impl Mul<NeonVectorQ1_15Double> for NeonVectorQ1_15Double {
     #[inline(always)]
     fn mul(self, rhs: NeonVectorQ1_15Double) -> Self::Output {
         NeonVectorQ1_15Double {
-            v0: unsafe { vqrdmulh_s16(self.v0, rhs.v0) },
-            v1: unsafe { vqrdmulh_s16(self.v1, rhs.v1) },
+            v: unsafe { vqrdmulhq_s16(self.v, rhs.v) },
         }
     }
 }
@@ -172,8 +176,7 @@ impl Add<NeonVectorQ1_15Double> for NeonVectorQ1_15Double {
     #[inline(always)]
     fn add(self, rhs: NeonVectorQ1_15Double) -> Self::Output {
         NeonVectorQ1_15Double {
-            v0: unsafe { vadd_s16(self.v0, rhs.v0) },
-            v1: unsafe { vadd_s16(self.v1, rhs.v1) },
+            v: unsafe { vaddq_s16(self.v, rhs.v) },
         }
     }
 }
@@ -187,40 +190,26 @@ impl FusedMultiplyAdd<NeonVectorQ1_15> for NeonVectorQ1_15 {
     }
 }
 
-impl NeonVectorQ1_15 {
-    #[inline(always)]
-    fn neg_mla(&self, b: NeonVectorQ1_15, c: NeonVectorQ1_15) -> NeonVectorQ1_15 {
-        NeonVectorQ1_15 {
-            v: unsafe { vqrdmlsh_s16(self.v, b.v, c.v) },
-        }
-    }
-}
-
-impl NeonVectorQ1_15Double {
-    #[inline(always)]
-    fn neg_mla(&self, b: NeonVectorQ1_15Double, c: NeonVectorQ1_15Double) -> NeonVectorQ1_15Double {
-        NeonVectorQ1_15Double {
-            v0: unsafe { vqrdmlsh_s16(self.v0, b.v0, c.v0) },
-            v1: unsafe { vqrdmlsh_s16(self.v1, b.v1, c.v1) },
-        }
-    }
-}
-
 impl NeonVectorQ1_15Double {
     #[inline(always)]
     fn mla(&self, b: NeonVectorQ1_15Double, c: NeonVectorQ1_15) -> NeonVectorQ1_15Double {
         NeonVectorQ1_15Double {
-            v0: unsafe { vqrdmlah_s16(self.v0, b.v0, c.v) },
-            v1: unsafe { vqrdmlah_s16(self.v1, b.v1, c.v) },
+            v: unsafe { vqrdmlahq_s16(self.v, b.v, vcombine_s16(c.v, c.v)) },
         }
     }
 
     #[inline(always)]
     pub(crate) fn split(self) -> (NeonVectorQ1_15, NeonVectorQ1_15) {
-        (
-            NeonVectorQ1_15 { v: self.v0 },
-            NeonVectorQ1_15 { v: self.v1 },
-        )
+        unsafe {
+            (
+                NeonVectorQ1_15 {
+                    v: vget_low_s16(self.v),
+                },
+                NeonVectorQ1_15 {
+                    v: vget_high_s16(self.v),
+                },
+            )
+        }
     }
 }
 
@@ -248,8 +237,12 @@ impl<const GRID_SIZE: usize> Fetcher<NeonVectorQ1_15Double>
         let jx0 = unsafe { self.cube0.get_unchecked(offset..) };
         let jx1 = unsafe { self.cube1.get_unchecked(offset..) };
         NeonVectorQ1_15Double {
-            v0: unsafe { vld1_s16(jx0.as_ptr() as *const i16) },
-            v1: unsafe { vld1_s16(jx1.as_ptr() as *const i16) },
+            v: unsafe {
+                vcombine_s16(
+                    vld1_s16(jx0.as_ptr() as *const i16),
+                    vld1_s16(jx1.as_ptr() as *const i16),
+                )
+            },
         }
     }
 }
@@ -261,7 +254,7 @@ pub(crate) trait NeonMdInterpolationQ1_15<'a, const GRID_SIZE: usize> {
         in_r: U,
         in_g: U,
         in_b: U,
-        lut: &[BarycentricWeightQ1_15; BINS],
+        lut: &[BarycentricWeight<i16>; BINS],
     ) -> NeonVectorQ1_15;
 }
 
@@ -272,7 +265,7 @@ pub(crate) trait NeonMdInterpolationQ1_15Double<'a, const GRID_SIZE: usize> {
         in_r: U,
         in_g: U,
         in_b: U,
-        lut: &[BarycentricWeightQ1_15; BINS],
+        lut: &[BarycentricWeight<i16>; BINS],
     ) -> (NeonVectorQ1_15, NeonVectorQ1_15);
 }
 
@@ -283,7 +276,7 @@ impl<const GRID_SIZE: usize> TetrahedralNeonQ1_15<'_, GRID_SIZE> {
         in_r: U,
         in_g: U,
         in_b: U,
-        lut: &[BarycentricWeightQ1_15; BINS],
+        lut: &[BarycentricWeight<i16>; BINS],
         r: impl Fetcher<NeonVectorQ1_15>,
     ) -> NeonVectorQ1_15 {
         let lut_r = lut[in_r.as_()];
@@ -353,7 +346,7 @@ impl<const GRID_SIZE: usize> TetrahedralNeonQ1_15Double<'_, GRID_SIZE> {
         in_r: U,
         in_g: U,
         in_b: U,
-        lut: &[BarycentricWeightQ1_15; BINS],
+        lut: &[BarycentricWeight<i16>; BINS],
         r: impl Fetcher<NeonVectorQ1_15Double>,
     ) -> (NeonVectorQ1_15, NeonVectorQ1_15) {
         let lut_r = lut[in_r.as_()];
@@ -432,7 +425,7 @@ macro_rules! define_md_inter_neon {
                 in_r: U,
                 in_g: U,
                 in_b: U,
-                lut: &[BarycentricWeightQ1_15; BINS],
+                lut: &[BarycentricWeight<i16>; BINS],
             ) -> NeonVectorQ1_15 {
                 self.interpolate(
                     in_r,
@@ -465,7 +458,7 @@ macro_rules! define_md_inter_neon_d {
                 in_r: U,
                 in_g: U,
                 in_b: U,
-                lut: &[BarycentricWeightQ1_15; BINS],
+                lut: &[BarycentricWeight<i16>; BINS],
             ) -> (NeonVectorQ1_15, NeonVectorQ1_15) {
                 self.interpolate(
                     in_r,
@@ -498,86 +491,9 @@ impl<const GRID_SIZE: usize> PyramidalNeonQ1_15<'_, GRID_SIZE> {
         in_r: U,
         in_g: U,
         in_b: U,
-        lut: &[BarycentricWeightQ1_15; BINS],
+        lut: &[BarycentricWeight<i16>; BINS],
         r: impl Fetcher<NeonVectorQ1_15>,
     ) -> NeonVectorQ1_15 {
-        let lut_r = lut[in_r.as_()];
-        let lut_g = lut[in_g.as_()];
-        let lut_b = lut[in_b.as_()];
-
-        let x: i32 = lut_r.x;
-        let y: i32 = lut_g.x;
-        let z: i32 = lut_b.x;
-
-        let x_n: i32 = lut_r.x_n;
-        let y_n: i32 = lut_g.x_n;
-        let z_n: i32 = lut_b.x_n;
-
-        let dr = lut_r.w;
-        let dg = lut_g.w;
-        let db = lut_b.w;
-
-        let c0 = r.fetch(x, y, z);
-
-        if dr > db && dg > db {
-            let x0 = r.fetch(x_n, y_n, z_n);
-            let x1 = r.fetch(x_n, y_n, z);
-            let x2 = r.fetch(x_n, y, z);
-            let x3 = r.fetch(x, y_n, z);
-
-            let c1 = x0 - x1;
-            let c2 = x2 - c0;
-            let c3 = x3 - c0;
-            let c4 = c0 - x3 - x2 + x1;
-
-            let s0 = c0.mla(c1, NeonVectorQ1_15::from(db));
-            let s1 = s0.mla(c2, NeonVectorQ1_15::from(dr));
-            let s2 = s1.mla(c3, NeonVectorQ1_15::from(dg));
-            s2.mla(c4, NeonVectorQ1_15::from(dr) * NeonVectorQ1_15::from(dg))
-        } else if db > dr && dg > dr {
-            let x0 = r.fetch(x, y, z_n);
-            let x1 = r.fetch(x_n, y_n, z_n);
-            let x2 = r.fetch(x, y_n, z_n);
-            let x3 = r.fetch(x, y_n, z);
-
-            let c1 = x0 - c0;
-            let c2 = x1 - x2;
-            let c3 = x3 - c0;
-            let c4 = c0 - x3 - x0 + x2;
-
-            let s0 = c0.mla(c1, NeonVectorQ1_15::from(db));
-            let s1 = s0.mla(c2, NeonVectorQ1_15::from(dr));
-            let s2 = s1.mla(c3, NeonVectorQ1_15::from(dg));
-            s2.mla(c4, NeonVectorQ1_15::from(dg) * NeonVectorQ1_15::from(db))
-        } else {
-            let x0 = r.fetch(x, y, z_n);
-            let x1 = r.fetch(x_n, y, z);
-            let x2 = r.fetch(x_n, y, z_n);
-            let x3 = r.fetch(x_n, y_n, z_n);
-
-            let c1 = x0 - c0;
-            let c2 = x1 - c0;
-            let c3 = x3 - x2;
-            let c4 = c0 - x1 - x0 + x2;
-
-            let s0 = c0.mla(c1, NeonVectorQ1_15::from(db));
-            let s1 = s0.mla(c2, NeonVectorQ1_15::from(dr));
-            let s2 = s1.mla(c3, NeonVectorQ1_15::from(dg));
-            s2.mla(c4, NeonVectorQ1_15::from(db) * NeonVectorQ1_15::from(dr))
-        }
-    }
-}
-
-impl<const GRID_SIZE: usize> PyramidalNeonQ1_15Double<'_, GRID_SIZE> {
-    #[inline(always)]
-    fn interpolate<U: AsPrimitive<usize>, const BINS: usize>(
-        &self,
-        in_r: U,
-        in_g: U,
-        in_b: U,
-        lut: &[BarycentricWeightQ1_15; BINS],
-        r: impl Fetcher<NeonVectorQ1_15Double>,
-    ) -> (NeonVectorQ1_15, NeonVectorQ1_15) {
         let lut_r = lut[in_r.as_()];
         let lut_g = lut[in_g.as_()];
         let lut_b = lut[in_b.as_()];
@@ -606,18 +522,105 @@ impl<const GRID_SIZE: usize> PyramidalNeonQ1_15Double<'_, GRID_SIZE> {
             let x2 = r.fetch(x_n, y, z);
             let x3 = r.fetch(x, y_n, z);
 
+            let w3 = w1 * w2;
+
             let c1 = x0 - x1;
             let c2 = x2 - c0;
             let c3 = x3 - c0;
             let c4 = c0 - x3 - x2 + x1;
 
+            let s0 = c0.mla(c1, w0);
+            let s1 = s0.mla(c2, w1);
+            let s2 = s1.mla(c3, w2);
+            s2.mla(c4, w3)
+        } else if db > dr && dg > dr {
+            let x0 = r.fetch(x, y, z_n);
+            let x1 = r.fetch(x_n, y_n, z_n);
+            let x2 = r.fetch(x, y_n, z_n);
+            let x3 = r.fetch(x, y_n, z);
+
+            let w3 = w2 * w0;
+
+            let c1 = x0 - c0;
+            let c2 = x1 - x2;
+            let c3 = x3 - c0;
+            let c4 = c0 - x3 - x0 + x2;
+
+            let s0 = c0.mla(c1, w0);
+            let s1 = s0.mla(c2, w1);
+            let s2 = s1.mla(c3, w2);
+            s2.mla(c4, w3)
+        } else {
+            let x0 = r.fetch(x, y, z_n);
+            let x1 = r.fetch(x_n, y, z);
+            let x2 = r.fetch(x_n, y, z_n);
+            let x3 = r.fetch(x_n, y_n, z_n);
+
+            let w3 = w0 * w1;
+
+            let c1 = x0 - c0;
+            let c2 = x1 - c0;
+            let c3 = x3 - x2;
+            let c4 = c0 - x1 - x0 + x2;
+
+            let s0 = c0.mla(c1, w0);
+            let s1 = s0.mla(c2, w1);
+            let s2 = s1.mla(c3, w2);
+            s2.mla(c4, w3)
+        }
+    }
+}
+
+impl<const GRID_SIZE: usize> PyramidalNeonQ1_15Double<'_, GRID_SIZE> {
+    #[inline(always)]
+    fn interpolate<U: AsPrimitive<usize>, const BINS: usize>(
+        &self,
+        in_r: U,
+        in_g: U,
+        in_b: U,
+        lut: &[BarycentricWeight<i16>; BINS],
+        r: impl Fetcher<NeonVectorQ1_15Double>,
+    ) -> (NeonVectorQ1_15, NeonVectorQ1_15) {
+        let lut_r = lut[in_r.as_()];
+        let lut_g = lut[in_g.as_()];
+        let lut_b = lut[in_b.as_()];
+
+        let x: i32 = lut_r.x;
+        let y: i32 = lut_g.x;
+        let z: i32 = lut_b.x;
+
+        let x_n: i32 = lut_r.x_n;
+        let y_n: i32 = lut_g.x_n;
+        let z_n: i32 = lut_b.x_n;
+
+        let dr = lut_r.w;
+        let dg = lut_g.w;
+        let db = lut_b.w;
+
+        let c0 = r.fetch(x, y, z);
+
+        let w0 = NeonVectorQ1_15::from(db);
+        let w1 = NeonVectorQ1_15::from(dr);
+        let w2 = NeonVectorQ1_15::from(dg);
+
+        if dr > db && dg > db {
             let w3 = NeonVectorQ1_15::from(dr) * NeonVectorQ1_15::from(dg);
+            let x0 = r.fetch(x_n, y_n, z_n);
+            let x1 = r.fetch(x_n, y_n, z);
+            let x2 = r.fetch(x_n, y, z);
+            let x3 = r.fetch(x, y_n, z);
+
+            let c1 = x0 - x1;
+            let c2 = x2 - c0;
+            let c3 = x3 - c0;
+            let c4 = c0 - x3 - x2 + x1;
 
             let s0 = c0.mla(c1, w0);
             let s1 = s0.mla(c2, w1);
             let s2 = s1.mla(c3, w2);
             s2.mla(c4, w3).split()
         } else if db > dr && dg > dr {
+            let w3 = NeonVectorQ1_15::from(dg) * NeonVectorQ1_15::from(db);
             let x0 = r.fetch(x, y, z_n);
             let x1 = r.fetch(x_n, y_n, z_n);
             let x2 = r.fetch(x, y_n, z_n);
@@ -628,13 +631,12 @@ impl<const GRID_SIZE: usize> PyramidalNeonQ1_15Double<'_, GRID_SIZE> {
             let c3 = x3 - c0;
             let c4 = c0 - x3 - x0 + x2;
 
-            let w3 = NeonVectorQ1_15::from(dg) * NeonVectorQ1_15::from(db);
-
             let s0 = c0.mla(c1, w0);
             let s1 = s0.mla(c2, w1);
             let s2 = s1.mla(c3, w2);
             s2.mla(c4, w3).split()
         } else {
+            let w3 = NeonVectorQ1_15::from(db) * NeonVectorQ1_15::from(dr);
             let x0 = r.fetch(x, y, z_n);
             let x1 = r.fetch(x_n, y, z);
             let x2 = r.fetch(x_n, y, z_n);
@@ -644,8 +646,6 @@ impl<const GRID_SIZE: usize> PyramidalNeonQ1_15Double<'_, GRID_SIZE> {
             let c2 = x1 - c0;
             let c3 = x3 - x2;
             let c4 = c0 - x1 - x0 + x2;
-
-            let w3 = NeonVectorQ1_15::from(db) * NeonVectorQ1_15::from(dr);
 
             let s0 = c0.mla(c1, w0);
             let s1 = s0.mla(c2, w1);
@@ -662,7 +662,7 @@ impl<const GRID_SIZE: usize> PrismaticNeonQ1_15<'_, GRID_SIZE> {
         in_r: U,
         in_g: U,
         in_b: U,
-        lut: &[BarycentricWeightQ1_15; BINS],
+        lut: &[BarycentricWeight<i16>; BINS],
         r: impl Fetcher<NeonVectorQ1_15>,
     ) -> NeonVectorQ1_15 {
         let lut_r = lut[in_r.as_()];
@@ -683,7 +683,13 @@ impl<const GRID_SIZE: usize> PrismaticNeonQ1_15<'_, GRID_SIZE> {
 
         let c0 = r.fetch(x, y, z);
 
+        let w0 = NeonVectorQ1_15::from(db);
+        let w1 = NeonVectorQ1_15::from(dr);
+        let w2 = NeonVectorQ1_15::from(dg);
+
         if db > dr {
+            let w3 = w2 * w0;
+            let w4 = w1 * w2;
             let x0 = r.fetch(x, y, z_n);
             let x1 = r.fetch(x_n, y, z_n);
             let x2 = r.fetch(x, y_n, z);
@@ -696,12 +702,14 @@ impl<const GRID_SIZE: usize> PrismaticNeonQ1_15<'_, GRID_SIZE> {
             let c4 = c0 - x2 - x0 + x3;
             let c5 = x0 - x3 - x1 + x4;
 
-            let s0 = c0.mla(c1, NeonVectorQ1_15::from(db));
-            let s1 = s0.mla(c2, NeonVectorQ1_15::from(dr));
-            let s2 = s1.mla(c3, NeonVectorQ1_15::from(dg));
-            let s3 = s2.mla(c4, NeonVectorQ1_15::from(dg) * NeonVectorQ1_15::from(db));
-            s3.mla(c5, NeonVectorQ1_15::from(dr) * NeonVectorQ1_15::from(dg))
+            let s0 = c0.mla(c1, w0);
+            let s1 = s0.mla(c2, w1);
+            let s2 = s1.mla(c3, w2);
+            let s3 = s2.mla(c4, w3);
+            s3.mla(c5, w4)
         } else {
+            let w3 = w2 * w0;
+            let w4 = w1 * w2;
             let x0 = r.fetch(x_n, y, z);
             let x1 = r.fetch(x_n, y, z_n);
             let x2 = r.fetch(x, y_n, z);
@@ -714,11 +722,11 @@ impl<const GRID_SIZE: usize> PrismaticNeonQ1_15<'_, GRID_SIZE> {
             let c4 = x0 - x3 - x1 + x4;
             let c5 = c0 - x2 - x0 + x3;
 
-            let s0 = c0.mla(c1, NeonVectorQ1_15::from(db));
-            let s1 = s0.mla(c2, NeonVectorQ1_15::from(dr));
-            let s2 = s1.mla(c3, NeonVectorQ1_15::from(dg));
-            let s3 = s2.mla(c4, NeonVectorQ1_15::from(dg) * NeonVectorQ1_15::from(db));
-            s3.mla(c5, NeonVectorQ1_15::from(dr) * NeonVectorQ1_15::from(dg))
+            let s0 = c0.mla(c1, w0);
+            let s1 = s0.mla(c2, w1);
+            let s2 = s1.mla(c3, w2);
+            let s3 = s2.mla(c4, w3);
+            s3.mla(c5, w4)
         }
     }
 }
@@ -730,7 +738,7 @@ impl<const GRID_SIZE: usize> PrismaticNeonQ1_15Double<'_, GRID_SIZE> {
         in_r: U,
         in_g: U,
         in_b: U,
-        lut: &[BarycentricWeightQ1_15; BINS],
+        lut: &[BarycentricWeight<i16>; BINS],
         rv: impl Fetcher<NeonVectorQ1_15Double>,
     ) -> (NeonVectorQ1_15, NeonVectorQ1_15) {
         let lut_r = lut[in_r.as_()];
@@ -804,7 +812,7 @@ impl<const GRID_SIZE: usize> TrilinearNeonQ1_15Double<'_, GRID_SIZE> {
         in_r: U,
         in_g: U,
         in_b: U,
-        lut: &[BarycentricWeightQ1_15; BINS],
+        lut: &[BarycentricWeight<i16>; BINS],
         r: impl Fetcher<NeonVectorQ1_15Double>,
     ) -> (NeonVectorQ1_15, NeonVectorQ1_15) {
         let lut_r = lut[in_r.as_()];
@@ -860,7 +868,7 @@ impl<const GRID_SIZE: usize> TrilinearNeonQ1_15<'_, GRID_SIZE> {
         in_r: U,
         in_g: U,
         in_b: U,
-        lut: &[BarycentricWeightQ1_15; BINS],
+        lut: &[BarycentricWeight<i16>; BINS],
         r: impl Fetcher<NeonVectorQ1_15>,
     ) -> NeonVectorQ1_15 {
         let lut_r = lut[in_r.as_()];
@@ -884,8 +892,9 @@ impl<const GRID_SIZE: usize> TrilinearNeonQ1_15<'_, GRID_SIZE> {
         let w1 = NeonVectorQ1_15::from(dg);
         let w2 = NeonVectorQ1_15::from(db);
         let q0 = NeonVectorQ1_15::from(Q_MAX);
-        let dx = q0 - NeonVectorQ1_15::from(dr);
-        let dy = q0 - NeonVectorQ1_15::from(dg);
+        let q1 = NeonVectorQ1_15Double::from(Q_MAX);
+        let dx = q1 - NeonVectorQ1_15Double::from(dr);
+        let dy = q1 - NeonVectorQ1_15Double::from(dg);
         let dz = q0 - NeonVectorQ1_15::from(db);
 
         let c000 = r.fetch(x, y, z);
@@ -897,13 +906,17 @@ impl<const GRID_SIZE: usize> TrilinearNeonQ1_15<'_, GRID_SIZE> {
         let c011 = r.fetch(x, y_n, z_n);
         let c111 = r.fetch(x_n, y_n, z_n);
 
-        let c00 = (c000 * dx).mla(c100, w0);
-        let c10 = (c010 * dx).mla(c110, w0);
-        let c01 = (c001 * dx).mla(c101, w0);
-        let c11 = (c011 * dx).mla(c111, w0);
+        let x000 = NeonVectorQ1_15Double::from_half(c000, c001);
+        let x010 = NeonVectorQ1_15Double::from_half(c010, c011);
+        let x011 = NeonVectorQ1_15Double::from_half(c100, c101);
+        let x111 = NeonVectorQ1_15Double::from_half(c110, c111);
+
+        let c00 = (x000 * dx).mla(x011, w0);
+        let c10 = (x010 * dx).mla(x111, w0);
 
         let c0 = (c00 * dy).mla(c10, w1);
-        let c1 = (c01 * dy).mla(c11, w1);
+
+        let (c0, c1) = c0.split();
 
         (c0 * dz).mla(c1, w2)
     }

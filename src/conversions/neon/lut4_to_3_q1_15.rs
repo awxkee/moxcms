@@ -27,7 +27,7 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::conversions::LutBarycentricReduction;
-use crate::conversions::interpolator::BarycentricWeightQ1_15;
+use crate::conversions::interpolator::BarycentricWeight;
 use crate::conversions::neon::interpolator_q1_15::{
     NeonAlignedI16x4, NeonMdInterpolationQ1_15Double, PrismaticNeonQ1_15Double,
     PyramidalNeonQ1_15Double, TetrahedralNeonQ1_15Double, TrilinearNeonQ1_15Double,
@@ -51,7 +51,7 @@ pub(crate) struct TransformLut4XyzToRgbNeonQ1_15<
     pub(crate) _phantom: PhantomData<T>,
     pub(crate) _phantom1: PhantomData<U>,
     pub(crate) interpolation_method: InterpolationMethod,
-    pub(crate) weights: Box<[BarycentricWeightQ1_15; BINS]>,
+    pub(crate) weights: Box<[BarycentricWeight<i16>; BINS]>,
 }
 
 impl<
@@ -112,12 +112,15 @@ where
                 let table1 = &self.lut[(w * grid_size3) as usize..];
                 let table2 = &self.lut[(w_n * grid_size3) as usize..];
 
+                const Q_MAX: i16 = ((1i32 << 15i32) - 1) as i16;
+                let t0 = vdup_n_s16(t);
+                let t1 = vdup_n_s16(Q_MAX - t);
+
                 let tetrahedral1 = Interpolator::new(table1, table2);
                 let (a0, b0) = tetrahedral1.inter3_neon(c, m, y, &self.weights);
                 let (a0, b0) = (a0.v, b0.v);
 
-                let t0 = vdup_n_s16(t);
-                let hp = vqrdmlsh_s16(a0, a0, t0);
+                let hp = vqrdmulh_s16(a0, t1);
                 let v = vqrdmlah_s16(hp, b0, t0);
 
                 if T::FINITE {

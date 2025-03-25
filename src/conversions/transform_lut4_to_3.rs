@@ -101,7 +101,7 @@ struct TransformLut4XyzToRgb<
     _phantom: PhantomData<T>,
     _phantom1: PhantomData<U>,
     interpolation_method: InterpolationMethod,
-    weights: Box<[BarycentricWeight; BINS]>,
+    weights: Box<[BarycentricWeight<f32>; BINS]>,
 }
 
 #[allow(unused)]
@@ -269,7 +269,7 @@ impl Lut4x3Factory for DefaultLut4x3Factory {
                         _phantom: PhantomData,
                         _phantom1: PhantomData,
                         interpolation_method: options.interpolation_method,
-                        weights: BarycentricWeight::create_ranged_256::<GRID_SIZE>(),
+                        weights: BarycentricWeight::<f32>::create_ranged_256::<GRID_SIZE>(),
                     },
                 )
             }
@@ -286,7 +286,7 @@ impl Lut4x3Factory for DefaultLut4x3Factory {
                 _phantom: PhantomData,
                 _phantom1: PhantomData,
                 interpolation_method: options.interpolation_method,
-                weights: BarycentricWeight::create_binned::<GRID_SIZE, 65536>(),
+                weights: BarycentricWeight::<f32>::create_binned::<GRID_SIZE, 65536>(),
             }),
         }
     }
