@@ -27,12 +27,14 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::conversions::LutBarycentricReduction;
-use crate::conversions::interpolator::BarycentricWeight;
+use crate::conversions::interpolator::{BarycentricWeight, BarycentricWeightQ1_15};
 use crate::conversions::lut_transforms::Lut4x3Factory;
 use crate::conversions::sse::TetrahedralSse;
 use crate::conversions::sse::interpolator::{
     PrismaticSse, PyramidalSse, SseAlignedF32, SseMdInterpolation, TrilinearSse,
 };
+use crate::conversions::sse::interpolator_q1_15::SseAlignedI16x4;
+use crate::conversions::sse::lut4_to_3_q1_15::TransformLut4XyzToRgbSseQ1_15;
 use crate::transform::PointeeSizeExpressible;
 use crate::{
     BarycentricWeightScale, CmsError, InterpolationMethod, Layout, TransformExecutor,
@@ -227,6 +229,52 @@ impl Lut4x3Factory for SseLut4x3Factory {
         (): LutBarycentricReduction<T, u8>,
         (): LutBarycentricReduction<T, u16>,
     {
+        if options.prefer_fixed_point && BIT_DEPTH < 15 {
+            const Q_SCALE: f32 = ((1 << 15) - 1) as f32;
+            let lut = lut
+                .chunks_exact(3)
+                .map(|x| {
+                    SseAlignedI16x4([
+                        (x[0] * Q_SCALE).round() as i16,
+                        (x[1] * Q_SCALE).round() as i16,
+                        (x[2] * Q_SCALE).round() as i16,
+                        0,
+                    ])
+                })
+                .collect::<Vec<_>>();
+            return match options.barycentric_weight_scale {
+                BarycentricWeightScale::Low => Box::new(TransformLut4XyzToRgbSseQ1_15::<
+                    T,
+                    u8,
+                    LAYOUT,
+                    GRID_SIZE,
+                    BIT_DEPTH,
+                    256,
+                    256,
+                > {
+                    lut,
+                    _phantom: PhantomData,
+                    _phantom1: PhantomData,
+                    interpolation_method: options.interpolation_method,
+                    weights: BarycentricWeightQ1_15::create_ranged_256::<GRID_SIZE>(),
+                }),
+                BarycentricWeightScale::High => Box::new(TransformLut4XyzToRgbSseQ1_15::<
+                    T,
+                    u16,
+                    LAYOUT,
+                    GRID_SIZE,
+                    BIT_DEPTH,
+                    65536,
+                    65536,
+                > {
+                    lut,
+                    _phantom: PhantomData,
+                    _phantom1: PhantomData,
+                    interpolation_method: options.interpolation_method,
+                    weights: BarycentricWeightQ1_15::create_binned::<GRID_SIZE, 65536>(),
+                }),
+            };
+        }
         let lut = lut
             .chunks_exact(3)
             .map(|x| SseAlignedF32([x[0], x[1], x[2], 0f32]))

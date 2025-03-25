@@ -244,6 +244,25 @@ pub fn criterion_benchmark(c: &mut Criterion) {
         })
     });
 
+    c.bench_function("lcms2: LUT RGB -> RGB", |b| {
+        let custom_profile = Profile::new_icc(&srgb_perceptual_icc).unwrap();
+        let profile_bytes = fs::read("../assets/bt_2020.icc").unwrap();
+        let dest_profile = Profile::new_icc(&profile_bytes).unwrap();
+        let mut dst = vec![0u8; rgb.len()];
+        let t = Transform::new(
+            &custom_profile,
+            PixelFormat::RGB_8,
+            &dest_profile,
+            PixelFormat::RGB_8,
+            Intent::Perceptual,
+        )
+        .unwrap();
+
+        b.iter(|| {
+            t.transform_pixels(&rgb, &mut dst);
+        })
+    });
+
     c.bench_function("lcms2: RGB -> RGB", |b| {
         let custom_profile = Profile::new_icc(&src_icc_profile).unwrap();
         let profile_bytes = fs::read("../assets/bt_2020.icc").unwrap();
