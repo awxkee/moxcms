@@ -27,17 +27,13 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::conversions::LutBarycentricReduction;
-use crate::conversions::interpolator::BarycentricWeight;
-use crate::conversions::lut_transforms::Lut3x3Factory;
-use crate::conversions::sse::TetrahedralSse;
-use crate::conversions::sse::interpolator::{
-    PrismaticSse, PyramidalSse, SseAlignedF32, SseMdInterpolation, TrilinearSse,
+use crate::conversions::interpolator::BarycentricWeightQ1_15;
+use crate::conversions::sse::interpolator_q1_15::{
+    PrismaticSseQ1_15, PyramidalSseQ1_15, SseAlignedI16x4, SseMdInterpolationQ1_15,
+    TetrahedralSseQ1_15, TrilinearSseQ1_15,
 };
 use crate::transform::PointeeSizeExpressible;
-use crate::{
-    BarycentricWeightScale, CmsError, InterpolationMethod, Layout, TransformExecutor,
-    TransformOptions,
-};
+use crate::{CmsError, InterpolationMethod, Layout, TransformExecutor};
 use num_traits::AsPrimitive;
 #[cfg(target_arch = "x86")]
 use std::arch::x86::*;
@@ -45,7 +41,7 @@ use std::arch::x86::*;
 use std::arch::x86_64::*;
 use std::marker::PhantomData;
 
-struct TransformLut3x3Sse<
+pub(crate) struct TransformLut3x3SseQ1_15<
     T,
     U,
     const SRC_LAYOUT: u8,
@@ -55,11 +51,11 @@ struct TransformLut3x3Sse<
     const BINS: usize,
     const BARYCENTRIC_BINS: usize,
 > {
-    lut: Vec<SseAlignedF32>,
-    _phantom: PhantomData<T>,
-    _phantom2: PhantomData<U>,
-    interpolation_method: InterpolationMethod,
-    weights: Box<[BarycentricWeight; BINS]>,
+    pub(crate) lut: Vec<SseAlignedI16x4>,
+    pub(crate) _phantom: PhantomData<T>,
+    pub(crate) _phantom2: PhantomData<U>,
+    pub(crate) interpolation_method: InterpolationMethod,
+    pub(crate) weights: Box<[BarycentricWeightQ1_15; BINS]>,
 }
 
 impl<
@@ -71,7 +67,17 @@ impl<
     const BIT_DEPTH: usize,
     const BINS: usize,
     const BARYCENTRIC_BINS: usize,
-> TransformLut3x3Sse<T, U, SRC_LAYOUT, DST_LAYOUT, GRID_SIZE, BIT_DEPTH, BINS, BARYCENTRIC_BINS>
+>
+    TransformLut3x3SseQ1_15<
+        T,
+        U,
+        SRC_LAYOUT,
+        DST_LAYOUT,
+        GRID_SIZE,
+        BIT_DEPTH,
+        BINS,
+        BARYCENTRIC_BINS,
+    >
 where
     f32: AsPrimitive<T>,
     u32: AsPrimitive<T>,
@@ -79,7 +85,7 @@ where
 {
     #[allow(unused_unsafe)]
     #[target_feature(enable = "sse4.1")]
-    unsafe fn transform_chunk<'b, Interpolator: SseMdInterpolation<'b, GRID_SIZE>>(
+    unsafe fn transform_chunk<'b, Interpolator: SseMdInterpolationQ1_15<'b, GRID_SIZE>>(
         &'b self,
         src: &[T],
         dst: &mut [T],
@@ -90,8 +96,16 @@ where
         let dst_cn = Layout::from(DST_LAYOUT);
         let dst_channels = dst_cn.channels();
 
-        let value_scale = unsafe { _mm_set1_ps(((1 << BIT_DEPTH) - 1) as f32) };
+        let value_scale = _mm_set1_ps(1. / (1 << 15) as f32);
         let max_value = ((1u32 << BIT_DEPTH) - 1).as_();
+        let v_max = _mm_set1_epi16(((1u32 << BIT_DEPTH) - 1) as i16);
+        let rnd = if BIT_DEPTH == 12 {
+            _mm_set1_epi16((1 << (3 - 1)) - 1)
+        } else if BIT_DEPTH == 10 {
+            _mm_set1_epi16((1 << (5 - 1)) - 1)
+        } else {
+            _mm_set1_epi16((1 << (7 - 1)) - 1)
+        };
 
         for (src, dst) in src
             .chunks_exact(src_channels)
@@ -116,28 +130,45 @@ where
             let tetrahedral = Interpolator::new(&self.lut);
             let v = tetrahedral.inter3_sse(x, y, z, &self.weights);
             if T::FINITE {
-                unsafe {
-                    let mut r = _mm_mul_ps(v.v, value_scale);
-                    r = _mm_max_ps(r, _mm_setzero_ps());
-                    r = _mm_min_ps(r, value_scale);
-                    let jvz = _mm_cvtps_epi32(r);
+                if BIT_DEPTH == 8 {
+                    let mut r = _mm_srai_epi16::<7>(_mm_adds_epi16(v.v, rnd));
+                    r = _mm_packus_epi16(r, r);
 
-                    let x = _mm_extract_epi32::<0>(jvz);
-                    let y = _mm_extract_epi32::<1>(jvz);
-                    let z = _mm_extract_epi32::<2>(jvz);
+                    let m_once = _mm_cvtsi128_si32(r).to_ne_bytes();
+                    let x = m_once[0];
+                    let y = m_once[1];
+                    let z = m_once[2];
+
+                    dst[dst_cn.r_i()] = (x as u32).as_();
+                    dst[dst_cn.g_i()] = (y as u32).as_();
+                    dst[dst_cn.b_i()] = (z as u32).as_();
+                } else {
+                    let mut r = if BIT_DEPTH == 12 {
+                        _mm_srai_epi16::<3>(_mm_adds_epi16(v.v, rnd))
+                    } else if BIT_DEPTH == 10 {
+                        _mm_srai_epi16::<5>(_mm_adds_epi16(v.v, rnd))
+                    } else {
+                        _mm_srai_epi16::<7>(_mm_adds_epi16(v.v, rnd))
+                    };
+                    r = _mm_max_epi16(r, _mm_setzero_si128());
+                    r = _mm_min_epi16(r, v_max);
+
+                    let x = _mm_extract_epi16::<0>(r);
+                    let y = _mm_extract_epi16::<1>(r);
+                    let z = _mm_extract_epi16::<2>(r);
 
                     dst[dst_cn.r_i()] = (x as u32).as_();
                     dst[dst_cn.g_i()] = (y as u32).as_();
                     dst[dst_cn.b_i()] = (z as u32).as_();
                 }
             } else {
-                unsafe {
-                    let mut r = _mm_max_ps(v.v, _mm_setzero_ps());
-                    r = _mm_min_ps(r, value_scale);
-                    dst[dst_cn.r_i()] = f32::from_bits(_mm_extract_ps::<0>(r) as u32).as_();
-                    dst[dst_cn.g_i()] = f32::from_bits(_mm_extract_ps::<1>(r) as u32).as_();
-                    dst[dst_cn.b_i()] = f32::from_bits(_mm_extract_ps::<2>(r) as u32).as_();
-                }
+                let mut o = _mm_cvtepi32_ps(_mm_unpacklo_epi16(v.v, _mm_setzero_si128()));
+                o = _mm_mul_ps(o, value_scale);
+                o = _mm_min_ps(o, value_scale);
+                o = _mm_max_ps(o, _mm_set1_ps(1.0));
+                dst[dst_cn.r_i()] = f32::from_bits(_mm_extract_ps::<0>(o) as u32).as_();
+                dst[dst_cn.g_i()] = f32::from_bits(_mm_extract_ps::<1>(o) as u32).as_();
+                dst[dst_cn.b_i()] = f32::from_bits(_mm_extract_ps::<2>(o) as u32).as_();
             }
             if dst_channels == 4 {
                 dst[dst_cn.a_i()] = a;
@@ -156,7 +187,7 @@ impl<
     const BINS: usize,
     const BARYCENTRIC_BINS: usize,
 > TransformExecutor<T>
-    for TransformLut3x3Sse<
+    for TransformLut3x3SseQ1_15<
         T,
         U,
         SRC_LAYOUT,
@@ -192,79 +223,19 @@ where
         unsafe {
             match self.interpolation_method {
                 InterpolationMethod::Tetrahedral => {
-                    self.transform_chunk::<TetrahedralSse<GRID_SIZE>>(src, dst);
+                    self.transform_chunk::<TetrahedralSseQ1_15<GRID_SIZE>>(src, dst);
                 }
                 InterpolationMethod::Pyramid => {
-                    self.transform_chunk::<PyramidalSse<GRID_SIZE>>(src, dst);
+                    self.transform_chunk::<PyramidalSseQ1_15<GRID_SIZE>>(src, dst);
                 }
                 InterpolationMethod::Prism => {
-                    self.transform_chunk::<PrismaticSse<GRID_SIZE>>(src, dst);
+                    self.transform_chunk::<PrismaticSseQ1_15<GRID_SIZE>>(src, dst);
                 }
                 InterpolationMethod::Linear => {
-                    self.transform_chunk::<TrilinearSse<GRID_SIZE>>(src, dst);
+                    self.transform_chunk::<TrilinearSseQ1_15<GRID_SIZE>>(src, dst);
                 }
             }
         }
         Ok(())
-    }
-}
-
-pub(crate) struct SseLut3x3Factory {}
-
-impl Lut3x3Factory for SseLut3x3Factory {
-    fn make_transform_3x3<
-        T: Copy + AsPrimitive<f32> + Default + PointeeSizeExpressible + 'static + Send + Sync,
-        const SRC_LAYOUT: u8,
-        const DST_LAYOUT: u8,
-        const GRID_SIZE: usize,
-        const BIT_DEPTH: usize,
-    >(
-        lut: Vec<f32>,
-        options: TransformOptions,
-    ) -> Box<dyn TransformExecutor<T> + Sync + Send>
-    where
-        f32: AsPrimitive<T>,
-        u32: AsPrimitive<T>,
-        (): LutBarycentricReduction<T, u8>,
-        (): LutBarycentricReduction<T, u16>,
-    {
-        let lut = lut
-            .chunks_exact(3)
-            .map(|x| SseAlignedF32([x[0], x[1], x[2], 0f32]))
-            .collect::<Vec<_>>();
-        match options.barycentric_weight_scale {
-            BarycentricWeightScale::Low => Box::new(TransformLut3x3Sse::<
-                T,
-                u8,
-                SRC_LAYOUT,
-                DST_LAYOUT,
-                GRID_SIZE,
-                BIT_DEPTH,
-                256,
-                256,
-            > {
-                lut,
-                _phantom: PhantomData,
-                _phantom2: PhantomData,
-                interpolation_method: options.interpolation_method,
-                weights: BarycentricWeight::create_ranged_256::<GRID_SIZE>(),
-            }),
-            BarycentricWeightScale::High => Box::new(TransformLut3x3Sse::<
-                T,
-                u16,
-                SRC_LAYOUT,
-                DST_LAYOUT,
-                GRID_SIZE,
-                BIT_DEPTH,
-                65536,
-                65536,
-            > {
-                lut,
-                _phantom: PhantomData,
-                _phantom2: PhantomData,
-                interpolation_method: options.interpolation_method,
-                weights: BarycentricWeight::create_binned::<GRID_SIZE, 65536>(),
-            }),
-        }
     }
 }

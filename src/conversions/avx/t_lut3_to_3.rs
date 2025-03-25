@@ -32,7 +32,7 @@ use crate::conversions::avx::interpolator::{
     AvxMdInterpolation, PrismaticAvxFma, PyramidalAvxFma, SseAlignedF32, TrilinearAvxFma,
 };
 use crate::conversions::avx::interpolator_q1_15::SseAlignedI16;
-use crate::conversions::avx::transform_lut3_to_3_q1_15::TransformLut3x3AvxQ1_15;
+use crate::conversions::avx::t_lut3_to_3_q1_15::TransformLut3x3AvxQ1_15;
 use crate::conversions::interpolator::{BarycentricWeight, BarycentricWeightQ1_15};
 use crate::conversions::lut_transforms::Lut3x3Factory;
 use crate::transform::PointeeSizeExpressible;
@@ -230,7 +230,6 @@ impl Lut3x3Factory for AvxLut3x3Factory {
         (): LutBarycentricReduction<T, u8>,
         (): LutBarycentricReduction<T, u16>,
     {
-        // Linear interpolation is faster on floating
         if options.prefer_fixed_point && BIT_DEPTH < 15 {
             const Q_SCALE: f32 = ((1 << 15) - 1) as f32;
             let lut = lut

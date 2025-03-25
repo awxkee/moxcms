@@ -106,7 +106,7 @@ fn compute_abs_diff42(src: &[f32], dst: &[f32]) {
     println!("Abs A {}", abs_a);
 }
 
-/*fn main() {
+fn main() {
     let funny_icc = fs::read("./assets/srgb_perceptual.icc").unwrap();
 
     // println!("{:?}", decoded);
@@ -289,39 +289,39 @@ fn compute_abs_diff42(src: &[f32], dst: &[f32]) {
         image::ExtendedColorType::Rgba8,
     )
     .unwrap();
-}*/
-
-fn main() {
-    let us_swop_icc = fs::read("./assets/srgb_perceptual.icc").unwrap();
-
-    let width = 5000;
-    let height = 5000;
-
-    let cmyk = vec![0u8; width * height * 4];
-
-    let color_profile = ColorProfile::new_from_slice(&us_swop_icc).unwrap();
-    let dest_profile = ColorProfile::new_srgb();
-    let mut dst = vec![32u8; width * height * 4];
-    let r= rand::rng().random_range(0..255) as u8;
-    let g= rand::rng().random_range(0..255) as u8;
-    let b= rand::rng().random_range(0..255) as u8;
-    for dst in dst.chunks_exact_mut(4) {
-        dst[0] =r ;
-        dst[1] = g ;
-        dst[2] = b;
-        dst[3] = 255;
-    }
-    let transform = color_profile
-        .create_transform_8bit(
-            Layout::Rgba,
-            &dest_profile,
-            Layout::Rgba,
-            TransformOptions {
-                interpolation_method: InterpolationMethod::Prism,
-                prefer_fixed_point: true,
-                ..Default::default()
-            },
-        )
-        .unwrap();
-    transform.transform(&cmyk, &mut dst).unwrap();
 }
+
+// fn main() {
+//     let us_swop_icc = fs::read("./assets/srgb_perceptual.icc").unwrap();
+//
+//     let width = 5000;
+//     let height = 5000;
+//
+//     let cmyk = vec![0u8; width * height * 4];
+//
+//     let color_profile = ColorProfile::new_from_slice(&us_swop_icc).unwrap();
+//     let dest_profile = ColorProfile::new_srgb();
+//     let mut dst = vec![32u8; width * height * 4];
+//     let r= rand::rng().random_range(0..255) as u8;
+//     let g= rand::rng().random_range(0..255) as u8;
+//     let b= rand::rng().random_range(0..255) as u8;
+//     for dst in dst.chunks_exact_mut(4) {
+//         dst[0] =r ;
+//         dst[1] = g ;
+//         dst[2] = b;
+//         dst[3] = 255;
+//     }
+//     let transform = color_profile
+//         .create_transform_8bit(
+//             Layout::Rgba,
+//             &dest_profile,
+//             Layout::Rgba,
+//             TransformOptions {
+//                 interpolation_method: InterpolationMethod::Prism,
+//                 prefer_fixed_point: true,
+//                 ..Default::default()
+//             },
+//         )
+//         .unwrap();
+//     transform.transform(&cmyk, &mut dst).unwrap();
+// }
