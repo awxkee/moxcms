@@ -82,10 +82,18 @@ pub struct TransformOptions {
     ///
     /// LUT interpolation in fixed point often have very different speed on
     /// x86 AMD and Intel CPUs.
-    /// If you're targeting specific x86 CPU always benchmark first.
+    /// 
+    /// In some common sense fixed point workloads often faster than FP, however,
+    /// it is not universally true. Some microarchitectures such as ARM Neoverse prioritize 
+    /// general-purpose computing over DSP workloads with saturating MAC.
+    /// Thus, on specific CPU you may note performance drop in fixed point workload
+    /// over the floating point.
     pub prefer_fixed_point: bool,
     /// Interpolation method for 3D LUT
     pub interpolation_method: InterpolationMethod,
+    /// Barycentrial weights scale.
+    /// 
+    /// This value controls LUT weights precision.
     pub barycentric_weight_scale: BarycentricWeightScale,
     // pub black_point_compensation: bool,
 }

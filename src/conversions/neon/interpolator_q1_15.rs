@@ -91,8 +91,7 @@ pub(crate) struct NeonVectorQ1_15 {
 
 #[derive(Copy, Clone)]
 pub(crate) struct NeonVectorQ1_15Double {
-    pub(crate) v0: int16x4_t,
-    pub(crate) v1: int16x4_t,
+    pub(crate) v: int16x8_t,
 }
 
 impl From<i16> for NeonVectorQ1_15 {
@@ -108,8 +107,16 @@ impl From<i16> for NeonVectorQ1_15Double {
     #[inline(always)]
     fn from(v: i16) -> Self {
         NeonVectorQ1_15Double {
-            v0: unsafe { vdup_n_s16(v) },
-            v1: unsafe { vdup_n_s16(v) },
+            v: unsafe { vdupq_n_s16(v) },
+        }
+    }
+}
+
+impl NeonVectorQ1_15Double {
+    #[inline(always)]
+    fn from_half(lo: NeonVectorQ1_15, hi: NeonVectorQ1_15) -> Self {
+        NeonVectorQ1_15Double {
+            v: unsafe { vcombine_s16(lo.v, hi.v) },
         }
     }
 }
@@ -139,8 +146,7 @@ impl Sub<NeonVectorQ1_15Double> for NeonVectorQ1_15Double {
     #[inline(always)]
     fn sub(self, rhs: NeonVectorQ1_15Double) -> Self::Output {
         NeonVectorQ1_15Double {
-            v0: unsafe { vsub_s16(self.v0, rhs.v0) },
-            v1: unsafe { vsub_s16(self.v1, rhs.v1) },
+            v: unsafe { vsubq_s16(self.v, rhs.v) },
         }
     }
 }
@@ -150,8 +156,7 @@ impl Mul<NeonVectorQ1_15Double> for NeonVectorQ1_15Double {
     #[inline(always)]
     fn mul(self, rhs: NeonVectorQ1_15Double) -> Self::Output {
         NeonVectorQ1_15Double {
-            v0: unsafe { vqrdmulh_s16(self.v0, rhs.v0) },
-            v1: unsafe { vqrdmulh_s16(self.v1, rhs.v1) },
+            v: unsafe { vqrdmulhq_s16(self.v, rhs.v) },
         }
     }
 }
@@ -171,8 +176,7 @@ impl Add<NeonVectorQ1_15Double> for NeonVectorQ1_15Double {
     #[inline(always)]
     fn add(self, rhs: NeonVectorQ1_15Double) -> Self::Output {
         NeonVectorQ1_15Double {
-            v0: unsafe { vadd_s16(self.v0, rhs.v0) },
-            v1: unsafe { vadd_s16(self.v1, rhs.v1) },
+            v: unsafe { vaddq_s16(self.v, rhs.v) },
         }
     }
 }
@@ -190,17 +194,22 @@ impl NeonVectorQ1_15Double {
     #[inline(always)]
     fn mla(&self, b: NeonVectorQ1_15Double, c: NeonVectorQ1_15) -> NeonVectorQ1_15Double {
         NeonVectorQ1_15Double {
-            v0: unsafe { vqrdmlah_s16(self.v0, b.v0, c.v) },
-            v1: unsafe { vqrdmlah_s16(self.v1, b.v1, c.v) },
+            v: unsafe { vqrdmlahq_s16(self.v, b.v, vcombine_s16(c.v, c.v)) },
         }
     }
 
     #[inline(always)]
     pub(crate) fn split(self) -> (NeonVectorQ1_15, NeonVectorQ1_15) {
-        (
-            NeonVectorQ1_15 { v: self.v0 },
-            NeonVectorQ1_15 { v: self.v1 },
-        )
+        unsafe {
+            (
+                NeonVectorQ1_15 {
+                    v: vget_low_s16(self.v),
+                },
+                NeonVectorQ1_15 {
+                    v: vget_high_s16(self.v),
+                },
+            )
+        }
     }
 }
 
@@ -228,8 +237,12 @@ impl<const GRID_SIZE: usize> Fetcher<NeonVectorQ1_15Double>
         let jx0 = unsafe { self.cube0.get_unchecked(offset..) };
         let jx1 = unsafe { self.cube1.get_unchecked(offset..) };
         NeonVectorQ1_15Double {
-            v0: unsafe { vld1_s16(jx0.as_ptr() as *const i16) },
-            v1: unsafe { vld1_s16(jx1.as_ptr() as *const i16) },
+            v: unsafe {
+                vcombine_s16(
+                    vld1_s16(jx0.as_ptr() as *const i16),
+                    vld1_s16(jx1.as_ptr() as *const i16),
+                )
+            },
         }
     }
 }
@@ -879,8 +892,9 @@ impl<const GRID_SIZE: usize> TrilinearNeonQ1_15<'_, GRID_SIZE> {
         let w1 = NeonVectorQ1_15::from(dg);
         let w2 = NeonVectorQ1_15::from(db);
         let q0 = NeonVectorQ1_15::from(Q_MAX);
-        let dx = q0 - NeonVectorQ1_15::from(dr);
-        let dy = q0 - NeonVectorQ1_15::from(dg);
+        let q1 = NeonVectorQ1_15Double::from(Q_MAX);
+        let dx = q1 - NeonVectorQ1_15Double::from(dr);
+        let dy = q1 - NeonVectorQ1_15Double::from(dg);
         let dz = q0 - NeonVectorQ1_15::from(db);
 
         let c000 = r.fetch(x, y, z);
@@ -892,13 +906,17 @@ impl<const GRID_SIZE: usize> TrilinearNeonQ1_15<'_, GRID_SIZE> {
         let c011 = r.fetch(x, y_n, z_n);
         let c111 = r.fetch(x_n, y_n, z_n);
 
-        let c00 = (c000 * dx).mla(c100, w0);
-        let c10 = (c010 * dx).mla(c110, w0);
-        let c01 = (c001 * dx).mla(c101, w0);
-        let c11 = (c011 * dx).mla(c111, w0);
+        let x000 = NeonVectorQ1_15Double::from_half(c000, c001);
+        let x010 = NeonVectorQ1_15Double::from_half(c010, c011);
+        let x011 = NeonVectorQ1_15Double::from_half(c100, c101);
+        let x111 = NeonVectorQ1_15Double::from_half(c110, c111);
+
+        let c00 = (x000 * dx).mla(x011, w0);
+        let c10 = (x010 * dx).mla(x111, w0);
 
         let c0 = (c00 * dy).mla(c10, w1);
-        let c1 = (c01 * dy).mla(c11, w1);
+
+        let (c0, c1) = c0.split();
 
         (c0 * dz).mla(c1, w2)
     }

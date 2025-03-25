@@ -41,7 +41,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     .unwrap();
     t.transform_pixels(&rgba, &mut cmyk);
 
-    c.bench_function("moxcms: RGB -> RGB", |b| {
+   /* c.bench_function("moxcms: RGB -> RGB", |b| {
         let color_profile = ColorProfile::new_from_slice(&src_icc_profile).unwrap();
         let dest_profile = ColorProfile::new_srgb();
         let mut dst = vec![0u8; rgb.len()];
@@ -183,7 +183,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
         b.iter(|| {
             transform.transform(&rgb, &mut dst).unwrap();
         })
-    });
+    });*/
 
     c.bench_function("moxcms: LUT Linear RGB -> RGB", |b| {
         let color_profile = ColorProfile::new_from_slice(&srgb_perceptual_icc).unwrap();
