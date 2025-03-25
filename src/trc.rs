@@ -287,7 +287,7 @@ fn linear_forward_table<T: PointeeSizeExpressible, const N: usize, const BIT_DEP
     gamma_table
 }
 
-#[inline]
+#[inline(always)]
 pub(crate) fn lut_interp_linear_float(x: f32, table: &[f32]) -> f32 {
     let value = x * (table.len() - 1) as f32;
 
