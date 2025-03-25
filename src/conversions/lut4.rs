@@ -76,12 +76,15 @@ impl Stage for Lut4 {
         let l_tbl = Array4D::new(&self.clut, self.grid_size as usize);
 
         match self.interpolation_method {
+            #[cfg(feature = "options")]
             InterpolationMethod::Tetrahedral => {
                 self.transform_impl(src, dst, |x, y, z, w| l_tbl.tetra_vec3(x, y, z, w))?;
             }
+            #[cfg(feature = "options")]
             InterpolationMethod::Pyramid => {
                 self.transform_impl(src, dst, |x, y, z, w| l_tbl.pyramid_vec3(x, y, z, w))?;
             }
+            #[cfg(feature = "options")]
             InterpolationMethod::Prism => {
                 self.transform_impl(src, dst, |x, y, z, w| l_tbl.prism_vec3(x, y, z, w))?
             }

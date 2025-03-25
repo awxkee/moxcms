@@ -76,12 +76,15 @@ impl<const DEPTH: usize> Stage for ACurves3x4Inverse<'_, DEPTH> {
     fn transform(&self, src: &[f32], dst: &mut [f32]) -> Result<(), CmsError> {
         let lut = Array3D::new_hexahedron(self.clut, self.grid_size);
         match self.interpolation_method {
+            #[cfg(feature = "options")]
             InterpolationMethod::Tetrahedral => {
                 self.transform_impl(src, dst, |x, y, z| lut.tetra_vec4(x, y, z))?;
             }
+            #[cfg(feature = "options")]
             InterpolationMethod::Pyramid => {
                 self.transform_impl(src, dst, |x, y, z| lut.pyramid_vec4(x, y, z))?;
             }
+            #[cfg(feature = "options")]
             InterpolationMethod::Prism => {
                 self.transform_impl(src, dst, |x, y, z| lut.prism_vec4(x, y, z))?;
             }

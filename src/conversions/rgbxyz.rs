@@ -26,7 +26,7 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-use crate::{CmsError, Layout, Matrix3f, TransformExecutor, TransformOptions};
+use crate::{CmsError, Layout, Matrix3, Matrix3f, TransformExecutor, TransformOptions};
 use num_traits::AsPrimitive;
 
 pub(crate) trait RgbXyzFactory<T: Clone + AsPrimitive<usize> + Default> {
@@ -422,7 +422,6 @@ where
 #[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
 use crate::conversions::neon::TransformProfilePcsXYZRgbNeon;
 use crate::conversions::rgbxyz_fixed::{TransformProfileRgbFixedPoint, make_rgb_xyz_q4_12};
-use crate::matrix::Matrix3;
 use crate::transform::PointeeSizeExpressible;
 
 #[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]

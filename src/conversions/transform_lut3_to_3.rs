@@ -157,14 +157,17 @@ where
         }
 
         match self.interpolation_method {
+            #[cfg(feature = "options")]
             InterpolationMethod::Tetrahedral => {
                 use crate::conversions::interpolator::Tetrahedral;
                 self.transform_chunk::<Tetrahedral<GRID_SIZE>>(src, dst);
             }
+            #[cfg(feature = "options")]
             InterpolationMethod::Pyramid => {
                 use crate::conversions::interpolator::Pyramidal;
                 self.transform_chunk::<Pyramidal<GRID_SIZE>>(src, dst);
             }
+            #[cfg(feature = "options")]
             InterpolationMethod::Prism => {
                 use crate::conversions::interpolator::Prismatic;
                 self.transform_chunk::<Prismatic<GRID_SIZE>>(src, dst);
@@ -215,6 +218,7 @@ impl Lut3x3Factory for DefaultLut3x3Factory {
                 interpolation_method: options.interpolation_method,
                 weights: BarycentricWeight::<f32>::create_ranged_256::<GRID_SIZE>(),
             }),
+            #[cfg(feature = "options")]
             BarycentricWeightScale::High => Box::new(TransformLut3x3::<
                 T,
                 u16,

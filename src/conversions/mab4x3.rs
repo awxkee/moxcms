@@ -77,12 +77,15 @@ impl<const DEPTH: usize, const GRID_SIZE: usize> Stage for ACurves4x3<'_, DEPTH,
         let lut = Array4D::new_hypercube(self.clut, self.grid_size);
 
         match self.interpolation_method {
+            #[cfg(feature = "options")]
             InterpolationMethod::Tetrahedral => {
                 self.transform_impl(src, dst, |x, y, z, w| lut.tetra_vec3(x, y, z, w))?;
             }
+            #[cfg(feature = "options")]
             InterpolationMethod::Pyramid => {
                 self.transform_impl(src, dst, |x, y, z, w| lut.pyramid_vec3(x, y, z, w))?;
             }
+            #[cfg(feature = "options")]
             InterpolationMethod::Prism => {
                 self.transform_impl(src, dst, |x, y, z, w| lut.prism_vec3(x, y, z, w))?;
             }

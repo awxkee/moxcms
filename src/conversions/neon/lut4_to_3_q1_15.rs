@@ -28,10 +28,7 @@
  */
 use crate::conversions::LutBarycentricReduction;
 use crate::conversions::interpolator::BarycentricWeight;
-use crate::conversions::neon::interpolator_q1_15::{
-    NeonAlignedI16x4, NeonMdInterpolationQ1_15Double, PrismaticNeonQ1_15Double,
-    PyramidalNeonQ1_15Double, TetrahedralNeonQ1_15Double, TrilinearNeonQ1_15Double,
-};
+use crate::conversions::neon::interpolator_q1_15::*;
 use crate::transform::PointeeSizeExpressible;
 use crate::{CmsError, InterpolationMethod, Layout, TransformExecutor};
 use num_traits::AsPrimitive;
@@ -199,12 +196,15 @@ where
 
         unsafe {
             match self.interpolation_method {
+                #[cfg(feature = "options")]
                 InterpolationMethod::Tetrahedral => {
                     self.transform_chunk::<TetrahedralNeonQ1_15Double<GRID_SIZE>>(src, dst);
                 }
+                #[cfg(feature = "options")]
                 InterpolationMethod::Pyramid => {
                     self.transform_chunk::<PyramidalNeonQ1_15Double<GRID_SIZE>>(src, dst);
                 }
+                #[cfg(feature = "options")]
                 InterpolationMethod::Prism => {
                     self.transform_chunk::<PrismaticNeonQ1_15Double<GRID_SIZE>>(src, dst);
                 }

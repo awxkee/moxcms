@@ -63,6 +63,7 @@ pub enum BarycentricWeightScale {
     /// However, it might crush dark zones and gradients.
     /// Weights increasing costs 5% performance.
     Low,
+    #[cfg(feature = "options")]
     High,
 }
 
@@ -83,7 +84,7 @@ pub struct TransformOptions {
     /// Interpolation method for 3D LUT
     pub interpolation_method: InterpolationMethod,
     /// Barycentrial weights scale.
-    /// 
+    ///
     /// This value controls LUT weights precision.
     pub barycentric_weight_scale: BarycentricWeightScale,
     // pub black_point_compensation: bool,
@@ -99,10 +100,13 @@ pub struct TransformOptions {
 pub enum InterpolationMethod {
     /// General Tetrahedron interpolation.
     /// This is used in lcms2 and others CMS.
+    #[cfg(feature = "options")]
     Tetrahedral,
     /// Divides cube into a pyramids and interpolate then in the pyramid.
+    #[cfg(feature = "options")]
     Pyramid,
     /// Interpolation by dividing cube into prisms.
+    #[cfg(feature = "options")]
     Prism,
     /// Trilinear/Quadlinear interpolation
     #[default]

@@ -240,6 +240,7 @@ impl Array4D<'_> {
         )
     }
 
+    #[cfg(feature = "options")]
     #[inline(always)]
     fn pyramid<
         T: From<f32>
@@ -377,6 +378,7 @@ impl Array4D<'_> {
         w0.neg_mla(w0, T::from(dw)).mla(w1, T::from(dw))
     }
 
+    #[cfg(feature = "options")]
     #[inline]
     pub fn pyramid_vec3(&self, lin_x: f32, lin_y: f32, lin_z: f32, lin_w: f32) -> Vector3f {
         self.pyramid(
@@ -393,6 +395,7 @@ impl Array4D<'_> {
         )
     }
 
+    #[cfg(feature = "options")]
     #[inline]
     pub fn pyramid_vec4(&self, lin_x: f32, lin_y: f32, lin_z: f32, lin_w: f32) -> Vector4f {
         self.pyramid(
@@ -409,6 +412,7 @@ impl Array4D<'_> {
         )
     }
 
+    #[cfg(feature = "options")]
     #[inline(always)]
     fn prism<
         T: From<f32>
@@ -528,6 +532,7 @@ impl Array4D<'_> {
         w0.neg_mla(w0, T::from(dw)).mla(w1, T::from(dw))
     }
 
+    #[cfg(feature = "options")]
     #[inline]
     pub fn prism_vec3(&self, lin_x: f32, lin_y: f32, lin_z: f32, lin_w: f32) -> Vector3f {
         self.prism(
@@ -544,6 +549,7 @@ impl Array4D<'_> {
         )
     }
 
+    #[cfg(feature = "options")]
     #[inline]
     pub fn prism_vec4(&self, lin_x: f32, lin_y: f32, lin_z: f32, lin_w: f32) -> Vector4f {
         self.prism(
@@ -560,6 +566,7 @@ impl Array4D<'_> {
         )
     }
 
+    #[cfg(feature = "options")]
     #[inline(always)]
     fn tetra<
         T: From<f32>
@@ -681,6 +688,7 @@ impl Array4D<'_> {
         w0.neg_mla(w0, T::from(rw)).mla(w1, T::from(rw))
     }
 
+    #[cfg(feature = "options")]
     #[inline]
     pub fn tetra_vec3(&self, lin_x: f32, lin_y: f32, lin_z: f32, lin_w: f32) -> Vector3f {
         self.tetra(
@@ -697,6 +705,7 @@ impl Array4D<'_> {
         )
     }
 
+    #[cfg(feature = "options")]
     #[inline]
     pub fn tetra_vec4(&self, lin_x: f32, lin_y: f32, lin_z: f32, lin_w: f32) -> Vector4f {
         self.tetra(
@@ -837,6 +846,7 @@ impl Array3D<'_> {
         c0.neg_mla(c0, z_d).mla(c1, z_d)
     }
 
+    #[cfg(feature = "options")]
     #[inline]
     fn pyramid<
         T: Copy
@@ -918,6 +928,7 @@ impl Array3D<'_> {
         }
     }
 
+    #[cfg(feature = "options")]
     #[inline]
     fn tetra<
         T: Copy
@@ -991,6 +1002,7 @@ impl Array3D<'_> {
         s1.mla(c3, T::from(rz))
     }
 
+    #[cfg(feature = "options")]
     #[inline]
     fn prism<
         T: Copy
@@ -1077,6 +1089,7 @@ impl Array3D<'_> {
         )
     }
 
+    #[cfg(feature = "options")]
     #[inline]
     pub fn prism_vec3(&self, lin_x: f32, lin_y: f32, lin_z: f32) -> Vector3f {
         self.prism(
@@ -1091,6 +1104,7 @@ impl Array3D<'_> {
         )
     }
 
+    #[cfg(feature = "options")]
     #[inline]
     pub fn pyramid_vec3(&self, lin_x: f32, lin_y: f32, lin_z: f32) -> Vector3f {
         self.pyramid(
@@ -1105,6 +1119,7 @@ impl Array3D<'_> {
         )
     }
 
+    #[cfg(feature = "options")]
     #[inline]
     pub fn tetra_vec3(&self, lin_x: f32, lin_y: f32, lin_z: f32) -> Vector3f {
         self.tetra(
@@ -1133,6 +1148,7 @@ impl Array3D<'_> {
         )
     }
 
+    #[cfg(feature = "options")]
     #[inline]
     pub fn tetra_vec4(&self, lin_x: f32, lin_y: f32, lin_z: f32) -> Vector4f {
         self.tetra(
@@ -1147,6 +1163,7 @@ impl Array3D<'_> {
         )
     }
 
+    #[cfg(feature = "options")]
     #[inline]
     pub fn pyramid_vec4(&self, lin_x: f32, lin_y: f32, lin_z: f32) -> Vector4f {
         self.pyramid(
@@ -1161,6 +1178,7 @@ impl Array3D<'_> {
         )
     }
 
+    #[cfg(feature = "options")]
     #[inline]
     pub fn prism_vec4(&self, lin_x: f32, lin_y: f32, lin_z: f32) -> Vector4f {
         self.prism(

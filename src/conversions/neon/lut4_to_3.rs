@@ -29,10 +29,7 @@
 use crate::conversions::LutBarycentricReduction;
 use crate::conversions::interpolator::BarycentricWeight;
 use crate::conversions::lut_transforms::Lut4x3Factory;
-use crate::conversions::neon::interpolator::{
-    NeonMdInterpolationDouble, PrismaticNeonDouble, PyramidalNeonDouble, TetrahedralNeonDouble,
-    TrilinearNeonDouble,
-};
+use crate::conversions::neon::interpolator::*;
 use crate::conversions::neon::interpolator_q1_15::NeonAlignedI16x4;
 use crate::conversions::neon::lut4_to_3_q1_15::TransformLut4XyzToRgbNeonQ1_15;
 use crate::conversions::neon::rgb_xyz::NeonAlignedF32;
@@ -181,12 +178,15 @@ where
         }
 
         match self.interpolation_method {
+            #[cfg(feature = "options")]
             InterpolationMethod::Tetrahedral => {
                 self.transform_chunk::<TetrahedralNeonDouble<GRID_SIZE>>(src, dst);
             }
+            #[cfg(feature = "options")]
             InterpolationMethod::Pyramid => {
                 self.transform_chunk::<PyramidalNeonDouble<GRID_SIZE>>(src, dst);
             }
+            #[cfg(feature = "options")]
             InterpolationMethod::Prism => {
                 self.transform_chunk::<PrismaticNeonDouble<GRID_SIZE>>(src, dst);
             }
@@ -249,6 +249,7 @@ impl Lut4x3Factory for NeonLut4x3Factory {
                     interpolation_method: options.interpolation_method,
                     weights: BarycentricWeight::<i16>::create_ranged_256::<GRID_SIZE>(),
                 }),
+                #[cfg(feature = "options")]
                 BarycentricWeightScale::High => Box::new(TransformLut4XyzToRgbNeonQ1_15::<
                     T,
                     u16,
@@ -282,6 +283,7 @@ impl Lut4x3Factory for NeonLut4x3Factory {
                     },
                 )
             }
+            #[cfg(feature = "options")]
             BarycentricWeightScale::High => Box::new(TransformLut4XyzToRgbNeon::<
                 T,
                 u16,

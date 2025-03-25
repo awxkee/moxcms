@@ -38,14 +38,17 @@ use std::ops::{Add, Mul, Sub};
 #[repr(align(16), C)]
 pub(crate) struct SseAlignedF32(pub(crate) [f32; 4]);
 
+#[cfg(feature = "options")]
 pub(crate) struct TetrahedralAvxFma<'a, const GRID_SIZE: usize> {
     pub(crate) cube: &'a [SseAlignedF32],
 }
 
+#[cfg(feature = "options")]
 pub(crate) struct PyramidalAvxFma<'a, const GRID_SIZE: usize> {
     pub(crate) cube: &'a [SseAlignedF32],
 }
 
+#[cfg(feature = "options")]
 pub(crate) struct PrismaticAvxFma<'a, const GRID_SIZE: usize> {
     pub(crate) cube: &'a [SseAlignedF32],
 }
@@ -54,6 +57,7 @@ pub(crate) struct TrilinearAvxFma<'a, const GRID_SIZE: usize> {
     pub(crate) cube: &'a [SseAlignedF32],
 }
 
+#[cfg(feature = "options")]
 pub(crate) struct PrismaticAvxFmaDouble<'a, const GRID_SIZE: usize> {
     pub(crate) cube0: &'a [SseAlignedF32],
     pub(crate) cube1: &'a [SseAlignedF32],
@@ -64,11 +68,13 @@ pub(crate) struct TrilinearAvxFmaDouble<'a, const GRID_SIZE: usize> {
     pub(crate) cube1: &'a [SseAlignedF32],
 }
 
+#[cfg(feature = "options")]
 pub(crate) struct PyramidAvxFmaDouble<'a, const GRID_SIZE: usize> {
     pub(crate) cube0: &'a [SseAlignedF32],
     pub(crate) cube1: &'a [SseAlignedF32],
 }
 
+#[cfg(feature = "options")]
 pub(crate) struct TetrahedralAvxFmaDouble<'a, const GRID_SIZE: usize> {
     pub(crate) cube0: &'a [SseAlignedF32],
     pub(crate) cube1: &'a [SseAlignedF32],
@@ -292,6 +298,7 @@ impl<const GRID_SIZE: usize> Fetcher<AvxVectorSse> for TetrahedralAvxSseFetchVec
     }
 }
 
+#[cfg(feature = "options")]
 impl<const GRID_SIZE: usize> TetrahedralAvxFma<'_, GRID_SIZE> {
     #[inline(always)]
     fn interpolate<U: AsPrimitive<usize>, const BINS: usize>(
@@ -392,6 +399,7 @@ macro_rules! define_interp_avx {
     };
 }
 
+#[cfg(feature = "options")]
 macro_rules! define_interp_avx_d {
     ($interpolator: ident) => {
         impl<'a, const GRID_SIZE: usize> AvxMdInterpolationDouble<'a, GRID_SIZE>
@@ -426,13 +434,19 @@ macro_rules! define_interp_avx_d {
     };
 }
 
+#[cfg(feature = "options")]
 define_interp_avx!(TetrahedralAvxFma);
+#[cfg(feature = "options")]
 define_interp_avx!(PyramidalAvxFma);
+#[cfg(feature = "options")]
 define_interp_avx!(PrismaticAvxFma);
 define_interp_avx!(TrilinearAvxFma);
+#[cfg(feature = "options")]
 define_interp_avx_d!(PrismaticAvxFmaDouble);
+#[cfg(feature = "options")]
 define_interp_avx_d!(PyramidAvxFmaDouble);
 
+#[cfg(feature = "options")]
 impl<'a, const GRID_SIZE: usize> AvxMdInterpolationDouble<'a, GRID_SIZE>
     for TetrahedralAvxFmaDouble<'a, GRID_SIZE>
 {
@@ -497,6 +511,7 @@ impl<'a, const GRID_SIZE: usize> AvxMdInterpolationDouble<'a, GRID_SIZE>
     }
 }
 
+#[cfg(feature = "options")]
 impl<const GRID_SIZE: usize> PyramidalAvxFma<'_, GRID_SIZE> {
     #[inline(always)]
     fn interpolate<U: AsPrimitive<usize>, const BINS: usize>(
@@ -583,6 +598,7 @@ impl<const GRID_SIZE: usize> PyramidalAvxFma<'_, GRID_SIZE> {
     }
 }
 
+#[cfg(feature = "options")]
 impl<const GRID_SIZE: usize> PrismaticAvxFma<'_, GRID_SIZE> {
     #[inline(always)]
     fn interpolate<U: AsPrimitive<usize>, const BINS: usize>(
@@ -657,6 +673,7 @@ impl<const GRID_SIZE: usize> PrismaticAvxFma<'_, GRID_SIZE> {
     }
 }
 
+#[cfg(feature = "options")]
 impl<const GRID_SIZE: usize> PrismaticAvxFmaDouble<'_, GRID_SIZE> {
     #[inline(always)]
     fn interpolate<U: AsPrimitive<usize>, const BINS: usize>(
@@ -759,6 +776,7 @@ impl<const GRID_SIZE: usize> PrismaticAvxFmaDouble<'_, GRID_SIZE> {
     }
 }
 
+#[cfg(feature = "options")]
 impl<const GRID_SIZE: usize> PyramidAvxFmaDouble<'_, GRID_SIZE> {
     #[inline(always)]
     fn interpolate<U: AsPrimitive<usize>, const BINS: usize>(
@@ -880,6 +898,7 @@ impl<const GRID_SIZE: usize> PyramidAvxFmaDouble<'_, GRID_SIZE> {
     }
 }
 
+#[cfg(feature = "options")]
 impl<const GRID_SIZE: usize> TetrahedralAvxFmaDouble<'_, GRID_SIZE> {
     #[inline(always)]
     fn interpolate<U: AsPrimitive<usize>, const BINS: usize>(

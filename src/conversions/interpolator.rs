@@ -33,14 +33,17 @@ use crate::{Vector3f, Vector4f};
 use num_traits::AsPrimitive;
 use std::ops::{Add, Mul, Sub};
 
+#[cfg(feature = "options")]
 pub(crate) struct Tetrahedral<'a, const GRID_SIZE: usize> {
     pub(crate) cube: &'a [f32],
 }
 
+#[cfg(feature = "options")]
 pub(crate) struct Pyramidal<'a, const GRID_SIZE: usize> {
     pub(crate) cube: &'a [f32],
 }
 
+#[cfg(feature = "options")]
 pub(crate) struct Prismatic<'a, const GRID_SIZE: usize> {
     pub(crate) cube: &'a [f32],
 }
@@ -74,6 +77,7 @@ impl BarycentricWeight<f32> {
         weights
     }
 
+    #[cfg(feature = "options")]
     pub(crate) fn create_binned<const GRID_SIZE: usize, const BINS: usize>()
     -> Box<[BarycentricWeight<f32>; 65536]> {
         let mut weights = Box::new([BarycentricWeight::<f32>::default(); 65536]);
@@ -111,6 +115,7 @@ impl BarycentricWeight<i16> {
         weights
     }
 
+    #[cfg(feature = "options")]
     pub(crate) fn create_binned<const GRID_SIZE: usize, const BINS: usize>()
     -> Box<[BarycentricWeight<i16>; 65536]> {
         let mut weights = Box::new([BarycentricWeight::default(); 65536]);
@@ -188,6 +193,7 @@ impl<const GRID_SIZE: usize> Fetcher<Vector4f> for TetrahedralFetchVector4f<'_, 
     }
 }
 
+#[cfg(feature = "options")]
 impl<const GRID_SIZE: usize> Tetrahedral<'_, GRID_SIZE> {
     #[inline(always)]
     fn interpolate<
@@ -313,11 +319,15 @@ macro_rules! define_md_inter {
     };
 }
 
+#[cfg(feature = "options")]
 define_md_inter!(Tetrahedral);
+#[cfg(feature = "options")]
 define_md_inter!(Pyramidal);
+#[cfg(feature = "options")]
 define_md_inter!(Prismatic);
 define_md_inter!(Trilinear);
 
+#[cfg(feature = "options")]
 impl<const GRID_SIZE: usize> Pyramidal<'_, GRID_SIZE> {
     #[inline(always)]
     fn interpolate<
@@ -405,6 +415,7 @@ impl<const GRID_SIZE: usize> Pyramidal<'_, GRID_SIZE> {
     }
 }
 
+#[cfg(feature = "options")]
 impl<const GRID_SIZE: usize> Prismatic<'_, GRID_SIZE> {
     #[inline(always)]
     fn interpolate<

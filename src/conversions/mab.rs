@@ -69,12 +69,15 @@ impl<const DEPTH: usize> InPlaceStage for ACurves3<'_, DEPTH> {
     fn transform(&self, dst: &mut [f32]) -> Result<(), CmsError> {
         let lut = Array3D::new_hexahedron(self.clut, self.grid_size);
         match self.interpolation_method {
+            #[cfg(feature = "options")]
             InterpolationMethod::Tetrahedral => {
                 self.transform_impl(dst, |x, y, z| lut.tetra_vec3(x, y, z))?;
             }
+            #[cfg(feature = "options")]
             InterpolationMethod::Pyramid => {
                 self.transform_impl(dst, |x, y, z| lut.pyramid_vec3(x, y, z))?;
             }
+            #[cfg(feature = "options")]
             InterpolationMethod::Prism => {
                 self.transform_impl(dst, |x, y, z| lut.prism_vec3(x, y, z))?;
             }
@@ -123,12 +126,15 @@ impl<const DEPTH: usize> InPlaceStage for ACurves3Inverse<'_, DEPTH> {
     fn transform(&self, dst: &mut [f32]) -> Result<(), CmsError> {
         let lut = Array3D::new_hexahedron(self.clut, self.grid_size);
         match self.interpolation_method {
+            #[cfg(feature = "options")]
             InterpolationMethod::Tetrahedral => {
                 self.transform_impl(dst, |x, y, z| lut.tetra_vec3(x, y, z))?;
             }
+            #[cfg(feature = "options")]
             InterpolationMethod::Pyramid => {
                 self.transform_impl(dst, |x, y, z| lut.pyramid_vec3(x, y, z))?;
             }
+            #[cfg(feature = "options")]
             InterpolationMethod::Prism => {
                 self.transform_impl(dst, |x, y, z| lut.prism_vec3(x, y, z))?;
             }

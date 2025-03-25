@@ -112,12 +112,15 @@ impl Stage for Lut3x4 {
     fn transform(&self, src: &[f32], dst: &mut [f32]) -> Result<(), CmsError> {
         let l_tbl = Array3D::new(&self.clut, self.grid_size as usize);
         match self.interpolation_method {
+            #[cfg(feature = "options")]
             InterpolationMethod::Tetrahedral => {
                 self.transform_impl(src, dst, |x, y, z| l_tbl.tetra_vec4(x, y, z))?;
             }
+            #[cfg(feature = "options")]
             InterpolationMethod::Pyramid => {
                 self.transform_impl(src, dst, |x, y, z| l_tbl.pyramid_vec4(x, y, z))?;
             }
+            #[cfg(feature = "options")]
             InterpolationMethod::Prism => {
                 self.transform_impl(src, dst, |x, y, z| l_tbl.prism_vec4(x, y, z))?;
             }

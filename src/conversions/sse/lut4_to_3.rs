@@ -29,10 +29,7 @@
 use crate::conversions::LutBarycentricReduction;
 use crate::conversions::interpolator::BarycentricWeight;
 use crate::conversions::lut_transforms::Lut4x3Factory;
-use crate::conversions::sse::TetrahedralSse;
-use crate::conversions::sse::interpolator::{
-    PrismaticSse, PyramidalSse, SseAlignedF32, SseMdInterpolation, TrilinearSse,
-};
+use crate::conversions::sse::interpolator::*;
 use crate::conversions::sse::interpolator_q1_15::SseAlignedI16x4;
 use crate::conversions::sse::lut4_to_3_q1_15::TransformLut4XyzToRgbSseQ1_15;
 use crate::transform::PointeeSizeExpressible;
@@ -192,12 +189,15 @@ where
 
         unsafe {
             match self.interpolation_method {
+                #[cfg(feature = "options")]
                 InterpolationMethod::Tetrahedral => {
                     self.transform_chunk::<TetrahedralSse<GRID_SIZE>>(src, dst);
                 }
+                #[cfg(feature = "options")]
                 InterpolationMethod::Pyramid => {
                     self.transform_chunk::<PyramidalSse<GRID_SIZE>>(src, dst);
                 }
+                #[cfg(feature = "options")]
                 InterpolationMethod::Prism => {
                     self.transform_chunk::<PrismaticSse<GRID_SIZE>>(src, dst);
                 }
@@ -258,6 +258,7 @@ impl Lut4x3Factory for SseLut4x3Factory {
                     interpolation_method: options.interpolation_method,
                     weights: BarycentricWeight::<i16>::create_ranged_256::<GRID_SIZE>(),
                 }),
+                #[cfg(feature = "options")]
                 BarycentricWeightScale::High => Box::new(TransformLut4XyzToRgbSseQ1_15::<
                     T,
                     u16,
@@ -291,6 +292,7 @@ impl Lut4x3Factory for SseLut4x3Factory {
                     },
                 )
             }
+            #[cfg(feature = "options")]
             BarycentricWeightScale::High => Box::new(TransformLut4XyzToRgbSse::<
                 T,
                 u16,

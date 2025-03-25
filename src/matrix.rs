@@ -954,7 +954,7 @@ pub struct Xyzd {
 }
 
 macro_rules! define_xyz {
-    ($xyz_name:ident, $im_type: ident) => {
+    ($xyz_name:ident, $im_type: ident, $matrix: ident) => {
         impl PartialEq<Self> for $xyz_name {
             #[inline]
             fn eq(&self, other: &Self) -> bool {
@@ -987,10 +987,7 @@ macro_rules! define_xyz {
             }
 
             #[inline]
-            pub fn from_linear_rgb(
-                rgb: crate::Rgb<$im_type>,
-                rgb_to_xyz: Matrix3<$im_type>,
-            ) -> Self {
+            pub fn from_linear_rgb(rgb: crate::Rgb<$im_type>, rgb_to_xyz: $matrix) -> Self {
                 let r = rgb.r;
                 let g = rgb.g;
                 let b = rgb.b;
@@ -1031,7 +1028,7 @@ macro_rules! define_xyz {
             }
 
             #[inline]
-            pub fn to_linear_rgb(self, rgb_to_xyz: Matrix3<$im_type>) -> crate::Rgb<$im_type> {
+            pub fn to_linear_rgb(self, rgb_to_xyz: $matrix) -> crate::Rgb<$im_type> {
                 let x = self.x;
                 let y = self.y;
                 let z = self.z;
@@ -1114,8 +1111,8 @@ macro_rules! define_xyz {
     };
 }
 
-define_xyz!(Xyz, f32);
-define_xyz!(Xyzd, f64);
+define_xyz!(Xyz, f32, Matrix3f);
+define_xyz!(Xyzd, f64, Matrix3d);
 
 /// Holds CIE XyY representation
 #[derive(Clone, Debug, Copy, Default)]

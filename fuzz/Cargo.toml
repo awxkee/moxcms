@@ -12,9 +12,10 @@ libfuzzer-sys = "0.4"
 
 [dependencies.moxcms]
 path = ".."
+features = ["options"]
 
 [features]
-default = []
+default = ["moxcms/options"]
 avx = ["moxcms/avx"]
 sse = ["moxcms/sse"]
 neon = ["moxcms/neon"]
