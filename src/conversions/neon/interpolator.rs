@@ -254,7 +254,7 @@ pub(crate) trait NeonMdInterpolation<'a, const GRID_SIZE: usize> {
         in_r: U,
         in_g: U,
         in_b: U,
-        lut: &[BarycentricWeight; BINS],
+        lut: &[BarycentricWeight<f32>; BINS],
     ) -> NeonVector;
 }
 
@@ -265,7 +265,7 @@ pub(crate) trait NeonMdInterpolationDouble<'a, const GRID_SIZE: usize> {
         in_r: U,
         in_g: U,
         in_b: U,
-        lut: &[BarycentricWeight; BINS],
+        lut: &[BarycentricWeight<f32>; BINS],
     ) -> (NeonVector, NeonVector);
 }
 
@@ -276,7 +276,7 @@ impl<const GRID_SIZE: usize> TetrahedralNeon<'_, GRID_SIZE> {
         in_r: U,
         in_g: U,
         in_b: U,
-        lut: &[BarycentricWeight; BINS],
+        lut: &[BarycentricWeight<f32>; BINS],
         r: impl Fetcher<NeonVector>,
     ) -> NeonVector {
         let lut_r = lut[in_r.as_()];
@@ -346,7 +346,7 @@ impl<const GRID_SIZE: usize> TetrahedralNeonDouble<'_, GRID_SIZE> {
         in_r: U,
         in_g: U,
         in_b: U,
-        lut: &[BarycentricWeight; BINS],
+        lut: &[BarycentricWeight<f32>; BINS],
         r: impl Fetcher<NeonVectorDouble>,
     ) -> (NeonVector, NeonVector) {
         let lut_r = lut[in_r.as_()];
@@ -425,7 +425,7 @@ macro_rules! define_md_inter_neon {
                 in_r: U,
                 in_g: U,
                 in_b: U,
-                lut: &[BarycentricWeight; BINS],
+                lut: &[BarycentricWeight<f32>; BINS],
             ) -> NeonVector {
                 self.interpolate(
                     in_r,
@@ -458,7 +458,7 @@ macro_rules! define_md_inter_neon_d {
                 in_r: U,
                 in_g: U,
                 in_b: U,
-                lut: &[BarycentricWeight; BINS],
+                lut: &[BarycentricWeight<f32>; BINS],
             ) -> (NeonVector, NeonVector) {
                 self.interpolate(
                     in_r,
@@ -491,7 +491,7 @@ impl<const GRID_SIZE: usize> PyramidalNeon<'_, GRID_SIZE> {
         in_r: U,
         in_g: U,
         in_b: U,
-        lut: &[BarycentricWeight; BINS],
+        lut: &[BarycentricWeight<f32>; BINS],
         r: impl Fetcher<NeonVector>,
     ) -> NeonVector {
         let lut_r = lut[in_r.as_()];
@@ -568,7 +568,7 @@ impl<const GRID_SIZE: usize> PyramidalNeonDouble<'_, GRID_SIZE> {
         in_r: U,
         in_g: U,
         in_b: U,
-        lut: &[BarycentricWeight; BINS],
+        lut: &[BarycentricWeight<f32>; BINS],
         r: impl Fetcher<NeonVectorDouble>,
     ) -> (NeonVector, NeonVector) {
         let lut_r = lut[in_r.as_()];
@@ -655,7 +655,7 @@ impl<const GRID_SIZE: usize> PrismaticNeon<'_, GRID_SIZE> {
         in_r: U,
         in_g: U,
         in_b: U,
-        lut: &[BarycentricWeight; BINS],
+        lut: &[BarycentricWeight<f32>; BINS],
         r: impl Fetcher<NeonVector>,
     ) -> NeonVector {
         let lut_r = lut[in_r.as_()];
@@ -723,7 +723,7 @@ impl<const GRID_SIZE: usize> PrismaticNeonDouble<'_, GRID_SIZE> {
         in_r: U,
         in_g: U,
         in_b: U,
-        lut: &[BarycentricWeight; BINS],
+        lut: &[BarycentricWeight<f32>; BINS],
         rv: impl Fetcher<NeonVectorDouble>,
     ) -> (NeonVector, NeonVector) {
         let lut_r = lut[in_r.as_()];
@@ -797,7 +797,7 @@ impl<const GRID_SIZE: usize> TrilinearNeonDouble<'_, GRID_SIZE> {
         in_r: U,
         in_g: U,
         in_b: U,
-        lut: &[BarycentricWeight; BINS],
+        lut: &[BarycentricWeight<f32>; BINS],
         r: impl Fetcher<NeonVectorDouble>,
     ) -> (NeonVector, NeonVector) {
         let lut_r = lut[in_r.as_()];
@@ -854,7 +854,7 @@ impl<const GRID_SIZE: usize> TrilinearNeon<'_, GRID_SIZE> {
         in_r: U,
         in_g: U,
         in_b: U,
-        lut: &[BarycentricWeight; BINS],
+        lut: &[BarycentricWeight<f32>; BINS],
         r: impl Fetcher<NeonVector>,
     ) -> NeonVector {
         let lut_r = lut[in_r.as_()];

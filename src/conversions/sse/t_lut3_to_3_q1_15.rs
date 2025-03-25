@@ -27,7 +27,7 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::conversions::LutBarycentricReduction;
-use crate::conversions::interpolator::BarycentricWeightQ1_15;
+use crate::conversions::interpolator::BarycentricWeight;
 use crate::conversions::sse::interpolator_q1_15::{
     PrismaticSseQ1_15, PyramidalSseQ1_15, SseAlignedI16x4, SseMdInterpolationQ1_15,
     TetrahedralSseQ1_15, TrilinearSseQ1_15,
@@ -55,7 +55,7 @@ pub(crate) struct TransformLut3x3SseQ1_15<
     pub(crate) _phantom: PhantomData<T>,
     pub(crate) _phantom2: PhantomData<U>,
     pub(crate) interpolation_method: InterpolationMethod,
-    pub(crate) weights: Box<[BarycentricWeightQ1_15; BINS]>,
+    pub(crate) weights: Box<[BarycentricWeight<i16>; BINS]>,
 }
 
 impl<

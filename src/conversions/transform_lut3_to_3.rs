@@ -52,7 +52,7 @@ pub(crate) struct TransformLut3x3<
     pub(crate) _phantom: PhantomData<T>,
     pub(crate) _phantom1: PhantomData<U>,
     pub(crate) interpolation_method: InterpolationMethod,
-    pub(crate) weights: Box<[BarycentricWeight; BINS]>,
+    pub(crate) weights: Box<[BarycentricWeight<f32>; BINS]>,
 }
 
 impl<
@@ -213,7 +213,7 @@ impl Lut3x3Factory for DefaultLut3x3Factory {
                 _phantom: PhantomData,
                 _phantom1: PhantomData,
                 interpolation_method: options.interpolation_method,
-                weights: BarycentricWeight::create_ranged_256::<GRID_SIZE>(),
+                weights: BarycentricWeight::<f32>::create_ranged_256::<GRID_SIZE>(),
             }),
             BarycentricWeightScale::High => Box::new(TransformLut3x3::<
                 T,
@@ -229,7 +229,7 @@ impl Lut3x3Factory for DefaultLut3x3Factory {
                 _phantom: PhantomData,
                 _phantom1: PhantomData,
                 interpolation_method: options.interpolation_method,
-                weights: BarycentricWeight::create_binned::<GRID_SIZE, 65536>(),
+                weights: BarycentricWeight::<f32>::create_binned::<GRID_SIZE, 65536>(),
             }),
         }
     }

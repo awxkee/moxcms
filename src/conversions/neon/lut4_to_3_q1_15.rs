@@ -27,7 +27,7 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::conversions::LutBarycentricReduction;
-use crate::conversions::interpolator::BarycentricWeightQ1_15;
+use crate::conversions::interpolator::BarycentricWeight;
 use crate::conversions::neon::interpolator_q1_15::{
     NeonAlignedI16x4, NeonMdInterpolationQ1_15Double, PrismaticNeonQ1_15Double,
     PyramidalNeonQ1_15Double, TetrahedralNeonQ1_15Double, TrilinearNeonQ1_15Double,
@@ -51,7 +51,7 @@ pub(crate) struct TransformLut4XyzToRgbNeonQ1_15<
     pub(crate) _phantom: PhantomData<T>,
     pub(crate) _phantom1: PhantomData<U>,
     pub(crate) interpolation_method: InterpolationMethod,
-    pub(crate) weights: Box<[BarycentricWeightQ1_15; BINS]>,
+    pub(crate) weights: Box<[BarycentricWeight<i16>; BINS]>,
 }
 
 impl<

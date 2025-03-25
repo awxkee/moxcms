@@ -27,7 +27,7 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::conversions::LutBarycentricReduction;
-use crate::conversions::interpolator::{BarycentricWeight, BarycentricWeightQ1_15};
+use crate::conversions::interpolator::BarycentricWeight;
 use crate::conversions::lut_transforms::Lut3x3Factory;
 use crate::conversions::neon::interpolator::*;
 use crate::conversions::neon::interpolator::{NeonMdInterpolation, PyramidalNeon};
@@ -57,7 +57,7 @@ struct TransformLut3x3Neon<
     _phantom: PhantomData<T>,
     _phantom1: PhantomData<U>,
     interpolation_method: InterpolationMethod,
-    weights: Box<[BarycentricWeight; BINS]>,
+    weights: Box<[BarycentricWeight<f32>; BINS]>,
 }
 
 impl<
@@ -251,7 +251,7 @@ impl Lut3x3Factory for NeonLut3x3Factory {
                     _phantom: PhantomData,
                     _phantom1: PhantomData,
                     interpolation_method: options.interpolation_method,
-                    weights: BarycentricWeightQ1_15::create_ranged_256::<GRID_SIZE>(),
+                    weights: BarycentricWeight::<i16>::create_ranged_256::<GRID_SIZE>(),
                 }),
                 BarycentricWeightScale::High => Box::new(TransformLut3x3NeonQ1_15::<
                     T,
@@ -267,7 +267,7 @@ impl Lut3x3Factory for NeonLut3x3Factory {
                     _phantom: PhantomData,
                     _phantom1: PhantomData,
                     interpolation_method: options.interpolation_method,
-                    weights: BarycentricWeightQ1_15::create_binned::<GRID_SIZE, 65536>(),
+                    weights: BarycentricWeight::<i16>::create_binned::<GRID_SIZE, 65536>(),
                 }),
             };
         }
@@ -290,7 +290,7 @@ impl Lut3x3Factory for NeonLut3x3Factory {
                 _phantom: PhantomData,
                 _phantom1: PhantomData,
                 interpolation_method: options.interpolation_method,
-                weights: BarycentricWeight::create_ranged_256::<GRID_SIZE>(),
+                weights: BarycentricWeight::<f32>::create_ranged_256::<GRID_SIZE>(),
             }),
             BarycentricWeightScale::High => Box::new(TransformLut3x3Neon::<
                 T,
@@ -306,7 +306,7 @@ impl Lut3x3Factory for NeonLut3x3Factory {
                 _phantom: PhantomData,
                 _phantom1: PhantomData,
                 interpolation_method: options.interpolation_method,
-                weights: BarycentricWeight::create_binned::<GRID_SIZE, 65536>(),
+                weights: BarycentricWeight::<f32>::create_binned::<GRID_SIZE, 65536>(),
             }),
         }
     }

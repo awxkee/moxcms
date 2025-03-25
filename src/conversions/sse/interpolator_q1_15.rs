@@ -26,7 +26,7 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-use crate::conversions::interpolator::BarycentricWeightQ1_15;
+use crate::conversions::interpolator::BarycentricWeight;
 use crate::math::FusedMultiplyAdd;
 use num_traits::AsPrimitive;
 #[cfg(target_arch = "x86")]
@@ -136,7 +136,7 @@ pub(crate) trait SseMdInterpolationQ1_15<'a, const GRID_SIZE: usize> {
         in_r: U,
         in_g: U,
         in_b: U,
-        lut: &[BarycentricWeightQ1_15; BINS],
+        lut: &[BarycentricWeight<i16>; BINS],
     ) -> SseVector;
 }
 
@@ -147,7 +147,7 @@ impl<const GRID_SIZE: usize> TetrahedralSseQ1_15<'_, GRID_SIZE> {
         in_r: U,
         in_g: U,
         in_b: U,
-        lut: &[BarycentricWeightQ1_15; BINS],
+        lut: &[BarycentricWeight<i16>; BINS],
         r: impl Fetcher<SseVector>,
     ) -> SseVector {
         let lut_r = lut[in_r.as_()];
@@ -226,7 +226,7 @@ macro_rules! define_inter_sse {
                 in_r: U,
                 in_g: U,
                 in_b: U,
-                lut: &[BarycentricWeightQ1_15; BINS],
+                lut: &[BarycentricWeight<i16>; BINS],
             ) -> SseVector {
                 self.interpolate(
                     in_r,
@@ -252,7 +252,7 @@ impl<const GRID_SIZE: usize> PyramidalSseQ1_15<'_, GRID_SIZE> {
         in_r: U,
         in_g: U,
         in_b: U,
-        lut: &[BarycentricWeightQ1_15; BINS],
+        lut: &[BarycentricWeight<i16>; BINS],
         r: impl Fetcher<SseVector>,
     ) -> SseVector {
         let lut_r = lut[in_r.as_()];
@@ -329,7 +329,7 @@ impl<const GRID_SIZE: usize> PrismaticSseQ1_15<'_, GRID_SIZE> {
         in_r: U,
         in_g: U,
         in_b: U,
-        lut: &[BarycentricWeightQ1_15; BINS],
+        lut: &[BarycentricWeight<i16>; BINS],
         r: impl Fetcher<SseVector>,
     ) -> SseVector {
         let lut_r = lut[in_r.as_()];
@@ -397,7 +397,7 @@ impl<const GRID_SIZE: usize> TrilinearSseQ1_15<'_, GRID_SIZE> {
         in_r: U,
         in_g: U,
         in_b: U,
-        lut: &[BarycentricWeightQ1_15; BINS],
+        lut: &[BarycentricWeight<i16>; BINS],
         r: impl Fetcher<SseVector>,
     ) -> SseVector {
         let lut_r = lut[in_r.as_()];
