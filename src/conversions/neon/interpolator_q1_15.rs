@@ -35,10 +35,12 @@ use std::ops::{Add, Mul, Sub};
 #[repr(align(16), C)]
 pub(crate) struct NeonAlignedI16x4(pub(crate) [i16; 4]);
 
+#[cfg(feature = "options")]
 pub(crate) struct TetrahedralNeonQ1_15<'a, const GRID_SIZE: usize> {
     pub(crate) cube: &'a [NeonAlignedI16x4],
 }
 
+#[cfg(feature = "options")]
 pub(crate) struct PyramidalNeonQ1_15<'a, const GRID_SIZE: usize> {
     pub(crate) cube: &'a [NeonAlignedI16x4],
 }
@@ -47,11 +49,13 @@ pub(crate) struct TrilinearNeonQ1_15<'a, const GRID_SIZE: usize> {
     pub(crate) cube: &'a [NeonAlignedI16x4],
 }
 
+#[cfg(feature = "options")]
 pub(crate) struct PyramidalNeonQ1_15Double<'a, const GRID_SIZE: usize> {
     pub(crate) cube0: &'a [NeonAlignedI16x4],
     pub(crate) cube1: &'a [NeonAlignedI16x4],
 }
 
+#[cfg(feature = "options")]
 pub(crate) struct PrismaticNeonQ1_15Double<'a, const GRID_SIZE: usize> {
     pub(crate) cube0: &'a [NeonAlignedI16x4],
     pub(crate) cube1: &'a [NeonAlignedI16x4],
@@ -62,11 +66,13 @@ pub(crate) struct TrilinearNeonQ1_15Double<'a, const GRID_SIZE: usize> {
     pub(crate) cube1: &'a [NeonAlignedI16x4],
 }
 
+#[cfg(feature = "options")]
 pub(crate) struct TetrahedralNeonQ1_15Double<'a, const GRID_SIZE: usize> {
     pub(crate) cube0: &'a [NeonAlignedI16x4],
     pub(crate) cube1: &'a [NeonAlignedI16x4],
 }
 
+#[cfg(feature = "options")]
 pub(crate) struct PrismaticNeonQ1_15<'a, const GRID_SIZE: usize> {
     pub(crate) cube: &'a [NeonAlignedI16x4],
 }
@@ -269,6 +275,7 @@ pub(crate) trait NeonMdInterpolationQ1_15Double<'a, const GRID_SIZE: usize> {
     ) -> (NeonVectorQ1_15, NeonVectorQ1_15);
 }
 
+#[cfg(feature = "options")]
 impl<const GRID_SIZE: usize> TetrahedralNeonQ1_15<'_, GRID_SIZE> {
     #[inline(always)]
     fn interpolate<U: AsPrimitive<usize>, const BINS: usize>(
@@ -339,6 +346,7 @@ impl<const GRID_SIZE: usize> TetrahedralNeonQ1_15<'_, GRID_SIZE> {
     }
 }
 
+#[cfg(feature = "options")]
 impl<const GRID_SIZE: usize> TetrahedralNeonQ1_15Double<'_, GRID_SIZE> {
     #[inline(always)]
     fn interpolate<U: AsPrimitive<usize>, const BINS: usize>(
@@ -475,15 +483,22 @@ macro_rules! define_md_inter_neon_d {
     };
 }
 
+#[cfg(feature = "options")]
 define_md_inter_neon!(TetrahedralNeonQ1_15);
+#[cfg(feature = "options")]
 define_md_inter_neon!(PyramidalNeonQ1_15);
+#[cfg(feature = "options")]
 define_md_inter_neon!(PrismaticNeonQ1_15);
 define_md_inter_neon!(TrilinearNeonQ1_15);
+#[cfg(feature = "options")]
 define_md_inter_neon_d!(PrismaticNeonQ1_15Double);
+#[cfg(feature = "options")]
 define_md_inter_neon_d!(PyramidalNeonQ1_15Double);
+#[cfg(feature = "options")]
 define_md_inter_neon_d!(TetrahedralNeonQ1_15Double);
 define_md_inter_neon_d!(TrilinearNeonQ1_15Double);
 
+#[cfg(feature = "options")]
 impl<const GRID_SIZE: usize> PyramidalNeonQ1_15<'_, GRID_SIZE> {
     #[inline(always)]
     fn interpolate<U: AsPrimitive<usize>, const BINS: usize>(
@@ -571,6 +586,7 @@ impl<const GRID_SIZE: usize> PyramidalNeonQ1_15<'_, GRID_SIZE> {
     }
 }
 
+#[cfg(feature = "options")]
 impl<const GRID_SIZE: usize> PyramidalNeonQ1_15Double<'_, GRID_SIZE> {
     #[inline(always)]
     fn interpolate<U: AsPrimitive<usize>, const BINS: usize>(
@@ -655,6 +671,7 @@ impl<const GRID_SIZE: usize> PyramidalNeonQ1_15Double<'_, GRID_SIZE> {
     }
 }
 
+#[cfg(feature = "options")]
 impl<const GRID_SIZE: usize> PrismaticNeonQ1_15<'_, GRID_SIZE> {
     #[inline(always)]
     fn interpolate<U: AsPrimitive<usize>, const BINS: usize>(
@@ -731,6 +748,7 @@ impl<const GRID_SIZE: usize> PrismaticNeonQ1_15<'_, GRID_SIZE> {
     }
 }
 
+#[cfg(feature = "options")]
 impl<const GRID_SIZE: usize> PrismaticNeonQ1_15Double<'_, GRID_SIZE> {
     #[inline(always)]
     fn interpolate<U: AsPrimitive<usize>, const BINS: usize>(
