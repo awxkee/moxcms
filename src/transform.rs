@@ -79,15 +79,6 @@ pub struct TransformOptions {
     /// Do not change it if you're not sure that extreme precision is required,
     /// in most cases it is a simple way to spend energy to warming up environment
     /// a little.
-    ///
-    /// LUT interpolation in fixed point often have very different speed on
-    /// x86 AMD and Intel CPUs.
-    /// 
-    /// In some common sense fixed point workloads often faster than FP, however,
-    /// it is not universally true. Some microarchitectures such as ARM Neoverse prioritize 
-    /// general-purpose computing over DSP workloads with saturating MAC.
-    /// Thus, on specific CPU you may note performance drop in fixed point workload
-    /// over the floating point.
     pub prefer_fixed_point: bool,
     /// Interpolation method for 3D LUT
     pub interpolation_method: InterpolationMethod,

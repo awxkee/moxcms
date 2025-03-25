@@ -282,7 +282,7 @@ fn main() {
     //     .map(|&x| (x * 255f32).round() as u8)
     //     .collect::<Vec<_>>();
     image::save_buffer(
-        "v_new_dst.png",
+        "v_new_dst2.png",
         &dst,
         img.width(),
         img.height(),
