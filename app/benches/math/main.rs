@@ -9,6 +9,22 @@ use moxcms::{atanf, cbrtf, cosf, exp, expf, f_atanf, f_cbrtf, f_cosf, f_exp, f_l
 
 pub fn criterion_benchmark(c: &mut Criterion) {
 
+    c.bench_function("moxcms: fpowf", |b| {
+        b.iter(|| {
+            for i in 1..1000 {
+                black_box(f_powf(i as f32, 0.323221324312f32 * i as f32));
+            }
+        })
+    });
+
+    c.bench_function("system: powf", |b| {
+        b.iter(|| {
+            for i in 1..1000 {
+                black_box(f32::powf(i as f32, 0.323221324312f32 * i as f32));
+            }
+        })
+    });
+
     c.bench_function("system::exp2", |b| {
         b.iter(|| {
             for i in 1..10000 {

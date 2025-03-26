@@ -29,7 +29,8 @@
 #![allow(clippy::approx_constant)]
 
 use crate::mlaf::mlaf;
-use num_traits::Num;
+use num_traits::{MulAdd, Num};
+use std::ops::{Add, Mul};
 
 #[inline(always)]
 const fn halley_refine(x: f32, a: f32) -> f32 {
@@ -45,31 +46,31 @@ fn f_halley_refine(x: f32, a: f32) -> f32 {
 
 macro_rules! poly2 {
     ($x:expr, $c1:expr, $c0:expr) => {
-        mlaf($x, $c1, $c0)
+        c_mlaf($x, $c1, $c0)
     };
 }
 
 macro_rules! poly3 {
     ($x:expr, $x2:expr, $c2:expr, $c1:expr, $c0:expr) => {
-        mlaf($x2, $c2, poly2!($x, $c1, $c0))
+        c_mlaf($x2, $c2, poly2!($x, $c1, $c0))
     };
 }
 
 macro_rules! poly4 {
     ($x:expr, $x2:expr, $c3:expr, $c2:expr, $c1:expr, $c0:expr) => {
-        mlaf($x2, poly2!($x, $c3, $c2), poly2!($x, $c1, $c0))
+        c_mlaf($x2, poly2!($x, $c3, $c2), poly2!($x, $c1, $c0))
     };
 }
 
 macro_rules! poly5 {
     ($x:expr, $x2:expr, $x4:expr, $c4:expr, $c3:expr, $c2:expr, $c1:expr, $c0:expr) => {
-        mlaf($x4, $c4, poly4!($x, $x2, $c3, $c2, $c1, $c0))
+        c_mlaf($x4, $c4, poly4!($x, $x2, $c3, $c2, $c1, $c0))
     };
 }
 
 macro_rules! poly6 {
     ($x:expr, $x2:expr, $x4:expr, $c5:expr, $c4:expr, $c3:expr, $c2:expr, $c1:expr, $c0:expr) => {
-        mlaf(
+        c_mlaf(
             $x4,
             poly2!($x, $c5, $c4),
             poly4!($x, $x2, $c3, $c2, $c1, $c0),
@@ -79,7 +80,7 @@ macro_rules! poly6 {
 
 macro_rules! poly7 {
     ($x:expr, $x2:expr, $x4:expr, $c6:expr, $c5:expr, $c4:expr, $c3:expr, $c2:expr, $c1:expr, $c0:expr) => {
-        mlaf(
+        c_mlaf(
             $x4,
             poly3!($x, $x2, $c6, $c5, $c4),
             poly4!($x, $x2, $c3, $c2, $c1, $c0),
@@ -89,7 +90,7 @@ macro_rules! poly7 {
 
 macro_rules! poly8 {
     ($x:expr, $x2:expr, $x4:expr, $c7:expr, $c6:expr, $c5:expr, $c4:expr, $c3:expr, $c2:expr, $c1:expr, $c0:expr) => {
-        mlaf(
+        c_mlaf(
             $x4,
             poly4!($x, $x2, $c7, $c6, $c5, $c4),
             poly4!($x, $x2, $c3, $c2, $c1, $c0),
@@ -99,7 +100,7 @@ macro_rules! poly8 {
 
 macro_rules! poly9 {
     ($x:expr, $x2:expr, $x4:expr, $x8:expr, $c8:expr, $c7:expr, $c6:expr, $c5:expr, $c4:expr, $c3:expr, $c2:expr, $c1:expr, $c0:expr) => {
-        mlaf(
+        c_mlaf(
             $x8,
             $c8,
             poly8!($x, $x2, $x4, $c7, $c6, $c5, $c4, $c3, $c2, $c1, $c0),
@@ -109,7 +110,7 @@ macro_rules! poly9 {
 
 macro_rules! poly10 {
     ($x:expr, $x2:expr, $x4:expr, $x8:expr, $c9:expr, $c8:expr, $c7:expr, $c6:expr, $c5:expr, $c4:expr, $c3:expr, $c2:expr, $c1:expr, $c0:expr) => {
-        mlaf(
+        c_mlaf(
             $x8,
             poly2!($x, $c9, $c8),
             poly8!($x, $x2, $x4, $c7, $c6, $c5, $c4, $c3, $c2, $c1, $c0),
@@ -119,7 +120,7 @@ macro_rules! poly10 {
 
 macro_rules! poly11 {
     ($x:expr, $x2:expr, $x4:expr, $x8:expr, $ca:expr, $c9:expr, $c8:expr, $c7:expr, $c6:expr, $c5:expr, $c4:expr, $c3:expr, $c2:expr, $c1:expr, $c0:expr) => {
-        mlaf(
+        c_mlaf(
             $x8,
             poly3!($x, $x2, $ca, $c9, $c8),
             poly8!($x, $x2, $x4, $c7, $c6, $c5, $c4, $c3, $c2, $c1, $c0),
@@ -130,9 +131,9 @@ macro_rules! poly11 {
 /// Computes Cube Root
 #[inline]
 pub const fn cbrtf(x: f32) -> f32 {
-    // if x == 0. {
-    //     return x;
-    // }
+    if x == 0. {
+        return x;
+    }
     // if x == f32::INFINITY {
     //     return f32::INFINITY;
     // }
@@ -157,9 +158,9 @@ pub const fn cbrtf(x: f32) -> f32 {
 /// Computes Cube Root using FMA
 #[inline]
 pub fn f_cbrtf(x: f32) -> f32 {
-    // if x == 0. {
-    //     return x;
-    // }
+    if x == 0. {
+        return x;
+    }
     // if x == f32::INFINITY {
     //     return f32::INFINITY;
     // }
@@ -210,6 +211,15 @@ fn f_fmla(a: f64, b: f64, c: f64) -> f64 {
     mlaf(c, a, b)
 }
 
+#[inline(always)]
+pub(crate) fn c_mlaf<T: Copy + Mul<T, Output = T> + Add<T, Output = T> + MulAdd<T, Output = T>>(
+    a: T,
+    b: T,
+    c: T,
+) -> T {
+    mlaf(c, a, b)
+}
+
 #[inline]
 const fn isnegzerof(x: f32) -> bool {
     x.to_bits() == (-0.0f32).to_bits()
@@ -256,10 +266,37 @@ pub fn f_cosf(d: f32) -> f32 {
         r = -r;
     }
 
-    let mut u = 2.6083159809786593541503e-06f32;
-    u = f_fmlaf(u, x2, -0.0001981069071916863322258f32);
-    u = f_fmlaf(u, x2, 0.00833307858556509017944336f32);
-    u = f_fmlaf(u, x2, -0.166666597127914428710938f32);
+    let mut u;
+    #[cfg(any(
+        all(
+            any(target_arch = "x86", target_arch = "x86_64"),
+            target_feature = "fma"
+        ),
+        all(target_arch = "aarch64", target_feature = "neon")
+    ))]
+    {
+        u = 2.6083159809786593541503e-06f32;
+        u = f_fmlaf(u, x2, -0.0001981069071916863322258f32);
+        u = f_fmlaf(u, x2, 0.00833307858556509017944336f32);
+        u = f_fmlaf(u, x2, -0.166666597127914428710938f32);
+    }
+    #[cfg(not(any(
+        all(
+            any(target_arch = "x86", target_arch = "x86_64"),
+            target_feature = "fma"
+        ),
+        all(target_arch = "aarch64", target_feature = "neon")
+    )))]
+    {
+        u = poly4!(
+            x2,
+            x2 * x2,
+            2.6083159809786593541503e-06f32,
+            -0.0001981069071916863322258f32,
+            0.00833307858556509017944336f32,
+            -0.166666597127914428710938f32
+        );
+    }
     u = f_fmlaf(u, x2 * r, r);
     if isnegzerof(d) {
         return -0.;
@@ -308,10 +345,37 @@ pub fn f_sinf(d: f32) -> f32 {
         r = -r;
     }
 
-    let mut u = 2.6083159809786593541503e-06f32;
-    u = f_fmlaf(u, x2, -0.0001981069071916863322258f32);
-    u = f_fmlaf(u, x2, 0.00833307858556509017944336f32);
-    u = f_fmlaf(u, x2, -0.166666597127914428710938f32);
+    let mut u;
+    #[cfg(any(
+        all(
+            any(target_arch = "x86", target_arch = "x86_64"),
+            target_feature = "fma"
+        ),
+        all(target_arch = "aarch64", target_feature = "neon")
+    ))]
+    {
+        u = 2.6083159809786593541503e-06f32;
+        u = f_fmlaf(u, x2, -0.0001981069071916863322258f32);
+        u = f_fmlaf(u, x2, 0.00833307858556509017944336f32);
+        u = f_fmlaf(u, x2, -0.166666597127914428710938f32);
+    }
+    #[cfg(not(any(
+        all(
+            any(target_arch = "x86", target_arch = "x86_64"),
+            target_feature = "fma"
+        ),
+        all(target_arch = "aarch64", target_feature = "neon")
+    )))]
+    {
+        u = poly4!(
+            x2,
+            x2 * x2,
+            2.6083159809786593541503e-06f32,
+            -0.0001981069071916863322258f32,
+            0.00833307858556509017944336f32,
+            -0.166666597127914428710938f32
+        );
+    }
     u = f_fmlaf(u, x2 * r, r);
     if isnegzerof(d) {
         return -0f32;
@@ -428,9 +492,30 @@ pub fn f_expf(d: f32) -> f32 {
 
     let f = r * r;
     // Poly for u = r*(exp(r)+1)/(exp(r)-1)
-    let mut u = EXP_POLY_3_S;
-    u = f_fmlaf(u, f, EXP_POLY_2_S);
-    u = f_fmlaf(u, f, EXP_POLY_1_S);
+    let mut u;
+    #[cfg(any(
+        all(
+            any(target_arch = "x86", target_arch = "x86_64"),
+            target_feature = "fma"
+        ),
+        all(target_arch = "aarch64", target_feature = "neon")
+    ))]
+    {
+        u = EXP_POLY_3_S;
+        u = f_fmlaf(u, f, EXP_POLY_2_S);
+        u = f_fmlaf(u, f, EXP_POLY_1_S);
+    }
+    #[cfg(not(any(
+        all(
+            any(target_arch = "x86", target_arch = "x86_64"),
+            target_feature = "fma"
+        ),
+        all(target_arch = "aarch64", target_feature = "neon")
+    )))]
+    {
+        let x2 = f * f;
+        u = poly3!(f, x2, EXP_POLY_3_S, EXP_POLY_2_S, EXP_POLY_1_S)
+    }
     let u = f_fmlaf(2f32, r / (u - r), 1f32);
     let i2 = pow2if(q);
     u * i2
@@ -498,11 +583,42 @@ pub fn f_logf(d: f32) -> f32 {
 
     let x = (a - 1.) / (a + 1.);
     let x2 = x * x;
-    let mut u = LN_POLY_5_F;
-    u = f_fmlaf(u, x2, LN_POLY_4_F);
-    u = f_fmlaf(u, x2, LN_POLY_3_F);
-    u = f_fmlaf(u, x2, LN_POLY_2_F);
-    u = f_fmlaf(u, x2, LN_POLY_1_F);
+    let mut u;
+    #[cfg(any(
+        all(
+            any(target_arch = "x86", target_arch = "x86_64"),
+            target_feature = "fma"
+        ),
+        all(target_arch = "aarch64", target_feature = "neon")
+    ))]
+    {
+        u = LN_POLY_5_F;
+        u = f_fmlaf(u, x2, LN_POLY_4_F);
+        u = f_fmlaf(u, x2, LN_POLY_3_F);
+        u = f_fmlaf(u, x2, LN_POLY_2_F);
+        u = f_fmlaf(u, x2, LN_POLY_1_F);
+    }
+    #[cfg(not(any(
+        all(
+            any(target_arch = "x86", target_arch = "x86_64"),
+            target_feature = "fma"
+        ),
+        all(target_arch = "aarch64", target_feature = "neon")
+    )))]
+    {
+        let rx2 = x2 * x2;
+        let rx4 = rx2 * rx2;
+        u = poly5!(
+            x2,
+            rx2,
+            rx4,
+            LN_POLY_5_F,
+            LN_POLY_4_F,
+            LN_POLY_3_F,
+            LN_POLY_2_F,
+            LN_POLY_1_F
+        );
+    }
     f_fmlaf(x, u, std::f32::consts::LN_2 * (n as f32))
     // if d == 0f32 {
     //     f32::NEG_INFINITY
@@ -528,28 +644,6 @@ pub fn f_log2f(d: f32) -> f32 {
     u = f_fmlaf(u, x2, 0.5765163451e+0);
     u = f_fmlaf(u, x2, 0.9618007131e+0);
     f_fmlaf(x2 * x, u, f_fmlaf(x, 0.2885390073e+1, n as f32))
-}
-
-/// Natural logarithm using FMA
-#[inline]
-fn f_logf_powf(d: f32) -> f32 {
-    const LN_POLY_1_F: f32 = 2f32;
-    const LN_POLY_2_F: f32 = 0.6666677f32;
-    const LN_POLY_3_F: f32 = 0.40017125f32;
-    const LN_POLY_4_F: f32 = 0.28523374f32;
-    const LN_POLY_5_F: f32 = 0.23616748f32;
-    // ln(𝑥)=ln(𝑎)+𝑛ln(2)
-    let n = ilogb2kf(d * (1. / 0.75));
-    let a = ldexp3kf(d, -n);
-
-    let x = (a - 1.) / (a + 1.);
-    let x2 = x * x;
-    let mut u = LN_POLY_5_F;
-    u = f_fmlaf(u, x2, LN_POLY_4_F);
-    u = f_fmlaf(u, x2, LN_POLY_3_F);
-    u = f_fmlaf(u, x2, LN_POLY_2_F);
-    u = f_fmlaf(u, x2, LN_POLY_1_F);
-    f_fmlaf(x, u, std::f32::consts::LN_2 * (n as f32))
 }
 
 /// Copies sign from `y` to `x`
@@ -601,8 +695,9 @@ pub const fn powf(d: f32, n: f32) -> f32 {
 #[inline]
 pub fn f_powf(d: f32, n: f32) -> f32 {
     let value = d.abs();
-    let mut c = f_exp2f(n * f_log2f(value));
-    c = copysignfk(c, d);
+    let lg = f_log2f(value);
+    let c = f_exp2f(n * lg);
+    copysignfk(c, d)
     // if d < 0. && n.floor() != n {
     //     return f32::NAN;
     // }
@@ -613,7 +708,7 @@ pub fn f_powf(d: f32, n: f32) -> f32 {
     // } else if n.is_nan() || d.is_nan() {
     //     f32::NAN
     // } else {
-    c
+    // c
     // }
 }
 
@@ -806,25 +901,58 @@ pub fn f_log(d: f64) -> f64 {
     let a = ldexp3k(d, -n);
 
     let x = (a - 1.) / (a + 1.);
-    let x2 = x * x;
-    let mut u = LN_POLY_8_D;
-    u = f_fmla(u, x2, LN_POLY_7_D);
-    u = f_fmla(u, x2, LN_POLY_6_D);
-    u = f_fmla(u, x2, LN_POLY_5_D);
-    u = f_fmla(u, x2, LN_POLY_4_D);
-    u = f_fmla(u, x2, LN_POLY_3_D);
-    u = f_fmla(u, x2, LN_POLY_2_D);
-    u = f_fmla(u, x2, LN_POLY_1_D);
-
-    // if d == 0f64 {
-    //     f64::NEG_INFINITY
-    // } else if (d < 0.) || d.is_nan() {
-    //     f64::NAN
-    // } else if d.is_infinite() {
-    //     f64::INFINITY
-    // } else {
-    f_fmla(x, u, std::f64::consts::LN_2 * (n as f64))
-    // }
+    let f = x * x;
+    let mut u;
+    #[cfg(any(
+        all(
+            any(target_arch = "x86", target_arch = "x86_64"),
+            target_feature = "fma"
+        ),
+        all(target_arch = "aarch64", target_feature = "neon")
+    ))]
+    {
+        u = LN_POLY_8_D;
+        u = f_fmla(u, f, LN_POLY_7_D);
+        u = f_fmla(u, f, LN_POLY_6_D);
+        u = f_fmla(u, f, LN_POLY_5_D);
+        u = f_fmla(u, f, LN_POLY_4_D);
+        u = f_fmla(u, f, LN_POLY_3_D);
+        u = f_fmla(u, f, LN_POLY_2_D);
+        u = f_fmla(u, f, LN_POLY_1_D);
+    }
+    #[cfg(not(any(
+        all(
+            any(target_arch = "x86", target_arch = "x86_64"),
+            target_feature = "fma"
+        ),
+        all(target_arch = "aarch64", target_feature = "neon")
+    )))]
+    {
+        let x2 = f * f;
+        let x4 = x2 * x2;
+        u = poly8!(
+            f,
+            x2,
+            x4,
+            LN_POLY_8_D,
+            LN_POLY_7_D,
+            LN_POLY_6_D,
+            LN_POLY_5_D,
+            LN_POLY_4_D,
+            LN_POLY_3_D,
+            LN_POLY_2_D,
+            LN_POLY_1_D
+        );
+    }
+    if d == 0f64 {
+        f64::NEG_INFINITY
+    } else if (d < 0.) || d.is_nan() {
+        f64::NAN
+    } else if d.is_infinite() {
+        f64::INFINITY
+    } else {
+        f_fmla(x, u, std::f64::consts::LN_2 * (n as f64))
+    }
 }
 
 /// Natural logarithm using FMA
@@ -844,15 +972,49 @@ fn f_log_pow(d: f64) -> f64 {
     let a = ldexp3k(d, -n);
 
     let x = (a - 1.) / (a + 1.);
-    let x2 = x * x;
-    let mut u = LN_POLY_8_D;
-    u = f_fmla(u, x2, LN_POLY_7_D);
-    u = f_fmla(u, x2, LN_POLY_6_D);
-    u = f_fmla(u, x2, LN_POLY_5_D);
-    u = f_fmla(u, x2, LN_POLY_4_D);
-    u = f_fmla(u, x2, LN_POLY_3_D);
-    u = f_fmla(u, x2, LN_POLY_2_D);
-    u = f_fmla(u, x2, LN_POLY_1_D);
+    let f = x * x;
+    let mut u;
+    #[cfg(any(
+        all(
+            any(target_arch = "x86", target_arch = "x86_64"),
+            target_feature = "fma"
+        ),
+        all(target_arch = "aarch64", target_feature = "neon")
+    ))]
+    {
+        u = LN_POLY_8_D;
+        u = f_fmla(u, f, LN_POLY_7_D);
+        u = f_fmla(u, f, LN_POLY_6_D);
+        u = f_fmla(u, f, LN_POLY_5_D);
+        u = f_fmla(u, f, LN_POLY_4_D);
+        u = f_fmla(u, f, LN_POLY_3_D);
+        u = f_fmla(u, f, LN_POLY_2_D);
+        u = f_fmla(u, f, LN_POLY_1_D);
+    }
+    #[cfg(not(any(
+        all(
+            any(target_arch = "x86", target_arch = "x86_64"),
+            target_feature = "fma"
+        ),
+        all(target_arch = "aarch64", target_feature = "neon")
+    )))]
+    {
+        let x2 = f * f;
+        let x4 = x2 * x2;
+        u = poly8!(
+            f,
+            x2,
+            x4,
+            LN_POLY_8_D,
+            LN_POLY_7_D,
+            LN_POLY_6_D,
+            LN_POLY_5_D,
+            LN_POLY_4_D,
+            LN_POLY_3_D,
+            LN_POLY_1_D,
+            LN_POLY_1_D
+        );
+    }
     f_fmla(x, u, std::f64::consts::LN_2 * (n as f64))
 }
 
@@ -980,7 +1142,7 @@ pub fn hypotf(x: f32, y: f32) -> f32 {
     let max = x.max(y);
     let min = x.min(y);
     let r = min / max;
-    let ret = max * mlaf(r, r, 1f32).sqrt();
+    let ret = max * (1f32 + r * r).sqrt();
 
     // if (x == f32::INFINITY) || (y == f32::INFINITY) {
     //     f32::INFINITY
@@ -989,7 +1151,7 @@ pub fn hypotf(x: f32, y: f32) -> f32 {
     // } else if min == 0. {
     //     max
     // } else {
-    ret
+    if min == 0. { max } else { ret }
     // }
 }
 
@@ -1046,15 +1208,49 @@ pub fn f_atanf(d: f32) -> f32 {
     }
     let x2 = x * x;
 
-    let mut u = 0.3057095382e-2;
-    u = f_fmlaf(u, x2, -0.1684093114e-1);
-    u = f_fmlaf(u, x2, 0.4385302239e-1);
-    u = f_fmlaf(u, x2, -0.7594467979e-1);
-    u = f_fmlaf(u, x2, 0.1067925170e+0);
-    u = f_fmlaf(u, x2, -0.1421231870e+0);
-    u = f_fmlaf(u, x2, 0.1999354698e+0);
-    u = f_fmlaf(u, x2, -0.3333310690e+0);
-    u = f_fmlaf(x, x, x2 * u);
+    let mut u;
+    #[cfg(any(
+        all(
+            any(target_arch = "x86", target_arch = "x86_64"),
+            target_feature = "fma"
+        ),
+        all(target_arch = "aarch64", target_feature = "neon")
+    ))]
+    {
+        u = 0.3057095382e-2;
+        u = f_fmlaf(u, x2, -0.1684093114e-1);
+        u = f_fmlaf(u, x2, 0.4385302239e-1);
+        u = f_fmlaf(u, x2, -0.7594467979e-1);
+        u = f_fmlaf(u, x2, 0.1067925170e+0);
+        u = f_fmlaf(u, x2, -0.1421231870e+0);
+        u = f_fmlaf(u, x2, 0.1999354698e+0);
+        u = f_fmlaf(u, x2, -0.3333310690e+0);
+    }
+    #[cfg(not(any(
+        all(
+            any(target_arch = "x86", target_arch = "x86_64"),
+            target_feature = "fma"
+        ),
+        all(target_arch = "aarch64", target_feature = "neon")
+    )))]
+    {
+        let rx2 = x2 * x2;
+        let rx4 = rx2 * rx2;
+        u = poly8!(
+            x2,
+            rx2,
+            rx4,
+            0.3057095382e-2,
+            -0.1684093114e-1,
+            0.4385302239e-1,
+            -0.7594467979e-1,
+            0.1067925170e+0,
+            -0.1421231870e+0,
+            0.1999354698e+0,
+            -0.3333310690e+0
+        );
+    }
+    u = f_fmlaf(x2 * u, x, x);
 
     u = if c > 1f32 {
         std::f32::consts::FRAC_PI_2 - u
@@ -1317,9 +1513,10 @@ mod tests {
             f_log(1f64)
         );
         assert!(
-            (f_log(5f64) - 1.60943791243410037460f64).abs() < 1e-8,
-            "Invalid result {}",
-            f_log(5f64)
+            (f_log(5f64) - 5f64.ln()).abs() < 1e-8,
+            "Invalid result {}, expected {}",
+            f_log(5f64),
+            5f64.ln()
         );
     }
 
