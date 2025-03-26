@@ -44,30 +44,35 @@ fn f_halley_refine(x: f32, a: f32) -> f32 {
     x * f_fmlaf(2f32, a, tx) / f_fmlaf(2f32, tx, a)
 }
 
+#[allow(unused_macros)]
 macro_rules! poly2 {
     ($x:expr, $c1:expr, $c0:expr) => {
         c_mlaf($x, $c1, $c0)
     };
 }
 
+#[allow(unused_macros)]
 macro_rules! poly3 {
     ($x:expr, $x2:expr, $c2:expr, $c1:expr, $c0:expr) => {
         c_mlaf($x2, $c2, poly2!($x, $c1, $c0))
     };
 }
 
+#[allow(unused_macros)]
 macro_rules! poly4 {
     ($x:expr, $x2:expr, $c3:expr, $c2:expr, $c1:expr, $c0:expr) => {
         c_mlaf($x2, poly2!($x, $c3, $c2), poly2!($x, $c1, $c0))
     };
 }
 
+#[allow(unused_macros)]
 macro_rules! poly5 {
     ($x:expr, $x2:expr, $x4:expr, $c4:expr, $c3:expr, $c2:expr, $c1:expr, $c0:expr) => {
         c_mlaf($x4, $c4, poly4!($x, $x2, $c3, $c2, $c1, $c0))
     };
 }
 
+#[allow(unused_macros)]
 macro_rules! poly6 {
     ($x:expr, $x2:expr, $x4:expr, $c5:expr, $c4:expr, $c3:expr, $c2:expr, $c1:expr, $c0:expr) => {
         c_mlaf(
@@ -78,6 +83,7 @@ macro_rules! poly6 {
     };
 }
 
+#[allow(unused_macros)]
 macro_rules! poly7 {
     ($x:expr, $x2:expr, $x4:expr, $c6:expr, $c5:expr, $c4:expr, $c3:expr, $c2:expr, $c1:expr, $c0:expr) => {
         c_mlaf(
@@ -88,6 +94,7 @@ macro_rules! poly7 {
     };
 }
 
+#[allow(unused_macros)]
 macro_rules! poly8 {
     ($x:expr, $x2:expr, $x4:expr, $c7:expr, $c6:expr, $c5:expr, $c4:expr, $c3:expr, $c2:expr, $c1:expr, $c0:expr) => {
         c_mlaf(
@@ -98,6 +105,7 @@ macro_rules! poly8 {
     };
 }
 
+#[allow(unused_macros)]
 macro_rules! poly9 {
     ($x:expr, $x2:expr, $x4:expr, $x8:expr, $c8:expr, $c7:expr, $c6:expr, $c5:expr, $c4:expr, $c3:expr, $c2:expr, $c1:expr, $c0:expr) => {
         c_mlaf(
@@ -108,6 +116,7 @@ macro_rules! poly9 {
     };
 }
 
+#[allow(unused_macros)]
 macro_rules! poly10 {
     ($x:expr, $x2:expr, $x4:expr, $x8:expr, $c9:expr, $c8:expr, $c7:expr, $c6:expr, $c5:expr, $c4:expr, $c3:expr, $c2:expr, $c1:expr, $c0:expr) => {
         c_mlaf(
@@ -118,6 +127,7 @@ macro_rules! poly10 {
     };
 }
 
+#[allow(unused_macros)]
 macro_rules! poly11 {
     ($x:expr, $x2:expr, $x4:expr, $x8:expr, $ca:expr, $c9:expr, $c8:expr, $c7:expr, $c6:expr, $c5:expr, $c4:expr, $c3:expr, $c2:expr, $c1:expr, $c0:expr) => {
         c_mlaf(
@@ -211,8 +221,9 @@ fn f_fmla(a: f64, b: f64, c: f64) -> f64 {
     mlaf(c, a, b)
 }
 
+#[allow(dead_code)]
 #[inline(always)]
-pub(crate) fn c_mlaf<T: Copy + Mul<T, Output = T> + Add<T, Output = T> + MulAdd<T, Output = T>>(
+fn c_mlaf<T: Copy + Mul<T, Output = T> + Add<T, Output = T> + MulAdd<T, Output = T>>(
     a: T,
     b: T,
     c: T,
@@ -640,10 +651,11 @@ pub fn f_log2f(d: f32) -> f32 {
 
     let x2 = x * x;
 
-    let mut u = 0.4367459882e+0;
-    u = f_fmlaf(u, x2, 0.5765163451e+0);
-    u = f_fmlaf(u, x2, 0.9618007131e+0);
-    f_fmlaf(x2 * x, u, f_fmlaf(x, 0.2885390073e+1, n as f32))
+    let mut u = 0.3461515233e+0;
+    u = f_fmlaf(u, x2, 0.4113603160e+0);
+    u = f_fmlaf(u, x2, 0.5770891681e+0);
+    u = f_fmlaf(u, x2, 0.9617966413e+0);
+    f_fmlaf(x2 * x, u, f_fmlaf(x, 0.2885390088e+1, n as f32))
 }
 
 /// Copies sign from `y` to `x`
