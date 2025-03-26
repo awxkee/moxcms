@@ -650,12 +650,10 @@ pub fn f_log2f(d: f32) -> f32 {
     let x = (a - 1.) / (a + 1.);
 
     let x2 = x * x;
-
-    let mut u = 0.3461515233e+0;
-    u = f_fmlaf(u, x2, 0.4113603160e+0);
-    u = f_fmlaf(u, x2, 0.5770891681e+0);
-    u = f_fmlaf(u, x2, 0.9617966413e+0);
-    f_fmlaf(x2 * x, u, f_fmlaf(x, 0.2885390088e+1, n as f32))
+    let mut u = 0.4367590193e+0;
+    u = f_fmlaf(u, x2, 0.5765076131e+0);
+    u = f_fmlaf(u, x2, 0.9618009217e+0);
+    f_fmlaf(x2 * x, u, f_fmlaf(x, 0.2885390073e+1, n as f32))
 }
 
 /// Copies sign from `y` to `x`
