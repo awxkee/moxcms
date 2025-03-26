@@ -336,7 +336,7 @@ pub const fn logf(d: f32) -> f32 {
     // } else if d.is_infinite() {
     //     f32::INFINITY
     // } else {
-        x * u + std::f32::consts::LN_2 * (n as f32)
+    x * u + std::f32::consts::LN_2 * (n as f32)
     // }
 }
 
@@ -366,10 +366,9 @@ pub fn f_logf(d: f32) -> f32 {
     // } else if d.is_infinite() {
     //     f32::INFINITY
     // } else {
-        f_fmlaf(x, u, std::f32::consts::LN_2 * (n as f32))
+    f_fmlaf(x, u, std::f32::consts::LN_2 * (n as f32))
     // }
 }
-
 
 /// Natural logarithm using FMA
 #[inline]
@@ -434,7 +433,7 @@ pub const fn powf(d: f32, n: f32) -> f32 {
     // } else if n.is_nan() || d.is_nan() {
     //     f32::NAN
     // } else {
-        c
+    c
     // }
 }
 
@@ -454,7 +453,7 @@ pub fn f_powf(d: f32, n: f32) -> f32 {
     // } else if n.is_nan() || d.is_nan() {
     //     f32::NAN
     // } else {
-        c
+    c
     // }
 }
 
@@ -632,7 +631,7 @@ pub fn f_log(d: f64) -> f64 {
     // } else if d.is_infinite() {
     //     f64::INFINITY
     // } else {
-        f_fmla(x, u, std::f64::consts::LN_2 * (n as f64))
+    f_fmla(x, u, std::f64::consts::LN_2 * (n as f64))
     // }
 }
 
@@ -702,7 +701,7 @@ pub const fn pow(d: f64, n: f64) -> f64 {
     // } else if n.is_nan() || d.is_nan() {
     //     f64::NAN
     // } else {
-        c
+    c
     // }
 }
 
@@ -723,7 +722,7 @@ pub fn f_pow(d: f64, n: f64) -> f64 {
     // } else if n.is_nan() || d.is_nan() {
     //     f64::NAN
     // } else {
-        c
+    c
     // }
 }
 
@@ -798,7 +797,7 @@ pub fn hypotf(x: f32, y: f32) -> f32 {
     // } else if min == 0. {
     //     max
     // } else {
-        ret
+    ret
     // }
 }
 
@@ -951,7 +950,7 @@ pub(crate) fn hypot3f(x: f32, y: f32, z: f32) -> f32 {
     // } else if x.is_nan() || y.is_nan() || z.is_nan() || ret.is_nan() {
     //     f32::NAN
     // } else {
-        ret
+    ret
     // }
 }
 

@@ -27,7 +27,7 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::mlaf::mlaf;
-use crate::{f_atan2f, f_cosf, f_sinf, hypotf, Matrix3f, Vector3f, Xyz};
+use crate::{Matrix3f, Vector3f, Xyz, f_atan2f, f_cosf, f_sinf, hypotf};
 
 /// Structure for Yrg colorspace
 #[repr(C)]
