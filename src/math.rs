@@ -440,6 +440,7 @@ pub fn f_exp2f(d: f32) -> f32 {
 
     let f = r;
 
+    #[allow(unused_mut)]
     let mut u;
     #[cfg(any(
         all(
@@ -466,7 +467,7 @@ pub fn f_exp2f(d: f32) -> f32 {
     )))]
     {
         let x2 = f * f;
-        let x4 = f * f;
+        let x4 = x2 * x2;
         u = poly7!(
             f,
             x2,
@@ -503,6 +504,7 @@ pub fn f_expf(d: f32) -> f32 {
 
     let f = r * r;
     // Poly for u = r*(exp(r)+1)/(exp(r)-1)
+    #[allow(unused_mut)]
     let mut u;
     #[cfg(any(
         all(
@@ -594,7 +596,6 @@ pub fn f_logf(d: f32) -> f32 {
 
     let x = (a - 1.) / (a + 1.);
     let x2 = x * x;
-    let mut u;
     #[cfg(any(
         all(
             any(target_arch = "x86", target_arch = "x86_64"),
@@ -603,11 +604,12 @@ pub fn f_logf(d: f32) -> f32 {
         all(target_arch = "aarch64", target_feature = "neon")
     ))]
     {
-        u = LN_POLY_5_F;
+        let mut u = LN_POLY_5_F;
         u = f_fmlaf(u, x2, LN_POLY_4_F);
         u = f_fmlaf(u, x2, LN_POLY_3_F);
         u = f_fmlaf(u, x2, LN_POLY_2_F);
         u = f_fmlaf(u, x2, LN_POLY_1_F);
+        f_fmlaf(x, u, std::f32::consts::LN_2 * (n as f32))
     }
     #[cfg(not(any(
         all(
@@ -619,7 +621,7 @@ pub fn f_logf(d: f32) -> f32 {
     {
         let rx2 = x2 * x2;
         let rx4 = rx2 * rx2;
-        u = poly5!(
+        let u = poly5!(
             x2,
             rx2,
             rx4,
@@ -629,8 +631,8 @@ pub fn f_logf(d: f32) -> f32 {
             LN_POLY_2_F,
             LN_POLY_1_F
         );
+        f_fmlaf(x, u, std::f32::consts::LN_2 * (n as f32))
     }
-    f_fmlaf(x, u, std::f32::consts::LN_2 * (n as f32))
     // if d == 0f32 {
     //     f32::NEG_INFINITY
     // } else if (d < 0.) || d.is_nan() {
@@ -650,10 +652,31 @@ pub fn f_log2f(d: f32) -> f32 {
     let x = (a - 1.) / (a + 1.);
 
     let x2 = x * x;
-    let mut u = 0.4367590193e+0;
-    u = f_fmlaf(u, x2, 0.5765076131e+0);
-    u = f_fmlaf(u, x2, 0.9618009217e+0);
-    f_fmlaf(x2 * x, u, f_fmlaf(x, 0.2885390073e+1, n as f32))
+    #[cfg(any(
+        all(
+            any(target_arch = "x86", target_arch = "x86_64"),
+            target_feature = "fma"
+        ),
+        all(target_arch = "aarch64", target_feature = "neon")
+    ))]
+    {
+        let mut u = 0.4367590193e+0;
+        u = f_fmlaf(u, x2, 0.5765076131e+0);
+        u = f_fmlaf(u, x2, 0.9618009217e+0);
+        f_fmlaf(x2 * x, u, f_fmlaf(x, 0.2885390073e+1, n as f32))
+    }
+    #[cfg(not(any(
+        all(
+            any(target_arch = "x86", target_arch = "x86_64"),
+            target_feature = "fma"
+        ),
+        all(target_arch = "aarch64", target_feature = "neon")
+    )))]
+    {
+        let rx2 = x2 * x2;
+        let u = poly3!(x2, rx2, 0.4367590193e+0, 0.5765076131e+0, 0.9618009217e+0);
+        f_fmlaf(x2 * x, u, f_fmlaf(x, 0.2885390073e+1, n as f32))
+    }
 }
 
 /// Copies sign from `y` to `x`
@@ -912,6 +935,7 @@ pub fn f_log(d: f64) -> f64 {
 
     let x = (a - 1.) / (a + 1.);
     let f = x * x;
+    #[allow(unused_mut)]
     let mut u;
     #[cfg(any(
         all(
@@ -983,6 +1007,7 @@ fn f_log_pow(d: f64) -> f64 {
 
     let x = (a - 1.) / (a + 1.);
     let f = x * x;
+    #[allow(unused_mut)]
     let mut u;
     #[cfg(any(
         all(
@@ -1021,7 +1046,7 @@ fn f_log_pow(d: f64) -> f64 {
             LN_POLY_5_D,
             LN_POLY_4_D,
             LN_POLY_3_D,
-            LN_POLY_1_D,
+            LN_POLY_2_D,
             LN_POLY_1_D
         );
     }
@@ -1341,14 +1366,14 @@ pub(crate) fn hypot3f(x: f32, y: f32, z: f32) -> f32 {
     let norm_y = y * recip_max;
     let norm_z = z * recip_max;
 
-    let ret = max * (norm_x * norm_x + norm_y * norm_y + norm_z * norm_z).sqrt();
+    max * (norm_x * norm_x + norm_y * norm_y + norm_z * norm_z).sqrt()
 
     // if x == f32::INFINITY || y == f32::INFINITY || z == f32::INFINITY {
     //     f32::INFINITY
     // } else if x.is_nan() || y.is_nan() || z.is_nan() || ret.is_nan() {
     //     f32::NAN
-    // } else {
-    ret
+    // // } else {
+    // ret
     // }
 }
 
