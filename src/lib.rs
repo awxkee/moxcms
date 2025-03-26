@@ -83,8 +83,9 @@ pub use jzczhz::Jzczhz;
 pub use lab::Lab;
 pub use luv::{LCh, Luv};
 pub use math::{
-    atan2f, atanf, cbrtf, const_hypotf, cosf, exp, expf, floor, floorf, hypotf, log, logf, pow,
-    powf, rounding_div_ceil, sinf, sqrtf,
+    atan2f, atanf, cbrtf, const_hypotf, cosf, exp, expf, f_atan2f, f_atanf, f_cbrtf, f_cosf, f_exp,
+    f_expf, f_log, f_logf, f_pow, f_powf, f_sinf, floor, floorf, hypotf, log, logf, pow, powf,
+    rounding_div_ceil, sinf, sqrtf,
 };
 pub use matrix::{
     BT2020_MATRIX, Chromaticity, DISPLAY_P3_MATRIX, Matrix3, Matrix3d, Matrix3f, Matrix4f,

@@ -28,26 +28,33 @@
  */
 #![allow(clippy::approx_constant)]
 
+use crate::mlaf::mlaf;
 use num_traits::Num;
 
 #[inline(always)]
-const fn halley_refine_f(x: f32, a: f32) -> f32 {
+const fn halley_refine(x: f32, a: f32) -> f32 {
     let tx = x * x * x;
     x * (tx + 2f32 * a) / (2f32 * tx + a)
+}
+
+#[inline(always)]
+fn f_halley_refine(x: f32, a: f32) -> f32 {
+    let tx = x * x * x;
+    x * f_fmlaf(2f32, a, tx) / f_fmlaf(2f32, tx, a)
 }
 
 /// Computes Cube Root
 #[inline]
 pub const fn cbrtf(x: f32) -> f32 {
-    if x == 0. {
-        return x;
-    }
-    if x == f32::INFINITY {
-        return f32::INFINITY;
-    }
-    if x == f32::NEG_INFINITY {
-        return f32::NEG_INFINITY;
-    }
+    // if x == 0. {
+    //     return x;
+    // }
+    // if x == f32::INFINITY {
+    //     return f32::INFINITY;
+    // }
+    // if x == f32::NEG_INFINITY {
+    //     return f32::NEG_INFINITY;
+    // }
 
     const B1: u32 = 709958130;
     let mut t: f32;
@@ -59,8 +66,35 @@ pub const fn cbrtf(x: f32) -> f32 {
     ui |= hx;
 
     t = f32::from_bits(ui);
-    t = halley_refine_f(t, x);
-    halley_refine_f(t, x)
+    t = halley_refine(t, x);
+    halley_refine(t, x)
+}
+
+/// Computes Cube Root using FMA
+#[inline]
+pub fn f_cbrtf(x: f32) -> f32 {
+    // if x == 0. {
+    //     return x;
+    // }
+    // if x == f32::INFINITY {
+    //     return f32::INFINITY;
+    // }
+    // if x == f32::NEG_INFINITY {
+    //     return f32::NEG_INFINITY;
+    // }
+
+    const B1: u32 = 709958130;
+    let mut t: f32;
+    let mut ui: u32 = x.to_bits();
+    let mut hx: u32 = ui & 0x7fffffff;
+
+    hx = hx / 3 + B1;
+    ui &= 0x80000000;
+    ui |= hx;
+
+    t = f32::from_bits(ui);
+    t = f_halley_refine(t, x);
+    f_halley_refine(t, x)
 }
 
 const PI_A2: f32 = 3.1414794921875f32;
@@ -78,8 +112,18 @@ const fn fmlaf(a: f32, b: f32, c: f32) -> f32 {
 }
 
 #[inline(always)]
+fn f_fmlaf(a: f32, b: f32, c: f32) -> f32 {
+    mlaf(c, a, b)
+}
+
+#[inline(always)]
 const fn fmla(a: f64, b: f64, c: f64) -> f64 {
     c + a * b
+}
+
+#[inline(always)]
+fn f_fmla(a: f64, b: f64, c: f64) -> f64 {
+    mlaf(c, a, b)
 }
 
 #[inline]
@@ -113,6 +157,32 @@ pub const fn cosf(d: f32) -> f32 {
     u
 }
 
+/// Computes cosine for given value
+#[inline]
+pub fn f_cosf(d: f32) -> f32 {
+    let q = 1 + 2 * rintfk(std::f32::consts::FRAC_1_PI * d - 0.5) as i32;
+    let qf = q as f32;
+    let mut r = f_fmlaf(qf, -PI_A2 * 0.5, d);
+    r = f_fmlaf(qf, -PI_B2 * 0.5, r);
+    r = f_fmlaf(qf, -PI_C2 * 0.5, r);
+
+    let x2 = r * r;
+
+    if q & 2 == 0 {
+        r = -r;
+    }
+
+    let mut u = 2.6083159809786593541503e-06f32;
+    u = f_fmlaf(u, x2, -0.0001981069071916863322258f32);
+    u = f_fmlaf(u, x2, 0.00833307858556509017944336f32);
+    u = f_fmlaf(u, x2, -0.166666597127914428710938f32);
+    u = f_fmlaf(u, x2 * r, r);
+    if isnegzerof(d) {
+        return -0.;
+    }
+    u
+}
+
 /// Sine function
 #[inline]
 pub const fn sinf(d: f32) -> f32 {
@@ -133,6 +203,32 @@ pub const fn sinf(d: f32) -> f32 {
     u = fmlaf(u, x2, 0.00833307858556509017944336f32);
     u = fmlaf(u, x2, -0.166666597127914428710938f32);
     u = fmlaf(u, x2 * r, r);
+    if isnegzerof(d) {
+        return -0f32;
+    }
+    u
+}
+
+/// Sine function using FMA
+#[inline]
+pub fn f_sinf(d: f32) -> f32 {
+    let qf = rintfk(std::f32::consts::FRAC_1_PI * d);
+    let q = qf as i32;
+    let mut r = f_fmlaf(qf, -PI_A2, d);
+    r = f_fmlaf(qf, -PI_B2, r);
+    r = f_fmlaf(qf, -PI_C2, r);
+
+    let x2 = r * r;
+
+    if (q & 1) != 0 {
+        r = -r;
+    }
+
+    let mut u = 2.6083159809786593541503e-06f32;
+    u = f_fmlaf(u, x2, -0.0001981069071916863322258f32);
+    u = f_fmlaf(u, x2, 0.00833307858556509017944336f32);
+    u = f_fmlaf(u, x2, -0.166666597127914428710938f32);
+    u = f_fmlaf(u, x2 * r, r);
     if isnegzerof(d) {
         return -0f32;
     }
@@ -166,14 +262,40 @@ pub const fn expf(d: f32) -> f32 {
     u = fmlaf(u, f, EXP_POLY_1_S);
     let u = 1f32 + 2f32 * r / (u - r);
     let i2 = pow2if(q);
-    let mut r = u * i2;
-    if d < -87f32 {
-        r = 0f32;
-    }
-    if d > 88f32 {
-        r = f32::INFINITY;
-    }
-    r
+    u * i2
+    // if d < -87f32 {
+    //     r = 0f32;
+    // }
+    // if d > 88f32 {
+    //     r = f32::INFINITY;
+    // }
+}
+
+/// Computes exponent for given value using FMA
+#[inline]
+pub fn f_expf(d: f32) -> f32 {
+    const EXP_POLY_1_S: f32 = 2f32;
+    const EXP_POLY_2_S: f32 = 0.16666707f32;
+    const EXP_POLY_3_S: f32 = -0.002775669f32;
+    let qf = rintfk(d * R_LN2_F);
+    let q = qf as i32;
+    let r = f_fmlaf(qf, -L2U_F, d);
+    let r = f_fmlaf(qf, -L2L_F, r);
+
+    let f = r * r;
+    // Poly for u = r*(exp(r)+1)/(exp(r)-1)
+    let mut u = EXP_POLY_3_S;
+    u = f_fmlaf(u, f, EXP_POLY_2_S);
+    u = f_fmlaf(u, f, EXP_POLY_1_S);
+    let u = f_fmlaf(2f32, r / (u - r), 1f32);
+    let i2 = pow2if(q);
+    u * i2
+    // if d < -87f32 {
+    //     r = 0f32;
+    // }
+    // if d > 88f32 {
+    //     r = f32::INFINITY;
+    // }
 }
 
 #[inline]
@@ -207,15 +329,68 @@ pub const fn logf(d: f32) -> f32 {
     u = fmlaf(u, x2, LN_POLY_3_F);
     u = fmlaf(u, x2, LN_POLY_2_F);
     u = fmlaf(u, x2, LN_POLY_1_F);
-    if d == 0f32 {
-        f32::NEG_INFINITY
-    } else if (d < 0.) || d.is_nan() {
-        f32::NAN
-    } else if d.is_infinite() {
-        f32::INFINITY
-    } else {
+    // if d == 0f32 {
+    //     f32::NEG_INFINITY
+    // } else if (d < 0.) || d.is_nan() {
+    //     f32::NAN
+    // } else if d.is_infinite() {
+    //     f32::INFINITY
+    // } else {
         x * u + std::f32::consts::LN_2 * (n as f32)
-    }
+    // }
+}
+
+/// Natural logarithm using FMA
+#[inline]
+pub fn f_logf(d: f32) -> f32 {
+    const LN_POLY_1_F: f32 = 2f32;
+    const LN_POLY_2_F: f32 = 0.6666677f32;
+    const LN_POLY_3_F: f32 = 0.40017125f32;
+    const LN_POLY_4_F: f32 = 0.28523374f32;
+    const LN_POLY_5_F: f32 = 0.23616748f32;
+    // ln(𝑥)=ln(𝑎)+𝑛ln(2)
+    let n = ilogb2kf(d * (1. / 0.75));
+    let a = ldexp3kf(d, -n);
+
+    let x = (a - 1.) / (a + 1.);
+    let x2 = x * x;
+    let mut u = LN_POLY_5_F;
+    u = f_fmlaf(u, x2, LN_POLY_4_F);
+    u = f_fmlaf(u, x2, LN_POLY_3_F);
+    u = f_fmlaf(u, x2, LN_POLY_2_F);
+    u = f_fmlaf(u, x2, LN_POLY_1_F);
+    // if d == 0f32 {
+    //     f32::NEG_INFINITY
+    // } else if (d < 0.) || d.is_nan() {
+    //     f32::NAN
+    // } else if d.is_infinite() {
+    //     f32::INFINITY
+    // } else {
+        f_fmlaf(x, u, std::f32::consts::LN_2 * (n as f32))
+    // }
+}
+
+
+/// Natural logarithm using FMA
+#[inline]
+fn f_logf_powf(d: f32) -> f32 {
+    const LN_POLY_1_F: f32 = 2f32;
+    const LN_POLY_2_F: f32 = 0.6666677f32;
+    const LN_POLY_3_F: f32 = 0.40017125f32;
+    const LN_POLY_4_F: f32 = 0.28523374f32;
+    const LN_POLY_5_F: f32 = 0.23616748f32;
+    // ln(𝑥)=ln(𝑎)+𝑛ln(2)
+    let n = ilogb2kf(d * (1. / 0.75));
+    let a = ldexp3kf(d, -n);
+
+    let x = (a - 1.) / (a + 1.);
+    let x2 = x * x;
+    let mut u = LN_POLY_5_F;
+    u = f_fmlaf(u, x2, LN_POLY_4_F);
+    u = f_fmlaf(u, x2, LN_POLY_3_F);
+    u = f_fmlaf(u, x2, LN_POLY_2_F);
+    u = f_fmlaf(u, x2, LN_POLY_1_F);
+    f_fmlaf(x, u, std::f32::consts::LN_2 * (n as f32))
 }
 
 /// Copies sign from `y` to `x`
@@ -252,15 +427,35 @@ pub const fn powf(d: f32, n: f32) -> f32 {
     if d < 0. && floorf(n) != n {
         return f32::NAN;
     }
-    if n == f32::INFINITY || d.is_infinite() {
-        f32::INFINITY
-    } else if n == f32::NEG_INFINITY {
-        0f32
-    } else if n.is_nan() || d.is_nan() {
-        f32::NAN
-    } else {
+    // if n == f32::INFINITY || d.is_infinite() {
+    //     f32::INFINITY
+    // } else if n == f32::NEG_INFINITY {
+    //     0f32
+    // } else if n.is_nan() || d.is_nan() {
+    //     f32::NAN
+    // } else {
         c
-    }
+    // }
+}
+
+/// Power function for given value using FMA
+#[inline]
+pub fn f_powf(d: f32, n: f32) -> f32 {
+    let value = d.abs();
+    let mut c = f_expf(n * f_logf_powf(value));
+    c = copysignfk(c, d);
+    // if d < 0. && n.floor() != n {
+    //     return f32::NAN;
+    // }
+    // if n == f32::INFINITY || d.is_infinite() {
+    //     f32::INFINITY
+    // } else if n == f32::NEG_INFINITY {
+    //     0f32
+    // } else if n.is_nan() || d.is_nan() {
+    //     f32::NAN
+    // } else {
+        c
+    // }
 }
 
 /// Round towards whole integral number
@@ -306,14 +501,53 @@ pub const fn exp(d: f64) -> f64 {
     u = fmla(u, f, EXP_POLY_1_D);
     let u = 1f64 + 2f64 * r / (u - r);
     let i2 = pow2i(q);
-    let mut r = u * i2;
-    if d < -964f64 {
-        r = 0f64;
-    }
-    if d > 709f64 {
-        r = f64::INFINITY;
-    }
-    r
+    u * i2
+    // if d < -964f64 {
+    //     r = 0f64;
+    // }
+    // if d > 709f64 {
+    //     r = f64::INFINITY;
+    // }
+}
+
+/// Exp using FMA
+#[inline]
+pub fn f_exp(d: f64) -> f64 {
+    const EXP_POLY_1_D: f64 = 2f64;
+    const EXP_POLY_2_D: f64 = 0.16666666666666674f64;
+    const EXP_POLY_3_D: f64 = -0.0027777777777777614f64;
+    const EXP_POLY_4_D: f64 = 6.613756613755705e-5f64;
+    const EXP_POLY_5_D: f64 = -1.6534391534392554e-6f64;
+    const EXP_POLY_6_D: f64 = 4.17535139757361979584e-8f64;
+
+    const L2_U: f64 = 0.693_147_180_559_662_956_511_601_805_686_950_683_593_75;
+    const L2_L: f64 = 0.282_352_905_630_315_771_225_884_481_750_134_360_255_254_120_68_e-12;
+    const R_LN2: f64 =
+        1.442_695_040_888_963_407_359_924_681_001_892_137_426_645_954_152_985_934_135_449_406_931;
+
+    let qf = rintk(d * R_LN2);
+    let q = qf as i32;
+
+    let mut r = f_fmla(qf, -L2_U, d);
+    r = f_fmla(qf, -L2_L, r);
+
+    let f = r * r;
+    // Poly for u = r*(exp(r)+1)/(exp(r)-1)
+    let mut u = EXP_POLY_6_D;
+    u = f_fmla(u, f, EXP_POLY_5_D);
+    u = f_fmla(u, f, EXP_POLY_4_D);
+    u = f_fmla(u, f, EXP_POLY_3_D);
+    u = f_fmla(u, f, EXP_POLY_2_D);
+    u = f_fmla(u, f, EXP_POLY_1_D);
+    let u = f_fmla(2f64, r / (u - r), 1.);
+    let i2 = pow2i(q);
+    u * i2
+    // if d < -964f64 {
+    //     r = 0f64;
+    // }
+    // if d > 709f64 {
+    //     r = f64::INFINITY;
+    // }
 }
 
 #[inline]
@@ -364,6 +598,73 @@ pub const fn log(d: f64) -> f64 {
     }
 }
 
+/// Natural logarithm using FMA
+#[inline]
+pub fn f_log(d: f64) -> f64 {
+    const LN_POLY_1_D: f64 = 2.;
+    const LN_POLY_2_D: f64 = 0.666_666_666_666_777_874_006_3;
+    const LN_POLY_3_D: f64 = 0.399_999_999_950_799_600_689_777;
+    const LN_POLY_4_D: f64 = 0.285_714_294_746_548_025_383_248;
+    const LN_POLY_5_D: f64 = 0.222_221_366_518_767_365_905_163;
+    const LN_POLY_6_D: f64 = 0.181_863_266_251_982_985_677_316;
+    const LN_POLY_7_D: f64 = 0.152_519_917_006_351_951_593_857;
+    const LN_POLY_8_D: f64 = 0.153_487_338_491_425_068_243_146;
+
+    // ln(𝑥)=ln(𝑎)+𝑛ln(2)
+    let n = ilogb2k(d * (1. / 0.75));
+    let a = ldexp3k(d, -n);
+
+    let x = (a - 1.) / (a + 1.);
+    let x2 = x * x;
+    let mut u = LN_POLY_8_D;
+    u = f_fmla(u, x2, LN_POLY_7_D);
+    u = f_fmla(u, x2, LN_POLY_6_D);
+    u = f_fmla(u, x2, LN_POLY_5_D);
+    u = f_fmla(u, x2, LN_POLY_4_D);
+    u = f_fmla(u, x2, LN_POLY_3_D);
+    u = f_fmla(u, x2, LN_POLY_2_D);
+    u = f_fmla(u, x2, LN_POLY_1_D);
+
+    // if d == 0f64 {
+    //     f64::NEG_INFINITY
+    // } else if (d < 0.) || d.is_nan() {
+    //     f64::NAN
+    // } else if d.is_infinite() {
+    //     f64::INFINITY
+    // } else {
+        f_fmla(x, u, std::f64::consts::LN_2 * (n as f64))
+    // }
+}
+
+/// Natural logarithm using FMA
+#[inline]
+fn f_log_pow(d: f64) -> f64 {
+    const LN_POLY_1_D: f64 = 2.;
+    const LN_POLY_2_D: f64 = 0.666_666_666_666_777_874_006_3;
+    const LN_POLY_3_D: f64 = 0.399_999_999_950_799_600_689_777;
+    const LN_POLY_4_D: f64 = 0.285_714_294_746_548_025_383_248;
+    const LN_POLY_5_D: f64 = 0.222_221_366_518_767_365_905_163;
+    const LN_POLY_6_D: f64 = 0.181_863_266_251_982_985_677_316;
+    const LN_POLY_7_D: f64 = 0.152_519_917_006_351_951_593_857;
+    const LN_POLY_8_D: f64 = 0.153_487_338_491_425_068_243_146;
+
+    // ln(𝑥)=ln(𝑎)+𝑛ln(2)
+    let n = ilogb2k(d * (1. / 0.75));
+    let a = ldexp3k(d, -n);
+
+    let x = (a - 1.) / (a + 1.);
+    let x2 = x * x;
+    let mut u = LN_POLY_8_D;
+    u = f_fmla(u, x2, LN_POLY_7_D);
+    u = f_fmla(u, x2, LN_POLY_6_D);
+    u = f_fmla(u, x2, LN_POLY_5_D);
+    u = f_fmla(u, x2, LN_POLY_4_D);
+    u = f_fmla(u, x2, LN_POLY_3_D);
+    u = f_fmla(u, x2, LN_POLY_2_D);
+    u = f_fmla(u, x2, LN_POLY_1_D);
+    f_fmla(x, u, std::f64::consts::LN_2 * (n as f64))
+}
+
 /// Copies sign from `y` to `x`
 #[inline]
 const fn copysignk(x: f64, y: f64) -> f64 {
@@ -391,18 +692,39 @@ pub const fn pow(d: f64, n: f64) -> f64 {
     let value = d.abs();
     let mut c = exp(n * log(value));
     c = copysignk(c, d);
-    if d < 0. && floor(n) != n {
-        return f64::NAN;
-    }
-    if n == f64::INFINITY || d.is_infinite() {
-        f64::INFINITY
-    } else if n == f64::NEG_INFINITY {
-        0f64
-    } else if n.is_nan() || d.is_nan() {
-        f64::NAN
-    } else {
+    // if d < 0. && floor(n) != n {
+    //     return f64::NAN;
+    // }
+    // if n == f64::INFINITY || d.is_infinite() {
+    //     f64::INFINITY
+    // } else if n == f64::NEG_INFINITY {
+    //     0f64
+    // } else if n.is_nan() || d.is_nan() {
+    //     f64::NAN
+    // } else {
         c
-    }
+    // }
+}
+
+/// Power function for given value using FMA
+#[inline]
+pub fn f_pow(d: f64, n: f64) -> f64 {
+    let value = d.abs();
+    let r = f_log_pow(value);
+    let mut c = f_exp(n * r);
+    c = copysignk(c, d);
+    // if d < 0. && n.floor() != n {
+    //     return f64::NAN;
+    // }
+    // if n == f64::INFINITY || d.is_infinite() {
+    //     f64::INFINITY
+    // } else if n == f64::NEG_INFINITY {
+    //     0f64
+    // } else if n.is_nan() || d.is_nan() {
+    //     f64::NAN
+    // } else {
+        c
+    // }
 }
 
 /// Computes Square root.
@@ -467,17 +789,17 @@ pub fn hypotf(x: f32, y: f32) -> f32 {
     let max = x.max(y);
     let min = x.min(y);
     let r = min / max;
-    let ret = max * (1f32 + r * r).sqrt();
+    let ret = max * mlaf(r, r, 1f32).sqrt();
 
-    if (x == f32::INFINITY) || (y == f32::INFINITY) {
-        f32::INFINITY
-    } else if x.is_nan() || y.is_nan() || ret.is_nan() {
-        f32::NAN
-    } else if min == 0. {
-        max
-    } else {
+    // if (x == f32::INFINITY) || (y == f32::INFINITY) {
+    //     f32::INFINITY
+    // } else if x.is_nan() || y.is_nan() || ret.is_nan() {
+    //     f32::NAN
+    // } else if min == 0. {
+    //     max
+    // } else {
         ret
-    }
+    // }
 }
 
 /// Computes Atan
@@ -517,6 +839,43 @@ pub const fn atanf(d: f32) -> f32 {
     u
 }
 
+/// Computes Atan using FMA
+#[inline]
+pub fn f_atanf(d: f32) -> f32 {
+    let mut x = d;
+    let q = if x < 0f32 {
+        x = -x;
+        1
+    } else {
+        0
+    };
+    let c = x;
+    if x > 1f32 {
+        x = 1f32 / x;
+    }
+    let x2 = x * x;
+
+    let mut u = 0.3057095382e-2;
+    u = f_fmlaf(u, x2, -0.1684093114e-1);
+    u = f_fmlaf(u, x2, 0.4385302239e-1);
+    u = f_fmlaf(u, x2, -0.7594467979e-1);
+    u = f_fmlaf(u, x2, 0.1067925170e+0);
+    u = f_fmlaf(u, x2, -0.1421231870e+0);
+    u = f_fmlaf(u, x2, 0.1999354698e+0);
+    u = f_fmlaf(u, x2, -0.3333310690e+0);
+    u = f_fmlaf(x, x, x2 * u);
+
+    u = if c > 1f32 {
+        std::f32::consts::FRAC_PI_2 - u
+    } else {
+        u
+    };
+    if q & 1 != 0 {
+        u = -u;
+    }
+    u
+}
+
 /// Computes Atan2
 #[inline]
 pub const fn atan2f(y: f32, x: f32) -> f32 {
@@ -532,6 +891,31 @@ pub const fn atan2f(y: f32, x: f32) -> f32 {
         }
     }
     let rad = atanf(y / x);
+    if x > 0f32 {
+        rad
+    } else if x < 0f32 && y >= 0f32 {
+        std::f32::consts::PI + rad
+    } else {
+        // if x < 0. && y < 0.
+        -std::f32::consts::PI + rad
+    }
+}
+
+/// Computes Atan2 using FMA
+#[inline]
+pub fn f_atan2f(y: f32, x: f32) -> f32 {
+    if x == 0. {
+        if y > 0. {
+            return std::f32::consts::FRAC_PI_2;
+        }
+        if y < 0. {
+            return -std::f32::consts::FRAC_PI_2;
+        }
+        if y == 0. {
+            return 0f32;
+        }
+    }
+    let rad = f_atanf(y / x);
     if x > 0f32 {
         rad
     } else if x < 0f32 && y >= 0f32 {
@@ -562,13 +946,13 @@ pub(crate) fn hypot3f(x: f32, y: f32, z: f32) -> f32 {
 
     let ret = max * (norm_x * norm_x + norm_y * norm_y + norm_z * norm_z).sqrt();
 
-    if x == f32::INFINITY || y == f32::INFINITY || z == f32::INFINITY {
-        f32::INFINITY
-    } else if x.is_nan() || y.is_nan() || z.is_nan() || ret.is_nan() {
-        f32::NAN
-    } else {
+    // if x == f32::INFINITY || y == f32::INFINITY || z == f32::INFINITY {
+    //     f32::INFINITY
+    // } else if x.is_nan() || y.is_nan() || z.is_nan() || ret.is_nan() {
+    //     f32::NAN
+    // } else {
         ret
-    }
+    // }
 }
 
 #[inline(always)]
@@ -617,6 +1001,10 @@ mod tests {
         assert_eq!(cbrtf(0.0), 0.0);
         assert_eq!(cbrtf(-27.0), -3.0);
         assert_eq!(cbrtf(27.0), 3.0);
+
+        assert_eq!(f_cbrtf(0.0), 0.0);
+        assert_eq!(f_cbrtf(-27.0), -3.0);
+        assert_eq!(f_cbrtf(27.0), 3.0);
     }
 
     #[test]
@@ -655,6 +1043,28 @@ mod tests {
             "Invalid result {}",
             exp(5f64)
         );
+
+        assert!(
+            (f_exp(0f64) - 1f64).abs() < 1e-8,
+            "Invalid result {}",
+            f_exp(0f64)
+        );
+        assert!(
+            (f_exp(5f64) - 148.4131591025766034211155800405522796f64).abs() < 1e-8,
+            "Invalid result {}",
+            f_exp(5f64)
+        );
+
+        assert!(
+            (f_expf(0f32) - 1f32).abs() < 1e-6,
+            "Invalid result {}",
+            f_expf(0f32)
+        );
+        assert!(
+            (f_expf(5f32) - 148.4131591025766f32).abs() < 1e-6,
+            "Invalid result {}",
+            f_expf(5f32)
+        );
     }
 
     #[test]
@@ -680,10 +1090,23 @@ mod tests {
             "Invalid result {}",
             log(5f64)
         );
+
+        assert!(
+            (f_log(1f64) - 0f64).abs() < 1e-8,
+            "Invalid result {}",
+            f_log(1f64)
+        );
+        assert!(
+            (f_log(5f64) - 1.60943791243410037460f64).abs() < 1e-8,
+            "Invalid result {}",
+            f_log(5f64)
+        );
     }
 
     #[test]
     fn powf_test() {
+        println!("{}", f_pow(3., 3.));
+        println!("{}", f_pow(27., 1. / 3.));
         assert!(
             (powf(2f32, 3f32) - 8f32).abs() < 1e-6,
             "Invalid result {}",
@@ -704,6 +1127,28 @@ mod tests {
             (pow(0.5f64, 2f64) - 0.25f64).abs() < 1e-9,
             "Invalid result {}",
             pow(0.5f64, 2f64)
+        );
+
+        assert!(
+            (f_pow(2f64, 3f64) - 8f64).abs() < 1e-9,
+            "Invalid result {}",
+            f_pow(2f64, 3f64)
+        );
+        assert!(
+            (f_pow(0.5f64, 2f64) - 0.25f64).abs() < 1e-9,
+            "Invalid result {}",
+            f_pow(0.5f64, 2f64)
+        );
+
+        assert!(
+            (powf(2f32, 3f32) - 8f32).abs() < 1e-6,
+            "Invalid result {}",
+            powf(2f32, 3f32)
+        );
+        assert!(
+            (f_powf(0.5f32, 2f32) - 0.25f32).abs() < 1e-6,
+            "Invalid result {}",
+            f_powf(0.5f32, 2f32)
         );
     }
 

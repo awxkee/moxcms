@@ -26,7 +26,8 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-use crate::{Matrix3f, Vector3f, Xyz, atan2f, cosf, hypotf, sinf};
+use crate::mlaf::mlaf;
+use crate::{f_atan2f, f_cosf, f_sinf, hypotf, Matrix3f, Vector3f, Xyz};
 
 /// Structure for Yrg colorspace
 #[repr(C)]
@@ -69,29 +70,29 @@ impl Yrg {
 
     #[inline]
     pub fn from_xyz(xyz: Xyz) -> Self {
-        let lms = XYZ_TO_LMS.mul_vector(Vector3f {
+        let lms = XYZ_TO_LMS.f_mul_vector(Vector3f {
             v: [xyz.x, xyz.y, xyz.z],
         });
-        let y = 0.68990272 * lms.v[0] + 0.34832189 * lms.v[1];
+        let y = mlaf(0.68990272 * lms.v[0], 0.34832189, lms.v[1]);
 
         let a = lms.v[0] + lms.v[1] + lms.v[2];
         let l = if a == 0f32 { 0f32 } else { lms.v[0] / a };
         let m = if a == 0f32 { 0f32 } else { lms.v[1] / a };
-        let r = 1.0671 * l - 0.6873 * m + 0.02062;
-        let g = -0.0362 * l + 1.7182 * m - 0.05155;
+        let r = mlaf(mlaf(0.02062, -0.6873, m), 1.0671, l);
+        let g = mlaf(mlaf(-0.05155, -0.0362, l), 1.7182, m);
         Yrg { y, r, g }
     }
 
     #[inline]
     pub fn to_xyz(&self) -> Xyz {
-        let l = 0.95 * self.r + 0.38 * self.g;
-        let m = 0.02 * self.r + 0.59 * self.g + 0.03;
-        let a = self.y / (0.68990272 * l + 0.34832189 * m);
+        let l = mlaf(0.95 * self.r, 0.38, self.g);
+        let m = mlaf(mlaf(0.03, 0.59, self.g), 0.02, self.r);
+        let a = self.y / mlaf(0.68990272 * l, 0.34832189, m);
         let l0 = l * a;
         let m0 = m * a;
         let s0 = (1f32 - l - m) * a;
         let v = Vector3f { v: [l0, m0, s0] };
-        let x = LMS_TO_XYZ.mul_vector(v);
+        let x = LMS_TO_XYZ.f_mul_vector(v);
         Xyz {
             x: x.v[0],
             y: x.v[1],
@@ -116,7 +117,7 @@ impl Ych {
         let r = yrg.r - 0.21902143f32;
         let g = yrg.g - 0.54371398f32;
         let c = hypotf(g, r);
-        let h = atan2f(g, r);
+        let h = f_atan2f(g, r);
         Self { y, c, h }
     }
 
@@ -125,8 +126,8 @@ impl Ych {
         let y = self.y;
         let c = self.c;
         let h = self.h;
-        let r = c * cosf(h) + 0.21902143f32;
-        let g = c * sinf(h) + 0.54371398f32;
+        let r = c * f_cosf(h) + 0.21902143f32;
+        let g = c * f_sinf(h) + 0.54371398f32;
         Yrg { y, r, g }
     }
 }

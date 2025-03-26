@@ -654,6 +654,27 @@ impl Matrix3f {
         Vector3f { v: [x, y, z] }
     }
 
+    /// Multiply using FMA
+    #[inline]
+    pub fn f_mul_vector(&self, other: Vector3f) -> Vector3f {
+        let x = mlaf(
+            mlaf(self.v[0][1] * other.v[1], self.v[0][2], other.v[2]),
+            self.v[0][0],
+            other.v[0],
+        );
+        let y = mlaf(
+            mlaf(self.v[1][0] * other.v[0], self.v[1][1], other.v[1]),
+            self.v[1][2],
+            other.v[2],
+        );
+        let z = mlaf(
+            mlaf(self.v[2][0] * other.v[0], self.v[2][1], other.v[1]),
+            self.v[2][2],
+            other.v[2],
+        );
+        Vector3f { v: [x, y, z] }
+    }
+
     #[inline]
     pub fn mat_mul(&self, other: Matrix3f) -> Self {
         let mut result = Matrix3f::default();
