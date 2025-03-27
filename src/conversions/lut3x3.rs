@@ -27,7 +27,6 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-use crate::math::m_clamp;
 use crate::profile::LutDataType;
 use crate::trc::lut_interp_linear_float;
 use crate::{Array3D, CmsError, InterpolationMethod, Stage, TransformOptions, Vector3f};
@@ -92,9 +91,9 @@ impl Lut3x3 {
 
             let clut = fetch(linear_x, linear_y, linear_z);
 
-            let pcs_x = lut_interp_linear_float(m_clamp(clut.v[0], 0.0, 1.0), &self.gamma[0]);
-            let pcs_y = lut_interp_linear_float(m_clamp(clut.v[1], 0.0, 1.0), &self.gamma[1]);
-            let pcs_z = lut_interp_linear_float(m_clamp(clut.v[2], 0.0, 1.0), &self.gamma[2]);
+            let pcs_x = lut_interp_linear_float(clut.v[0], &self.gamma[0]);
+            let pcs_y = lut_interp_linear_float(clut.v[1], &self.gamma[1]);
+            let pcs_z = lut_interp_linear_float(clut.v[2], &self.gamma[2]);
             dest[0] = pcs_x;
             dest[1] = pcs_y;
             dest[2] = pcs_z;

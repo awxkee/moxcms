@@ -30,7 +30,7 @@ use crate::math::m_clamp;
 use crate::mlaf::{mlaf, neg_mlaf};
 use crate::transform::PointeeSizeExpressible;
 use crate::writer::FloatToFixedU8Fixed8;
-use crate::{CmsError, ColorProfile, pow, powf};
+use crate::{CmsError, ColorProfile, f_pow, f_powf};
 use num_traits::AsPrimitive;
 
 #[derive(Clone, Debug)]
@@ -67,7 +67,7 @@ pub(crate) fn build_parametric_table(
         |x| {
             if x >= d {
                 let e: f64 = a * x + b;
-                if e > 0. { pow(e, g) } else { 0. }
+                if e > 0. { f_pow(e, g) } else { 0. }
             } else {
                 c * x
             }
@@ -170,7 +170,7 @@ impl ParametricCurve {
         if x < self.d {
             self.c * x + self.f
         } else {
-            powf(self.a * x + self.b, self.g) + self.e
+            f_powf(self.a * x + self.b, self.g) + self.e
         }
     }
 
@@ -178,7 +178,7 @@ impl ParametricCurve {
     #[allow(clippy::many_single_char_names)]
     fn invert(&self) -> Option<ParametricCurve> {
         // First check if the function is continuous at the cross-over point d.
-        let d1 = powf(self.a * self.d + self.b, self.g) + self.e;
+        let d1 = f_powf(self.a * self.d + self.b, self.g) + self.e;
         let d2 = self.c * self.d + self.f;
 
         if (d1 - d2).abs() > 0.1 {
@@ -193,8 +193,8 @@ impl ParametricCurve {
         // (y - e)^(1/g)/a - b/a = x
         // ((y - e)/a^g)^(1/g) - b/a = x
         // ((1/(a^g)) * y - e/(a^g))^(1/g) - b/a = x
-        let a = 1. / powf(self.a, self.g);
-        let b = -self.e / powf(self.a, self.g);
+        let a = 1. / f_powf(self.a, self.g);
+        let b = -self.e / f_powf(self.a, self.g);
         let g = 1. / self.g;
         let e = -self.b / self.a;
 
@@ -282,14 +282,14 @@ fn linear_forward_table<T: PointeeSizeExpressible, const N: usize, const BIT_DEP
     assert!(cap_values <= N, "Invalid lut table construction");
     let scale_value = 1f64 / max_value as f64;
     for (i, g) in gamma_table.iter_mut().enumerate().take(cap_values) {
-        *g = pow(i as f64 * scale_value, gamma_float as f64) as f32;
+        *g = f_pow(i as f64 * scale_value, gamma_float as f64) as f32;
     }
     gamma_table
 }
 
 #[inline(always)]
 pub(crate) fn lut_interp_linear_float(x: f32, table: &[f32]) -> f32 {
-    let value = x * (table.len() - 1) as f32;
+    let value = x.min(1.).max(0.) * (table.len() - 1) as f32;
 
     let upper: i32 = value.ceil() as i32;
     let lower: i32 = value.floor() as i32;
@@ -579,7 +579,7 @@ where
     let scale = 1f32 / (N - 1) as f32;
     let cap = ((1 << BIT_DEPTH) - 1) as f32;
     for (v, output) in table.iter_mut().take(N).enumerate() {
-        *output = (cap * powf(v as f32 * scale, gamma)).round().as_();
+        *output = (cap * f_powf(v as f32 * scale, gamma)).round().as_();
     }
     table
 }

@@ -98,7 +98,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
             .unwrap();
         b.iter(|| {
             transform.transform(&rgb, &mut dst).unwrap();
-        })
+        });
     });
 
     c.bench_function("moxcms: LUT Prism RGB -> RGB", |b| {

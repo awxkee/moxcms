@@ -27,7 +27,7 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::transform::PointeeSizeExpressible;
-use crate::{TransferCharacteristics, exp, pow, powf};
+use crate::{TransferCharacteristics, exp, f_pow, f_powf};
 use num_traits::AsPrimitive;
 
 #[inline]
@@ -38,7 +38,7 @@ fn srgb_to_linear(gamma: f64) -> f64 {
     } else if gamma < 12.92f64 * 0.0030412825601275209f64 {
         gamma * (1f64 / 12.92f64)
     } else if gamma < 1.0f64 {
-        pow(
+        f_pow(
             (gamma + 0.0550107189475866f64) / 1.0550107189475866f64,
             2.4f64,
         )
@@ -55,7 +55,7 @@ fn srgb_from_linear(linear: f64) -> f64 {
     } else if linear < 0.0030412825601275209f64 {
         linear * 12.92f64
     } else if linear < 1.0f64 {
-        1.0550107189475866f64 * pow(linear, 1.0f64 / 2.4f64) - 0.0550107189475866f64
+        1.0550107189475866f64 * f_pow(linear, 1.0f64 / 2.4f64) - 0.0550107189475866f64
     } else {
         1.0f64
     }
@@ -63,13 +63,13 @@ fn srgb_from_linear(linear: f64) -> f64 {
 
 #[inline]
 /// Linear transfer function for Rec.709
-const fn rec709_to_linear(gamma: f64) -> f64 {
+fn rec709_to_linear(gamma: f64) -> f64 {
     if gamma < 0.0f64 {
         0.0f64
     } else if gamma < 4.5f64 * 0.018053968510807f64 {
         gamma * (1f64 / 4.5f64)
     } else if gamma < 1.0f64 {
-        pow(
+        f_pow(
             (gamma + 0.09929682680944f64) / 1.09929682680944f64,
             1.0f64 / 0.45f64,
         )
@@ -80,13 +80,13 @@ const fn rec709_to_linear(gamma: f64) -> f64 {
 
 #[inline]
 /// Gamma transfer function for Rec.709
-const fn rec709_from_linear(linear: f64) -> f64 {
+fn rec709_from_linear(linear: f64) -> f64 {
     if linear < 0.0f64 {
         0.0f64
     } else if linear < 0.018053968510807f64 {
         linear * 4.5f64
     } else if linear < 1.0f64 {
-        1.09929682680944f64 * pow(linear, 0.45f64) - 0.09929682680944f64
+        1.09929682680944f64 * f_pow(linear, 0.45f64) - 0.09929682680944f64
     } else {
         1.0f64
     }
@@ -96,7 +96,7 @@ const fn rec709_from_linear(linear: f64) -> f64 {
 /// Linear transfer function for Smpte 428
 pub(crate) fn smpte428_to_linear(gamma: f64) -> f64 {
     const SCALE: f64 = 1. / 0.91655527974030934f64;
-    pow(gamma.max(0.).min(1f64), 2.6f64) * SCALE
+    f_pow(gamma.max(0.).min(1f64), 2.6f64) * SCALE
 }
 
 #[inline]
@@ -108,13 +108,13 @@ fn smpte428_from_linear(linear: f64) -> f64 {
 
 #[inline]
 /// Linear transfer function for Smpte 240
-pub(crate) const fn smpte240_to_linear(gamma: f64) -> f64 {
+pub(crate) fn smpte240_to_linear(gamma: f64) -> f64 {
     if gamma < 0.0 {
         0.0
     } else if gamma < 4.0 * 0.022821585529445 {
         gamma / 4.0
     } else if gamma < 1.0 {
-        pow((gamma + 0.111572195921731) / 1.111572195921731, 1.0 / 0.45)
+        f_pow((gamma + 0.111572195921731) / 1.111572195921731, 1.0 / 0.45)
     } else {
         1.0
     }
@@ -122,13 +122,13 @@ pub(crate) const fn smpte240_to_linear(gamma: f64) -> f64 {
 
 #[inline]
 /// Gamma transfer function for Smpte 240
-const fn smpte240_from_linear(linear: f64) -> f64 {
+fn smpte240_from_linear(linear: f64) -> f64 {
     if linear < 0.0 {
         0.0
     } else if linear < 0.022821585529445 {
         linear * 4.0
     } else if linear < 1.0 {
-        1.111572195921731 * pow(linear, 0.45) - 0.111572195921731
+        1.111572195921731 * f_pow(linear, 0.45) - 0.111572195921731
     } else {
         1.0
     }
@@ -146,13 +146,13 @@ fn log100_from_linear(linear: f64) -> f64 {
 
 #[inline]
 /// Linear transfer function for Log100
-pub(crate) const fn log100_to_linear(gamma: f64) -> f64 {
+pub(crate) fn log100_to_linear(gamma: f64) -> f64 {
     // The function is non-bijective so choose the middle of [0, 0.00316227766f].
     const MID_INTERVAL: f64 = 0.01 / 2.;
     if gamma <= 0. {
         MID_INTERVAL
     } else {
-        pow(10f64, 2. * (gamma.min(1.) - 1.))
+        f_pow(10f64, 2. * (gamma.min(1.) - 1.))
     }
 }
 
@@ -164,7 +164,7 @@ pub(crate) fn log100_sqrt10_to_linear(gamma: f64) -> f64 {
     if gamma <= 0. {
         MID_INTERVAL
     } else {
-        pow(10f64, 2.5 * (gamma.min(1.) - 1.))
+        f_pow(10f64, 2.5 * (gamma.min(1.) - 1.))
     }
 }
 
@@ -180,15 +180,15 @@ fn log100_sqrt10_from_linear(linear: f64) -> f64 {
 
 #[inline]
 /// Gamma transfer function for Bt.1361
-const fn bt1361_from_linear(linear: f64) -> f64 {
+fn bt1361_from_linear(linear: f64) -> f64 {
     if linear < -0.25 {
         -0.25
     } else if linear < 0.0 {
-        -0.27482420670236 * pow(-4.0 * linear, 0.45) + 0.02482420670236
+        -0.27482420670236 * f_pow(-4.0 * linear, 0.45) + 0.02482420670236
     } else if linear < 0.018053968510807 {
         linear * 4.5
     } else if linear < 1.0 {
-        1.09929682680944 * pow(linear, 0.45) - 0.09929682680944
+        1.09929682680944 * f_pow(linear, 0.45) - 0.09929682680944
     } else {
         1.0
     }
@@ -196,18 +196,18 @@ const fn bt1361_from_linear(linear: f64) -> f64 {
 
 #[inline]
 /// Linear transfer function for Bt.1361
-pub(crate) const fn bt1361_to_linear(gamma: f64) -> f64 {
+pub(crate) fn bt1361_to_linear(gamma: f64) -> f64 {
     if gamma < -0.25f64 {
         -0.25f64
     } else if gamma < 0.0f64 {
-        pow(
+        f_pow(
             (gamma - 0.02482420670236f64) / -0.27482420670236f64,
             1.0f64 / 0.45f64,
         ) / -4.0f64
     } else if gamma < 4.5 * 0.018053968510807 {
         gamma / 4.5
     } else if gamma < 1.0 {
-        pow((gamma + 0.09929682680944) / 1.09929682680944, 1.0 / 0.45)
+        f_pow((gamma + 0.09929682680944) / 1.09929682680944, 1.0 / 0.45)
     } else {
         1.0f64
     }
@@ -215,27 +215,27 @@ pub(crate) const fn bt1361_to_linear(gamma: f64) -> f64 {
 
 #[inline(always)]
 /// Pure gamma transfer function for gamma 2.2
-const fn pure_gamma_function(x: f64, gamma: f64) -> f64 {
+fn pure_gamma_function(x: f64, gamma: f64) -> f64 {
     if x <= 0f64 {
         0f64
     } else if x >= 1f64 {
         return 1f64;
     } else {
-        return pow(x, gamma);
+        return f_pow(x, gamma);
     }
 }
 
 #[inline]
-pub(crate) const fn iec61966_to_linear(gamma: f64) -> f64 {
+pub(crate) fn iec61966_to_linear(gamma: f64) -> f64 {
     if gamma < -4.5f64 * 0.018053968510807f64 {
-        pow(
+        f_pow(
             (-gamma + 0.09929682680944f64) / -1.09929682680944f64,
             1.0f64 / 0.45f64,
         )
     } else if gamma < 4.5f64 * 0.018053968510807f64 {
         gamma / 4.5f64
     } else {
-        pow(
+        f_pow(
             (gamma + 0.09929682680944f64) / 1.09929682680944f64,
             1.0f64 / 0.45f64,
         )
@@ -243,13 +243,13 @@ pub(crate) const fn iec61966_to_linear(gamma: f64) -> f64 {
 }
 
 #[inline]
-const fn iec61966_from_linear(v: f64) -> f64 {
+fn iec61966_from_linear(v: f64) -> f64 {
     if v < -0.018053968510807f64 {
-        -1.09929682680944f64 * pow(-v, 0.45f64) + 0.09929682680944f64
+        -1.09929682680944f64 * f_pow(-v, 0.45f64) + 0.09929682680944f64
     } else if v < 0.018053968510807f64 {
         v * 4.5f64
     } else {
-        1.09929682680944f64 * pow(v, 0.45f64) - 0.09929682680944f64
+        1.09929682680944f64 * f_pow(v, 0.45f64) - 0.09929682680944f64
     }
 }
 
@@ -267,13 +267,13 @@ fn gamma2p2_to_linear(gamma: f64) -> f64 {
 
 #[inline]
 /// Pure gamma transfer function for gamma 2.8
-const fn gamma2p8_from_linear(linear: f64) -> f64 {
+fn gamma2p8_from_linear(linear: f64) -> f64 {
     pure_gamma_function(linear, 1f64 / 2.8f64)
 }
 
 #[inline]
 /// Linear transfer function for gamma 2.8
-const fn gamma2p8_to_linear(gamma: f64) -> f64 {
+fn gamma2p8_to_linear(gamma: f64) -> f64 {
     pure_gamma_function(gamma, 2.8f64)
 }
 
@@ -281,10 +281,10 @@ const fn gamma2p8_to_linear(gamma: f64) -> f64 {
 /// Linear transfer function for PQ
 pub(crate) fn pq_to_linear(gamma: f64) -> f64 {
     if gamma > 0.0 {
-        let pow_gamma = pow(gamma, 1.0 / 78.84375);
+        let pow_gamma = f_pow(gamma, 1.0 / 78.84375);
         let num = (pow_gamma - 0.8359375).max(0.);
         let den = (18.8515625 - 18.6875 * pow_gamma).max(f64::MIN);
-        pow(num / den, 1.0 / 0.1593017578125)
+        f_pow(num / den, 1.0 / 0.1593017578125)
     } else {
         0.0
     }
@@ -294,10 +294,10 @@ pub(crate) fn pq_to_linear(gamma: f64) -> f64 {
 /// Linear transfer function for PQ
 pub(crate) fn pq_to_linearf(gamma: f32) -> f32 {
     if gamma > 0.0 {
-        let pow_gamma = powf(gamma, 1.0 / 78.84375);
+        let pow_gamma = f_powf(gamma, 1.0 / 78.84375);
         let num = (pow_gamma - 0.8359375).max(0.);
         let den = (18.8515625 - 18.6875 * pow_gamma).max(f32::MIN);
-        powf(num / den, 1.0 / 0.1593017578125)
+        f_powf(num / den, 1.0 / 0.1593017578125)
     } else {
         0.0
     }
@@ -308,10 +308,10 @@ pub(crate) fn pq_to_linearf(gamma: f32) -> f32 {
 fn pq_from_linear(linear: f64) -> f64 {
     if linear > 0.0 {
         let linear = linear.clamp(0., 1.);
-        let pow_linear = pow(linear, 0.1593017578125);
+        let pow_linear = f_pow(linear, 0.1593017578125);
         let num = 0.1640625 * pow_linear - 0.1640625;
         let den = 1.0 + 18.6875 * pow_linear;
-        pow(1.0 + num / den, 78.84375)
+        f_pow(1.0 + num / den, 78.84375)
     } else {
         0.0
     }
@@ -319,13 +319,13 @@ fn pq_from_linear(linear: f64) -> f64 {
 
 #[inline]
 /// Gamma transfer function for PQ
-pub(crate) const fn pq_from_linearf(linear: f32) -> f32 {
+pub(crate) fn pq_from_linearf(linear: f32) -> f32 {
     if linear > 0.0 {
         let linear = linear.clamp(0., 1.);
-        let pow_linear = powf(linear, 0.1593017578125);
+        let pow_linear = f_powf(linear, 0.1593017578125);
         let num = 0.1640625 * pow_linear - 0.1640625;
         let den = 1.0 + 18.6875 * pow_linear;
-        powf(1.0 + num / den, 78.84375)
+        f_powf(1.0 + num / den, 78.84375)
     } else {
         0.0
     }
@@ -338,9 +338,9 @@ pub(crate) fn hlg_to_linear(gamma: f64) -> f64 {
         return 0.0;
     }
     if gamma <= 0.5 {
-        pow((gamma * gamma) * (1.0 / 3.0), 1.2)
+        f_pow((gamma * gamma) * (1.0 / 3.0), 1.2)
     } else {
-        pow(
+        f_pow(
             (exp((gamma - 0.55991073) / 0.17883277) + 0.28466892) / 12.0,
             1.2,
         )
@@ -353,7 +353,7 @@ fn hlg_from_linear(linear: f64) -> f64 {
     // Scale from extended SDR range to [0.0, 1.0].
     let mut linear = linear.clamp(0., 1.);
     // Inverse OOTF followed by OETF see Table 5 and Note 5i in ITU-R BT.2100-2 page 7-8.
-    linear = pow(linear, 1.0 / 1.2);
+    linear = f_pow(linear, 1.0 / 1.2);
     if linear < 0.0 {
         0.0
     } else if linear <= (1.0 / 12.0) {

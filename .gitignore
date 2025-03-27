@@ -5,3 +5,4 @@ app/target
 flamegraph.svg
 perf.data
 profile.json.gz
+.cargo
