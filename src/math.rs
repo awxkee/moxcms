@@ -870,6 +870,70 @@ pub fn f_exp(d: f64) -> f64 {
 }
 
 #[inline]
+pub fn f_exp2(d: f64) -> f64 {
+    let qf = rintk(d);
+    let q = qf as i32;
+
+    let r = d - qf;
+
+    let f = r;
+    #[cfg(any(
+        all(
+            any(target_arch = "x86", target_arch = "x86_64"),
+            target_feature = "fma"
+        ),
+        all(target_arch = "aarch64", target_feature = "neon")
+    ))]
+    {
+        let mut u = 7.0372783532832401e-09;
+        u = f_fmla(u, f, 1.0208537941214528e-07);
+        u = f_fmla(u, f, 1.3215662838954957e-06);
+        u = f_fmla(u, f, 1.5252658116348333e-05);
+        u = f_fmla(u, f, 0.00015403529961120784);
+        u = f_fmla(u, f, 0.0013333558228561871);
+        u = f_fmla(u, f, 0.0096181291080346017);
+        u = f_fmla(u, f, 0.055504108664458832);
+        u = f_fmla(u, f, 0.24022650695908768);
+        u = f_fmla(u, f, 0.69314718055994973);
+        u = f_fmla(u, f, 1.);
+
+        let i2 = pow2i(q);
+        u * i2
+    }
+    #[cfg(not(any(
+        all(
+            any(target_arch = "x86", target_arch = "x86_64"),
+            target_feature = "fma"
+        ),
+        all(target_arch = "aarch64", target_feature = "neon")
+    )))]
+    {
+        let x2 = f * f;
+        let x4 = x2 * x2;
+        let x8 = x4 * x4;
+        let u = poly11!(
+            f,
+            x2,
+            x4,
+            x8,
+            7.0372783532832401e-09,
+            1.0208537941214528e-07,
+            1.3215662838954957e-06,
+            1.5252658116348333e-05,
+            0.00015403529961120784,
+            0.0013333558228561871,
+            0.0096181291080346017,
+            0.055504108664458832,
+            0.24022650695908768,
+            0.69314718055994973,
+            1.
+        );
+        let i2 = pow2i(q);
+        u * i2
+    }
+}
+
+#[inline]
 const fn ilogb2k(d: f64) -> i32 {
     (((d.to_bits() >> 52) & 0x7ff) as i32) - 0x3ff
 }
@@ -991,24 +1055,13 @@ pub fn f_log(d: f64) -> f64 {
 
 /// Natural logarithm using FMA
 #[inline]
-fn f_log_pow(d: f64) -> f64 {
-    const LN_POLY_1_D: f64 = 2.;
-    const LN_POLY_2_D: f64 = 0.666_666_666_666_777_874_006_3;
-    const LN_POLY_3_D: f64 = 0.399_999_999_950_799_600_689_777;
-    const LN_POLY_4_D: f64 = 0.285_714_294_746_548_025_383_248;
-    const LN_POLY_5_D: f64 = 0.222_221_366_518_767_365_905_163;
-    const LN_POLY_6_D: f64 = 0.181_863_266_251_982_985_677_316;
-    const LN_POLY_7_D: f64 = 0.152_519_917_006_351_951_593_857;
-    const LN_POLY_8_D: f64 = 0.153_487_338_491_425_068_243_146;
-
-    // ln(𝑥)=ln(𝑎)+𝑛ln(2)
+pub fn f_log2(d: f64) -> f64 {
     let n = ilogb2k(d * (1. / 0.75));
     let a = ldexp3k(d, -n);
 
     let x = (a - 1.) / (a + 1.);
-    let f = x * x;
-    #[allow(unused_mut)]
-    let mut u;
+
+    let x2 = x * x;
     #[cfg(any(
         all(
             any(target_arch = "x86", target_arch = "x86_64"),
@@ -1017,14 +1070,14 @@ fn f_log_pow(d: f64) -> f64 {
         all(target_arch = "aarch64", target_feature = "neon")
     ))]
     {
-        u = LN_POLY_8_D;
-        u = f_fmla(u, f, LN_POLY_7_D);
-        u = f_fmla(u, f, LN_POLY_6_D);
-        u = f_fmla(u, f, LN_POLY_5_D);
-        u = f_fmla(u, f, LN_POLY_4_D);
-        u = f_fmla(u, f, LN_POLY_3_D);
-        u = f_fmla(u, f, LN_POLY_2_D);
-        u = f_fmla(u, f, LN_POLY_1_D);
+        let mut u = 0.2210319873572944675e+0;
+        u = f_fmla(u, x2, 0.2201017466118781220e+0);
+        u = f_fmla(u, x2, 0.2623693760780589253e+0);
+        u = f_fmla(u, x2, 0.3205977867563723840e+0);
+        u = f_fmla(u, x2, 0.4121985940253306314e+0);
+        u = f_fmla(u, x2, 0.5770780163029655546e+0);
+        u = f_fmla(u, x2, 0.9617966939260729972e+0);
+        f_fmla(x2 * x, u, f_fmla(x, 0.2885390081777926774e+1, n as f64))
     }
     #[cfg(not(any(
         all(
@@ -1034,23 +1087,22 @@ fn f_log_pow(d: f64) -> f64 {
         all(target_arch = "aarch64", target_feature = "neon")
     )))]
     {
-        let x2 = f * f;
-        let x4 = x2 * x2;
-        u = poly8!(
-            f,
+        let rx2 = x2 * x2;
+        let rx4 = rx2 * rx2;
+        let u = poly7!(
             x2,
-            x4,
-            LN_POLY_8_D,
-            LN_POLY_7_D,
-            LN_POLY_6_D,
-            LN_POLY_5_D,
-            LN_POLY_4_D,
-            LN_POLY_3_D,
-            LN_POLY_2_D,
-            LN_POLY_1_D
+            rx2,
+            rx4,
+            0.2210319873572944675e+0,
+            0.2201017466118781220e+0,
+            0.2623693760780589253e+0,
+            0.3205977867563723840e+0,
+            0.4121985940253306314e+0,
+            0.5770780163029655546e+0,
+            0.9617966939260729972e+0
         );
+        f_fmla(x2 * x, u, f_fmla(x, 0.2885390081777926774e+1, n as f64))
     }
-    f_fmla(x, u, std::f64::consts::LN_2 * (n as f64))
 }
 
 /// Copies sign from `y` to `x`
@@ -1098,8 +1150,8 @@ pub const fn pow(d: f64, n: f64) -> f64 {
 #[inline]
 pub fn f_pow(d: f64, n: f64) -> f64 {
     let value = d.abs();
-    let r = f_log_pow(value);
-    let mut c = f_exp(n * r);
+    let r = f_log2(value);
+    let mut c = f_exp2(n * r);
     c = copysignk(c, d);
     // if d < 0. && n.floor() != n {
     //     return f64::NAN;
@@ -1417,6 +1469,24 @@ pub(crate) trait FusedMultiplyNegAdd<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_log2d() {
+        let mut max_diff = f64::MIN;
+        let mut max_away = 0;
+        for i in 1..20000 {
+            let my_expf = f_log2(i as f64 / 1000.);
+            let system = (i as f64 / 1000.).log2();
+            max_diff = max_diff.max((my_expf - system).abs());
+            max_away = (my_expf.to_bits() as i64 - system.to_bits() as i64)
+                .abs()
+                .max(max_away);
+        }
+        assert!((f_log2(0.35) - 0.35f64.log2()).abs() < 1e-8);
+        assert!((f_log2(0.9) - 0.9f64.log2()).abs() < 1e-8);
+        println!("{} max away {}", max_diff, max_away);
+    }
+
     #[test]
     fn test_log2f() {
         let mut max_diff = f32::MIN;
@@ -1429,6 +1499,25 @@ mod tests {
                 .abs()
                 .max(max_away);
         }
+        assert!((f_log2f(0.35f32) - 0.35f32.log2()).abs() < 1e-5);
+        assert!((f_log2f(0.9f32) - 0.9f32.log2()).abs() < 1e-5);
+        println!("{} max away {}", max_diff, max_away);
+    }
+
+    #[test]
+    fn test_exp2d() {
+        let mut max_diff = f64::MIN;
+        let mut max_away = 0;
+        for i in -10000..10000 {
+            let my_expf = f_exp2(i as f64 / 1000.);
+            let system = (i as f64 / 1000.).exp2();
+            max_diff = max_diff.max((my_expf - system).abs());
+            max_away = (my_expf.to_bits() as i64 - system.to_bits() as i64)
+                .abs()
+                .max(max_away);
+        }
+        assert!((f_exp2(0.35f64) - 0.35f64.exp2()).abs() < 1e-8);
+        assert!((f_exp2(-0.6f64) - (-0.6f64).exp2()).abs() < 1e-8);
         println!("{} max away {}", max_diff, max_away);
     }
 
@@ -1444,6 +1533,8 @@ mod tests {
                 .abs()
                 .max(max_away);
         }
+        assert!((f_exp2f(0.35f32) - 0.35f32.exp2()).abs() < 1e-5);
+        assert!((f_exp2f(-0.6f32) - (-0.6f32).exp2()).abs() < 1e-5);
         println!("{} max away {}", max_diff, max_away);
     }
 
@@ -1559,6 +1650,9 @@ mod tests {
     fn powf_test() {
         println!("{}", f_powf(3., 3.));
         println!("{}", f_powf(27., 1. / 3.));
+
+        println!("{}", f_pow(3., 3.));
+        println!("{}", f_pow(27., 1. / 3.));
         assert!(
             (powf(2f32, 3f32) - 8f32).abs() < 1e-6,
             "Invalid result {}",

@@ -6,8 +6,8 @@
  */
 use criterion::{Criterion, black_box, criterion_group, criterion_main};
 use moxcms::{
-    atanf, cbrtf, cosf, exp, expf, f_atanf, f_cbrtf, f_cosf, f_exp, f_log, f_logf, f_pow, f_powf,
-    f_sinf, log, logf, pow, powf, sinf,
+    atanf, cbrtf, cosf, exp, expf, f_atanf, f_cbrtf, f_cosf, f_exp, f_exp2, f_log, f_log2, f_logf,
+    f_pow, f_powf, f_sinf, log, logf, pow, powf, sinf,
 };
 
 pub fn criterion_benchmark(c: &mut Criterion) {
@@ -23,6 +23,14 @@ pub fn criterion_benchmark(c: &mut Criterion) {
         b.iter(|| {
             for i in 1..10000 {
                 black_box(f64::exp2(i as f64 / 10000.0 - 1.));
+            }
+        })
+    });
+
+    c.bench_function("moxcms::exp2", |b| {
+        b.iter(|| {
+            for i in 1..10000 {
+                black_box(f_exp2(i as f64 / 10000.0 - 1.));
             }
         })
     });
@@ -151,6 +159,30 @@ pub fn criterion_benchmark(c: &mut Criterion) {
         b.iter(|| {
             for i in 1..1000 {
                 black_box(exp(i as f64));
+            }
+        })
+    });
+
+    c.bench_function("libm::log2", |b| {
+        b.iter(|| {
+            for i in 1..1000 {
+                black_box(libm::log2(i as f64));
+            }
+        })
+    });
+
+    c.bench_function("system::log2", |b| {
+        b.iter(|| {
+            for i in 1..1000 {
+                black_box(f64::log2(i as f64));
+            }
+        })
+    });
+
+    c.bench_function("moxcms: FMA log2", |b| {
+        b.iter(|| {
+            for i in 1..1000 {
+                black_box(f_log2(i as f64));
             }
         })
     });
