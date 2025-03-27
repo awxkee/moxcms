@@ -28,7 +28,7 @@
  */
 use crate::jzazbz::Jzazbz;
 use crate::math::hypot3f;
-use crate::{Xyz, atan2f, cosf, hypotf, sinf};
+use crate::{Xyz, atan2f, f_cosf, f_sinf, hypotf};
 use num_traits::Pow;
 use std::ops::{
     Add, AddAssign, Div, DivAssign, Index, IndexMut, Mul, MulAssign, Neg, Sub, SubAssign,
@@ -64,16 +64,16 @@ impl Jzczhz {
     /// Converts Jzczhz into Jzazbz
     #[inline]
     pub fn to_jzazbz(&self) -> Jzazbz {
-        let az = self.cz * cosf(self.hz);
-        let bz = self.cz * sinf(self.hz);
+        let az = self.cz * f_cosf(self.hz);
+        let bz = self.cz * f_sinf(self.hz);
         Jzazbz::new(self.jz, az, bz)
     }
 
     /// Converts Jzczhz into Jzazbz
     #[inline]
     pub fn to_jzazbz_with_luminance(&self) -> Jzazbz {
-        let az = self.cz * cosf(self.hz);
-        let bz = self.cz * sinf(self.hz);
+        let az = self.cz * f_cosf(self.hz);
+        let bz = self.cz * f_sinf(self.hz);
         Jzazbz::new(self.jz, az, bz)
     }
 
@@ -104,7 +104,7 @@ impl Jzczhz {
         let djz = self.jz - other.jz;
         let dcz = self.cz - other.cz;
         let dhz = self.hz - other.hz;
-        let dh = 2f32 * (self.cz * other.cz).sqrt() * sinf(dhz * 0.5f32);
+        let dh = 2f32 * (self.cz * other.cz).sqrt() * f_sinf(dhz * 0.5f32);
         hypot3f(djz, dcz, dh)
     }
 

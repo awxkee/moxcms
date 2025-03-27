@@ -289,7 +289,7 @@ fn linear_forward_table<T: PointeeSizeExpressible, const N: usize, const BIT_DEP
 
 #[inline]
 pub(crate) fn lut_interp_linear_float(x: f32, table: &[f32]) -> f32 {
-    let value = x * (table.len() - 1) as f32;
+    let value = x.min(1.).max(0.) * (table.len() - 1) as f32;
 
     let upper: i32 = value.ceil() as i32;
     let lower: i32 = value.floor() as i32;

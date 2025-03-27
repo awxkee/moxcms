@@ -126,8 +126,8 @@ impl Ych {
         let y = self.y;
         let c = self.c;
         let h = self.h;
-        let r = c * f_cosf(h) + 0.21902143f32;
-        let g = c * f_sinf(h) + 0.54371398f32;
+        let r = mlaf(0.21902143f32, c, f_cosf(h));
+        let g = mlaf(0.54371398f32, c, f_sinf(h));
         Yrg { y, r, g }
     }
 }
