@@ -483,12 +483,6 @@ pub fn f_exp2f(d: f32) -> f32 {
     }
     let i2 = pow2if(q);
     u * i2
-    // if d < -127f32 {
-    //     r = 0f32;
-    // }
-    // if d > 128f32 {
-    //     r = f32::INFINITY;
-    // }
 }
 
 /// Computes exponent for given value using FMA
@@ -869,67 +863,107 @@ pub fn f_exp(d: f64) -> f64 {
     // }
 }
 
+#[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
+use std::arch::aarch64::*;
+
+#[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
+#[inline(always)]
+unsafe fn vmlaf_f64(a: float64x1_t, b: float64x1_t, c: float64x1_t) -> float64x1_t {
+    unsafe { vfma_f64(c, b, a) }
+}
+
+#[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
+#[inline(always)]
+unsafe fn vpow2if_s64(q: int64x1_t) -> int64x1_t {
+    unsafe { vshl_n_s64::<52>(vadd_s64(q, vdup_n_s64(0x3ff))) }
+}
+
 #[inline]
 pub fn f_exp2(d: f64) -> f64 {
-    let qf = rintk(d);
-    let q = qf as i32;
-
-    let r = d - qf;
-
-    let f = r;
-    #[cfg(any(
-        all(
-            any(target_arch = "x86", target_arch = "x86_64"),
-            target_feature = "fma"
-        ),
-        all(target_arch = "aarch64", target_feature = "neon")
-    ))]
+    #[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
     {
-        let mut u = 7.0372783532832401e-09;
-        u = f_fmla(u, f, 1.0208537941214528e-07);
-        u = f_fmla(u, f, 1.3215662838954957e-06);
-        u = f_fmla(u, f, 1.5252658116348333e-05);
-        u = f_fmla(u, f, 0.00015403529961120784);
-        u = f_fmla(u, f, 0.0013333558228561871);
-        u = f_fmla(u, f, 0.0096181291080346017);
-        u = f_fmla(u, f, 0.055504108664458832);
-        u = f_fmla(u, f, 0.24022650695908768);
-        u = f_fmla(u, f, 0.69314718055994973);
-        u = f_fmla(u, f, 1.);
-
-        let i2 = pow2i(q);
-        u * i2
+        unsafe {
+            let q = vcvta_s64_f64(vdup_n_f64(d));
+            let qf = vcvt_f64_s64(q);
+            let r = vsub_f64(vdup_n_f64(d), qf);
+            let f = r;
+            let mut u = vdup_n_f64(7.0372783532832401e-09);
+            u = vmlaf_f64(u, f, vdup_n_f64(1.0208537941214528e-07));
+            u = vmlaf_f64(u, f, vdup_n_f64(1.3215662838954957e-06));
+            u = vmlaf_f64(u, f, vdup_n_f64(1.5252658116348333e-05));
+            u = vmlaf_f64(u, f, vdup_n_f64(0.00015403529961120784));
+            u = vmlaf_f64(u, f, vdup_n_f64(0.0013333558228561871));
+            u = vmlaf_f64(u, f, vdup_n_f64(0.0096181291080346017));
+            u = vmlaf_f64(u, f, vdup_n_f64(0.055504108664458832));
+            u = vmlaf_f64(u, f, vdup_n_f64(0.24022650695908768));
+            u = vmlaf_f64(u, f, vdup_n_f64(0.69314718055994973));
+            u = vmlaf_f64(u, f, vdup_n_f64(1.));
+            let i2 = vreinterpret_f64_s64(vpow2if_s64(q));
+            vget_lane_f64::<0>(vmul_f64(u, i2))
+        }
     }
-    #[cfg(not(any(
-        all(
-            any(target_arch = "x86", target_arch = "x86_64"),
-            target_feature = "fma"
-        ),
-        all(target_arch = "aarch64", target_feature = "neon")
-    )))]
+    #[cfg(not(all(target_arch = "aarch64", target_feature = "neon", feature = "neon")))]
     {
-        let x2 = f * f;
-        let x4 = x2 * x2;
-        let x8 = x4 * x4;
-        let u = poly11!(
-            f,
-            x2,
-            x4,
-            x8,
-            7.0372783532832401e-09,
-            1.0208537941214528e-07,
-            1.3215662838954957e-06,
-            1.5252658116348333e-05,
-            0.00015403529961120784,
-            0.0013333558228561871,
-            0.0096181291080346017,
-            0.055504108664458832,
-            0.24022650695908768,
-            0.69314718055994973,
-            1.
-        );
-        let i2 = pow2i(q);
-        u * i2
+        let qf = rintk(d);
+        let q = qf as i32;
+
+        let r = d - qf;
+
+        let f = r;
+        #[cfg(any(
+            all(
+                any(target_arch = "x86", target_arch = "x86_64"),
+                target_feature = "fma"
+            ),
+            all(target_arch = "aarch64", target_feature = "neon")
+        ))]
+        {
+            let mut u = 7.0372783532832401e-09;
+            u = f_fmla(u, f, 1.0208537941214528e-07);
+            u = f_fmla(u, f, 1.3215662838954957e-06);
+            u = f_fmla(u, f, 1.5252658116348333e-05);
+            u = f_fmla(u, f, 0.00015403529961120784);
+            u = f_fmla(u, f, 0.0013333558228561871);
+            u = f_fmla(u, f, 0.0096181291080346017);
+            u = f_fmla(u, f, 0.055504108664458832);
+            u = f_fmla(u, f, 0.24022650695908768);
+            u = f_fmla(u, f, 0.69314718055994973);
+            u = f_fmla(u, f, 1.);
+
+            let i2 = pow2i(q);
+            u * i2
+        }
+        #[cfg(not(any(
+            all(
+                any(target_arch = "x86", target_arch = "x86_64"),
+                target_feature = "fma"
+            ),
+            all(target_arch = "aarch64", target_feature = "neon")
+        )))]
+        {
+            let x2 = f * f;
+            let x4 = x2 * x2;
+            let x8 = x4 * x4;
+            let u = poly11!(
+                f,
+                x2,
+                x4,
+                x8,
+                7.0372783532832401e-09,
+                1.0208537941214528e-07,
+                1.3215662838954957e-06,
+                1.5252658116348333e-05,
+                0.00015403529961120784,
+                0.0013333558228561871,
+                0.0096181291080346017,
+                0.055504108664458832,
+                0.24022650695908768,
+                0.69314718055994973,
+                1.
+            );
+            let i2 = pow2i(q);
+            u * i2
+        }
     }
 }
 
@@ -1053,55 +1087,100 @@ pub fn f_log(d: f64) -> f64 {
     }
 }
 
+#[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
+#[inline(always)]
+/// Founds n in x=a+𝑛ln(2), |a| <= 1
+unsafe fn vilogb2k_f64(d: float64x1_t) -> int64x1_t {
+    unsafe {
+        vsub_s64(
+            vand_s64(vshr_n_s64::<52>(vreinterpret_s64_f64(d)), vdup_n_s64(0x7ff)),
+            vdup_n_s64(0x3ff),
+        )
+    }
+}
+
+#[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
+#[inline(always)]
+/// Founds a in x=a+𝑛ln(2), |a| <= 1
+unsafe fn vldexp3k_f64(x: float64x1_t, n: int64x1_t) -> float64x1_t {
+    unsafe { vreinterpret_f64_s64(vadd_s64(vreinterpret_s64_f64(x), vshl_n_s64::<52>(n))) }
+}
+
 /// Natural logarithm using FMA
 #[inline]
 pub fn f_log2(d: f64) -> f64 {
-    let n = ilogb2k(d * (1. / 0.75));
-    let a = ldexp3k(d, -n);
-
-    let x = (a - 1.) / (a + 1.);
-
-    let x2 = x * x;
-    #[cfg(any(
-        all(
-            any(target_arch = "x86", target_arch = "x86_64"),
-            target_feature = "fma"
-        ),
-        all(target_arch = "aarch64", target_feature = "neon")
-    ))]
+    #[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
     {
-        let mut u = 0.2210319873572944675e+0;
-        u = f_fmla(u, x2, 0.2201017466118781220e+0);
-        u = f_fmla(u, x2, 0.2623693760780589253e+0);
-        u = f_fmla(u, x2, 0.3205977867563723840e+0);
-        u = f_fmla(u, x2, 0.4121985940253306314e+0);
-        u = f_fmla(u, x2, 0.5770780163029655546e+0);
-        u = f_fmla(u, x2, 0.9617966939260729972e+0);
-        f_fmla(x2 * x, u, f_fmla(x, 0.2885390081777926774e+1, n as f64))
+        unsafe {
+            let d = vdup_n_f64(d);
+            let n = vilogb2k_f64(vmul_n_f64(d, 1f64 / 0.75f64));
+            let a = vldexp3k_f64(d, vneg_s64(n));
+            let ones = vdup_n_f64(1f64);
+            let x = vdiv_f64(vsub_f64(a, ones), vadd_f64(a, ones));
+            let x2 = vmul_f64(x, x);
+            let mut u = vdup_n_f64(0.2210319873572944675e+0);
+            u = vmlaf_f64(u, x2, vdup_n_f64(0.2201017466118781220e+0));
+            u = vmlaf_f64(u, x2, vdup_n_f64(0.2623693760780589253e+0));
+            u = vmlaf_f64(u, x2, vdup_n_f64(0.3205977867563723840e+0));
+            u = vmlaf_f64(u, x2, vdup_n_f64(0.4121985940253306314e+0));
+            u = vmlaf_f64(u, x2, vdup_n_f64(0.5770780163029655546e+0));
+            u = vmlaf_f64(u, x2, vdup_n_f64(0.9617966939260729972e+0));
+            vget_lane_f64::<0>(vmlaf_f64(
+                vmul_f64(x2, x),
+                u,
+                vmlaf_f64(x, vdup_n_f64(0.2885390081777926774e+1), vcvt_f64_s64(n)),
+            ))
+        }
     }
-    #[cfg(not(any(
-        all(
-            any(target_arch = "x86", target_arch = "x86_64"),
-            target_feature = "fma"
-        ),
-        all(target_arch = "aarch64", target_feature = "neon")
-    )))]
+    #[cfg(not(all(target_arch = "aarch64", target_feature = "neon", feature = "neon")))]
     {
-        let rx2 = x2 * x2;
-        let rx4 = rx2 * rx2;
-        let u = poly7!(
-            x2,
-            rx2,
-            rx4,
-            0.2210319873572944675e+0,
-            0.2201017466118781220e+0,
-            0.2623693760780589253e+0,
-            0.3205977867563723840e+0,
-            0.4121985940253306314e+0,
-            0.5770780163029655546e+0,
-            0.9617966939260729972e+0
-        );
-        f_fmla(x2 * x, u, f_fmla(x, 0.2885390081777926774e+1, n as f64))
+        let n = ilogb2k(d * (1. / 0.75));
+        let a = ldexp3k(d, -n);
+
+        let x = (a - 1.) / (a + 1.);
+
+        let x2 = x * x;
+        #[cfg(any(
+            all(
+                any(target_arch = "x86", target_arch = "x86_64"),
+                target_feature = "fma"
+            ),
+            all(target_arch = "aarch64", target_feature = "neon")
+        ))]
+        {
+            let mut u = 0.2210319873572944675e+0;
+            u = f_fmla(u, x2, 0.2201017466118781220e+0);
+            u = f_fmla(u, x2, 0.2623693760780589253e+0);
+            u = f_fmla(u, x2, 0.3205977867563723840e+0);
+            u = f_fmla(u, x2, 0.4121985940253306314e+0);
+            u = f_fmla(u, x2, 0.5770780163029655546e+0);
+            u = f_fmla(u, x2, 0.9617966939260729972e+0);
+            f_fmla(x2 * x, u, f_fmla(x, 0.2885390081777926774e+1, n as f64))
+        }
+        #[cfg(not(any(
+            all(
+                any(target_arch = "x86", target_arch = "x86_64"),
+                target_feature = "fma"
+            ),
+            all(target_arch = "aarch64", target_feature = "neon")
+        )))]
+        {
+            let rx2 = x2 * x2;
+            let rx4 = rx2 * rx2;
+            let u = poly7!(
+                x2,
+                rx2,
+                rx4,
+                0.2210319873572944675e+0,
+                0.2201017466118781220e+0,
+                0.2623693760780589253e+0,
+                0.3205977867563723840e+0,
+                0.4121985940253306314e+0,
+                0.5770780163029655546e+0,
+                0.9617966939260729972e+0
+            );
+            f_fmla(x2 * x, u, f_fmla(x, 0.2885390081777926774e+1, n as f64))
+        }
     }
 }
 
@@ -1516,9 +1595,9 @@ mod tests {
                 .abs()
                 .max(max_away);
         }
+        println!("{} max away {}", max_diff, max_away);
         assert!((f_exp2(0.35f64) - 0.35f64.exp2()).abs() < 1e-8);
         assert!((f_exp2(-0.6f64) - (-0.6f64).exp2()).abs() < 1e-8);
-        println!("{} max away {}", max_diff, max_away);
     }
 
     #[test]

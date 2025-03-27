@@ -11,7 +11,7 @@ use moxcms::{
 };
 
 pub fn criterion_benchmark(c: &mut Criterion) {
-    c.bench_function("libm::exp2", |b| {
+   /* c.bench_function("libm::exp2", |b| {
         b.iter(|| {
             for i in 1..10000 {
                 black_box(libm::exp2(i as f64 / 10000.0 - 1.));
@@ -41,9 +41,9 @@ pub fn criterion_benchmark(c: &mut Criterion) {
                 black_box(f_exp(i as f64 / 10000.0 - 1.));
             }
         })
-    });
+    });*/
 
-    c.bench_function("libm::cbrtf", |b| {
+    /*c.bench_function("libm::cbrtf", |b| {
         b.iter(|| {
             for i in 1..1000 {
                 black_box(libm::cbrtf(i as f32));
@@ -161,7 +161,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
                 black_box(exp(i as f64));
             }
         })
-    });
+    });*/
 
     c.bench_function("libm::log2", |b| {
         b.iter(|| {
@@ -187,7 +187,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
         })
     });
 
-    c.bench_function("libm::log", |b| {
+  /*  c.bench_function("libm::log", |b| {
         b.iter(|| {
             for i in 1..1000 {
                 black_box(libm::log(i as f64));
@@ -273,7 +273,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
                 black_box(f_powf(i as f32, 0.323221324312f32 * i as f32));
             }
         })
-    });
+    });*/
 
     c.bench_function("libm::pow", |b| {
         b.iter(|| {
