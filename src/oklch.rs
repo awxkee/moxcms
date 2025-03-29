@@ -5,7 +5,7 @@
  * // license that can be found in the LICENSE file.
  */
 use crate::math::atan2f;
-use crate::{Oklab, Rgb, cbrtf, const_hypotf, cosf, hypotf, powf, sinf};
+use crate::{const_hypotf, f_cbrtf, f_cosf, f_powf, f_sinf, hypotf, Oklab, Rgb};
 use num_traits::Pow;
 use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 
@@ -49,7 +49,7 @@ impl Oklch {
     #[inline]
     pub fn from_oklab(oklab: Oklab) -> Oklch {
         let chroma = hypotf(oklab.b, oklab.a);
-        let hue = oklab.b.atan2(oklab.a);
+        let hue = atan2f(oklab.b, oklab.a);
         Oklch::new(oklab.l, chroma, hue)
     }
 
@@ -63,10 +63,10 @@ impl Oklch {
 
     /// Converts *Oklch* to *Oklab*
     #[inline]
-    pub const fn to_oklab(&self) -> Oklab {
+    pub fn to_oklab(&self) -> Oklab {
         let l = self.l;
-        let a = self.c * cosf(self.h);
-        let b = self.c * sinf(self.h);
+        let a = self.c * f_cosf(self.h);
+        let b = self.c * f_sinf(self.h);
         Oklab::new(l, a, b)
     }
 }
@@ -249,7 +249,7 @@ impl Pow<f32> for Oklch {
 
     #[inline]
     fn pow(self, rhs: f32) -> Self::Output {
-        Oklch::new(powf(self.l, rhs), powf(self.c, rhs), powf(self.h, rhs))
+        Oklch::new(f_powf(self.l, rhs), f_powf(self.c, rhs), f_powf(self.h, rhs))
     }
 }
 
@@ -259,9 +259,9 @@ impl Pow<Oklch> for Oklch {
     #[inline]
     fn pow(self, rhs: Oklch) -> Self::Output {
         Oklch::new(
-            powf(self.l, rhs.l),
-            powf(self.c, rhs.c),
-            powf(self.h, rhs.h),
+            f_powf(self.l, rhs.l),
+            f_powf(self.c, rhs.c),
+            f_powf(self.h, rhs.h),
         )
     }
 }
@@ -270,15 +270,15 @@ impl Oklch {
     #[inline]
     pub fn sqrt(&self) -> Oklch {
         Oklch::new(
-            if self.l < 0. { 0. } else { self.l.sqrt() },
-            if self.c < 0. { 0. } else { self.c.sqrt() },
-            if self.h < 0. { 0. } else { self.h.sqrt() },
+             self.l.sqrt(),
+             self.c.sqrt(),
+             self.h.sqrt(),
         )
     }
 
     #[inline]
-    pub const fn cbrt(&self) -> Oklch {
-        Oklch::new(cbrtf(self.l), cbrtf(self.c), cbrtf(self.h))
+    pub fn cbrt(&self) -> Oklch {
+        Oklch::new(f_cbrtf(self.l), f_cbrtf(self.c), f_cbrtf(self.h))
     }
 }
 

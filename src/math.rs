@@ -1523,6 +1523,7 @@ mod tests {
                 .abs()
                 .max(max_away);
         }
+        println!("{} max away {}", max_diff, max_away);
         assert!((f_exp2f(0.35f32) - 0.35f32.exp2()).abs() < 1e-5);
         assert!((f_exp2f(-0.6f32) - (-0.6f32).exp2()).abs() < 1e-5);
     }

@@ -5,7 +5,7 @@
  * // license that can be found in the LICENSE file.
  */
 use crate::mlaf::mlaf;
-use crate::{Rgb, cbrtf, powf};
+use crate::{Rgb, cbrtf, f_cbrtf, powf};
 use num_traits::Pow;
 use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 
@@ -51,9 +51,9 @@ impl Oklab {
             rgb.b,
         );
 
-        let l_cone = cbrtf(l);
-        let m_cone = cbrtf(m);
-        let s_cone = cbrtf(s);
+        let l_cone = f_cbrtf(l);
+        let m_cone = f_cbrtf(m);
+        let s_cone = f_cbrtf(s);
 
         Oklab {
             l: mlaf(
@@ -321,11 +321,7 @@ impl Pow<Oklab> for Oklab {
 impl Oklab {
     #[inline]
     pub fn sqrt(&self) -> Oklab {
-        Oklab::new(
-            if self.l < 0. { 0. } else { self.l.sqrt() },
-            if self.a < 0. { 0. } else { self.a.sqrt() },
-            if self.b < 0. { 0. } else { self.b.sqrt() },
-        )
+        Oklab::new(self.l.sqrt(), self.a.sqrt(), self.b.sqrt())
     }
 
     #[inline]
