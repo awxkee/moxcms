@@ -28,8 +28,8 @@
  */
 use crate::conversions::mab::{BCurves3, MCurves3};
 use crate::{
-    Array3D, CmsError, InPlaceStage, InterpolationMethod, LutMCurvesType, Stage, TransformOptions,
-    Vector4f,
+    Array3D, CmsError, DataColorSpace, InPlaceStage, InterpolationMethod, LutMCurvesType, Stage,
+    TransformOptions, Vector4f,
 };
 
 struct ACurves3x4Inverse<'a, const DEPTH: usize> {
@@ -40,6 +40,7 @@ struct ACurves3x4Inverse<'a, const DEPTH: usize> {
     clut: &'a [f32],
     grid_size: [u8; 3],
     interpolation_method: InterpolationMethod,
+    pcs: DataColorSpace,
 }
 
 impl<const DEPTH: usize> ACurves3x4Inverse<'_, DEPTH> {
@@ -75,6 +76,12 @@ impl<const DEPTH: usize> ACurves3x4Inverse<'_, DEPTH> {
 impl<const DEPTH: usize> Stage for ACurves3x4Inverse<'_, DEPTH> {
     fn transform(&self, src: &[f32], dst: &mut [f32]) -> Result<(), CmsError> {
         let lut = Array3D::new_hexahedron(self.clut, self.grid_size);
+
+        // If PCS is LAB then linear interpolation should be used
+        if self.pcs == DataColorSpace::Lab {
+            return self.transform_impl(src, dst, |x, y, z| lut.trilinear_vec4(x, y, z));
+        }
+
         match self.interpolation_method {
             #[cfg(feature = "options")]
             InterpolationMethod::Tetrahedral => {
@@ -100,6 +107,7 @@ pub(crate) fn prepare_mba_3x4(
     mab: &LutMCurvesType,
     lut: &mut [f32],
     options: TransformOptions,
+    pcs: DataColorSpace,
 ) -> Result<Vec<f32>, CmsError> {
     if mab.num_input_channels != 3 && mab.num_output_channels != 4 {
         return Err(CmsError::UnsupportedProfileConnection);
@@ -176,6 +184,7 @@ pub(crate) fn prepare_mba_3x4(
             clut,
             grid_size: [mab.grid_points[0], mab.grid_points[1], mab.grid_points[2]],
             interpolation_method: options.interpolation_method,
+            pcs,
         };
         a_curves.transform(lut, &mut new_lut)?;
     } else {

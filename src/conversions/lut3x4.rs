@@ -28,7 +28,9 @@
  */
 use crate::profile::LutDataType;
 use crate::trc::lut_interp_linear_float;
-use crate::{Array3D, CmsError, InterpolationMethod, Stage, TransformOptions, Vector4f};
+use crate::{
+    Array3D, CmsError, DataColorSpace, InterpolationMethod, Stage, TransformOptions, Vector4f,
+};
 use num_traits::AsPrimitive;
 
 #[derive(Default)]
@@ -38,9 +40,14 @@ struct Lut3x4 {
     grid_size: u8,
     gamma: [Vec<f32>; 4],
     interpolation_method: InterpolationMethod,
+    pcs: DataColorSpace,
 }
 
-fn stage_lut_3x4(lut: &LutDataType, options: TransformOptions) -> Box<dyn Stage> {
+fn stage_lut_3x4(
+    lut: &LutDataType,
+    options: TransformOptions,
+    pcs: DataColorSpace,
+) -> Box<dyn Stage> {
     let clut_length: usize = (lut.num_clut_grid_points as usize).pow(lut.num_input_channels as u32)
         * lut.num_output_channels as usize;
     // the matrix of lutType is only used when the input color space is XYZ.
@@ -48,6 +55,7 @@ fn stage_lut_3x4(lut: &LutDataType, options: TransformOptions) -> Box<dyn Stage>
     // Prepare input curves
     let mut transform = Lut3x4 {
         interpolation_method: options.interpolation_method,
+        pcs,
         ..Default::default()
     };
     transform.input[0] = lut.input_table[0..lut.num_input_table_entries as usize].to_vec();
@@ -110,6 +118,12 @@ impl Lut3x4 {
 impl Stage for Lut3x4 {
     fn transform(&self, src: &[f32], dst: &mut [f32]) -> Result<(), CmsError> {
         let l_tbl = Array3D::new(&self.clut, self.grid_size as usize);
+
+        // If PCS is LAB then linear interpolation should be used
+        if self.pcs == DataColorSpace::Lab {
+            return self.transform_impl(src, dst, |x, y, z| l_tbl.trilinear_vec4(x, y, z));
+        }
+
         match self.interpolation_method {
             #[cfg(feature = "options")]
             InterpolationMethod::Tetrahedral => {
@@ -176,6 +190,7 @@ pub(crate) fn create_lut3x4(
     lut: &LutDataType,
     src: &[f32],
     options: TransformOptions,
+    pcs: DataColorSpace,
 ) -> Result<Vec<f32>, CmsError> {
     if lut.num_input_channels != 3 || lut.num_output_channels != 4 {
         return Err(CmsError::UnsupportedProfileConnection);
@@ -183,7 +198,7 @@ pub(crate) fn create_lut3x4(
 
     let mut dest = vec![0.; (src.len() / 3) * 4];
 
-    let lut_stage = stage_lut_3x4(lut, options);
+    let lut_stage = stage_lut_3x4(lut, options, pcs);
     lut_stage.transform(src, &mut dest)?;
     Ok(dest)
 }

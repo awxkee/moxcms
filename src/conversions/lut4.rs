@@ -28,7 +28,9 @@
  */
 use crate::profile::LutDataType;
 use crate::trc::lut_interp_linear_float;
-use crate::{Array4D, CmsError, InterpolationMethod, Stage, TransformOptions, Vector3f};
+use crate::{
+    Array4D, CmsError, DataColorSpace, InterpolationMethod, Stage, TransformOptions, Vector3f,
+};
 
 #[derive(Default)]
 struct Lut4 {
@@ -37,6 +39,7 @@ struct Lut4 {
     grid_size: u8,
     output: [Vec<f32>; 3],
     interpolation_method: InterpolationMethod,
+    pcs: DataColorSpace,
 }
 
 impl Lut4 {
@@ -74,6 +77,11 @@ impl Stage for Lut4 {
     fn transform(&self, src: &[f32], dst: &mut [f32]) -> Result<(), CmsError> {
         let l_tbl = Array4D::new(&self.clut, self.grid_size as usize);
 
+        // If Source PCS is LAB trilinear should be used
+        if self.pcs == DataColorSpace::Lab {
+            return self.transform_impl(src, dst, |x, y, z, w| l_tbl.quadlinear_vec3(x, y, z, w));
+        }
+
         match self.interpolation_method {
             #[cfg(feature = "options")]
             InterpolationMethod::Tetrahedral => {
@@ -95,12 +103,17 @@ impl Stage for Lut4 {
     }
 }
 
-fn stage_lut_4x3(lut: &LutDataType, options: TransformOptions) -> Box<dyn Stage> {
+fn stage_lut_4x3(
+    lut: &LutDataType,
+    options: TransformOptions,
+    pcs: DataColorSpace,
+) -> Box<dyn Stage> {
     let clut_length: usize = (lut.num_clut_grid_points as usize).pow(lut.num_input_channels as u32)
         * lut.num_output_channels as usize;
 
     let mut transform = Lut4 {
         interpolation_method: options.interpolation_method,
+        pcs,
         ..Default::default()
     };
     transform.linearization[0] = lut.input_table[0..lut.num_input_table_entries as usize].to_vec();
@@ -153,6 +166,7 @@ pub(crate) fn create_lut4_norm_samples<const SAMPLES: usize>() -> Vec<f32> {
 pub(crate) fn create_lut4<const SAMPLES: usize>(
     lut: &LutDataType,
     options: TransformOptions,
+    pcs: DataColorSpace,
 ) -> Result<Vec<f32>, CmsError> {
     if lut.num_input_channels != 4 {
         return Err(CmsError::UnsupportedProfileConnection);
@@ -162,7 +176,7 @@ pub(crate) fn create_lut4<const SAMPLES: usize>(
     let src = create_lut4_norm_samples::<SAMPLES>();
     let mut dest = vec![0.; (lut_size as usize) / 4 * 3];
 
-    let lut_stage = stage_lut_4x3(lut, options);
+    let lut_stage = stage_lut_4x3(lut, options, pcs);
     lut_stage.transform(&src, &mut dest)?;
     Ok(dest)
 }

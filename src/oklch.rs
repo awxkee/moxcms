@@ -5,7 +5,7 @@
  * // license that can be found in the LICENSE file.
  */
 use crate::math::atan2f;
-use crate::{const_hypotf, f_cbrtf, f_cosf, f_powf, f_sinf, hypotf, Oklab, Rgb};
+use crate::{Oklab, Rgb, const_hypotf, f_cbrtf, f_cosf, f_powf, f_sinf, hypotf};
 use num_traits::Pow;
 use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 
@@ -249,7 +249,11 @@ impl Pow<f32> for Oklch {
 
     #[inline]
     fn pow(self, rhs: f32) -> Self::Output {
-        Oklch::new(f_powf(self.l, rhs), f_powf(self.c, rhs), f_powf(self.h, rhs))
+        Oklch::new(
+            f_powf(self.l, rhs),
+            f_powf(self.c, rhs),
+            f_powf(self.h, rhs),
+        )
     }
 }
 
@@ -269,11 +273,7 @@ impl Pow<Oklch> for Oklch {
 impl Oklch {
     #[inline]
     pub fn sqrt(&self) -> Oklch {
-        Oklch::new(
-             self.l.sqrt(),
-             self.c.sqrt(),
-             self.h.sqrt(),
-        )
+        Oklch::new(self.l.sqrt(), self.c.sqrt(), self.h.sqrt())
     }
 
     #[inline]
