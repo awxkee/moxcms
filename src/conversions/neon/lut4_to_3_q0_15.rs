@@ -68,71 +68,74 @@ where
     u32: AsPrimitive<T>,
     (): LutBarycentricReduction<T, U>,
 {
+    #[allow(unused_unsafe)]
     #[target_feature(enable = "rdm")]
     unsafe fn transform_chunk<'b, Interpolator: NeonMdInterpolationQ1_15Double<'b, GRID_SIZE>>(
         &'b self,
         src: &[T],
         dst: &mut [T],
     ) {
-        let cn = Layout::from(LAYOUT);
-        let channels = cn.channels();
-        let grid_size = GRID_SIZE as i32;
-        let grid_size3 = grid_size * grid_size * grid_size;
+        unsafe {
+            let cn = Layout::from(LAYOUT);
+            let channels = cn.channels();
+            let grid_size = GRID_SIZE as i32;
+            let grid_size3 = grid_size * grid_size * grid_size;
 
-        let f_value_scale = vdupq_n_f32(1. / ((1 << 14i32) - 1) as f32);
-        let max_value = ((1u32 << BIT_DEPTH) - 1).as_();
-        let v_max_scale = if T::FINITE {
-            vdup_n_s16(((1i32 << BIT_DEPTH) - 1) as i16)
-        } else {
-            vdup_n_s16(((1i32 << 14i32) - 1) as i16)
-        };
-
-        for (src, dst) in src.chunks_exact(4).zip(dst.chunks_exact_mut(channels)) {
-            let c = <() as LutBarycentricReduction<T, U>>::reduce::<BIT_DEPTH, BARYCENTRIC_BINS>(
-                src[0],
-            );
-            let m = <() as LutBarycentricReduction<T, U>>::reduce::<BIT_DEPTH, BARYCENTRIC_BINS>(
-                src[1],
-            );
-            let y = <() as LutBarycentricReduction<T, U>>::reduce::<BIT_DEPTH, BARYCENTRIC_BINS>(
-                src[2],
-            );
-            let k = <() as LutBarycentricReduction<T, U>>::reduce::<BIT_DEPTH, BARYCENTRIC_BINS>(
-                src[3],
-            );
-
-            let k_weights = self.weights[k.as_()];
-
-            let w: i32 = k_weights.x;
-            let w_n: i32 = k_weights.x_n;
-            let t: i16 = k_weights.w;
-
-            let table1 = &self.lut[(w * grid_size3) as usize..];
-            let table2 = &self.lut[(w_n * grid_size3) as usize..];
-
-            let tetrahedral1 = Interpolator::new(table1, table2);
-            let (a0, b0) = tetrahedral1.inter3_neon(c, m, y, &self.weights);
-            let (a0, b0) = (a0.v, b0.v);
-
-            let t0 = vdup_n_s16(t);
-            let hp = vqrdmlsh_s16(a0, a0, t0);
-            let mut v = vqrdmlah_s16(hp, b0, t0);
-            v = vmax_s16(v, vdup_n_s16(0));
-            v = vmin_s16(v, v_max_scale);
-
-            if T::FINITE {
-                dst[cn.r_i()] = (vget_lane_s16::<0>(v) as u32).as_();
-                dst[cn.g_i()] = (vget_lane_s16::<1>(v) as u32).as_();
-                dst[cn.b_i()] = (vget_lane_s16::<2>(v) as u32).as_();
+            let f_value_scale = vdupq_n_f32(1. / ((1 << 14i32) - 1) as f32);
+            let max_value = ((1u32 << BIT_DEPTH) - 1).as_();
+            let v_max_scale = if T::FINITE {
+                vdup_n_s16(((1i32 << BIT_DEPTH) - 1) as i16)
             } else {
-                let o = vcvtq_f32_s32(vmovl_s16(v));
-                let r = vmulq_f32(o, f_value_scale);
-                dst[cn.r_i()] = vgetq_lane_f32::<0>(r).as_();
-                dst[cn.g_i()] = vgetq_lane_f32::<1>(r).as_();
-                dst[cn.b_i()] = vgetq_lane_f32::<2>(r).as_();
-            }
-            if channels == 4 {
-                dst[cn.a_i()] = max_value;
+                vdup_n_s16(((1i32 << 14i32) - 1) as i16)
+            };
+
+            for (src, dst) in src.chunks_exact(4).zip(dst.chunks_exact_mut(channels)) {
+                let c = <() as LutBarycentricReduction<T, U>>::reduce::<BIT_DEPTH, BARYCENTRIC_BINS>(
+                    src[0],
+                );
+                let m = <() as LutBarycentricReduction<T, U>>::reduce::<BIT_DEPTH, BARYCENTRIC_BINS>(
+                    src[1],
+                );
+                let y = <() as LutBarycentricReduction<T, U>>::reduce::<BIT_DEPTH, BARYCENTRIC_BINS>(
+                    src[2],
+                );
+                let k = <() as LutBarycentricReduction<T, U>>::reduce::<BIT_DEPTH, BARYCENTRIC_BINS>(
+                    src[3],
+                );
+
+                let k_weights = self.weights[k.as_()];
+
+                let w: i32 = k_weights.x;
+                let w_n: i32 = k_weights.x_n;
+                let t: i16 = k_weights.w;
+
+                let table1 = &self.lut[(w * grid_size3) as usize..];
+                let table2 = &self.lut[(w_n * grid_size3) as usize..];
+
+                let tetrahedral1 = Interpolator::new(table1, table2);
+                let (a0, b0) = tetrahedral1.inter3_neon(c, m, y, &self.weights);
+                let (a0, b0) = (a0.v, b0.v);
+
+                let t0 = vdup_n_s16(t);
+                let hp = vqrdmlsh_s16(a0, a0, t0);
+                let mut v = vqrdmlah_s16(hp, b0, t0);
+                v = vmax_s16(v, vdup_n_s16(0));
+                v = vmin_s16(v, v_max_scale);
+
+                if T::FINITE {
+                    dst[cn.r_i()] = (vget_lane_s16::<0>(v) as u32).as_();
+                    dst[cn.g_i()] = (vget_lane_s16::<1>(v) as u32).as_();
+                    dst[cn.b_i()] = (vget_lane_s16::<2>(v) as u32).as_();
+                } else {
+                    let o = vcvtq_f32_s32(vmovl_s16(v));
+                    let r = vmulq_f32(o, f_value_scale);
+                    dst[cn.r_i()] = vgetq_lane_f32::<0>(r).as_();
+                    dst[cn.g_i()] = vgetq_lane_f32::<1>(r).as_();
+                    dst[cn.b_i()] = vgetq_lane_f32::<2>(r).as_();
+                }
+                if channels == 4 {
+                    dst[cn.a_i()] = max_value;
+                }
             }
         }
     }
