@@ -187,7 +187,7 @@ pub(crate) struct TransformProfileRgb<T: Clone, const BUCKET: usize> {
     pub(crate) r_gamma: Box<[T; 65536]>,
     pub(crate) g_gamma: Box<[T; 65536]>,
     pub(crate) b_gamma: Box<[T; 65536]>,
-    pub(crate) adaptation_matrix: Option<Matrix3f>,
+    pub(crate) adaptation_matrix: Matrix3f,
 }
 
 impl<T: Clone + PointeeSizeExpressible, const BUCKET: usize> TransformProfileRgb<T, BUCKET> {
@@ -223,7 +223,7 @@ impl<T: Clone + PointeeSizeExpressible, const BUCKET: usize> TransformProfileRgb
             *dst = (*src * linear_scale).round().as_();
         }
         let scale: f32 = ((1 << PRECISION as i16) - 1) as f32;
-        let source_matrix = self.adaptation_matrix.unwrap_or(Matrix3f::IDENTITY);
+        let source_matrix = self.adaptation_matrix;
         let mut dst_matrix = Matrix3::<i16> { v: [[0i16; 3]; 3] };
         for i in 0..3 {
             for j in 0..3 {
@@ -457,7 +457,7 @@ where
             return Err(CmsError::LaneMultipleOfChannels);
         }
 
-        let transform = self.profile.adaptation_matrix.unwrap_or(Matrix3f::IDENTITY);
+        let transform = self.profile.adaptation_matrix;
         let scale = (GAMMA_LUT - 1) as f32;
         let max_colors: T = ((1 << BIT_DEPTH) - 1).as_();
 

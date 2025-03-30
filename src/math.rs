@@ -635,10 +635,16 @@ pub fn f_logf(d: f32) -> f32 {
 /// Natural logarithm using FMA
 #[inline]
 pub fn f_log2f(d: f32) -> f32 {
+    f_log2fx(d) as f32
+}
+
+/// Natural logarithm using FMA
+#[inline(always)]
+fn f_log2fx(d: f32) -> f64 {
     let n = ilogb2kf(d * (1. / 0.75));
     let a = ldexp3kf(d, -n);
 
-    let x = (a - 1.) / (a + 1.);
+    let x = (a as f64 - 1.) / (a as f64 + 1.);
 
     let x2 = x * x;
     #[cfg(any(
@@ -649,10 +655,11 @@ pub fn f_log2f(d: f32) -> f32 {
         all(target_arch = "aarch64", target_feature = "neon")
     ))]
     {
-        let mut u = 0.4367590193e+0;
-        u = f_fmlaf(u, x2, 0.5765076131e+0);
-        u = f_fmlaf(u, x2, 0.9618009217e+0);
-        f_fmlaf(x2 * x, u, f_fmlaf(x, 0.2885390073e+1, n as f32))
+        let mut u = 0.3205989253935977654e+0;
+        u = f_fmla(u, x2, 0.4121985829040184998e+0);
+        u = f_fmla(u, x2, 0.5770780163563688850e+0);
+        u = f_fmla(u, x2, 0.9617966939259744580e+0);
+        f_fmla(x2 * x, u, f_fmla(x, 0.2885390081777926802e+1, n as f64))
     }
     #[cfg(not(any(
         all(
@@ -663,8 +670,15 @@ pub fn f_log2f(d: f32) -> f32 {
     )))]
     {
         let rx2 = x2 * x2;
-        let u = poly3!(x2, rx2, 0.4367590193e+0, 0.5765076131e+0, 0.9618009217e+0);
-        f_fmlaf(x2 * x, u, f_fmlaf(x, 0.2885390073e+1, n as f32))
+        let u = poly4!(
+            x2,
+            rx2,
+            0.3205989253935977654e+0,
+            0.4121985829040184998e+0,
+            0.5770780163563688850e+0,
+            0.9617966939259744580e+0
+        );
+        f_fmla(x2 * x, u, f_fmla(x, 0.2885390081777926802e+1, n as f64))
     }
 }
 
@@ -697,41 +711,27 @@ pub const fn floorf(x: f32) -> f32 {
 #[inline]
 pub const fn powf(d: f32, n: f32) -> f32 {
     let value = d.abs();
-    let mut c = expf(n * logf(value));
-    c = copysignfk(c, d);
-    if d < 0. && floorf(n) != n {
-        return f32::NAN;
+    let c = expf(n * logf(value));
+    if d < 0.0 {
+        let y = n as i32;
+        if y % 2 == 0 { c } else { -c }
+    } else {
+        c
     }
-    // if n == f32::INFINITY || d.is_infinite() {
-    //     f32::INFINITY
-    // } else if n == f32::NEG_INFINITY {
-    //     0f32
-    // } else if n.is_nan() || d.is_nan() {
-    //     f32::NAN
-    // } else {
-    c
-    // }
 }
 
 /// Power function for given value using FMA
 #[inline]
 pub fn f_powf(d: f32, n: f32) -> f32 {
     let value = d.abs();
-    let lg = f_log2f(value);
-    let c = f_exp2f(n * lg);
-    copysignfk(c, d)
-    // if d < 0. && n.floor() != n {
-    //     return f32::NAN;
-    // }
-    // if n == f32::INFINITY || d.is_infinite() {
-    //     f32::INFINITY
-    // } else if n == f32::NEG_INFINITY {
-    //     0f32
-    // } else if n.is_nan() || d.is_nan() {
-    //     f32::NAN
-    // } else {
-    // c
-    // }
+    let lg = f_log2fx(value);
+    let c = f_exp2(n as f64 * lg) as f32;
+    if d < 0.0 {
+        let y = n as i32;
+        if y % 2 == 0 { c } else { -c }
+    } else {
+        c
+    }
 }
 
 /// Round towards whole integral number
@@ -1115,20 +1115,13 @@ pub const fn floor(x: f64) -> f64 {
 #[inline]
 pub const fn pow(d: f64, n: f64) -> f64 {
     let value = d.abs();
-    let mut c = exp(n * log(value));
-    c = copysignk(c, d);
-    // if d < 0. && floor(n) != n {
-    //     return f64::NAN;
-    // }
-    // if n == f64::INFINITY || d.is_infinite() {
-    //     f64::INFINITY
-    // } else if n == f64::NEG_INFINITY {
-    //     0f64
-    // } else if n.is_nan() || d.is_nan() {
-    //     f64::NAN
-    // } else {
-    c
-    // }
+    let c = exp(n * log(value));
+    if d < 0.0 {
+        let y = n as i32;
+        if y % 2 == 0 { c } else { -c }
+    } else {
+        c
+    }
 }
 
 /// Power function for given value using FMA
@@ -1136,20 +1129,13 @@ pub const fn pow(d: f64, n: f64) -> f64 {
 pub fn f_pow(d: f64, n: f64) -> f64 {
     let value = d.abs();
     let r = f_log2(value);
-    let mut c = f_exp2(n * r);
-    c = copysignk(c, d);
-    // if d < 0. && n.floor() != n {
-    //     return f64::NAN;
-    // }
-    // if n == f64::INFINITY || d.is_infinite() {
-    //     f64::INFINITY
-    // } else if n == f64::NEG_INFINITY {
-    //     0f64
-    // } else if n.is_nan() || d.is_nan() {
-    //     f64::NAN
-    // } else {
-    c
-    // }
+    let c = f_exp2(n * r);
+    if d < 0.0 {
+        let y = n as i32;
+        if y % 2 == 0 { c } else { -c }
+    } else {
+        c
+    }
 }
 
 /// Computes Square root.
@@ -1523,6 +1509,7 @@ mod tests {
                 .abs()
                 .max(max_away);
         }
+        println!("{} max away {}", max_diff, max_away);
         assert!((f_exp2f(0.35f32) - 0.35f32.exp2()).abs() < 1e-5);
         assert!((f_exp2f(-0.6f32) - (-0.6f32).exp2()).abs() < 1e-5);
     }
@@ -1635,6 +1622,49 @@ mod tests {
         );
     }
 
+    fn count_ulp(d: f32, c: f32) -> f32 {
+        // If both values are zero or subnormal, return 0 ULP
+        if (c == 0. || c.is_subnormal()) && (d == 0. || d.is_subnormal()) {
+            return 0.;
+        }
+
+        if c == 0. && d != 0. {
+            return 10000.;
+        }
+
+        if c.is_infinite() && d.is_infinite() {
+            return 0.;
+        }
+
+        let c_exponent = ilogb2kf(c);
+
+        let scale_factor = 2.0_f32.powi(c_exponent - 24);
+
+        let diff = (d - c) / scale_factor;
+
+        diff.abs()
+    }
+
+    fn count_ulp_f64(d: f64, c: f64) -> f64 {
+        // If both values are zero or subnormal, return 0 ULP
+        if (c == 0. || c.is_subnormal()) && (d == 0. || d.is_subnormal()) {
+            return 0.;
+        }
+
+        if c == 0. && d != 0. {
+            return 10000.;
+        }
+
+        if c.is_infinite() && d.is_infinite() {
+            return 0.;
+        }
+
+        let c_exponent = ilogb2k(c);
+        let scale_factor = 2.0_f64.powi(c_exponent - 53);
+        let diff = (d - c) / scale_factor;
+        diff.abs()
+    }
+
     #[test]
     fn powf_test() {
         println!("{}", f_powf(3., 3.));
@@ -1642,6 +1672,41 @@ mod tests {
 
         println!("{}", f_pow(3., 3.));
         println!("{}", f_pow(27., 1. / 3.));
+
+        let mut max_diff = f32::MIN;
+        let mut max_away = 0;
+        let mut ulp_peak: f32 = 0.;
+        for i in 0..10000i32 {
+            let my_expf = f_powf(i as f32 / 1000., i.abs() as f32 / 1000.);
+            let system = (i as f32 / 1000.).powf(i.abs() as f32 / 1000.);
+            max_diff = max_diff.max((my_expf - system).abs());
+            max_away = (my_expf.to_bits() as i64 - system.to_bits() as i64)
+                .abs()
+                .max(max_away);
+            ulp_peak = ulp_peak.max(count_ulp(my_expf, system));
+        }
+        println!(
+            "f32 powf: {} max away powf {} ULP peak {}",
+            max_diff, max_away, ulp_peak
+        );
+
+        let mut max_diff = f64::MIN;
+        let mut max_away = 0;
+        let mut ulp_peak: f64 = 0.;
+        for i in 0..10000i32 {
+            let my_expf = f_pow(i as f64 / 1000., i.abs() as f64 / 1000.);
+            let system = (i as f64 / 1000.).powf(i.abs() as f64 / 1000.);
+            max_diff = max_diff.max((my_expf - system).abs());
+            max_away = (my_expf.to_bits() as i64 - system.to_bits() as i64)
+                .abs()
+                .max(max_away);
+            ulp_peak = ulp_peak.max(count_ulp_f64(my_expf, system));
+        }
+        println!(
+            "{} max away powf {} ULP peak {}",
+            max_diff, max_away, ulp_peak
+        );
+
         assert!(
             (powf(2f32, 3f32) - 8f32).abs() < 1e-6,
             "Invalid result {}",

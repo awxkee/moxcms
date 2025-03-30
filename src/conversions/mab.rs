@@ -28,7 +28,7 @@
  */
 use crate::mlaf::mlaf;
 use crate::{
-    Array3D, CmsError, InPlaceStage, InterpolationMethod, LutMCurvesType, Matrix3f,
+    Array3D, CmsError, DataColorSpace, InPlaceStage, InterpolationMethod, LutMCurvesType, Matrix3f,
     TransformOptions, Vector3f,
 };
 
@@ -39,6 +39,7 @@ struct ACurves3<'a, const DEPTH: usize> {
     clut: &'a [f32],
     grid_size: [u8; 3],
     interpolation_method: InterpolationMethod,
+    pcs: DataColorSpace,
 }
 
 impl<const DEPTH: usize> ACurves3<'_, DEPTH> {
@@ -68,6 +69,12 @@ impl<const DEPTH: usize> ACurves3<'_, DEPTH> {
 impl<const DEPTH: usize> InPlaceStage for ACurves3<'_, DEPTH> {
     fn transform(&self, dst: &mut [f32]) -> Result<(), CmsError> {
         let lut = Array3D::new_hexahedron(self.clut, self.grid_size);
+
+        // If PCS is LAB then linear interpolation should be used
+        if self.pcs == DataColorSpace::Lab {
+            return self.transform_impl(dst, |x, y, z| lut.trilinear_vec3(x, y, z));
+        }
+
         match self.interpolation_method {
             #[cfg(feature = "options")]
             InterpolationMethod::Tetrahedral => {
@@ -96,6 +103,7 @@ struct ACurves3Inverse<'a, const DEPTH: usize> {
     clut: &'a [f32],
     grid_size: [u8; 3],
     interpolation_method: InterpolationMethod,
+    pcs: DataColorSpace,
 }
 
 impl<const DEPTH: usize> ACurves3Inverse<'_, DEPTH> {
@@ -125,6 +133,12 @@ impl<const DEPTH: usize> ACurves3Inverse<'_, DEPTH> {
 impl<const DEPTH: usize> InPlaceStage for ACurves3Inverse<'_, DEPTH> {
     fn transform(&self, dst: &mut [f32]) -> Result<(), CmsError> {
         let lut = Array3D::new_hexahedron(self.clut, self.grid_size);
+
+        // If PCS is LAB then linear interpolation should be used
+        if self.pcs == DataColorSpace::Lab {
+            return self.transform_impl(dst, |x, y, z| lut.trilinear_vec3(x, y, z));
+        }
+
         match self.interpolation_method {
             #[cfg(feature = "options")]
             InterpolationMethod::Tetrahedral => {
@@ -245,6 +259,7 @@ pub(crate) fn prepare_mab_3x3(
     mab: &LutMCurvesType,
     lut: &mut [f32],
     options: TransformOptions,
+    pcs: DataColorSpace,
 ) -> Result<(), CmsError> {
     const LERP_DEPTH: usize = 65536;
     const BP: usize = 13;
@@ -252,7 +267,7 @@ pub(crate) fn prepare_mab_3x3(
     if mab.num_input_channels != 3 && mab.num_output_channels != 3 {
         return Err(CmsError::UnsupportedProfileConnection);
     }
-    if mab.a_curves.len() == 3 && !mab.clut.is_empty() {
+    if mab.a_curves.len() == 3 && mab.clut.is_some() {
         let curve0 = mab.a_curves[0]
             .build_linearize_table::<u16, LERP_DEPTH, BP>()
             .ok_or(CmsError::InvalidTrcCurve)?;
@@ -262,7 +277,7 @@ pub(crate) fn prepare_mab_3x3(
         let curve2 = mab.a_curves[2]
             .build_linearize_table::<u16, LERP_DEPTH, BP>()
             .ok_or(CmsError::InvalidTrcCurve)?;
-        let clut = &mab.clut;
+        let clut = &mab.clut.as_ref().map(|x| x.to_clut_f32()).unwrap();
         let a_curves = ACurves3::<DEPTH> {
             curve0,
             curve1,
@@ -270,6 +285,7 @@ pub(crate) fn prepare_mab_3x3(
             clut,
             grid_size: [mab.grid_points[0], mab.grid_points[1], mab.grid_points[2]],
             interpolation_method: options.interpolation_method,
+            pcs,
         };
         a_curves.transform(lut)?;
     }
@@ -328,6 +344,7 @@ pub(crate) fn prepare_mba_3x3(
     mab: &LutMCurvesType,
     lut: &mut [f32],
     options: TransformOptions,
+    pcs: DataColorSpace,
 ) -> Result<(), CmsError> {
     if mab.num_input_channels != 3 && mab.num_output_channels != 3 {
         return Err(CmsError::UnsupportedProfileConnection);
@@ -379,7 +396,7 @@ pub(crate) fn prepare_mba_3x3(
         m_curves.transform(lut)?;
     }
 
-    if mab.a_curves.len() == 3 && !mab.clut.is_empty() {
+    if mab.a_curves.len() == 3 && mab.clut.is_some() {
         let curve0 = mab.a_curves[0]
             .build_linearize_table::<u16, LERP_DEPTH, BP>()
             .ok_or(CmsError::InvalidTrcCurve)?;
@@ -389,7 +406,7 @@ pub(crate) fn prepare_mba_3x3(
         let curve2 = mab.a_curves[2]
             .build_linearize_table::<u16, LERP_DEPTH, BP>()
             .ok_or(CmsError::InvalidTrcCurve)?;
-        let clut = &mab.clut;
+        let clut = &mab.clut.as_ref().map(|x| x.to_clut_f32()).unwrap();
         let a_curves = ACurves3Inverse::<DEPTH> {
             curve0,
             curve1,
@@ -397,6 +414,7 @@ pub(crate) fn prepare_mba_3x3(
             clut,
             grid_size: [mab.grid_points[0], mab.grid_points[1], mab.grid_points[2]],
             interpolation_method: options.interpolation_method,
+            pcs,
         };
         a_curves.transform(lut)?;
     }

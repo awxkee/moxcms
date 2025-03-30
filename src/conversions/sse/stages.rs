@@ -28,7 +28,7 @@
  */
 use crate::conversions::TransformProfileRgb;
 use crate::transform::PointeeSizeExpressible;
-use crate::{CmsError, Layout, Matrix3f, TransformExecutor};
+use crate::{CmsError, Layout, TransformExecutor};
 use num_traits::AsPrimitive;
 #[cfg(target_arch = "x86")]
 use std::arch::x86::*;
@@ -79,11 +79,7 @@ where
             return Err(CmsError::LaneMultipleOfChannels);
         }
 
-        let t = self
-            .profile
-            .adaptation_matrix
-            .unwrap_or(Matrix3f::IDENTITY)
-            .transpose();
+        let t = self.profile.adaptation_matrix.transpose();
 
         let scale = (GAMMA_LUT - 1) as f32;
         let max_colors: T = ((1 << BIT_DEPTH) - 1).as_();

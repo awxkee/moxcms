@@ -483,10 +483,10 @@ where
         let mut lut = match source.get_device_to_pcs(options.rendering_intent).ok_or(
             CmsError::UnsupportedLutRenderingIntent(source.rendering_intent),
         )? {
-            LutWarehouse::Lut(lut) => create_lut4::<GRID_SIZE>(lut, options)?,
+            LutWarehouse::Lut(lut) => create_lut4::<GRID_SIZE>(lut, options, source.pcs)?,
             LutWarehouse::MCurves(m_curves) => {
                 let mut samples = create_lut4_norm_samples::<GRID_SIZE>();
-                prepare_mab_4x3::<GRID_SIZE>(m_curves, &mut samples, options)?
+                prepare_mab_4x3::<GRID_SIZE>(m_curves, &mut samples, options, source.pcs)?
             }
         };
 
@@ -529,9 +529,9 @@ where
                 .ok_or(CmsError::UnsupportedProfileConnection)?;
             match pcs_to_device {
                 LutWarehouse::Lut(lut_data_type) => {
-                    lut = create_lut3x3(lut_data_type, &lut, options)?
+                    lut = create_lut3x3(lut_data_type, &lut, options, dest.pcs)?
                 }
-                LutWarehouse::MCurves(mab) => prepare_mba_3x3(mab, &mut lut, options)?,
+                LutWarehouse::MCurves(mab) => prepare_mba_3x3(mab, &mut lut, options, dest.pcs)?,
             }
         }
 
@@ -578,9 +578,9 @@ where
 
             match device_to_pcs {
                 LutWarehouse::Lut(lut_data_type) => {
-                    lut = create_lut3x3(lut_data_type, &lut, options)?;
+                    lut = create_lut3x3(lut_data_type, &lut, options, source.pcs)?;
                 }
-                LutWarehouse::MCurves(mab) => prepare_mab_3x3(mab, &mut lut, options)?,
+                LutWarehouse::MCurves(mab) => prepare_mab_3x3(mab, &mut lut, options, source.pcs)?,
             }
         } else if source.has_full_colors_triplet() {
             lut = create_rgb_lin_lut::<T, BIT_DEPTH, LINEAR_CAP, GRID_SIZE>(source, options)?;
@@ -604,8 +604,10 @@ where
             .get_pcs_to_device(options.rendering_intent)
             .ok_or(CmsError::UnsupportedProfileConnection)?
         {
-            LutWarehouse::Lut(lut_type) => create_lut3x4(lut_type, &lut, options)?,
-            LutWarehouse::MCurves(m_curves) => prepare_mba_3x4(m_curves, &mut lut, options)?,
+            LutWarehouse::Lut(lut_type) => create_lut3x4(lut_type, &lut, options, dest.pcs)?,
+            LutWarehouse::MCurves(m_curves) => {
+                prepare_mba_3x4(m_curves, &mut lut, options, dest.pcs)?
+            }
         };
 
         return Ok(make_transform_3x4::<T, GRID_SIZE, BIT_DEPTH>(
@@ -633,9 +635,9 @@ where
 
             match device_to_pcs {
                 LutWarehouse::Lut(lut_data_type) => {
-                    lut = create_lut3x3(lut_data_type, &lut, options)?;
+                    lut = create_lut3x3(lut_data_type, &lut, options, source.pcs)?;
                 }
-                LutWarehouse::MCurves(mab) => prepare_mab_3x3(mab, &mut lut, options)?,
+                LutWarehouse::MCurves(mab) => prepare_mab_3x3(mab, &mut lut, options, source.pcs)?,
             }
         } else if source.has_full_colors_triplet() {
             lut = create_rgb_lin_lut::<T, BIT_DEPTH, LINEAR_CAP, GRID_SIZE>(source, options)?;
@@ -661,9 +663,9 @@ where
                 .ok_or(CmsError::UnsupportedProfileConnection)?;
             match pcs_to_device {
                 LutWarehouse::Lut(lut_data_type) => {
-                    lut = create_lut3x3(lut_data_type, &lut, options)?
+                    lut = create_lut3x3(lut_data_type, &lut, options, dest.pcs)?;
                 }
-                LutWarehouse::MCurves(mab) => prepare_mba_3x3(mab, &mut lut, options)?,
+                LutWarehouse::MCurves(mab) => prepare_mba_3x3(mab, &mut lut, options, dest.pcs)?,
             }
         } else if dest.has_full_colors_triplet() {
             prepare_inverse_lut_rgb_xyz::<T, BIT_DEPTH, GAMMA_LUT>(dest, &mut lut, options)?;
@@ -727,12 +729,10 @@ where
     let mut lut = vec![0f32; lut_origins.len()];
     lin_stage.transform(&lut_origins, &mut lut)?;
 
-    let xyz_to_rgb = source
-        .rgb_to_xyz_matrix()
-        .ok_or(CmsError::UnsupportedProfileConnection)?;
+    let xyz_to_rgb = source.rgb_to_xyz_matrix();
 
     let matrices = vec![
-        xyz_to_rgb,
+        xyz_to_rgb.to_f32(),
         Matrix3f {
             v: [
                 [32768.0 / 65535.0, 0.0, 0.0],
@@ -780,7 +780,7 @@ where
         options.allow_use_cicp_transfer,
     )?;
 
-    let xyz_to_rgb = dest.rgb_to_xyz_matrix_d().inverse();
+    let xyz_to_rgb = dest.rgb_to_xyz_matrix().inverse();
 
     let mut matrices = vec![Matrix3f {
         v: [

@@ -30,8 +30,9 @@ use crate::profile::{LutDataType, ProfileHeader};
 use crate::tag::{TAG_SIZE, Tag, TagTypeDefinition};
 use crate::trc::ToneReprCurve;
 use crate::{
-    CicpProfile, CmsError, ColorDateTime, ColorProfile, LocalizableString, LutMCurvesType, LutType,
-    LutWarehouse, Matrix3f, ProfileSignature, ProfileText, ProfileVersion, Vector3f, Xyz,
+    CicpProfile, CmsError, ColorDateTime, ColorProfile, LocalizableString, LutMCurvesType,
+    LutStore, LutType, LutWarehouse, Matrix3f, ProfileSignature, ProfileText, ProfileVersion,
+    Vector3f, Xyzd,
 };
 
 pub(crate) trait FloatToFixedS15Fixed16 {
@@ -42,25 +43,35 @@ pub(crate) trait FloatToFixedU8Fixed8 {
     fn to_u8_fixed8(self) -> u16;
 }
 
-pub(crate) trait FloatToFixedU16 {
-    fn to_fixed_u16(self) -> u16;
-}
+// pub(crate) trait FloatToFixedU16 {
+//     fn to_fixed_u16(self) -> u16;
+// }
 
-impl FloatToFixedU16 for f32 {
-    #[inline]
-    fn to_fixed_u16(self) -> u16 {
-        const SCALE: f64 = (1 << 16) as f64;
-        (self as f64 * SCALE + 0.5)
-            .floor()
-            .clamp(u16::MIN as f64, u16::MAX as f64) as u16
-    }
-}
+// impl FloatToFixedU16 for f32 {
+//     #[inline]
+//     fn to_fixed_u16(self) -> u16 {
+//         const SCALE: f64 = (1 << 16) as f64;
+//         (self as f64 * SCALE + 0.5)
+//             .floor()
+//             .clamp(u16::MIN as f64, u16::MAX as f64) as u16
+//     }
+// }
 
 impl FloatToFixedS15Fixed16 for f32 {
     #[inline]
     fn to_s15_fixed16(self) -> i32 {
         const SCALE: f64 = (1 << 16) as f64;
         (self as f64 * SCALE + 0.5)
+            .floor()
+            .clamp(i32::MIN as f64, i32::MAX as f64) as i32
+    }
+}
+
+impl FloatToFixedS15Fixed16 for f64 {
+    #[inline]
+    fn to_s15_fixed16(self) -> i32 {
+        const SCALE: f64 = (1 << 16) as f64;
+        (self * SCALE + 0.5)
             .floor()
             .clamp(i32::MIN as f64, i32::MAX as f64) as i32
     }
@@ -179,7 +190,7 @@ fn write_string_value(into: &mut Vec<u8>, text: &ProfileText) -> usize {
 }
 
 #[inline]
-fn write_xyz_tag_value(into: &mut Vec<u8>, xyz: Xyz) {
+fn write_xyz_tag_value(into: &mut Vec<u8>, xyz: Xyzd) {
     let tag_definition: u32 = TagTypeDefinition::Xyz.into();
     write_u32_be(into, tag_definition);
     write_u32_be(into, 0);
@@ -282,9 +293,15 @@ fn write_vector3f(into: &mut Vec<u8>, v: Vector3f) {
 }
 
 #[inline]
-fn write_lut16_entry(into: &mut Vec<u8>, lut: &LutDataType) -> usize {
+fn write_lut_entry(into: &mut Vec<u8>, lut: &LutDataType) -> Result<usize, CmsError> {
+    if !lut.has_same_kind() {
+        return Err(CmsError::InvalidProfile);
+    }
     let start = into.len();
-    let lut16_tag: u32 = LutType::Lut16.into();
+    let lut16_tag: u32 = match &lut.input_table {
+        LutStore::Store8(_) => LutType::Lut8.into(),
+        LutStore::Store16(_) => LutType::Lut16.into(),
+    };
     write_u32_be(into, lut16_tag);
     write_u32_be(into, 0);
     into.push(lut.num_input_channels);
@@ -294,17 +311,44 @@ fn write_lut16_entry(into: &mut Vec<u8>, lut: &LutDataType) -> usize {
     write_matrix3f(into, lut.matrix);
     write_u16_be(into, lut.num_input_table_entries);
     write_u16_be(into, lut.num_output_table_entries);
-    for item in lut.input_table.iter() {
-        write_u16_be(into, item.to_fixed_u16());
+    match &lut.input_table {
+        LutStore::Store8(input_table) => {
+            for &item in input_table.iter() {
+                into.push(item);
+            }
+        }
+        LutStore::Store16(input_table) => {
+            for &item in input_table.iter() {
+                write_u16_be(into, item);
+            }
+        }
     }
-    for item in lut.clut_table.iter() {
-        write_u16_be(into, item.to_fixed_u16());
+    match &lut.clut_table {
+        LutStore::Store8(input_table) => {
+            for &item in input_table.iter() {
+                into.push(item);
+            }
+        }
+        LutStore::Store16(input_table) => {
+            for &item in input_table.iter() {
+                write_u16_be(into, item);
+            }
+        }
     }
-    for item in lut.output_table.iter() {
-        write_u16_be(into, item.to_fixed_u16());
+    match &lut.output_table {
+        LutStore::Store8(input_table) => {
+            for &item in input_table.iter() {
+                into.push(item);
+            }
+        }
+        LutStore::Store16(input_table) => {
+            for &item in input_table.iter() {
+                write_u16_be(into, item);
+            }
+        }
     }
     let end = into.len();
-    end - start
+    Ok(end - start)
 }
 
 #[inline]
@@ -365,24 +409,34 @@ fn write_mab_entry(
     }
 
     // Offset to CLUT
-    if !lut.clut.is_empty() {
+    if lut.clut.is_some() {
         write_u32_be(into, working_offset as u32);
     } else {
         write_u32_be(into, 0);
     }
     let clut_start = data.len();
-    if !lut.clut.is_empty() {
+    if let Some(clut) = &lut.clut {
         // Writing CLUT
         for &pt in lut.grid_points.iter() {
             data.push(pt);
         }
-        data.push(2);
+        data.push(match clut {
+            LutStore::Store8(_) => 1,
+            LutStore::Store16(_) => 2,
+        }); // Entry size
         data.push(0);
         data.push(0);
         data.push(0);
-        if !lut.clut.is_empty() {
-            for element in lut.clut.iter() {
-                write_u16_be(&mut data, element.to_fixed_u16());
+        match clut {
+            LutStore::Store8(store) => {
+                for &element in store.iter() {
+                    data.push(element)
+                }
+            }
+            LutStore::Store16(store) => {
+                for &element in store.iter() {
+                    write_u16_be(&mut data, element);
+                }
             }
         }
     }
@@ -413,7 +467,7 @@ fn write_mab_entry(
 
 fn write_lut(into: &mut Vec<u8>, lut: &LutWarehouse, is_a_to_b: bool) -> Result<usize, CmsError> {
     match lut {
-        LutWarehouse::Lut(lut) => Ok(write_lut16_entry(into, lut)),
+        LutWarehouse::Lut(lut) => Ok(write_lut_entry(into, lut)?),
         LutWarehouse::MCurves(mab) => write_mab_entry(into, mab, is_a_to_b),
     }
 }
@@ -455,13 +509,13 @@ impl ProfileHeader {
 impl ColorProfile {
     fn writable_tags_count(&self) -> usize {
         let mut tags_count = 0usize;
-        if self.red_colorant != Xyz::default() {
+        if self.red_colorant != Xyzd::default() {
             tags_count += 1;
         }
-        if self.green_colorant != Xyz::default() {
+        if self.green_colorant != Xyzd::default() {
             tags_count += 1;
         }
-        if self.blue_colorant != Xyz::default() {
+        if self.blue_colorant != Xyzd::default() {
             tags_count += 1;
         }
         if self.red_trc.is_some() {
@@ -543,17 +597,17 @@ impl ColorProfile {
         let tags_count = self.writable_tags_count();
         let mut tags = Vec::with_capacity(TAG_SIZE * tags_count);
         let mut base_offset = size_of::<ProfileHeader>() + TAG_SIZE * tags_count;
-        if self.red_colorant != Xyz::default() {
+        if self.red_colorant != Xyzd::default() {
             write_tag_entry(&mut tags, Tag::RedXyz, base_offset, 20);
             write_xyz_tag_value(&mut entries, self.red_colorant);
             base_offset += 20;
         }
-        if self.green_colorant != Xyz::default() {
+        if self.green_colorant != Xyzd::default() {
             write_tag_entry(&mut tags, Tag::GreenXyz, base_offset, 20);
             write_xyz_tag_value(&mut entries, self.green_colorant);
             base_offset += 20;
         }
-        if self.blue_colorant != Xyz::default() {
+        if self.blue_colorant != Xyzd::default() {
             write_tag_entry(&mut tags, Tag::BlueXyz, base_offset, 20);
             write_xyz_tag_value(&mut entries, self.blue_colorant);
             base_offset += 20;
@@ -598,7 +652,7 @@ impl ColorProfile {
             );
             base_offset += entry_size;
         }
-        if self.white_point != Xyz::default() {
+        if self.white_point != Xyzd::default() {
             write_tag_entry(&mut tags, Tag::MediaWhitePoint, base_offset, 20);
             write_xyz_tag_value(&mut entries, self.white_point);
             base_offset += 20;
@@ -756,7 +810,7 @@ impl ColorProfile {
             device_manufacturer: 0u32,
             device_model: 0u32,
             device_attributes: [0u8; 8],
-            illuminant: self.white_point,
+            illuminant: self.white_point.to_xyz(),
             creator: 0u32,
             profile_id: [0u8; 16],
             reserved: [0u8; 28],

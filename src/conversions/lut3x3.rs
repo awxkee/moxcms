@@ -29,7 +29,9 @@
 
 use crate::profile::LutDataType;
 use crate::trc::lut_interp_linear_float;
-use crate::{Array3D, CmsError, InterpolationMethod, Stage, TransformOptions, Vector3f};
+use crate::{
+    Array3D, CmsError, DataColorSpace, InterpolationMethod, Stage, TransformOptions, Vector3f,
+};
 
 #[derive(Default)]
 struct Lut3x3 {
@@ -38,36 +40,48 @@ struct Lut3x3 {
     grid_size: u8,
     gamma: [Vec<f32>; 3],
     interpolation_method: InterpolationMethod,
+    pcs: DataColorSpace,
 }
 
-fn stage_lut_3x3(lut: &LutDataType, options: TransformOptions) -> Box<dyn Stage> {
+fn stage_lut_3x3(
+    lut: &LutDataType,
+    options: TransformOptions,
+    pcs: DataColorSpace,
+) -> Box<dyn Stage> {
     let clut_length: usize = (lut.num_clut_grid_points as usize).pow(lut.num_input_channels as u32)
         * lut.num_output_channels as usize;
-    // the matrix of lutType is only used when the input color space is XYZ.
 
-    // Prepare input curves
     let mut transform = Lut3x3 {
         interpolation_method: options.interpolation_method,
+        pcs,
         ..Default::default()
     };
-    transform.input[0] = lut.input_table[0..lut.num_input_table_entries as usize].to_vec();
-    transform.input[1] = lut.input_table
+
+    let lin_table = lut.input_table.to_clut_f32();
+
+    transform.input[0] = lin_table[0..lut.num_input_table_entries as usize].to_vec();
+    transform.input[1] = lin_table
         [lut.num_input_table_entries as usize..lut.num_input_table_entries as usize * 2]
         .to_vec();
-    transform.input[2] = lut.input_table
+    transform.input[2] = lin_table
         [lut.num_input_table_entries as usize * 2..lut.num_input_table_entries as usize * 3]
         .to_vec();
     // Prepare table
-    assert_eq!(clut_length, lut.clut_table.len());
-    transform.clut = lut.clut_table.clone();
+
+    let clut_table = lut.clut_table.to_clut_f32();
+
+    assert_eq!(clut_length, clut_table.len());
+    transform.clut = clut_table;
+
+    let gamma_curves = lut.output_table.to_clut_f32();
 
     transform.grid_size = lut.num_clut_grid_points;
     // Prepare output curves
-    transform.gamma[0] = lut.output_table[0..lut.num_output_table_entries as usize].to_vec();
-    transform.gamma[1] = lut.output_table
+    transform.gamma[0] = gamma_curves[0..lut.num_output_table_entries as usize].to_vec();
+    transform.gamma[1] = gamma_curves
         [lut.num_output_table_entries as usize..lut.num_output_table_entries as usize * 2]
         .to_vec();
-    transform.gamma[2] = lut.output_table
+    transform.gamma[2] = gamma_curves
         [lut.num_output_table_entries as usize * 2..lut.num_output_table_entries as usize * 3]
         .to_vec();
     Box::new(transform)
@@ -105,6 +119,12 @@ impl Lut3x3 {
 impl Stage for Lut3x3 {
     fn transform(&self, src: &[f32], dst: &mut [f32]) -> Result<(), CmsError> {
         let l_tbl = Array3D::new(&self.clut, self.grid_size as usize);
+
+        // If PCS is LAB then linear interpolation should be used
+        if self.pcs == DataColorSpace::Lab {
+            return self.transform_impl(src, dst, |x, y, z| l_tbl.trilinear_vec3(x, y, z));
+        }
+
         match self.interpolation_method {
             #[cfg(feature = "options")]
             InterpolationMethod::Tetrahedral => {
@@ -130,6 +150,7 @@ pub(crate) fn create_lut3x3(
     lut: &LutDataType,
     src: &[f32],
     options: TransformOptions,
+    pcs: DataColorSpace,
 ) -> Result<Vec<f32>, CmsError> {
     if lut.num_input_channels != 3 || lut.num_output_channels != 3 {
         return Err(CmsError::UnsupportedProfileConnection);
@@ -137,7 +158,7 @@ pub(crate) fn create_lut3x3(
 
     let mut dest = vec![0.; src.len()];
 
-    let lut_stage = stage_lut_3x3(lut, options);
+    let lut_stage = stage_lut_3x3(lut, options, pcs);
     lut_stage.transform(src, &mut dest)?;
     Ok(dest)
 }

@@ -52,6 +52,7 @@ pub enum CmsError {
     UnsupportedLutRenderingIntent(RenderingIntent),
     InvalidAtoBLut,
     OverflowingError,
+    LUTTablesInvalidKind,
 }
 
 impl Display for CmsError {
@@ -96,6 +97,7 @@ impl Display for CmsError {
             CmsError::OverflowingError => {
                 f.write_str("Overflowing was happen, that is not allowed")
             }
+            CmsError::LUTTablesInvalidKind => f.write_str("All LUT curves must have same kind"),
         }
     }
 }
