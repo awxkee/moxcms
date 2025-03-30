@@ -32,7 +32,7 @@ use num_traits::AsPrimitive;
 use std::arch::aarch64::*;
 use std::ops::{Add, Mul, Sub};
 
-#[repr(align(16), C)]
+#[repr(align(8), C)]
 pub(crate) struct NeonAlignedI16x4(pub(crate) [i16; 4]);
 
 #[cfg(feature = "options")]
