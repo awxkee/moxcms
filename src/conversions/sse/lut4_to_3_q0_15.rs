@@ -27,11 +27,11 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::conversions::LutBarycentricReduction;
-use crate::conversions::avx::interpolator_q0_15::{
-    AvxAlignedI16, AvxMdInterpolationQ0_15Double, PrismaticAvxQ0_15Double,
-    PyramidAvxFmaQ0_15Double, TetrahedralAvxQ0_15Double, TrilinearAvxQ0_15Double,
-};
 use crate::conversions::interpolator::BarycentricWeight;
+use crate::conversions::sse::interpolator_q0_15::{
+    PrismaticSseQ0_15, PyramidalSseQ0_15, SseAlignedI16x4, SseMdInterpolationQ0_15,
+    TetrahedralSseQ0_15, TrilinearSseQ0_15,
+};
 use crate::transform::PointeeSizeExpressible;
 use crate::{CmsError, InterpolationMethod, Layout, TransformExecutor};
 use num_traits::AsPrimitive;
@@ -41,7 +41,7 @@ use std::arch::x86::*;
 use std::arch::x86_64::*;
 use std::marker::PhantomData;
 
-pub(crate) struct TransformLut4XyzToRgbAvxQ0_15<
+pub(crate) struct TransformLut4XyzToRgbSseQ0_15<
     T,
     U,
     const LAYOUT: u8,
@@ -50,7 +50,7 @@ pub(crate) struct TransformLut4XyzToRgbAvxQ0_15<
     const BINS: usize,
     const BARYCENTRIC_BINS: usize,
 > {
-    pub(crate) lut: Vec<AvxAlignedI16>,
+    pub(crate) lut: Vec<SseAlignedI16x4>,
     pub(crate) _phantom: PhantomData<T>,
     pub(crate) _phantom1: PhantomData<U>,
     pub(crate) interpolation_method: InterpolationMethod,
@@ -65,15 +65,15 @@ impl<
     const BIT_DEPTH: usize,
     const BINS: usize,
     const BARYCENTRIC_BINS: usize,
-> TransformLut4XyzToRgbAvxQ0_15<T, U, LAYOUT, GRID_SIZE, BIT_DEPTH, BINS, BARYCENTRIC_BINS>
+> TransformLut4XyzToRgbSseQ0_15<T, U, LAYOUT, GRID_SIZE, BIT_DEPTH, BINS, BARYCENTRIC_BINS>
 where
     f32: AsPrimitive<T>,
     u32: AsPrimitive<T>,
     (): LutBarycentricReduction<T, U>,
 {
     #[allow(unused_unsafe)]
-    #[target_feature(enable = "avx2")]
-    unsafe fn transform_chunk<'b, Interpolator: AvxMdInterpolationQ0_15Double<'b, GRID_SIZE>>(
+    #[target_feature(enable = "sse4.1")]
+    unsafe fn transform_chunk<'b, Interpolator: SseMdInterpolationQ0_15<'b, GRID_SIZE>>(
         &'b self,
         src: &[T],
         dst: &mut [T],
@@ -117,9 +117,10 @@ where
                 let table1 = &self.lut[(w * grid_size3) as usize..];
                 let table2 = &self.lut[(w_n * grid_size3) as usize..];
 
-                let interpolator = Interpolator::new(table1, table2);
-                let v = interpolator.inter3_sse(c, m, y, &self.weights);
-                let (a0, b0) = (v.0.v, v.1.v);
+                let tetrahedral1 = Interpolator::new(table1);
+                let tetrahedral2 = Interpolator::new(table2);
+                let a0 = tetrahedral1.inter3_sse(c, m, y, &self.weights).v;
+                let b0 = tetrahedral2.inter3_sse(c, m, y, &self.weights).v;
 
                 let hp = _mm_mulhrs_epi16(_mm_set1_epi16(t_n), a0);
                 let v = _mm_add_epi16(hp, _mm_mulhrs_epi16(b0, _mm_set1_epi16(t)));
@@ -158,7 +159,7 @@ impl<
     const BINS: usize,
     const BARYCENTRIC_BINS: usize,
 > TransformExecutor<T>
-    for TransformLut4XyzToRgbAvxQ0_15<T, U, LAYOUT, GRID_SIZE, BIT_DEPTH, BINS, BARYCENTRIC_BINS>
+    for TransformLut4XyzToRgbSseQ0_15<T, U, LAYOUT, GRID_SIZE, BIT_DEPTH, BINS, BARYCENTRIC_BINS>
 where
     f32: AsPrimitive<T>,
     u32: AsPrimitive<T>,
@@ -183,18 +184,18 @@ where
             match self.interpolation_method {
                 #[cfg(feature = "options")]
                 InterpolationMethod::Tetrahedral => {
-                    self.transform_chunk::<TetrahedralAvxQ0_15Double<GRID_SIZE>>(src, dst);
+                    self.transform_chunk::<TetrahedralSseQ0_15<GRID_SIZE>>(src, dst);
                 }
                 #[cfg(feature = "options")]
                 InterpolationMethod::Pyramid => {
-                    self.transform_chunk::<PyramidAvxFmaQ0_15Double<GRID_SIZE>>(src, dst);
+                    self.transform_chunk::<PyramidalSseQ0_15<GRID_SIZE>>(src, dst);
                 }
                 #[cfg(feature = "options")]
                 InterpolationMethod::Prism => {
-                    self.transform_chunk::<PrismaticAvxQ0_15Double<GRID_SIZE>>(src, dst);
+                    self.transform_chunk::<PrismaticSseQ0_15<GRID_SIZE>>(src, dst);
                 }
                 InterpolationMethod::Linear => {
-                    self.transform_chunk::<TrilinearAvxQ0_15Double<GRID_SIZE>>(src, dst);
+                    self.transform_chunk::<TrilinearSseQ0_15<GRID_SIZE>>(src, dst);
                 }
             }
         }
