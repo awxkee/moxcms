@@ -96,6 +96,7 @@ impl BarycentricWeight<f32> {
     }
 }
 
+#[allow(dead_code)]
 impl BarycentricWeight<i16> {
     pub(crate) fn create_ranged_256<const GRID_SIZE: usize>() -> Box<[BarycentricWeight<i16>; 256]>
     {
