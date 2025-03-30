@@ -29,7 +29,7 @@
 use crate::err::CmsError;
 use crate::math::{FusedMultiplyAdd, FusedMultiplyNegAdd};
 use crate::mlaf::{mlaf, neg_mlaf};
-use crate::profile::s15_fixed16_number_to_float;
+use crate::reader::s15_fixed16_number_to_double;
 use num_traits::{AsPrimitive, MulAdd};
 use std::ops::{Add, Div, Mul, Neg, Sub};
 
@@ -403,39 +403,39 @@ pub struct Matrix4f {
     pub v: [[f32; 4]; 4],
 }
 
-pub const SRGB_MATRIX: Matrix3f = Matrix3f {
+pub const SRGB_MATRIX: Matrix3d = Matrix3d {
     v: [
         [
-            s15_fixed16_number_to_float(0x6FA2),
-            s15_fixed16_number_to_float(0x6299),
-            s15_fixed16_number_to_float(0x24A0),
+            s15_fixed16_number_to_double(0x6FA2),
+            s15_fixed16_number_to_double(0x6299),
+            s15_fixed16_number_to_double(0x24A0),
         ],
         [
-            s15_fixed16_number_to_float(0x38F5),
-            s15_fixed16_number_to_float(0xB785),
-            s15_fixed16_number_to_float(0x0F84),
+            s15_fixed16_number_to_double(0x38F5),
+            s15_fixed16_number_to_double(0xB785),
+            s15_fixed16_number_to_double(0x0F84),
         ],
         [
-            s15_fixed16_number_to_float(0x0390),
-            s15_fixed16_number_to_float(0x18DA),
-            s15_fixed16_number_to_float(0xB6CF),
+            s15_fixed16_number_to_double(0x0390),
+            s15_fixed16_number_to_double(0x18DA),
+            s15_fixed16_number_to_double(0xB6CF),
         ],
     ],
 };
 
-pub const DISPLAY_P3_MATRIX: Matrix3f = Matrix3f {
+pub const DISPLAY_P3_MATRIX: Matrix3d = Matrix3d {
     v: [
-        [0.515102f32, 0.291965f32, 0.157153f32],
-        [0.241182f32, 0.692236f32, 0.0665819f32],
-        [-0.00104941f32, 0.0418818f32, 0.784378f32],
+        [0.515102, 0.291965, 0.157153],
+        [0.241182, 0.692236, 0.0665819],
+        [-0.00104941, 0.0418818, 0.784378],
     ],
 };
 
-pub const BT2020_MATRIX: Matrix3f = Matrix3f {
+pub const BT2020_MATRIX: Matrix3d = Matrix3d {
     v: [
-        [0.673459f32, 0.165661f32, 0.125100f32],
-        [0.279033f32, 0.675338f32, 0.0456288f32],
-        [-0.00193139f32, 0.0299794f32, 0.797162f32],
+        [0.673459, 0.165661, 0.125100],
+        [0.279033, 0.675338, 0.0456288],
+        [-0.00193139, 0.0299794, 0.797162],
     ],
 };
 
@@ -1130,6 +1130,26 @@ macro_rules! define_xyz {
             }
         }
     };
+}
+
+impl Xyz {
+    pub fn to_xyzd(self) -> Xyzd {
+        Xyzd {
+            x: self.x as f64,
+            y: self.y as f64,
+            z: self.z as f64,
+        }
+    }
+}
+
+impl Xyzd {
+    pub fn to_xyz(self) -> Xyz {
+        Xyz {
+            x: self.x as f32,
+            y: self.y as f32,
+            z: self.z as f32,
+        }
+    }
 }
 
 define_xyz!(Xyz, f32, Matrix3f);

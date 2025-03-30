@@ -50,35 +50,40 @@ fn stage_lut_3x4(
 ) -> Box<dyn Stage> {
     let clut_length: usize = (lut.num_clut_grid_points as usize).pow(lut.num_input_channels as u32)
         * lut.num_output_channels as usize;
-    // the matrix of lutType is only used when the input color space is XYZ.
 
-    // Prepare input curves
     let mut transform = Lut3x4 {
         interpolation_method: options.interpolation_method,
         pcs,
         ..Default::default()
     };
-    transform.input[0] = lut.input_table[0..lut.num_input_table_entries as usize].to_vec();
-    transform.input[1] = lut.input_table
+
+    let linearization_table = lut.input_table.to_clut_f32();
+
+    transform.input[0] = linearization_table[0..lut.num_input_table_entries as usize].to_vec();
+    transform.input[1] = linearization_table
         [lut.num_input_table_entries as usize..lut.num_input_table_entries as usize * 2]
         .to_vec();
-    transform.input[2] = lut.input_table
+    transform.input[2] = linearization_table
         [lut.num_input_table_entries as usize * 2..lut.num_input_table_entries as usize * 3]
         .to_vec();
-    // Prepare table
-    assert_eq!(clut_length, lut.clut_table.len());
-    transform.clut = lut.clut_table.clone();
+
+    let clut_table = lut.clut_table.to_clut_f32();
+
+    assert_eq!(clut_length, clut_table.len());
+    transform.clut = clut_table;
 
     transform.grid_size = lut.num_clut_grid_points;
-    // Prepare output curves
-    transform.gamma[0] = lut.output_table[0..lut.num_output_table_entries as usize].to_vec();
-    transform.gamma[1] = lut.output_table
+
+    let gamma_table = lut.output_table.to_clut_f32();
+
+    transform.gamma[0] = gamma_table[0..lut.num_output_table_entries as usize].to_vec();
+    transform.gamma[1] = gamma_table
         [lut.num_output_table_entries as usize..lut.num_output_table_entries as usize * 2]
         .to_vec();
-    transform.gamma[2] = lut.output_table
+    transform.gamma[2] = gamma_table
         [lut.num_output_table_entries as usize * 2..lut.num_output_table_entries as usize * 3]
         .to_vec();
-    transform.gamma[3] = lut.output_table
+    transform.gamma[3] = gamma_table
         [lut.num_output_table_entries as usize * 3..lut.num_output_table_entries as usize * 4]
         .to_vec();
     Box::new(transform)

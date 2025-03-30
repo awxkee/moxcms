@@ -162,7 +162,7 @@ pub(crate) fn prepare_mba_3x4(
 
     let mut new_lut = vec![0f32; (lut.len() / 3) * 4];
 
-    if mab.a_curves.len() == 4 && !mab.clut.is_empty() {
+    if mab.a_curves.len() == 4 && mab.clut.is_some() {
         let curve0 = mab.a_curves[0]
             .build_linearize_table::<u16, LERP_DEPTH, BP>()
             .ok_or(CmsError::InvalidTrcCurve)?;
@@ -175,7 +175,7 @@ pub(crate) fn prepare_mba_3x4(
         let curve3 = mab.a_curves[3]
             .build_linearize_table::<u16, LERP_DEPTH, BP>()
             .ok_or(CmsError::InvalidTrcCurve)?;
-        let clut = &mab.clut;
+        let clut = &mab.clut.as_ref().map(|x| x.to_clut_f32()).unwrap();
         let a_curves = ACurves3x4Inverse::<DEPTH> {
             curve0,
             curve1,

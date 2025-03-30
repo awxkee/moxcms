@@ -29,7 +29,7 @@
 use crate::conversions::TransformProfileRgb;
 use crate::conversions::neon::rgb_xyz_q4_12::{split_by_twos, split_by_twos_mut};
 use crate::transform::PointeeSizeExpressible;
-use crate::{CmsError, Layout, Matrix3f, TransformExecutor};
+use crate::{CmsError, Layout, TransformExecutor};
 use num_traits::AsPrimitive;
 use std::arch::aarch64::*;
 
@@ -83,11 +83,7 @@ where
             return Err(CmsError::LaneMultipleOfChannels);
         }
 
-        let t = self
-            .profile
-            .adaptation_matrix
-            .unwrap_or(Matrix3f::IDENTITY)
-            .transpose();
+        let t = self.profile.adaptation_matrix.transpose();
         let scale = (GAMMA_LUT - 1) as f32;
         let max_colors: T = ((1 << BIT_DEPTH) - 1).as_();
 

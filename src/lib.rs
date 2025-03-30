@@ -54,6 +54,7 @@ mod nd_array;
 mod oklab;
 mod oklch;
 mod profile;
+mod reader;
 mod rgb;
 mod safe_reader;
 mod tag;
@@ -97,9 +98,9 @@ pub use oklab::Oklab;
 pub use oklch::Oklch;
 pub use profile::{
     CicpProfile, ColorProfile, DataColorSpace, DescriptionString, LocalizableString,
-    LutMCurvesType, LutType, LutWarehouse, Measurement, MeasurementGeometry, ProfileClass,
-    ProfileSignature, ProfileText, ProfileVersion, RenderingIntent, StandardIlluminant,
-    StandardObserver, TechnologySignatures, ViewingConditions,
+    LutMCurvesType, LutStore, LutType, LutWarehouse, Measurement, MeasurementGeometry,
+    ProfileClass, ProfileSignature, ProfileText, ProfileVersion, RenderingIntent,
+    StandardIlluminant, StandardObserver, TechnologySignatures, ViewingConditions,
 };
 pub use rgb::Rgb;
 pub use transform::{

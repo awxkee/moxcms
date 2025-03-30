@@ -30,7 +30,7 @@ use crate::math::copysign;
 use crate::trc::{ToneReprCurve, curve_from_gamma};
 use crate::{
     CicpColorPrimaries, CicpProfile, ColorPrimaries, ColorProfile, DataColorSpace,
-    LocalizableString, Matrix3f, MatrixCoefficients, ProfileClass, ProfileText, RenderingIntent,
+    LocalizableString, Matrix3d, MatrixCoefficients, ProfileClass, ProfileText, RenderingIntent,
     TransferCharacteristics, XyY, exp, floor, pow,
 };
 
@@ -179,28 +179,28 @@ pub const PQ_LUT_TABLE: [u16; 4096] = build_trc_table_pq();
 pub const HLG_LUT_TABLE: [u16; 4096] = build_trc_table_hlg();
 
 impl ColorProfile {
-    const SRGB_COLORANTS: Matrix3f =
+    const SRGB_COLORANTS: Matrix3d =
         ColorProfile::colorants_matrix(WHITE_POINT_D65, ColorPrimaries::BT_709);
 
-    const DISPLAY_P3_COLORANTS: Matrix3f =
+    const DISPLAY_P3_COLORANTS: Matrix3d =
         ColorProfile::colorants_matrix(WHITE_POINT_D65, ColorPrimaries::SMPTE_432);
 
-    const ADOBE_RGB_COLORANTS: Matrix3f =
+    const ADOBE_RGB_COLORANTS: Matrix3d =
         ColorProfile::colorants_matrix(WHITE_POINT_D65, ColorPrimaries::ADOBE_RGB);
 
-    const DCI_P3_COLORANTS: Matrix3f =
+    const DCI_P3_COLORANTS: Matrix3d =
         ColorProfile::colorants_matrix(WHITE_POINT_DCI_P3, ColorPrimaries::DCI_P3);
 
-    const PRO_PHOTO_RGB_COLORANTS: Matrix3f =
+    const PRO_PHOTO_RGB_COLORANTS: Matrix3d =
         ColorProfile::colorants_matrix(WHITE_POINT_D50, ColorPrimaries::PRO_PHOTO_RGB);
 
-    const BT2020_COLORANTS: Matrix3f =
+    const BT2020_COLORANTS: Matrix3d =
         ColorProfile::colorants_matrix(WHITE_POINT_D65, ColorPrimaries::BT_2020);
 
-    const ACES_2065_1_COLORANTS: Matrix3f =
+    const ACES_2065_1_COLORANTS: Matrix3d =
         ColorProfile::colorants_matrix(WHITE_POINT_D60, ColorPrimaries::ACES_2065_1);
 
-    const ACES_CG_COLORANTS: Matrix3f =
+    const ACES_CG_COLORANTS: Matrix3d =
         ColorProfile::colorants_matrix(WHITE_POINT_D60, ColorPrimaries::ACES_CG);
 
     /// Creates new sRGB profile
@@ -217,8 +217,8 @@ impl ColorProfile {
         profile.rendering_intent = RenderingIntent::Perceptual;
         profile.color_space = DataColorSpace::Rgb;
         profile.pcs = DataColorSpace::Xyz;
-        profile.media_white_point = Some(WHITE_POINT_D65.to_xyz());
-        profile.white_point = WHITE_POINT_D50.to_xyz();
+        profile.media_white_point = Some(WHITE_POINT_D65.to_xyzd());
+        profile.white_point = WHITE_POINT_D50.to_xyzd();
         profile.cicp = Some(CicpProfile {
             color_primaries: CicpColorPrimaries::Bt709,
             transfer_characteristics: TransferCharacteristics::Srgb,
@@ -251,8 +251,8 @@ impl ColorProfile {
         profile.rendering_intent = RenderingIntent::Perceptual;
         profile.color_space = DataColorSpace::Rgb;
         profile.pcs = DataColorSpace::Xyz;
-        profile.media_white_point = Some(WHITE_POINT_D65.to_xyz());
-        profile.white_point = WHITE_POINT_D50.to_xyz();
+        profile.media_white_point = Some(WHITE_POINT_D65.to_xyzd());
+        profile.white_point = WHITE_POINT_D50.to_xyzd();
         profile.description = Some(ProfileText::Localizable(vec![LocalizableString::new(
             "en".to_string(),
             "US".to_string(),
@@ -280,8 +280,8 @@ impl ColorProfile {
         profile.rendering_intent = RenderingIntent::Perceptual;
         profile.color_space = DataColorSpace::Rgb;
         profile.pcs = DataColorSpace::Xyz;
-        profile.media_white_point = Some(WHITE_POINT_D65.to_xyz());
-        profile.white_point = WHITE_POINT_D50.to_xyz();
+        profile.media_white_point = Some(WHITE_POINT_D65.to_xyzd());
+        profile.white_point = WHITE_POINT_D50.to_xyzd();
         profile.cicp = Some(CicpProfile {
             color_primaries: CicpColorPrimaries::Smpte431,
             transfer_characteristics: TransferCharacteristics::Srgb,
@@ -315,8 +315,8 @@ impl ColorProfile {
         profile.rendering_intent = RenderingIntent::Perceptual;
         profile.color_space = DataColorSpace::Rgb;
         profile.pcs = DataColorSpace::Xyz;
-        profile.media_white_point = Some(WHITE_POINT_D65.to_xyz());
-        profile.white_point = WHITE_POINT_D50.to_xyz();
+        profile.media_white_point = Some(WHITE_POINT_D65.to_xyzd());
+        profile.white_point = WHITE_POINT_D50.to_xyzd();
         profile.cicp = Some(CicpProfile {
             color_primaries: CicpColorPrimaries::Smpte431,
             transfer_characteristics: TransferCharacteristics::Smpte2084,
@@ -349,8 +349,8 @@ impl ColorProfile {
         profile.rendering_intent = RenderingIntent::Perceptual;
         profile.color_space = DataColorSpace::Rgb;
         profile.pcs = DataColorSpace::Xyz;
-        profile.media_white_point = Some(WHITE_POINT_DCI_P3.to_xyz());
-        profile.white_point = WHITE_POINT_D50.to_xyz();
+        profile.media_white_point = Some(WHITE_POINT_DCI_P3.to_xyzd());
+        profile.white_point = WHITE_POINT_D50.to_xyzd();
         profile.cicp = Some(CicpProfile {
             color_primaries: CicpColorPrimaries::Smpte432,
             transfer_characteristics: TransferCharacteristics::Srgb,
@@ -383,8 +383,8 @@ impl ColorProfile {
         profile.rendering_intent = RenderingIntent::Perceptual;
         profile.color_space = DataColorSpace::Rgb;
         profile.pcs = DataColorSpace::Xyz;
-        profile.media_white_point = Some(WHITE_POINT_D50.to_xyz());
-        profile.white_point = WHITE_POINT_D50.to_xyz();
+        profile.media_white_point = Some(WHITE_POINT_D50.to_xyzd());
+        profile.white_point = WHITE_POINT_D50.to_xyzd();
         profile.description = Some(ProfileText::Localizable(vec![LocalizableString::new(
             "en".to_string(),
             "US".to_string(),
@@ -412,8 +412,8 @@ impl ColorProfile {
         profile.rendering_intent = RenderingIntent::Perceptual;
         profile.color_space = DataColorSpace::Rgb;
         profile.pcs = DataColorSpace::Xyz;
-        profile.media_white_point = Some(WHITE_POINT_D65.to_xyz());
-        profile.white_point = WHITE_POINT_D50.to_xyz();
+        profile.media_white_point = Some(WHITE_POINT_D65.to_xyzd());
+        profile.white_point = WHITE_POINT_D50.to_xyzd();
         profile.description = Some(ProfileText::Localizable(vec![LocalizableString::new(
             "en".to_string(),
             "US".to_string(),
@@ -441,8 +441,8 @@ impl ColorProfile {
         profile.rendering_intent = RenderingIntent::Perceptual;
         profile.color_space = DataColorSpace::Rgb;
         profile.pcs = DataColorSpace::Xyz;
-        profile.media_white_point = Some(WHITE_POINT_D65.to_xyz());
-        profile.white_point = WHITE_POINT_D50.to_xyz();
+        profile.media_white_point = Some(WHITE_POINT_D65.to_xyzd());
+        profile.white_point = WHITE_POINT_D50.to_xyzd();
         profile.cicp = Some(CicpProfile {
             color_primaries: CicpColorPrimaries::Bt2020,
             transfer_characteristics: TransferCharacteristics::Smpte2084,
@@ -476,8 +476,8 @@ impl ColorProfile {
         profile.rendering_intent = RenderingIntent::Perceptual;
         profile.color_space = DataColorSpace::Rgb;
         profile.pcs = DataColorSpace::Xyz;
-        profile.media_white_point = Some(WHITE_POINT_D65.to_xyz());
-        profile.white_point = WHITE_POINT_D50.to_xyz();
+        profile.media_white_point = Some(WHITE_POINT_D65.to_xyzd());
+        profile.white_point = WHITE_POINT_D50.to_xyzd();
         profile.cicp = Some(CicpProfile {
             color_primaries: CicpColorPrimaries::Bt2020,
             transfer_characteristics: TransferCharacteristics::Hlg,
@@ -504,8 +504,8 @@ impl ColorProfile {
             profile_class: ProfileClass::DisplayDevice,
             rendering_intent: RenderingIntent::Perceptual,
             color_space: DataColorSpace::Gray,
-            media_white_point: Some(WHITE_POINT_D65.to_xyz()),
-            white_point: WHITE_POINT_D50.to_xyz(),
+            media_white_point: Some(WHITE_POINT_D65.to_xyzd()),
+            white_point: WHITE_POINT_D50.to_xyzd(),
             copyright: Some(ProfileText::Localizable(vec![LocalizableString::new(
                 "en".to_string(),
                 "US".to_string(),
@@ -528,8 +528,8 @@ impl ColorProfile {
         profile.rendering_intent = RenderingIntent::Perceptual;
         profile.color_space = DataColorSpace::Rgb;
         profile.pcs = DataColorSpace::Xyz;
-        profile.media_white_point = Some(WHITE_POINT_D60.to_xyz());
-        profile.white_point = WHITE_POINT_D50.to_xyz();
+        profile.media_white_point = Some(WHITE_POINT_D60.to_xyzd());
+        profile.white_point = WHITE_POINT_D50.to_xyzd();
         profile.description = Some(ProfileText::Localizable(vec![LocalizableString::new(
             "en".to_string(),
             "US".to_string(),
@@ -556,8 +556,8 @@ impl ColorProfile {
         profile.rendering_intent = RenderingIntent::Perceptual;
         profile.color_space = DataColorSpace::Rgb;
         profile.pcs = DataColorSpace::Xyz;
-        profile.media_white_point = Some(WHITE_POINT_D60.to_xyz());
-        profile.white_point = WHITE_POINT_D50.to_xyz();
+        profile.media_white_point = Some(WHITE_POINT_D60.to_xyzd());
+        profile.white_point = WHITE_POINT_D50.to_xyzd();
         profile.description = Some(ProfileText::Localizable(vec![LocalizableString::new(
             "en".to_string(),
             "US".to_string(),

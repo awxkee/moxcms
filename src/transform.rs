@@ -32,7 +32,7 @@ use crate::conversions::{
 };
 use crate::err::CmsError;
 use crate::trc::GammaLutInterpolate;
-use crate::{ColorProfile, DataColorSpace, LutWarehouse, RenderingIntent, Vector3f, Xyz};
+use crate::{ColorProfile, DataColorSpace, LutWarehouse, RenderingIntent, Vector3f, Xyzd};
 use num_traits::AsPrimitive;
 
 /// Transformation executor itself
@@ -302,9 +302,9 @@ impl PointeeSizeExpressible for f64 {
 
 impl ColorProfile {
     pub(crate) fn has_full_colors_triplet(&self) -> bool {
-        self.red_colorant != Xyz::default()
-            && self.green_colorant != Xyz::default()
-            && self.blue_colorant != Xyz::default()
+        self.red_colorant != Xyzd::default()
+            && self.green_colorant != Xyzd::default()
+            && self.blue_colorant != Xyzd::default()
             && self.red_trc.is_some()
             && self.green_trc.is_some()
             && self.blue_trc.is_some()
@@ -445,7 +445,7 @@ impl ColorProfile {
                 r_gamma: gamma_r,
                 g_gamma: gamma_g,
                 b_gamma: gamma_b,
-                adaptation_matrix: transform,
+                adaptation_matrix: transform.to_f32(),
             };
 
             return T::make_transform::<LINEAR_CAP, GAMMA_CAP, BIT_DEPTH>(
@@ -501,9 +501,7 @@ impl ColorProfile {
                 options.allow_use_cicp_transfer,
             )?;
 
-            let transform = self
-                .rgb_to_xyz_matrix()
-                .ok_or(CmsError::UnsupportedProfileConnection)?;
+            let transform = self.rgb_to_xyz_matrix().to_f32();
 
             let vector = Vector3f {
                 v: [transform.v[1][0], transform.v[1][1], transform.v[1][2]],

@@ -729,12 +729,10 @@ where
     let mut lut = vec![0f32; lut_origins.len()];
     lin_stage.transform(&lut_origins, &mut lut)?;
 
-    let xyz_to_rgb = source
-        .rgb_to_xyz_matrix()
-        .ok_or(CmsError::UnsupportedProfileConnection)?;
+    let xyz_to_rgb = source.rgb_to_xyz_matrix();
 
     let matrices = vec![
-        xyz_to_rgb,
+        xyz_to_rgb.to_f32(),
         Matrix3f {
             v: [
                 [32768.0 / 65535.0, 0.0, 0.0],
@@ -782,7 +780,7 @@ where
         options.allow_use_cicp_transfer,
     )?;
 
-    let xyz_to_rgb = dest.rgb_to_xyz_matrix_d().inverse();
+    let xyz_to_rgb = dest.rgb_to_xyz_matrix().inverse();
 
     let mut matrices = vec![Matrix3f {
         v: [

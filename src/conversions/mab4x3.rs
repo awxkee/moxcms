@@ -116,7 +116,7 @@ pub(crate) fn prepare_mab_4x3<const GRID_SIZE: usize>(
         return Err(CmsError::UnsupportedProfileConnection);
     }
     let mut new_lut = vec![0f32; (lut.len() / 4) * 3];
-    if mab.a_curves.len() == 4 && !mab.clut.is_empty() {
+    if mab.a_curves.len() == 4 && mab.clut.is_some() {
         let curve0 = mab.a_curves[0]
             .build_linearize_table::<u16, LERP_DEPTH, BP>()
             .ok_or(CmsError::InvalidTrcCurve)?;
@@ -129,7 +129,7 @@ pub(crate) fn prepare_mab_4x3<const GRID_SIZE: usize>(
         let curve3 = mab.a_curves[3]
             .build_linearize_table::<u16, LERP_DEPTH, BP>()
             .ok_or(CmsError::InvalidTrcCurve)?;
-        let clut = &mab.clut;
+        let clut = &mab.clut.as_ref().map(|x| x.to_clut_f32()).unwrap();
         let a_curves = ACurves4x3::<DEPTH, GRID_SIZE> {
             curve0,
             curve1,

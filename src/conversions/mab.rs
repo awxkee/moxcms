@@ -267,7 +267,7 @@ pub(crate) fn prepare_mab_3x3(
     if mab.num_input_channels != 3 && mab.num_output_channels != 3 {
         return Err(CmsError::UnsupportedProfileConnection);
     }
-    if mab.a_curves.len() == 3 && !mab.clut.is_empty() {
+    if mab.a_curves.len() == 3 && mab.clut.is_some() {
         let curve0 = mab.a_curves[0]
             .build_linearize_table::<u16, LERP_DEPTH, BP>()
             .ok_or(CmsError::InvalidTrcCurve)?;
@@ -277,7 +277,7 @@ pub(crate) fn prepare_mab_3x3(
         let curve2 = mab.a_curves[2]
             .build_linearize_table::<u16, LERP_DEPTH, BP>()
             .ok_or(CmsError::InvalidTrcCurve)?;
-        let clut = &mab.clut;
+        let clut = &mab.clut.as_ref().map(|x| x.to_clut_f32()).unwrap();
         let a_curves = ACurves3::<DEPTH> {
             curve0,
             curve1,
@@ -396,7 +396,7 @@ pub(crate) fn prepare_mba_3x3(
         m_curves.transform(lut)?;
     }
 
-    if mab.a_curves.len() == 3 && !mab.clut.is_empty() {
+    if mab.a_curves.len() == 3 && mab.clut.is_some() {
         let curve0 = mab.a_curves[0]
             .build_linearize_table::<u16, LERP_DEPTH, BP>()
             .ok_or(CmsError::InvalidTrcCurve)?;
@@ -406,7 +406,7 @@ pub(crate) fn prepare_mba_3x3(
         let curve2 = mab.a_curves[2]
             .build_linearize_table::<u16, LERP_DEPTH, BP>()
             .ok_or(CmsError::InvalidTrcCurve)?;
-        let clut = &mab.clut;
+        let clut = &mab.clut.as_ref().map(|x| x.to_clut_f32()).unwrap();
         let a_curves = ACurves3Inverse::<DEPTH> {
             curve0,
             curve1,

@@ -116,27 +116,35 @@ fn stage_lut_4x3(
         pcs,
         ..Default::default()
     };
-    transform.linearization[0] = lut.input_table[0..lut.num_input_table_entries as usize].to_vec();
-    transform.linearization[1] = lut.input_table
+
+    let linearization_table = lut.input_table.to_clut_f32();
+
+    transform.linearization[0] =
+        linearization_table[0..lut.num_input_table_entries as usize].to_vec();
+    transform.linearization[1] = linearization_table
         [lut.num_input_table_entries as usize..lut.num_input_table_entries as usize * 2]
         .to_vec();
-    transform.linearization[2] = lut.input_table
+    transform.linearization[2] = linearization_table
         [lut.num_input_table_entries as usize * 2..lut.num_input_table_entries as usize * 3]
         .to_vec();
-    transform.linearization[3] = lut.input_table
+    transform.linearization[3] = linearization_table
         [lut.num_input_table_entries as usize * 3..lut.num_input_table_entries as usize * 4]
         .to_vec();
-    // Prepare table
-    assert_eq!(clut_length, lut.clut_table.len());
-    transform.clut = lut.clut_table.clone();
+
+    let clut_table = lut.clut_table.to_clut_f32();
+
+    assert_eq!(clut_length, clut_table.len());
+    transform.clut = clut_table;
 
     transform.grid_size = lut.num_clut_grid_points;
-    // Prepare output curves
-    transform.output[0] = lut.output_table[0..lut.num_output_table_entries as usize].to_vec();
-    transform.output[1] = lut.output_table
+
+    let gamma_table = lut.output_table.to_clut_f32();
+
+    transform.output[0] = gamma_table[0..lut.num_output_table_entries as usize].to_vec();
+    transform.output[1] = gamma_table
         [lut.num_output_table_entries as usize..lut.num_output_table_entries as usize * 2]
         .to_vec();
-    transform.output[2] = lut.output_table
+    transform.output[2] = gamma_table
         [lut.num_output_table_entries as usize * 2..lut.num_output_table_entries as usize * 3]
         .to_vec();
     Box::new(transform)
