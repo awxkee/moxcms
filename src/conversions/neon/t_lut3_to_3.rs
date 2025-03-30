@@ -30,7 +30,9 @@ use crate::conversions::LutBarycentricReduction;
 use crate::conversions::interpolator::BarycentricWeight;
 use crate::conversions::lut_transforms::Lut3x3Factory;
 use crate::conversions::neon::interpolator::*;
+use crate::conversions::neon::interpolator_q0_15::NeonAlignedI16x4;
 use crate::conversions::neon::rgb_xyz::NeonAlignedF32;
+use crate::conversions::neon::t_lut3_to_3_q0_15::TransformLut3x3NeonQ0_15;
 use crate::transform::PointeeSizeExpressible;
 use crate::{
     BarycentricWeightScale, CmsError, InterpolationMethod, Layout, TransformExecutor,
@@ -219,6 +221,62 @@ impl Lut3x3Factory for NeonLut3x3Factory {
         (): LutBarycentricReduction<T, u8>,
         (): LutBarycentricReduction<T, u16>,
     {
+        if options.prefer_fixed_point
+            && BIT_DEPTH < 16
+            && std::arch::is_aarch64_feature_detected!("rdm")
+        {
+            let q: f32 = if T::FINITE {
+                ((1i32 << BIT_DEPTH as i32) - 1) as f32
+            } else {
+                ((1i32 << 14i32) - 1) as f32
+            };
+            let lut = lut
+                .chunks_exact(3)
+                .map(|x| {
+                    NeonAlignedI16x4([
+                        (x[0] * q).round() as i16,
+                        (x[1] * q).round() as i16,
+                        (x[2] * q).round() as i16,
+                        0,
+                    ])
+                })
+                .collect::<Vec<_>>();
+            return match options.barycentric_weight_scale {
+                BarycentricWeightScale::Low => Box::new(TransformLut3x3NeonQ0_15::<
+                    T,
+                    u8,
+                    SRC_LAYOUT,
+                    DST_LAYOUT,
+                    GRID_SIZE,
+                    BIT_DEPTH,
+                    256,
+                    256,
+                > {
+                    lut,
+                    _phantom: PhantomData,
+                    _phantom1: PhantomData,
+                    interpolation_method: options.interpolation_method,
+                    weights: BarycentricWeight::<i16>::create_ranged_256::<GRID_SIZE>(),
+                }),
+                #[cfg(feature = "options")]
+                BarycentricWeightScale::High => Box::new(TransformLut3x3NeonQ0_15::<
+                    T,
+                    u16,
+                    SRC_LAYOUT,
+                    DST_LAYOUT,
+                    GRID_SIZE,
+                    BIT_DEPTH,
+                    65536,
+                    65536,
+                > {
+                    lut,
+                    _phantom: PhantomData,
+                    _phantom1: PhantomData,
+                    interpolation_method: options.interpolation_method,
+                    weights: BarycentricWeight::<i16>::create_binned::<GRID_SIZE, 65536>(),
+                }),
+            };
+        }
         let lut = lut
             .chunks_exact(3)
             .map(|x| NeonAlignedF32([x[0], x[1], x[2], 0f32]))

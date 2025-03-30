@@ -28,6 +28,8 @@
  */
 use crate::conversions::LutBarycentricReduction;
 use crate::conversions::avx::interpolator::*;
+use crate::conversions::avx::interpolator_q0_15::AvxAlignedI16;
+use crate::conversions::avx::lut4_to_3_q0_15::TransformLut4XyzToRgbAvxQ0_15;
 use crate::conversions::interpolator::BarycentricWeight;
 use crate::conversions::lut_transforms::Lut4x3Factory;
 use crate::transform::PointeeSizeExpressible;
@@ -223,6 +225,57 @@ impl Lut4x3Factory for AvxLut4x3Factory {
         (): LutBarycentricReduction<T, u8>,
         (): LutBarycentricReduction<T, u16>,
     {
+        if options.prefer_fixed_point && BIT_DEPTH < 16 {
+            let q: f32 = if T::FINITE {
+                ((1i32 << BIT_DEPTH as i32) - 1) as f32
+            } else {
+                ((1i32 << 14i32) - 1) as f32
+            };
+            let lut = lut
+                .chunks_exact(3)
+                .map(|x| {
+                    AvxAlignedI16([
+                        (x[0] * q).round() as i16,
+                        (x[1] * q).round() as i16,
+                        (x[2] * q).round() as i16,
+                        0,
+                    ])
+                })
+                .collect::<Vec<_>>();
+            return match options.barycentric_weight_scale {
+                BarycentricWeightScale::Low => Box::new(TransformLut4XyzToRgbAvxQ0_15::<
+                    T,
+                    u8,
+                    LAYOUT,
+                    GRID_SIZE,
+                    BIT_DEPTH,
+                    256,
+                    256,
+                > {
+                    lut,
+                    interpolation_method: options.interpolation_method,
+                    weights: BarycentricWeight::<i16>::create_ranged_256::<GRID_SIZE>(),
+                    _phantom: PhantomData,
+                    _phantom1: PhantomData,
+                }),
+                #[cfg(feature = "options")]
+                BarycentricWeightScale::High => Box::new(TransformLut4XyzToRgbAvxQ0_15::<
+                    T,
+                    u16,
+                    LAYOUT,
+                    GRID_SIZE,
+                    BIT_DEPTH,
+                    65536,
+                    65536,
+                > {
+                    lut,
+                    interpolation_method: options.interpolation_method,
+                    weights: BarycentricWeight::<i16>::create_binned::<GRID_SIZE, 65536>(),
+                    _phantom: PhantomData,
+                    _phantom1: PhantomData,
+                }),
+            };
+        }
         assert!(
             std::arch::is_x86_feature_detected!("fma"),
             "Internal configuration error, this might not be called without `fma` feature"

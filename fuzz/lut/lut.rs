@@ -10,7 +10,7 @@ static STATIC_US_SWOP: LazyLock<ColorProfile> = LazyLock::new(|| {
     ColorProfile::new_from_slice(&cmyk_icc).unwrap()
 });
 
-fuzz_target!(|data: (u8, u8, u16, u8, u8, u8, f32, bool)| {
+fuzz_target!(|data: (u8, u8, u16, u8, u8, u8, f32, bool, bool)| {
     let dst_layout = if data.3 % 2 == 0 {
         Layout::Rgba
     } else {
@@ -39,6 +39,7 @@ fuzz_target!(|data: (u8, u8, u16, u8, u8, u8, f32, bool)| {
     } else {
         InterpolationMethod::Linear
     };
+    let fixed_point = data.8;
     fuzz_cmyk_8_bit(
         data.0 as usize,
         data.1 as usize,
@@ -46,6 +47,7 @@ fuzz_target!(|data: (u8, u8, u16, u8, u8, u8, f32, bool)| {
         dst_layout,
         interpolation_method,
         barycentric_high,
+        fixed_point,
     );
     fuzz_lut_rgb_8_bit(
         data.0 as usize,
@@ -54,6 +56,7 @@ fuzz_target!(|data: (u8, u8, u16, u8, u8, u8, f32, bool)| {
         dst_layout,
         interpolation_method,
         barycentric_high,
+        fixed_point,
     );
     fuzz_lut_f32(
         data.0 as usize,
@@ -62,6 +65,7 @@ fuzz_target!(|data: (u8, u8, u16, u8, u8, u8, f32, bool)| {
         dst_layout,
         interpolation_method,
         barycentric_high,
+        fixed_point,
     );
     fuzz_lut_16(
         data.0 as usize,
@@ -71,6 +75,7 @@ fuzz_target!(|data: (u8, u8, u16, u8, u8, u8, f32, bool)| {
         interpolation_method,
         barycentric_high,
         bit_depth,
+        fixed_point,
     );
 });
 
@@ -81,6 +86,7 @@ fn fuzz_lut_f32(
     dst_layout: Layout,
     interpolation_method: InterpolationMethod,
     barycentric_weight_scale: BarycentricWeightScale,
+    fixed_point: bool,
 ) {
     if width == 0 || height == 0 {
         return;
@@ -97,6 +103,7 @@ fn fuzz_lut_f32(
             TransformOptions {
                 interpolation_method,
                 barycentric_weight_scale,
+                prefer_fixed_point: fixed_point,
                 ..Default::default()
             },
         )
@@ -114,6 +121,7 @@ fn fuzz_lut_16(
     interpolation_method: InterpolationMethod,
     barycentric_weight_scale: BarycentricWeightScale,
     bit_depth: usize,
+    fixed_point: bool,
 ) {
     if width == 0 || height == 0 {
         return;
@@ -131,6 +139,7 @@ fn fuzz_lut_16(
                 TransformOptions {
                     interpolation_method,
                     barycentric_weight_scale,
+                    prefer_fixed_point: fixed_point,
                     ..Default::default()
                 },
             )
@@ -144,6 +153,7 @@ fn fuzz_lut_16(
                 TransformOptions {
                     interpolation_method,
                     barycentric_weight_scale,
+                    prefer_fixed_point: fixed_point,
                     ..Default::default()
                 },
             )
@@ -157,6 +167,7 @@ fn fuzz_lut_16(
                 TransformOptions {
                     interpolation_method,
                     barycentric_weight_scale,
+                    prefer_fixed_point: fixed_point,
                     ..Default::default()
                 },
             )
@@ -174,6 +185,7 @@ fn fuzz_cmyk_8_bit(
     dst_layout: Layout,
     interpolation_method: InterpolationMethod,
     barycentric_weight_scale: BarycentricWeightScale,
+    fixed_point: bool,
 ) {
     if width == 0 || height == 0 {
         return;
@@ -190,6 +202,7 @@ fn fuzz_cmyk_8_bit(
             TransformOptions {
                 interpolation_method,
                 barycentric_weight_scale,
+                prefer_fixed_point: fixed_point,
                 ..Default::default()
             },
         )
@@ -206,6 +219,7 @@ fn fuzz_lut_rgb_8_bit(
     dst_layout: Layout,
     interpolation_method: InterpolationMethod,
     barycentric_weight_scale: BarycentricWeightScale,
+    fixed_point: bool,
 ) {
     if width == 0 || height == 0 {
         return;
@@ -222,6 +236,7 @@ fn fuzz_lut_rgb_8_bit(
             TransformOptions {
                 interpolation_method,
                 barycentric_weight_scale,
+                prefer_fixed_point: fixed_point,
                 ..Default::default()
             },
         )

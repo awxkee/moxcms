@@ -107,7 +107,7 @@ fn compute_abs_diff42(src: &[f32], dst: &[f32]) {
 }
 
 fn main() {
-    let funny_icc = fs::read("./assets/us_swop_coated.icc").unwrap();
+    let funny_icc = fs::read("./assets/srgb_perceptual.icc").unwrap();
 
     // println!("{:?}", decoded);
 
@@ -153,7 +153,7 @@ fn main() {
                 rendering_intent: RenderingIntent::Perceptual,
                 allow_use_cicp_transfer: false,
                 prefer_fixed_point: true,
-                interpolation_method: InterpolationMethod::Linear,
+                interpolation_method: InterpolationMethod::Pyramid,
                 barycentric_weight_scale: BarycentricWeightScale::Low,
             },
         )
@@ -172,7 +172,7 @@ fn main() {
                 rendering_intent: RenderingIntent::Perceptual,
                 allow_use_cicp_transfer: false,
                 prefer_fixed_point: true,
-                interpolation_method: InterpolationMethod::Linear,
+                interpolation_method: InterpolationMethod::Pyramid,
                 barycentric_weight_scale: BarycentricWeightScale::Low,
             },
         )
@@ -317,7 +317,7 @@ fn main() {
 //             &dest_profile,
 //             Layout::Rgba,
 //             TransformOptions {
-//                 interpolation_method: InterpolationMethod::Prism,
+//                 interpolation_method: InterpolationMethod::Pyramid,
 //                 prefer_fixed_point: true,
 //                 ..Default::default()
 //             },
