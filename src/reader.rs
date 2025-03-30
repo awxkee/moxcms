@@ -31,10 +31,10 @@ use crate::safe_reader::{SafeAdd, SafeMul};
 use crate::tag::{TAG_SIZE, TagTypeDefinition};
 use crate::{
     CicpColorPrimaries, CicpProfile, CmsError, ColorDateTime, ColorProfile, DescriptionString,
-    LocalizableString, LutMCurvesType, LutStore, LutType, LutWarehouse, Matrix3f,
-    MatrixCoefficients, Measurement, MeasurementGeometry, ProfileText, StandardIlluminant,
-    StandardObserver, TechnologySignatures, ToneReprCurve, TransferCharacteristics, Vector3f,
-    ViewingConditions, Xyz, Xyzd,
+    LocalizableString, LutMultidimensionalType, LutStore, LutType, LutWarehouse, Matrix3d,
+    Matrix3f, MatrixCoefficients, Measurement, MeasurementGeometry, ProfileText,
+    StandardIlluminant, StandardObserver, TechnologySignatures, ToneReprCurve,
+    TransferCharacteristics, Vector3f, ViewingConditions, Xyz, Xyzd,
 };
 
 /// Produces the nearest float to `a` with a maximum error of 1/1024 which
@@ -55,8 +55,18 @@ pub(crate) const fn uint16_number_to_float(a: u32) -> f32 {
 }
 
 #[inline]
-pub(crate) fn uint8_number_to_float(a: u8) -> f32 {
-    a as f32 / 255.0
+pub(crate) const fn uint16_number_to_float_fast(a: u32) -> f32 {
+    a as f32 * (1. / 65536.)
+}
+
+// #[inline]
+// pub(crate) fn uint8_number_to_float(a: u8) -> f32 {
+//     a as f32 / 255.0
+// }
+
+#[inline]
+pub(crate) fn uint8_number_to_float_fast(a: u8) -> f32 {
+    a as f32 * (1. / 255.0)
 }
 
 fn utf16be_to_utf16(slice: &[u8]) -> Vec<u16> {
@@ -530,7 +540,7 @@ impl ColorProfile {
             .ok_or(CmsError::InvalidProfile)?
         };
 
-        let wh = LutWarehouse::MCurves(LutMCurvesType {
+        let wh = LutWarehouse::Multidimensional(LutMultidimensionalType {
             num_input_channels: in_channels,
             num_output_channels: out_channels,
             matrix: transform,
@@ -815,7 +825,7 @@ impl ColorProfile {
         slice: &[u8],
         entry: usize,
         tag_size: usize,
-    ) -> Result<Option<Matrix3f>, CmsError> {
+    ) -> Result<Option<Matrix3d>, CmsError> {
         let last_tag_offset = tag_size.safe_add(entry)?;
         if last_tag_offset > slice.len() {
             return Err(CmsError::InvalidProfile);
@@ -842,10 +852,10 @@ impl ColorProfile {
         if tag.len() != size_of::<Matrix3f>() {
             return Err(CmsError::InvalidProfile);
         }
-        let mut matrix = Matrix3f::default();
+        let mut matrix = Matrix3d::default();
         for (i, chunk) in tag.chunks_exact(4).enumerate() {
             let q15_16_x = i32::from_be_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
-            matrix.v[i / 3][i % 3] = s15_fixed16_number_to_float(q15_16_x);
+            matrix.v[i / 3][i % 3] = s15_fixed16_number_to_double(q15_16_x);
         }
         Ok(Some(matrix))
     }

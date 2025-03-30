@@ -28,15 +28,58 @@
  */
 use crate::math::m_clamp;
 use crate::mlaf::{mlaf, neg_mlaf};
+use crate::reader::uint16_number_to_float_fast;
 use crate::transform::PointeeSizeExpressible;
 use crate::writer::FloatToFixedU8Fixed8;
-use crate::{CmsError, ColorProfile, f_pow, f_powf};
+use crate::{f_pow, f_powf, CmsError, ColorProfile};
 use num_traits::AsPrimitive;
 
 #[derive(Clone, Debug)]
 pub enum ToneReprCurve {
     Lut(Vec<u16>),
     Parametric(Vec<f32>),
+}
+
+impl ToneReprCurve {
+    pub(crate) fn is_linear(&self) -> bool {
+        match &self {
+            ToneReprCurve::Lut(lut) => {
+                if lut.is_empty() {
+                    return true;
+                }
+                if lut.len() == 1 {
+                    let gamma = 1. / u8_fixed_8number_to_float(lut[0]);
+                    if (gamma - 1.).abs() < 1e-4 {
+                        return true;
+                    }
+                }
+                if lut.len() > 1 && lut.len() < 50 {
+                    let mut all_linear = true;
+                    let lut_size = 1. / (lut.len() as f32 - 1.);
+                    for (i, &value) in lut.iter().enumerate() {
+                        let scaled_value = uint16_number_to_float_fast(value as u32);
+                        let current_value = i as f32 * lut_size;
+                        if (scaled_value - current_value).abs() > 1e-5 {
+                            all_linear = false;
+                        }
+                    }
+                    if all_linear {
+                        return true;
+                    }
+                }
+                false
+            }
+            ToneReprCurve::Parametric(parametric) => {
+                if parametric.is_empty() {
+                    return true;
+                }
+                if parametric.len() == 1 && parametric[0] == 1. {
+                    return true;
+                }
+                false
+            }
+        }
+    }
 }
 
 #[allow(clippy::many_single_char_names)]

@@ -32,7 +32,9 @@ use crate::cicp::{
 use crate::dat::ColorDateTime;
 use crate::err::CmsError;
 use crate::matrix::{BT2020_MATRIX, DISPLAY_P3_MATRIX, Matrix3f, SRGB_MATRIX, XyY, Xyz};
-use crate::reader::{s15_fixed16_number_to_float, uint8_number_to_float, uint16_number_to_float};
+use crate::reader::{
+    s15_fixed16_number_to_float, uint8_number_to_float_fast, uint16_number_to_float_fast,
+};
 use crate::safe_reader::{SafeAdd, SafeMul};
 use crate::tag::{TAG_SIZE, Tag};
 use crate::trc::ToneReprCurve;
@@ -238,10 +240,13 @@ pub enum LutStore {
 impl LutStore {
     pub fn to_clut_f32(&self) -> Vec<f32> {
         match self {
-            LutStore::Store8(store) => store.iter().map(|x| uint8_number_to_float(*x)).collect(),
+            LutStore::Store8(store) => store
+                .iter()
+                .map(|x| uint8_number_to_float_fast(*x))
+                .collect(),
             LutStore::Store16(store) => store
                 .iter()
-                .map(|x| uint16_number_to_float(*x as u32))
+                .map(|x| uint16_number_to_float_fast(*x as u32))
                 .collect(),
         }
     }
@@ -471,7 +476,7 @@ impl From<u32> for TechnologySignatures {
 #[derive(Debug, Clone)]
 pub enum LutWarehouse {
     Lut(LutDataType),
-    MCurves(LutMCurvesType),
+    Multidimensional(LutMultidimensionalType),
 }
 
 #[derive(Debug, Clone)]
@@ -507,7 +512,7 @@ impl LutDataType {
 }
 
 #[derive(Debug, Clone)]
-pub struct LutMCurvesType {
+pub struct LutMultidimensionalType {
     pub num_input_channels: u8,
     pub num_output_channels: u8,
     pub grid_points: [u8; 16],
@@ -841,7 +846,7 @@ pub struct ColorProfile {
     pub blue_trc: Option<ToneReprCurve>,
     pub gray_trc: Option<ToneReprCurve>,
     pub cicp: Option<CicpProfile>,
-    pub chromatic_adaptation: Option<Matrix3f>,
+    pub chromatic_adaptation: Option<Matrix3d>,
     pub lut_a_to_b_perceptual: Option<LutWarehouse>,
     pub lut_a_to_b_colorimetric: Option<LutWarehouse>,
     pub lut_a_to_b_saturation: Option<LutWarehouse>,

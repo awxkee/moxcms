@@ -30,9 +30,9 @@ use crate::profile::{LutDataType, ProfileHeader};
 use crate::tag::{TAG_SIZE, Tag, TagTypeDefinition};
 use crate::trc::ToneReprCurve;
 use crate::{
-    CicpProfile, CmsError, ColorDateTime, ColorProfile, LocalizableString, LutMCurvesType,
-    LutStore, LutType, LutWarehouse, Matrix3f, ProfileSignature, ProfileText, ProfileVersion,
-    Vector3f, Xyzd,
+    CicpProfile, CmsError, ColorDateTime, ColorProfile, LocalizableString, LutMultidimensionalType,
+    LutStore, LutType, LutWarehouse, Matrix3d, Matrix3f, ProfileSignature, ProfileText,
+    ProfileVersion, Vector3f, Xyzd,
 };
 
 pub(crate) trait FloatToFixedS15Fixed16 {
@@ -263,15 +263,30 @@ fn write_cicp_entry(into: &mut Vec<u8>, cicp: &CicpProfile) {
     into.push(if cicp.full_range { 1 } else { 0 });
 }
 
-fn write_chad(into: &mut Vec<u8>, matrix: Matrix3f) {
+fn write_chad(into: &mut Vec<u8>, matrix: Matrix3d) {
     let arr_type: u32 = TagTypeDefinition::S15Fixed16Array.into();
     write_u32_be(into, arr_type);
     write_u32_be(into, 0);
-    write_matrix3f(into, matrix);
+    write_matrix3d(into, matrix);
 }
 
 #[inline]
 fn write_matrix3f(into: &mut Vec<u8>, v: Matrix3f) {
+    write_i32_be(into, v.v[0][0].to_s15_fixed16());
+    write_i32_be(into, v.v[0][1].to_s15_fixed16());
+    write_i32_be(into, v.v[0][2].to_s15_fixed16());
+
+    write_i32_be(into, v.v[1][0].to_s15_fixed16());
+    write_i32_be(into, v.v[1][1].to_s15_fixed16());
+    write_i32_be(into, v.v[1][2].to_s15_fixed16());
+
+    write_i32_be(into, v.v[2][0].to_s15_fixed16());
+    write_i32_be(into, v.v[2][1].to_s15_fixed16());
+    write_i32_be(into, v.v[2][2].to_s15_fixed16());
+}
+
+#[inline]
+fn write_matrix3d(into: &mut Vec<u8>, v: Matrix3d) {
     write_i32_be(into, v.v[0][0].to_s15_fixed16());
     write_i32_be(into, v.v[0][1].to_s15_fixed16());
     write_i32_be(into, v.v[0][2].to_s15_fixed16());
@@ -354,7 +369,7 @@ fn write_lut_entry(into: &mut Vec<u8>, lut: &LutDataType) -> Result<usize, CmsEr
 #[inline]
 fn write_mab_entry(
     into: &mut Vec<u8>,
-    lut: &LutMCurvesType,
+    lut: &LutMultidimensionalType,
     is_a_to_b: bool,
 ) -> Result<usize, CmsError> {
     let start = into.len();
@@ -468,7 +483,7 @@ fn write_mab_entry(
 fn write_lut(into: &mut Vec<u8>, lut: &LutWarehouse, is_a_to_b: bool) -> Result<usize, CmsError> {
     match lut {
         LutWarehouse::Lut(lut) => Ok(write_lut_entry(into, lut)?),
-        LutWarehouse::MCurves(mab) => write_mab_entry(into, mab, is_a_to_b),
+        LutWarehouse::Multidimensional(mab) => write_mab_entry(into, mab, is_a_to_b),
     }
 }
 

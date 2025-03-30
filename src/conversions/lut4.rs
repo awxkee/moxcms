@@ -73,35 +73,44 @@ impl Lut4 {
     }
 }
 
-impl Stage for Lut4 {
-    fn transform(&self, src: &[f32], dst: &mut [f32]) -> Result<(), CmsError> {
-        let l_tbl = Array4D::new(&self.clut, self.grid_size as usize);
+macro_rules! define_lut4_dispatch {
+    ($dispatcher: ident) => {
+        impl Stage for $dispatcher {
+            fn transform(&self, src: &[f32], dst: &mut [f32]) -> Result<(), CmsError> {
+                let l_tbl = Array4D::new(&self.clut, self.grid_size as usize);
 
-        // If Source PCS is LAB trilinear should be used
-        if self.pcs == DataColorSpace::Lab {
-            return self.transform_impl(src, dst, |x, y, z, w| l_tbl.quadlinear_vec3(x, y, z, w));
-        }
+                // If Source PCS is LAB trilinear should be used
+                if self.pcs == DataColorSpace::Lab {
+                    return self
+                        .transform_impl(src, dst, |x, y, z, w| l_tbl.quadlinear_vec3(x, y, z, w));
+                }
 
-        match self.interpolation_method {
-            #[cfg(feature = "options")]
-            InterpolationMethod::Tetrahedral => {
-                self.transform_impl(src, dst, |x, y, z, w| l_tbl.tetra_vec3(x, y, z, w))?;
-            }
-            #[cfg(feature = "options")]
-            InterpolationMethod::Pyramid => {
-                self.transform_impl(src, dst, |x, y, z, w| l_tbl.pyramid_vec3(x, y, z, w))?;
-            }
-            #[cfg(feature = "options")]
-            InterpolationMethod::Prism => {
-                self.transform_impl(src, dst, |x, y, z, w| l_tbl.prism_vec3(x, y, z, w))?
-            }
-            InterpolationMethod::Linear => {
-                self.transform_impl(src, dst, |x, y, z, w| l_tbl.quadlinear_vec3(x, y, z, w))?
+                match self.interpolation_method {
+                    #[cfg(feature = "options")]
+                    InterpolationMethod::Tetrahedral => {
+                        self.transform_impl(src, dst, |x, y, z, w| l_tbl.tetra_vec3(x, y, z, w))?;
+                    }
+                    #[cfg(feature = "options")]
+                    InterpolationMethod::Pyramid => {
+                        self.transform_impl(src, dst, |x, y, z, w| l_tbl.pyramid_vec3(x, y, z, w))?;
+                    }
+                    #[cfg(feature = "options")]
+                    InterpolationMethod::Prism => {
+                        self.transform_impl(src, dst, |x, y, z, w| l_tbl.prism_vec3(x, y, z, w))?
+                    }
+                    InterpolationMethod::Linear => {
+                        self.transform_impl(src, dst, |x, y, z, w| {
+                            l_tbl.quadlinear_vec3(x, y, z, w)
+                        })?
+                    }
+                }
+                Ok(())
             }
         }
-        Ok(())
-    }
+    };
 }
+
+define_lut4_dispatch!(Lut4);
 
 fn stage_lut_4x3(
     lut: &LutDataType,
@@ -111,42 +120,46 @@ fn stage_lut_4x3(
     let clut_length: usize = (lut.num_clut_grid_points as usize).pow(lut.num_input_channels as u32)
         * lut.num_output_channels as usize;
 
-    let mut transform = Lut4 {
-        interpolation_method: options.interpolation_method,
-        pcs,
-        ..Default::default()
-    };
-
     let linearization_table = lut.input_table.to_clut_f32();
 
-    transform.linearization[0] =
-        linearization_table[0..lut.num_input_table_entries as usize].to_vec();
-    transform.linearization[1] = linearization_table
+    // There is 4 possible cases:
+    // - All curves are non-linear
+    // - Linearization curves are non-linear, but gamma is linear
+    // - Gamma curves are non-linear, but linearization is linear
+    // - All curves linear
+
+    let lin_curve0 = linearization_table[0..lut.num_input_table_entries as usize].to_vec();
+    let lin_curve1 = linearization_table
         [lut.num_input_table_entries as usize..lut.num_input_table_entries as usize * 2]
         .to_vec();
-    transform.linearization[2] = linearization_table
+    let lin_curve2 = linearization_table
         [lut.num_input_table_entries as usize * 2..lut.num_input_table_entries as usize * 3]
         .to_vec();
-    transform.linearization[3] = linearization_table
+    let lin_curve3 = linearization_table
         [lut.num_input_table_entries as usize * 3..lut.num_input_table_entries as usize * 4]
         .to_vec();
 
-    let clut_table = lut.clut_table.to_clut_f32();
-
-    assert_eq!(clut_length, clut_table.len());
-    transform.clut = clut_table;
-
-    transform.grid_size = lut.num_clut_grid_points;
-
     let gamma_table = lut.output_table.to_clut_f32();
 
-    transform.output[0] = gamma_table[0..lut.num_output_table_entries as usize].to_vec();
-    transform.output[1] = gamma_table
+    let gamma_curve0 = gamma_table[0..lut.num_output_table_entries as usize].to_vec();
+    let gamma_curve1 = gamma_table
         [lut.num_output_table_entries as usize..lut.num_output_table_entries as usize * 2]
         .to_vec();
-    transform.output[2] = gamma_table
+    let gamma_curve2 = gamma_table
         [lut.num_output_table_entries as usize * 2..lut.num_output_table_entries as usize * 3]
         .to_vec();
+
+    let clut_table = lut.clut_table.to_clut_f32();
+    assert_eq!(clut_length, clut_table.len());
+
+    let transform = Lut4 {
+        linearization: [lin_curve0, lin_curve1, lin_curve2, lin_curve3],
+        interpolation_method: options.interpolation_method,
+        pcs,
+        clut: clut_table,
+        grid_size: lut.num_clut_grid_points,
+        output: [gamma_curve0, gamma_curve1, gamma_curve2],
+    };
     Box::new(transform)
 }
 

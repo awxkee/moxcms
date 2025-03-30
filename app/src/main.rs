@@ -107,7 +107,7 @@ fn compute_abs_diff42(src: &[f32], dst: &[f32]) {
 }
 
 fn main() {
-    let funny_icc = fs::read("./assets/srgb_perceptual.icc").unwrap();
+    let funny_icc = fs::read("./assets/us_swop_coated.icc").unwrap();
 
     // println!("{:?}", decoded);
 
@@ -159,6 +159,8 @@ fn main() {
         )
         .unwrap();
 
+    println!("Creating time: {:?}", time.elapsed());
+
     transform.transform(&real_dst, &mut cmyk).unwrap();
 
     let time = Instant::now();
@@ -177,7 +179,7 @@ fn main() {
             },
         )
         .unwrap();
-    println!("Rendering took {:?}", time.elapsed());
+    println!("Creating time 2 took {:?}", time.elapsed());
     let mut dst = vec![0u8; real_dst.len()];
 
     for (src, dst) in cmyk

@@ -98,7 +98,7 @@ pub use oklab::Oklab;
 pub use oklch::Oklch;
 pub use profile::{
     CicpProfile, ColorProfile, DataColorSpace, DescriptionString, LocalizableString,
-    LutMCurvesType, LutStore, LutType, LutWarehouse, Measurement, MeasurementGeometry,
+    LutMultidimensionalType, LutStore, LutType, LutWarehouse, Measurement, MeasurementGeometry,
     ProfileClass, ProfileSignature, ProfileText, ProfileVersion, RenderingIntent,
     StandardIlluminant, StandardObserver, TechnologySignatures, ViewingConditions,
 };
