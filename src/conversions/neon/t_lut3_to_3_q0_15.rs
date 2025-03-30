@@ -80,8 +80,8 @@ where
     u32: AsPrimitive<T>,
     (): LutBarycentricReduction<T, U>,
 {
-    #[inline(always)]
-    fn transform_chunk<'b, Interpolator: NeonMdInterpolationQ0_15<'b, GRID_SIZE>>(
+    #[target_feature(enable = "rdm")]
+    unsafe fn transform_chunk<'b, Interpolator: NeonMdInterpolationQ0_15<'b, GRID_SIZE>>(
         &'b self,
         src: &[T],
         dst: &mut [T],
@@ -92,9 +92,9 @@ where
         let dst_cn = Layout::from(DST_LAYOUT);
         let dst_channels = dst_cn.channels();
 
-        let f_value_scale = unsafe { vdupq_n_f32(1. / ((1 << 14i32) - 1) as f32) };
+        let f_value_scale = vdupq_n_f32(1. / ((1 << 14i32) - 1) as f32);
         let max_value = ((1u32 << BIT_DEPTH) - 1).as_();
-        let v_max_scale = unsafe { vdup_n_s16(((1i32 << BIT_DEPTH) - 1) as i16) };
+        let v_max_scale = vdup_n_s16(((1i32 << BIT_DEPTH) - 1) as i16);
 
         for (src, dst) in src
             .chunks_exact(src_channels)
@@ -118,23 +118,19 @@ where
 
             let tetrahedral = Interpolator::new(&self.lut);
             let v = tetrahedral.inter3_neon(x, y, z, &self.weights);
-            let o = unsafe { vmax_s16(v.v, vdup_n_s16(0)) };
+            let o = vmax_s16(v.v, vdup_n_s16(0));
             if T::FINITE {
-                unsafe {
-                    let r = vmin_s16(o, v_max_scale);
+                let r = vmin_s16(o, v_max_scale);
 
-                    dst[dst_cn.r_i()] = (vget_lane_s16::<0>(r) as u32).as_();
-                    dst[dst_cn.g_i()] = (vget_lane_s16::<1>(r) as u32).as_();
-                    dst[dst_cn.b_i()] = (vget_lane_s16::<2>(r) as u32).as_();
-                }
+                dst[dst_cn.r_i()] = (vget_lane_s16::<0>(r) as u32).as_();
+                dst[dst_cn.g_i()] = (vget_lane_s16::<1>(r) as u32).as_();
+                dst[dst_cn.b_i()] = (vget_lane_s16::<2>(r) as u32).as_();
             } else {
-                unsafe {
-                    let o = vcvtq_f32_s32(vmovl_s16(v.v));
-                    let r = vminq_f32(o, f_value_scale);
-                    dst[dst_cn.r_i()] = vgetq_lane_f32::<0>(r).as_();
-                    dst[dst_cn.g_i()] = vgetq_lane_f32::<1>(r).as_();
-                    dst[dst_cn.b_i()] = vgetq_lane_f32::<2>(r).as_();
-                }
+                let o = vcvtq_f32_s32(vmovl_s16(v.v));
+                let r = vminq_f32(o, f_value_scale);
+                dst[dst_cn.r_i()] = vgetq_lane_f32::<0>(r).as_();
+                dst[dst_cn.g_i()] = vgetq_lane_f32::<1>(r).as_();
+                dst[dst_cn.b_i()] = vgetq_lane_f32::<2>(r).as_();
             }
             if dst_channels == 4 {
                 dst[dst_cn.a_i()] = a;
@@ -186,21 +182,23 @@ where
             return Err(CmsError::LaneSizeMismatch);
         }
 
-        match self.interpolation_method {
-            #[cfg(feature = "options")]
-            InterpolationMethod::Tetrahedral => {
-                self.transform_chunk::<TetrahedralNeonQ0_15<GRID_SIZE>>(src, dst);
-            }
-            #[cfg(feature = "options")]
-            InterpolationMethod::Pyramid => {
-                self.transform_chunk::<PyramidalNeonQ0_15<GRID_SIZE>>(src, dst);
-            }
-            #[cfg(feature = "options")]
-            InterpolationMethod::Prism => {
-                self.transform_chunk::<PrismaticNeonQ0_15<GRID_SIZE>>(src, dst);
-            }
-            InterpolationMethod::Linear => {
-                self.transform_chunk::<TrilinearNeonQ0_15<GRID_SIZE>>(src, dst);
+        unsafe {
+            match self.interpolation_method {
+                #[cfg(feature = "options")]
+                InterpolationMethod::Tetrahedral => {
+                    self.transform_chunk::<TetrahedralNeonQ0_15<GRID_SIZE>>(src, dst);
+                }
+                #[cfg(feature = "options")]
+                InterpolationMethod::Pyramid => {
+                    self.transform_chunk::<PyramidalNeonQ0_15<GRID_SIZE>>(src, dst);
+                }
+                #[cfg(feature = "options")]
+                InterpolationMethod::Prism => {
+                    self.transform_chunk::<PrismaticNeonQ0_15<GRID_SIZE>>(src, dst);
+                }
+                InterpolationMethod::Linear => {
+                    self.transform_chunk::<TrilinearNeonQ0_15<GRID_SIZE>>(src, dst);
+                }
             }
         }
 
