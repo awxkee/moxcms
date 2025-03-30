@@ -229,7 +229,7 @@ impl NeonVectorQ0_15Double {
 }
 
 impl<const GRID_SIZE: usize> Fetcher<NeonVectorQ0_15>
-for TetrahedralNeonQ0_15FetchVector<'_, GRID_SIZE>
+    for TetrahedralNeonQ0_15FetchVector<'_, GRID_SIZE>
 {
     fn fetch(&self, x: i32, y: i32, z: i32) -> NeonVectorQ0_15 {
         let offset = (x as u32 * (GRID_SIZE as u32 * GRID_SIZE as u32)
@@ -243,7 +243,7 @@ for TetrahedralNeonQ0_15FetchVector<'_, GRID_SIZE>
 }
 
 impl<const GRID_SIZE: usize> Fetcher<NeonVectorQ0_15Double>
-for TetrahedralNeonQ0_15FetchVectorDouble<'_, GRID_SIZE>
+    for TetrahedralNeonQ0_15FetchVectorDouble<'_, GRID_SIZE>
 {
     fn fetch(&self, x: i32, y: i32, z: i32) -> NeonVectorQ0_15Double {
         let offset = (x as u32 * (GRID_SIZE as u32 * GRID_SIZE as u32)

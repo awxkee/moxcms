@@ -29,8 +29,8 @@
 use crate::conversions::LutBarycentricReduction;
 use crate::conversions::interpolator::BarycentricWeight;
 use crate::conversions::neon::interpolator_q0_15::{
-    NeonAlignedI16x4, NeonMdInterpolationQ0_15, PrismaticNeonQ0_15, PyramidalNeonQ0_15,
-    TetrahedralNeonQ0_15, TrilinearNeonQ0_15,
+    NeonAlignedI16x4, NeonMdInterpolationQ1_15Double, PrismaticNeonQ0_15Double,
+    PyramidalNeonQ0_15Double, TetrahedralNeonQ0_15Double, TrilinearNeonQ0_15Double,
 };
 use crate::transform::PointeeSizeExpressible;
 use crate::{CmsError, InterpolationMethod, Layout, TransformExecutor};
@@ -38,11 +38,10 @@ use num_traits::AsPrimitive;
 use std::arch::aarch64::*;
 use std::marker::PhantomData;
 
-pub(crate) struct TransformLut3x3NeonQ0_15<
+pub(crate) struct TransformLut4XyzToRgbNeonQ0_15<
     T,
     U,
-    const SRC_LAYOUT: u8,
-    const DST_LAYOUT: u8,
+    const LAYOUT: u8,
     const GRID_SIZE: usize,
     const BIT_DEPTH: usize,
     const BINS: usize,
@@ -58,81 +57,78 @@ pub(crate) struct TransformLut3x3NeonQ0_15<
 impl<
     T: Copy + AsPrimitive<f32> + Default + PointeeSizeExpressible,
     U: AsPrimitive<usize>,
-    const SRC_LAYOUT: u8,
-    const DST_LAYOUT: u8,
+    const LAYOUT: u8,
     const GRID_SIZE: usize,
     const BIT_DEPTH: usize,
     const BINS: usize,
     const BARYCENTRIC_BINS: usize,
->
-    TransformLut3x3NeonQ0_15<
-        T,
-        U,
-        SRC_LAYOUT,
-        DST_LAYOUT,
-        GRID_SIZE,
-        BIT_DEPTH,
-        BINS,
-        BARYCENTRIC_BINS,
-    >
+> TransformLut4XyzToRgbNeonQ0_15<T, U, LAYOUT, GRID_SIZE, BIT_DEPTH, BINS, BARYCENTRIC_BINS>
 where
     f32: AsPrimitive<T>,
     u32: AsPrimitive<T>,
     (): LutBarycentricReduction<T, U>,
 {
     #[target_feature(enable = "rdm")]
-    unsafe fn transform_chunk<'b, Interpolator: NeonMdInterpolationQ0_15<'b, GRID_SIZE>>(
+    unsafe fn transform_chunk<'b, Interpolator: NeonMdInterpolationQ1_15Double<'b, GRID_SIZE>>(
         &'b self,
         src: &[T],
         dst: &mut [T],
     ) {
-        let src_cn = Layout::from(SRC_LAYOUT);
-        let src_channels = src_cn.channels();
-
-        let dst_cn = Layout::from(DST_LAYOUT);
-        let dst_channels = dst_cn.channels();
+        let cn = Layout::from(LAYOUT);
+        let channels = cn.channels();
+        let grid_size = GRID_SIZE as i32;
+        let grid_size3 = grid_size * grid_size * grid_size;
 
         let f_value_scale = vdupq_n_f32(1. / ((1 << 14i32) - 1) as f32);
         let max_value = ((1u32 << BIT_DEPTH) - 1).as_();
         let v_max_scale = vdup_n_s16(((1i32 << BIT_DEPTH) - 1) as i16);
 
-        for (src, dst) in src
-            .chunks_exact(src_channels)
-            .zip(dst.chunks_exact_mut(dst_channels))
-        {
-            let x = <() as LutBarycentricReduction<T, U>>::reduce::<BIT_DEPTH, BARYCENTRIC_BINS>(
-                src[src_cn.r_i()],
+        for (src, dst) in src.chunks_exact(4).zip(dst.chunks_exact_mut(channels)) {
+            let c = <() as LutBarycentricReduction<T, U>>::reduce::<BIT_DEPTH, BARYCENTRIC_BINS>(
+                src[0],
+            );
+            let m = <() as LutBarycentricReduction<T, U>>::reduce::<BIT_DEPTH, BARYCENTRIC_BINS>(
+                src[1],
             );
             let y = <() as LutBarycentricReduction<T, U>>::reduce::<BIT_DEPTH, BARYCENTRIC_BINS>(
-                src[src_cn.g_i()],
+                src[2],
             );
-            let z = <() as LutBarycentricReduction<T, U>>::reduce::<BIT_DEPTH, BARYCENTRIC_BINS>(
-                src[src_cn.b_i()],
+            let k = <() as LutBarycentricReduction<T, U>>::reduce::<BIT_DEPTH, BARYCENTRIC_BINS>(
+                src[3],
             );
 
-            let a = if src_channels == 4 {
-                src[src_cn.a_i()]
-            } else {
-                max_value
-            };
+            let k_weights = self.weights[k.as_()];
 
-            let tetrahedral = Interpolator::new(&self.lut);
-            let v = tetrahedral.inter3_neon(x, y, z, &self.weights);
-            let mut o = vmax_s16(v.v, vdup_n_s16(0));
-            o = vmin_s16(o, v_max_scale);
+            let w: i32 = k_weights.x;
+            let w_n: i32 = k_weights.x_n;
+            let t: i16 = k_weights.w;
+
+            let table1 = &self.lut[(w * grid_size3) as usize..];
+            let table2 = &self.lut[(w_n * grid_size3) as usize..];
+
+            let tetrahedral1 = Interpolator::new(table1, table2);
+            let (a0, b0) = tetrahedral1.inter3_neon(c, m, y, &self.weights);
+            let (a0, b0) = (a0.v, b0.v);
+
+            let t0 = vdup_n_s16(t);
+            let hp = vqrdmlsh_s16(a0, a0, t0);
+            let mut v = vqrdmlah_s16(hp, b0, t0);
+            v = vmax_s16(v, vdup_n_s16(0));
+            v = vmin_s16(v, v_max_scale);
+
             if T::FINITE {
-                dst[dst_cn.r_i()] = (vget_lane_s16::<0>(o) as u32).as_();
-                dst[dst_cn.g_i()] = (vget_lane_s16::<1>(o) as u32).as_();
-                dst[dst_cn.b_i()] = (vget_lane_s16::<2>(o) as u32).as_();
+                dst[cn.r_i()] = (vget_lane_s16::<0>(v) as u32).as_();
+                dst[cn.g_i()] = (vget_lane_s16::<1>(v) as u32).as_();
+                dst[cn.b_i()] = (vget_lane_s16::<2>(v) as u32).as_();
             } else {
-                let o = vcvtq_f32_s32(vmovl_s16(o));
+                let o = vcvtq_f32_s32(vmovl_s16(v));
                 let r = vmulq_f32(o, f_value_scale);
-                dst[dst_cn.r_i()] = vgetq_lane_f32::<0>(r).as_();
-                dst[dst_cn.g_i()] = vgetq_lane_f32::<1>(r).as_();
-                dst[dst_cn.b_i()] = vgetq_lane_f32::<2>(r).as_();
+                dst[cn.r_i()] = vgetq_lane_f32::<0>(r).as_();
+                dst[cn.g_i()] = vgetq_lane_f32::<1>(r).as_();
+                dst[cn.b_i()] = vgetq_lane_f32::<2>(r).as_();
             }
-            if dst_channels == 4 {
-                dst[dst_cn.a_i()] = a;
+            if channels == 4 {
+                dst[cn.a_i()] = max_value;
             }
         }
     }
@@ -141,42 +137,29 @@ where
 impl<
     T: Copy + AsPrimitive<f32> + Default + PointeeSizeExpressible,
     U: AsPrimitive<usize>,
-    const SRC_LAYOUT: u8,
-    const DST_LAYOUT: u8,
+    const LAYOUT: u8,
     const GRID_SIZE: usize,
     const BIT_DEPTH: usize,
     const BINS: usize,
     const BARYCENTRIC_BINS: usize,
 > TransformExecutor<T>
-    for TransformLut3x3NeonQ0_15<
-        T,
-        U,
-        SRC_LAYOUT,
-        DST_LAYOUT,
-        GRID_SIZE,
-        BIT_DEPTH,
-        BINS,
-        BARYCENTRIC_BINS,
-    >
+    for TransformLut4XyzToRgbNeonQ0_15<T, U, LAYOUT, GRID_SIZE, BIT_DEPTH, BINS, BARYCENTRIC_BINS>
 where
     f32: AsPrimitive<T>,
     u32: AsPrimitive<T>,
     (): LutBarycentricReduction<T, U>,
 {
     fn transform(&self, src: &[T], dst: &mut [T]) -> Result<(), CmsError> {
-        let src_cn = Layout::from(SRC_LAYOUT);
-        let src_channels = src_cn.channels();
-
-        let dst_cn = Layout::from(DST_LAYOUT);
-        let dst_channels = dst_cn.channels();
-        if src.len() % src_channels != 0 {
+        let cn = Layout::from(LAYOUT);
+        let channels = cn.channels();
+        if src.len() % 4 != 0 {
             return Err(CmsError::LaneMultipleOfChannels);
         }
-        if dst.len() % dst_channels != 0 {
+        if dst.len() % channels != 0 {
             return Err(CmsError::LaneMultipleOfChannels);
         }
-        let src_chunks = src.len() / src_channels;
-        let dst_chunks = dst.len() / dst_channels;
+        let src_chunks = src.len() / 4;
+        let dst_chunks = dst.len() / channels;
         if src_chunks != dst_chunks {
             return Err(CmsError::LaneSizeMismatch);
         }
@@ -185,18 +168,18 @@ where
             match self.interpolation_method {
                 #[cfg(feature = "options")]
                 InterpolationMethod::Tetrahedral => {
-                    self.transform_chunk::<TetrahedralNeonQ0_15<GRID_SIZE>>(src, dst);
+                    self.transform_chunk::<TetrahedralNeonQ0_15Double<GRID_SIZE>>(src, dst);
                 }
                 #[cfg(feature = "options")]
                 InterpolationMethod::Pyramid => {
-                    self.transform_chunk::<PyramidalNeonQ0_15<GRID_SIZE>>(src, dst);
+                    self.transform_chunk::<PyramidalNeonQ0_15Double<GRID_SIZE>>(src, dst);
                 }
                 #[cfg(feature = "options")]
                 InterpolationMethod::Prism => {
-                    self.transform_chunk::<PrismaticNeonQ0_15<GRID_SIZE>>(src, dst);
+                    self.transform_chunk::<PrismaticNeonQ0_15Double<GRID_SIZE>>(src, dst);
                 }
                 InterpolationMethod::Linear => {
-                    self.transform_chunk::<TrilinearNeonQ0_15<GRID_SIZE>>(src, dst);
+                    self.transform_chunk::<TrilinearNeonQ0_15Double<GRID_SIZE>>(src, dst);
                 }
             }
         }

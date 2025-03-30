@@ -109,7 +109,7 @@ impl BarycentricWeight<i16> {
             let scale = (GRID_SIZE as i32 - 1) as f32 * SCALE;
 
             const Q: f32 = ((1i32 << 15) - 1) as f32;
-            
+
             let dr = ((index as f32 * scale - x as f32) * Q).round() as i16;
             *weight = BarycentricWeight { x, x_n, w: dr };
         }
@@ -118,7 +118,7 @@ impl BarycentricWeight<i16> {
 
     #[cfg(feature = "options")]
     pub(crate) fn create_binned<const GRID_SIZE: usize, const BINS: usize>()
-        -> Box<[BarycentricWeight<i16>; 65536]> {
+    -> Box<[BarycentricWeight<i16>; 65536]> {
         let mut weights = Box::new([BarycentricWeight::<i16>::default(); 65536]);
         let b_scale: f32 = 1.0 / (BINS - 1) as f32;
         for (index, weight) in weights.iter_mut().enumerate().take(BINS) {
