@@ -94,7 +94,11 @@ where
 
         let f_value_scale = vdupq_n_f32(1. / ((1 << 14i32) - 1) as f32);
         let max_value = ((1u32 << BIT_DEPTH) - 1).as_();
-        let v_max_scale = vdup_n_s16(((1i32 << BIT_DEPTH) - 1) as i16);
+        let v_max_scale = if T::FINITE {
+            vdup_n_s16(((1i32 << BIT_DEPTH) - 1) as i16)
+        } else {
+            vdup_n_s16(((1i32 << 14i32) - 1) as i16)
+        };
 
         for (src, dst) in src
             .chunks_exact(src_channels)
