@@ -217,7 +217,10 @@ impl Lut4x3Factory for NeonLut4x3Factory {
         (): LutBarycentricReduction<T, u8>,
         (): LutBarycentricReduction<T, u16>,
     {
-        if options.prefer_fixed_point && BIT_DEPTH < 16 {
+        if options.prefer_fixed_point
+            && BIT_DEPTH < 16
+            && std::arch::is_aarch64_feature_detected!("rdm")
+        {
             let q: f32 = if T::FINITE {
                 ((1i32 << BIT_DEPTH as i32) - 1) as f32
             } else {
