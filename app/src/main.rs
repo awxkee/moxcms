@@ -107,7 +107,7 @@ fn compute_abs_diff42(src: &[f32], dst: &[f32]) {
 }
 
 fn main() {
-    let funny_icc = fs::read("./assets/us_swop_coated.icc").unwrap();
+    let funny_icc = fs::read("./assets/Uncoated_Fogra47L_VIGC_300.icc").unwrap();
 
     // println!("{:?}", decoded);
 
@@ -153,7 +153,7 @@ fn main() {
                 rendering_intent: RenderingIntent::Perceptual,
                 allow_use_cicp_transfer: false,
                 prefer_fixed_point: true,
-                interpolation_method: InterpolationMethod::Pyramid,
+                interpolation_method: InterpolationMethod::Tetrahedral,
                 barycentric_weight_scale: BarycentricWeightScale::Low,
             },
         )
@@ -174,7 +174,7 @@ fn main() {
                 rendering_intent: RenderingIntent::Perceptual,
                 allow_use_cicp_transfer: false,
                 prefer_fixed_point: true,
-                interpolation_method: InterpolationMethod::Pyramid,
+                interpolation_method: InterpolationMethod::Prism,
                 barycentric_weight_scale: BarycentricWeightScale::Low,
             },
         )

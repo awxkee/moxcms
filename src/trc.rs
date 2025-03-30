@@ -31,7 +31,7 @@ use crate::mlaf::{mlaf, neg_mlaf};
 use crate::reader::uint16_number_to_float_fast;
 use crate::transform::PointeeSizeExpressible;
 use crate::writer::FloatToFixedU8Fixed8;
-use crate::{f_pow, f_powf, CmsError, ColorProfile};
+use crate::{CmsError, ColorProfile, f_pow, f_powf};
 use num_traits::AsPrimitive;
 
 #[derive(Clone, Debug)]
@@ -593,12 +593,13 @@ where
     new_table
 }
 
+#[inline]
 pub(crate) fn lut_interp_linear16(input_value: u16, table: &[u16]) -> u16 {
     // Start scaling input_value to the length of the array: 65535*(length-1).
     // We'll divide out the 65535 next
-    let mut value: u32 = input_value as u32 * (table.len() as u32 - 1); // equivalent to ceil(value/65535)
-    let upper: u32 = value.div_ceil(65535); // equivalent to floor(value/65535)
-    let lower: u32 = value / 65535;
+    let mut value: u32 = input_value as u32 * (table.len() as u32 - 1);
+    let upper: u32 = value.div_ceil(65535); // equivalent to ceil(value/65535)
+    let lower: u32 = value / 65535; // equivalent to floor(value/65535)
     // interp is the distance from upper to value scaled to 0..65535
     let interp: u32 = value % 65535; // 0..65535*65535
     value = (table[upper as usize] as u32 * interp

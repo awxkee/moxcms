@@ -31,7 +31,7 @@ use crate::math::{FusedMultiplyAdd, FusedMultiplyNegAdd};
 use crate::mlaf::{mlaf, neg_mlaf};
 use crate::reader::s15_fixed16_number_to_double;
 use num_traits::{AsPrimitive, MulAdd};
-use std::ops::{Add, Div, Mul, Neg, Sub};
+use std::ops::{Add, Div, Mul, Neg, Shr, Sub};
 
 /// Vector math helper
 #[repr(transparent)]
@@ -49,6 +49,7 @@ pub struct Vector4<T> {
 
 pub type Vector4f = Vector4<f32>;
 pub type Vector4d = Vector4<f64>;
+pub type Vector4i = Vector4<i32>;
 
 pub type Vector3f = Vector3<f32>;
 pub type Vector3d = Vector3<f64>;
@@ -94,6 +95,35 @@ where
                 self.v[0] * rhs.v[0],
                 self.v[1] * rhs.v[1],
                 self.v[2] * rhs.v[2],
+            ],
+        }
+    }
+}
+
+impl<T: Copy> Shr<i32> for Vector3<T>
+where
+    T: Shr<i32, Output = T>,
+{
+    type Output = Vector3<T>;
+    fn shr(self, rhs: i32) -> Self::Output {
+        Self {
+            v: [self.v[0] >> rhs, self.v[1] >> rhs, self.v[2] >> rhs],
+        }
+    }
+}
+
+impl<T: Copy> Shr<i32> for Vector4<T>
+where
+    T: Shr<i32, Output = T>,
+{
+    type Output = Vector4<T>;
+    fn shr(self, rhs: i32) -> Self::Output {
+        Self {
+            v: [
+                self.v[0] >> rhs,
+                self.v[1] >> rhs,
+                self.v[2] >> rhs,
+                self.v[3] >> rhs,
             ],
         }
     }

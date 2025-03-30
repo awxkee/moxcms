@@ -27,9 +27,10 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::profile::LutDataType;
-use crate::trc::lut_interp_linear_float;
+use crate::trc::{lut_interp_linear_float, lut_interp_linear16};
 use crate::{
-    Array4D, CmsError, DataColorSpace, InterpolationMethod, Stage, TransformOptions, Vector3f,
+    Array4D, Array4DS16, CmsError, DataColorSpace, InterpolationMethod, LutStore, Stage,
+    TransformOptions, Vector3f, Vector3i,
 };
 
 #[derive(Default)]
@@ -38,6 +39,16 @@ struct Lut4 {
     clut: Vec<f32>,
     grid_size: u8,
     output: [Vec<f32>; 3],
+    interpolation_method: InterpolationMethod,
+    pcs: DataColorSpace,
+}
+
+#[derive(Default)]
+struct Lut4Q16 {
+    linearization: [Vec<u16>; 4],
+    clut: Vec<u16>,
+    grid_size: u8,
+    output: [Vec<u16>; 3],
     interpolation_method: InterpolationMethod,
     pcs: DataColorSpace,
 }
@@ -68,6 +79,37 @@ impl Lut4 {
             dest[0] = pcs_x;
             dest[1] = pcs_y;
             dest[2] = pcs_z;
+        }
+        Ok(())
+    }
+}
+
+impl Lut4Q16 {
+    fn transform_impl<Fetch: Fn(u16, u16, u16, u16) -> Vector3i>(
+        &self,
+        src: &[f32],
+        dst: &mut [f32],
+        fetch: Fetch,
+    ) -> Result<(), CmsError> {
+        let linearization_0 = &self.linearization[0];
+        let linearization_1 = &self.linearization[1];
+        let linearization_2 = &self.linearization[2];
+        let linearization_3 = &self.linearization[3];
+        for (dest, src) in dst.chunks_exact_mut(3).zip(src.chunks_exact(4)) {
+            debug_assert!(self.grid_size as i32 >= 1);
+            let linear_x = lut_interp_linear16((src[0] * 65535. + 0.5) as u16, linearization_0);
+            let linear_y = lut_interp_linear16((src[1] * 65535. + 0.5) as u16, linearization_1);
+            let linear_z = lut_interp_linear16((src[2] * 65535. + 0.5) as u16, linearization_2);
+            let linear_w = lut_interp_linear16((src[3] * 65535. + 0.5) as u16, linearization_3);
+
+            let clut = fetch(linear_x, linear_y, linear_z, linear_w);
+
+            let pcs_x = lut_interp_linear16(clut.v[0].max(0).min(65535) as u16, &self.output[0]);
+            let pcs_y = lut_interp_linear16(clut.v[1].max(0).min(65535) as u16, &self.output[1]);
+            let pcs_z = lut_interp_linear16(clut.v[2].max(0).min(65535) as u16, &self.output[2]);
+            dest[0] = pcs_x as f32 * (1. / 65535.);
+            dest[1] = pcs_y as f32 * (1. / 65535.);
+            dest[2] = pcs_z as f32 * (1. / 65535.);
         }
         Ok(())
     }
@@ -110,23 +152,107 @@ macro_rules! define_lut4_dispatch {
     };
 }
 
+impl Stage for Lut4Q16 {
+    fn transform(&self, src: &[f32], dst: &mut [f32]) -> Result<(), CmsError> {
+        let l_tbl = Array4DS16::new(&self.clut, self.grid_size as usize);
+
+        // If Source PCS is LAB trilinear should be used
+        if self.pcs == DataColorSpace::Lab {
+            return self.transform_impl(src, dst, |x, y, z, w| l_tbl.quadlinear_vec3(x, y, z, w));
+        }
+
+        match self.interpolation_method {
+            #[cfg(feature = "options")]
+            InterpolationMethod::Tetrahedral => {
+                self.transform_impl(src, dst, |x, y, z, w| l_tbl.tetra_vec3(x, y, z, w))?;
+            }
+            #[cfg(feature = "options")]
+            InterpolationMethod::Pyramid => {
+                self.transform_impl(src, dst, |x, y, z, w| l_tbl.pyramid_vec3(x, y, z, w))?;
+            }
+            #[cfg(feature = "options")]
+            InterpolationMethod::Prism => {
+                self.transform_impl(src, dst, |x, y, z, w| l_tbl.prism_vec3(x, y, z, w))?
+            }
+            InterpolationMethod::Linear => {
+                self.transform_impl(src, dst, |x, y, z, w| l_tbl.quadlinear_vec3(x, y, z, w))?
+            }
+        }
+        Ok(())
+    }
+}
+
 define_lut4_dispatch!(Lut4);
 
 fn stage_lut_4x3(
     lut: &LutDataType,
     options: TransformOptions,
     pcs: DataColorSpace,
-) -> Box<dyn Stage> {
-    let clut_length: usize = (lut.num_clut_grid_points as usize).pow(lut.num_input_channels as u32)
-        * lut.num_output_channels as usize;
-
-    let linearization_table = lut.input_table.to_clut_f32();
-
+) -> Result<Box<dyn Stage>, CmsError> {
     // There is 4 possible cases:
     // - All curves are non-linear
     // - Linearization curves are non-linear, but gamma is linear
     // - Gamma curves are non-linear, but linearization is linear
     // - All curves linear
+    // Currently not optimized
+    if matches!(lut.clut_table, LutStore::Store16(_)) {
+        let clut_length: usize = (lut.num_clut_grid_points as usize)
+            .pow(lut.num_input_channels as u32)
+            * lut.num_output_channels as usize;
+
+        let lin_table = if let LutStore::Store16(v) = &lut.input_table {
+            v
+        } else {
+            return Err(CmsError::LUTTablesInvalidKind);
+        };
+
+        let lin_curve0 = lin_table[0..lut.num_input_table_entries as usize].to_vec();
+        let lin_curve1 = lin_table
+            [lut.num_input_table_entries as usize..lut.num_input_table_entries as usize * 2]
+            .to_vec();
+        let lin_curve2 = lin_table
+            [lut.num_input_table_entries as usize * 2..lut.num_input_table_entries as usize * 3]
+            .to_vec();
+        let lin_curve3 = lin_table
+            [lut.num_input_table_entries as usize * 3..lut.num_input_table_entries as usize * 4]
+            .to_vec();
+
+        let gamma_table = if let LutStore::Store16(v) = &lut.output_table {
+            v
+        } else {
+            return Err(CmsError::LUTTablesInvalidKind);
+        };
+
+        let gamma_curve0 = gamma_table[0..lut.num_output_table_entries as usize].to_vec();
+        let gamma_curve1 = gamma_table
+            [lut.num_output_table_entries as usize..lut.num_output_table_entries as usize * 2]
+            .to_vec();
+        let gamma_curve2 = gamma_table
+            [lut.num_output_table_entries as usize * 2..lut.num_output_table_entries as usize * 3]
+            .to_vec();
+
+        let clut_table = if let LutStore::Store16(v) = &lut.clut_table {
+            v
+        } else {
+            return Err(CmsError::LUTTablesInvalidKind);
+        };
+
+        assert_eq!(clut_length, clut_table.len());
+
+        let transform = Lut4Q16 {
+            linearization: [lin_curve0, lin_curve1, lin_curve2, lin_curve3],
+            interpolation_method: options.interpolation_method,
+            pcs,
+            clut: clut_table.clone(),
+            grid_size: lut.num_clut_grid_points,
+            output: [gamma_curve0, gamma_curve1, gamma_curve2],
+        };
+        return Ok(Box::new(transform));
+    }
+    let clut_length: usize = (lut.num_clut_grid_points as usize).pow(lut.num_input_channels as u32)
+        * lut.num_output_channels as usize;
+
+    let linearization_table = lut.input_table.to_clut_f32();
 
     let lin_curve0 = linearization_table[0..lut.num_input_table_entries as usize].to_vec();
     let lin_curve1 = linearization_table
@@ -160,7 +286,7 @@ fn stage_lut_4x3(
         grid_size: lut.num_clut_grid_points,
         output: [gamma_curve0, gamma_curve1, gamma_curve2],
     };
-    Box::new(transform)
+    Ok(Box::new(transform))
 }
 
 pub(crate) fn create_lut4_norm_samples<const SAMPLES: usize>() -> Vec<f32> {
@@ -197,7 +323,7 @@ pub(crate) fn create_lut4<const SAMPLES: usize>(
     let src = create_lut4_norm_samples::<SAMPLES>();
     let mut dest = vec![0.; (lut_size as usize) / 4 * 3];
 
-    let lut_stage = stage_lut_4x3(lut, options, pcs);
+    let lut_stage = stage_lut_4x3(lut, options, pcs)?;
     lut_stage.transform(&src, &mut dest)?;
     Ok(dest)
 }
