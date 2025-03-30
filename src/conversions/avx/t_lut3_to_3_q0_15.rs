@@ -27,10 +27,7 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::conversions::LutBarycentricReduction;
-use crate::conversions::avx::interpolator_q0_15::{
-    AvxAlignedI16, AvxMdInterpolationQ0_15, PrismaticAvxQ0_15, PyramidalAvxQ0_15,
-    TetrahedralAvxQ0_15, TrilinearAvxQ0_15,
-};
+use crate::conversions::avx::interpolator_q0_15::*;
 use crate::conversions::interpolator::BarycentricWeight;
 use crate::transform::PointeeSizeExpressible;
 use crate::{CmsError, InterpolationMethod, Layout, TransformExecutor};

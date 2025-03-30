@@ -28,10 +28,7 @@
  */
 use crate::conversions::LutBarycentricReduction;
 use crate::conversions::interpolator::BarycentricWeight;
-use crate::conversions::sse::interpolator_q0_15::{
-    PrismaticSseQ0_15, PyramidalSseQ0_15, SseAlignedI16x4, SseMdInterpolationQ0_15,
-    TetrahedralSseQ0_15, TrilinearSseQ0_15,
-};
+use crate::conversions::sse::interpolator_q0_15::*;
 use crate::transform::PointeeSizeExpressible;
 use crate::{CmsError, InterpolationMethod, Layout, TransformExecutor};
 use num_traits::AsPrimitive;

@@ -28,10 +28,7 @@
  */
 use crate::conversions::LutBarycentricReduction;
 use crate::conversions::interpolator::BarycentricWeight;
-use crate::conversions::neon::interpolator_q0_15::{
-    NeonAlignedI16x4, NeonMdInterpolationQ1_15Double, PrismaticNeonQ0_15Double,
-    PyramidalNeonQ0_15Double, TetrahedralNeonQ0_15Double, TrilinearNeonQ0_15Double,
-};
+use crate::conversions::neon::interpolator_q0_15::*;
 use crate::transform::PointeeSizeExpressible;
 use crate::{CmsError, InterpolationMethod, Layout, TransformExecutor};
 use num_traits::AsPrimitive;
