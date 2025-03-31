@@ -340,13 +340,15 @@ pub(crate) fn prepare_mab_3x3(
             return Err(CmsError::LUTTablesInvalidKind);
         }
 
+        let all_curves_linear = mab.a_curves.iter().all(|curve| curve.is_linear());
+        let grid_size = [mab.grid_points[0], mab.grid_points[1], mab.grid_points[2]];
+
         #[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
-        if mab.a_curves[0].is_linear() && mab.a_curves[1].is_linear() && mab.a_curves[2].is_linear()
-        {
+        if all_curves_linear {
             use crate::conversions::neon::ACurves3OptimizedNeon;
             let a_curves = ACurves3OptimizedNeon {
                 clut,
-                grid_size: [mab.grid_points[0], mab.grid_points[1], mab.grid_points[2]],
+                grid_size,
                 interpolation_method: options.interpolation_method,
                 pcs,
             };
@@ -367,7 +369,7 @@ pub(crate) fn prepare_mab_3x3(
                 curve1,
                 curve2,
                 clut,
-                grid_size: [mab.grid_points[0], mab.grid_points[1], mab.grid_points[2]],
+                grid_size,
                 interpolation_method: options.interpolation_method,
                 pcs,
             };
@@ -375,35 +377,89 @@ pub(crate) fn prepare_mab_3x3(
         }
 
         #[cfg(not(all(target_arch = "aarch64", target_feature = "neon", feature = "neon")))]
-        if mab.a_curves[0].is_linear() && mab.a_curves[1].is_linear() && mab.a_curves[2].is_linear()
         {
-            let a_curves = ACurves3Optimized {
-                clut,
-                grid_size: [mab.grid_points[0], mab.grid_points[1], mab.grid_points[2]],
-                interpolation_method: options.interpolation_method,
-                pcs,
-            };
-            a_curves.transform(lut)?;
-        } else {
-            let curve0 = mab.a_curves[0]
-                .build_linearize_table::<u16, LERP_DEPTH, BP>()
-                .ok_or(CmsError::InvalidTrcCurve)?;
-            let curve1 = mab.a_curves[1]
-                .build_linearize_table::<u16, LERP_DEPTH, BP>()
-                .ok_or(CmsError::InvalidTrcCurve)?;
-            let curve2 = mab.a_curves[2]
-                .build_linearize_table::<u16, LERP_DEPTH, BP>()
-                .ok_or(CmsError::InvalidTrcCurve)?;
-            let a_curves = ACurves3::<DEPTH> {
-                curve0,
-                curve1,
-                curve2,
-                clut,
-                grid_size: [mab.grid_points[0], mab.grid_points[1], mab.grid_points[2]],
-                interpolation_method: options.interpolation_method,
-                pcs,
-            };
-            a_curves.transform(lut)?;
+            let mut execution_box: Option<Box<dyn InPlaceStage>> = None;
+
+            if all_curves_linear {
+                #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "avx"))]
+                {
+                    use crate::conversions::avx::ACurves3OptimizedAvxFma;
+                    if std::arch::is_x86_feature_detected!("avx2")
+                        && std::arch::is_x86_feature_detected!("fma")
+                    {
+                        execution_box = Some(Box::new(ACurves3OptimizedAvxFma {
+                            clut,
+                            grid_size,
+                            interpolation_method: options.interpolation_method,
+                            pcs,
+                        }));
+                    }
+                }
+                if execution_box.is_none() {
+                    execution_box = Some(Box::new(ACurves3Optimized {
+                        clut,
+                        grid_size,
+                        interpolation_method: options.interpolation_method,
+                        pcs,
+                    }));
+                }
+            } else {
+                #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "avx"))]
+                {
+                    use crate::conversions::avx::ACurves3AvxFma;
+                    if std::arch::is_x86_feature_detected!("avx2")
+                        && std::arch::is_x86_feature_detected!("fma")
+                    {
+                        let curves: Result<Vec<_>, _> = mab
+                            .a_curves
+                            .iter()
+                            .map(|c| {
+                                c.build_linearize_table::<u16, LERP_DEPTH, BP>()
+                                    .ok_or(CmsError::InvalidTrcCurve)
+                            })
+                            .collect();
+
+                        let [curve0, curve1, curve2] =
+                            curves?.try_into().map_err(|_| CmsError::InvalidTrcCurve)?;
+                        execution_box = Some(Box::new(ACurves3AvxFma::<DEPTH> {
+                            curve0,
+                            curve1,
+                            curve2,
+                            clut,
+                            grid_size,
+                            interpolation_method: options.interpolation_method,
+                            pcs,
+                        }));
+                    }
+                }
+
+                if execution_box.is_none() {
+                    let curves: Result<Vec<_>, _> = mab
+                        .a_curves
+                        .iter()
+                        .map(|c| {
+                            c.build_linearize_table::<u16, LERP_DEPTH, BP>()
+                                .ok_or(CmsError::InvalidTrcCurve)
+                        })
+                        .collect();
+
+                    let [curve0, curve1, curve2] =
+                        curves?.try_into().map_err(|_| CmsError::InvalidTrcCurve)?;
+                    execution_box = Some(Box::new(ACurves3::<DEPTH> {
+                        curve0,
+                        curve1,
+                        curve2,
+                        clut,
+                        grid_size,
+                        interpolation_method: options.interpolation_method,
+                        pcs,
+                    }));
+                }
+            }
+
+            execution_box
+                .expect("LUT Sampler on Multidimensional 3x3 must be set")
+                .transform(lut)?;
         }
     }
 
@@ -543,69 +599,129 @@ pub(crate) fn prepare_mba_3x3(
         if clut.len() != lut_grid {
             return Err(CmsError::LUTTablesInvalidKind);
         }
+
+        let all_curves_linear = mab.a_curves.iter().all(|curve| curve.is_linear());
+        let grid_size = [mab.grid_points[0], mab.grid_points[1], mab.grid_points[2]];
+
         #[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
-        if mab.a_curves[0].is_linear() && mab.a_curves[1].is_linear() && mab.a_curves[2].is_linear()
-        {
+        if all_curves_linear {
             use crate::conversions::neon::ACurves3OptimizedNeon;
             let a_curves = ACurves3OptimizedNeon {
                 clut,
-                grid_size: [mab.grid_points[0], mab.grid_points[1], mab.grid_points[2]],
+                grid_size,
                 interpolation_method: options.interpolation_method,
                 pcs,
             };
             a_curves.transform(lut)?;
         } else {
             use crate::conversions::neon::ACurves3InverseNeon;
-            let curve0 = mab.a_curves[0]
-                .build_linearize_table::<u16, LERP_DEPTH, BP>()
-                .ok_or(CmsError::InvalidTrcCurve)?;
-            let curve1 = mab.a_curves[1]
-                .build_linearize_table::<u16, LERP_DEPTH, BP>()
-                .ok_or(CmsError::InvalidTrcCurve)?;
-            let curve2 = mab.a_curves[2]
-                .build_linearize_table::<u16, LERP_DEPTH, BP>()
-                .ok_or(CmsError::InvalidTrcCurve)?;
+            let curves: Result<Vec<_>, _> = mab
+                .a_curves
+                .iter()
+                .map(|c| {
+                    c.build_linearize_table::<u16, LERP_DEPTH, BP>()
+                        .ok_or(CmsError::InvalidTrcCurve)
+                })
+                .collect();
+
+            let [curve0, curve1, curve2] =
+                curves?.try_into().map_err(|_| CmsError::InvalidTrcCurve)?;
             let a_curves = ACurves3InverseNeon::<DEPTH> {
                 curve0,
                 curve1,
                 curve2,
                 clut,
-                grid_size: [mab.grid_points[0], mab.grid_points[1], mab.grid_points[2]],
+                grid_size,
                 interpolation_method: options.interpolation_method,
                 pcs,
             };
             a_curves.transform(lut)?;
         }
         #[cfg(not(all(target_arch = "aarch64", target_feature = "neon", feature = "neon")))]
-        if mab.a_curves[0].is_linear() && mab.a_curves[1].is_linear() && mab.a_curves[2].is_linear()
         {
-            let a_curves = ACurves3Optimized {
-                clut,
-                grid_size: [mab.grid_points[0], mab.grid_points[1], mab.grid_points[2]],
-                interpolation_method: options.interpolation_method,
-                pcs,
-            };
-            a_curves.transform(lut)?;
-        } else {
-            let curve0 = mab.a_curves[0]
-                .build_linearize_table::<u16, LERP_DEPTH, BP>()
-                .ok_or(CmsError::InvalidTrcCurve)?;
-            let curve1 = mab.a_curves[1]
-                .build_linearize_table::<u16, LERP_DEPTH, BP>()
-                .ok_or(CmsError::InvalidTrcCurve)?;
-            let curve2 = mab.a_curves[2]
-                .build_linearize_table::<u16, LERP_DEPTH, BP>()
-                .ok_or(CmsError::InvalidTrcCurve)?;
-            let a_curves = ACurves3Inverse::<DEPTH> {
-                curve0,
-                curve1,
-                curve2,
-                clut,
-                grid_size: [mab.grid_points[0], mab.grid_points[1], mab.grid_points[2]],
-                interpolation_method: options.interpolation_method,
-                pcs,
-            };
-            a_curves.transform(lut)?;
+            let mut execution_box: Option<Box<dyn InPlaceStage>> = None;
+
+            if all_curves_linear {
+                #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "avx"))]
+                {
+                    use crate::conversions::avx::ACurves3OptimizedAvxFma;
+                    if std::arch::is_x86_feature_detected!("avx2")
+                        && std::arch::is_x86_feature_detected!("fma")
+                    {
+                        execution_box = Some(Box::new(ACurves3OptimizedAvxFma {
+                            clut,
+                            grid_size,
+                            interpolation_method: options.interpolation_method,
+                            pcs,
+                        }));
+                    }
+                }
+
+                if execution_box.is_none() {
+                    execution_box = Some(Box::new(ACurves3Optimized {
+                        clut,
+                        grid_size,
+                        interpolation_method: options.interpolation_method,
+                        pcs,
+                    }));
+                }
+            } else {
+                #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "avx"))]
+                {
+                    use crate::conversions::avx::ACurves3InverseAvxFma;
+                    if std::arch::is_x86_feature_detected!("avx2")
+                        && std::arch::is_x86_feature_detected!("fma")
+                    {
+                        let curves: Result<Vec<_>, _> = mab
+                            .a_curves
+                            .iter()
+                            .map(|c| {
+                                c.build_linearize_table::<u16, LERP_DEPTH, BP>()
+                                    .ok_or(CmsError::InvalidTrcCurve)
+                            })
+                            .collect();
+
+                        let [curve0, curve1, curve2] =
+                            curves?.try_into().map_err(|_| CmsError::InvalidTrcCurve)?;
+                        execution_box = Some(Box::new(ACurves3InverseAvxFma::<DEPTH> {
+                            curve0,
+                            curve1,
+                            curve2,
+                            clut,
+                            grid_size,
+                            interpolation_method: options.interpolation_method,
+                            pcs,
+                        }));
+                    }
+                }
+
+                if execution_box.is_none() {
+                    let curves: Result<Vec<_>, _> = mab
+                        .a_curves
+                        .iter()
+                        .map(|c| {
+                            c.build_linearize_table::<u16, LERP_DEPTH, BP>()
+                                .ok_or(CmsError::InvalidTrcCurve)
+                        })
+                        .collect();
+
+                    let [curve0, curve1, curve2] =
+                        curves?.try_into().map_err(|_| CmsError::InvalidTrcCurve)?;
+                    execution_box = Some(Box::new(ACurves3Inverse::<DEPTH> {
+                        curve0,
+                        curve1,
+                        curve2,
+                        clut,
+                        grid_size,
+                        interpolation_method: options.interpolation_method,
+                        pcs,
+                    }));
+                }
+            }
+
+            execution_box
+                .expect("LUT Sampler on Multidimensional Inverse 3x3 must be set")
+                .transform(lut)?;
         }
     }
 

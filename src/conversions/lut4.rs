@@ -31,6 +31,7 @@ use crate::trc::lut_interp_linear_float;
 use crate::{
     CmsError, DataColorSpace, Hypercube, InterpolationMethod, Stage, TransformOptions, Vector3f,
 };
+use std::time::Instant;
 
 #[allow(unused)]
 #[derive(Default)]
@@ -171,6 +172,23 @@ fn stage_lut_4x3(
     }
     #[cfg(not(all(target_arch = "aarch64", target_feature = "neon", feature = "neon")))]
     {
+        #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "avx"))]
+        {
+            use crate::conversions::avx::Lut4x3AvxFma;
+            if std::arch::is_x86_feature_detected!("avx2")
+                && std::arch::is_x86_feature_detected!("fma")
+            {
+                let transform = Lut4x3AvxFma {
+                    linearization: [lin_curve0, lin_curve1, lin_curve2, lin_curve3],
+                    interpolation_method: options.interpolation_method,
+                    pcs,
+                    clut: clut_table,
+                    grid_size: lut.num_clut_grid_points,
+                    output: [gamma_curve0, gamma_curve1, gamma_curve2],
+                };
+                return Ok(Box::new(transform));
+            }
+        }
         let transform = Lut4x3 {
             linearization: [lin_curve0, lin_curve1, lin_curve2, lin_curve3],
             interpolation_method: options.interpolation_method,
@@ -218,6 +236,8 @@ pub(crate) fn create_lut4<const SAMPLES: usize>(
     let mut dest = vec![0.; (lut_size as usize) / 4 * 3];
 
     let lut_stage = stage_lut_4x3(lut, options, pcs)?;
+    let exec = Instant::now();
     lut_stage.transform(&src, &mut dest)?;
+    println!("Execution time: {:?}", exec.elapsed());
     Ok(dest)
 }

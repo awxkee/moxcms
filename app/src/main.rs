@@ -107,7 +107,7 @@ fn compute_abs_diff42(src: &[f32], dst: &[f32]) {
 }
 
 fn main() {
-    let funny_icc = fs::read("./assets/us_swop_coated.icc").unwrap();
+    let funny_icc = fs::read("./assets/srgb_perceptual.icc").unwrap();
 
     // println!("{:?}", decoded);
 
@@ -164,6 +164,23 @@ fn main() {
     transform.transform(&real_dst, &mut cmyk).unwrap();
 
     let time = Instant::now();
+
+    for i in 0..150 {
+        _ = funny_profile
+            .create_transform_8bit(
+                Layout::Rgba,
+                &out_profile,
+                Layout::Rgba,
+                TransformOptions {
+                    rendering_intent: RenderingIntent::Perceptual,
+                    allow_use_cicp_transfer: false,
+                    prefer_fixed_point: true,
+                    interpolation_method: InterpolationMethod::Prism,
+                    barycentric_weight_scale: BarycentricWeightScale::Low,
+                },
+            )
+            .unwrap();
+    }
 
     let transform = funny_profile
         .create_transform_8bit(
