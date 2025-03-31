@@ -31,7 +31,6 @@ use crate::trc::lut_interp_linear_float;
 use crate::{
     CmsError, DataColorSpace, Hypercube, InterpolationMethod, Stage, TransformOptions, Vector3f,
 };
-use std::time::Instant;
 
 #[allow(unused)]
 #[derive(Default)]
@@ -236,8 +235,6 @@ pub(crate) fn create_lut4<const SAMPLES: usize>(
     let mut dest = vec![0.; (lut_size as usize) / 4 * 3];
 
     let lut_stage = stage_lut_4x3(lut, options, pcs)?;
-    let exec = Instant::now();
     lut_stage.transform(&src, &mut dest)?;
-    println!("Execution time: {:?}", exec.elapsed());
     Ok(dest)
 }

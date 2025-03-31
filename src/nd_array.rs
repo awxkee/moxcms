@@ -27,8 +27,23 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::math::{FusedMultiplyAdd, FusedMultiplyNegAdd};
+use crate::mlaf::{mlaf, neg_mlaf};
 use crate::{Vector3f, Vector4f};
 use std::ops::{Add, Mul, Sub};
+
+impl FusedMultiplyAdd<f32> for f32 {
+    #[inline(always)]
+    fn mla(&self, b: f32, c: f32) -> f32 {
+        mlaf(*self, b, c)
+    }
+}
+
+impl FusedMultiplyNegAdd<f32> for f32 {
+    #[inline(always)]
+    fn neg_mla(&self, b: f32, c: f32) -> f32 {
+        neg_mlaf(*self, b, c)
+    }
+}
 
 #[inline(always)]
 pub(crate) fn lerp<
