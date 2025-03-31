@@ -28,10 +28,11 @@
  */
 use crate::mlaf::mlaf;
 use crate::{
-    Array3D, CmsError, DataColorSpace, InPlaceStage, InterpolationMethod, LutMultidimensionalType,
+    CmsError, Cube, DataColorSpace, InPlaceStage, InterpolationMethod, LutMultidimensionalType,
     Matrix3f, TransformOptions, Vector3f,
 };
 
+#[allow(unused)]
 struct ACurves3<'a, const DEPTH: usize> {
     curve0: Box<[f32; 65536]>,
     curve1: Box<[f32; 65536]>,
@@ -42,6 +43,7 @@ struct ACurves3<'a, const DEPTH: usize> {
     pcs: DataColorSpace,
 }
 
+#[allow(unused)]
 struct ACurves3Optimized<'a> {
     clut: &'a [f32],
     grid_size: [u8; 3],
@@ -49,6 +51,7 @@ struct ACurves3Optimized<'a> {
     pcs: DataColorSpace,
 }
 
+#[allow(unused)]
 impl<const DEPTH: usize> ACurves3<'_, DEPTH> {
     fn transform_impl<Fetch: Fn(f32, f32, f32) -> Vector3f>(
         &self,
@@ -73,6 +76,7 @@ impl<const DEPTH: usize> ACurves3<'_, DEPTH> {
     }
 }
 
+#[allow(unused)]
 impl ACurves3Optimized<'_> {
     fn transform_impl<Fetch: Fn(f32, f32, f32) -> Vector3f>(
         &self,
@@ -94,7 +98,7 @@ impl ACurves3Optimized<'_> {
 
 impl<const DEPTH: usize> InPlaceStage for ACurves3<'_, DEPTH> {
     fn transform(&self, dst: &mut [f32]) -> Result<(), CmsError> {
-        let lut = Array3D::new_hexahedron(self.clut, self.grid_size);
+        let lut = Cube::new_cube(self.clut, self.grid_size);
 
         // If PCS is LAB then linear interpolation should be used
         if self.pcs == DataColorSpace::Lab {
@@ -124,7 +128,7 @@ impl<const DEPTH: usize> InPlaceStage for ACurves3<'_, DEPTH> {
 
 impl InPlaceStage for ACurves3Optimized<'_> {
     fn transform(&self, dst: &mut [f32]) -> Result<(), CmsError> {
-        let lut = Array3D::new_hexahedron(self.clut, self.grid_size);
+        let lut = Cube::new_cube(self.clut, self.grid_size);
 
         // If PCS is LAB then linear interpolation should be used
         if self.pcs == DataColorSpace::Lab {
@@ -152,6 +156,7 @@ impl InPlaceStage for ACurves3Optimized<'_> {
     }
 }
 
+#[allow(unused)]
 struct ACurves3Inverse<'a, const DEPTH: usize> {
     curve0: Box<[f32; 65536]>,
     curve1: Box<[f32; 65536]>,
@@ -162,6 +167,7 @@ struct ACurves3Inverse<'a, const DEPTH: usize> {
     pcs: DataColorSpace,
 }
 
+#[allow(unused)]
 impl<const DEPTH: usize> ACurves3Inverse<'_, DEPTH> {
     fn transform_impl<Fetch: Fn(f32, f32, f32) -> Vector3f>(
         &self,
@@ -188,7 +194,7 @@ impl<const DEPTH: usize> ACurves3Inverse<'_, DEPTH> {
 
 impl<const DEPTH: usize> InPlaceStage for ACurves3Inverse<'_, DEPTH> {
     fn transform(&self, dst: &mut [f32]) -> Result<(), CmsError> {
-        let lut = Array3D::new_hexahedron(self.clut, self.grid_size);
+        let lut = Cube::new_cube(self.clut, self.grid_size);
 
         // If PCS is LAB then linear interpolation should be used
         if self.pcs == DataColorSpace::Lab {
@@ -326,6 +332,49 @@ pub(crate) fn prepare_mab_3x3(
     }
     if mab.a_curves.len() == 3 && mab.clut.is_some() {
         let clut = &mab.clut.as_ref().map(|x| x.to_clut_f32()).unwrap();
+        let lut_grid = mab.grid_points[0] as usize
+            * mab.grid_points[1] as usize
+            * mab.grid_points[2] as usize
+            * mab.num_output_channels as usize;
+        if clut.len() != lut_grid {
+            return Err(CmsError::LUTTablesInvalidKind);
+        }
+
+        #[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
+        if mab.a_curves[0].is_linear() && mab.a_curves[1].is_linear() && mab.a_curves[2].is_linear()
+        {
+            use crate::conversions::neon::ACurves3OptimizedNeon;
+            let a_curves = ACurves3OptimizedNeon {
+                clut,
+                grid_size: [mab.grid_points[0], mab.grid_points[1], mab.grid_points[2]],
+                interpolation_method: options.interpolation_method,
+                pcs,
+            };
+            a_curves.transform(lut)?;
+        } else {
+            use crate::conversions::neon::ACurves3Neon;
+            let curve0 = mab.a_curves[0]
+                .build_linearize_table::<u16, LERP_DEPTH, BP>()
+                .ok_or(CmsError::InvalidTrcCurve)?;
+            let curve1 = mab.a_curves[1]
+                .build_linearize_table::<u16, LERP_DEPTH, BP>()
+                .ok_or(CmsError::InvalidTrcCurve)?;
+            let curve2 = mab.a_curves[2]
+                .build_linearize_table::<u16, LERP_DEPTH, BP>()
+                .ok_or(CmsError::InvalidTrcCurve)?;
+            let a_curves = ACurves3Neon::<DEPTH> {
+                curve0,
+                curve1,
+                curve2,
+                clut,
+                grid_size: [mab.grid_points[0], mab.grid_points[1], mab.grid_points[2]],
+                interpolation_method: options.interpolation_method,
+                pcs,
+            };
+            a_curves.transform(lut)?;
+        }
+
+        #[cfg(not(all(target_arch = "aarch64", target_feature = "neon", feature = "neon")))]
         if mab.a_curves[0].is_linear() && mab.a_curves[1].is_linear() && mab.a_curves[2].is_linear()
         {
             let a_curves = ACurves3Optimized {
@@ -358,34 +407,33 @@ pub(crate) fn prepare_mab_3x3(
         }
     }
 
-    if mab.m_curves.len() == 3 {
-        if !mab.m_curves[0].is_linear()
+    if mab.m_curves.len() == 3
+        && (!mab.m_curves[0].is_linear()
             || !mab.m_curves[1].is_linear()
             || !mab.m_curves[2].is_linear()
             || !mab.matrix.test_equality(Matrix3f::IDENTITY)
-            || mab.bias.ne(&Vector3f::default())
-        {
-            let curve0 = mab.m_curves[0]
-                .build_linearize_table::<u16, LERP_DEPTH, BP>()
-                .ok_or(CmsError::InvalidTrcCurve)?;
-            let curve1 = mab.m_curves[1]
-                .build_linearize_table::<u16, LERP_DEPTH, BP>()
-                .ok_or(CmsError::InvalidTrcCurve)?;
-            let curve2 = mab.m_curves[2]
-                .build_linearize_table::<u16, LERP_DEPTH, BP>()
-                .ok_or(CmsError::InvalidTrcCurve)?;
-            let matrix = mab.matrix;
-            let bias = mab.bias;
-            let m_curves = MCurves3::<DEPTH> {
-                curve0,
-                curve1,
-                curve2,
-                matrix,
-                bias,
-                inverse: false,
-            };
-            m_curves.transform(lut)?;
-        }
+            || mab.bias.ne(&Vector3f::default()))
+    {
+        let curve0 = mab.m_curves[0]
+            .build_linearize_table::<u16, LERP_DEPTH, BP>()
+            .ok_or(CmsError::InvalidTrcCurve)?;
+        let curve1 = mab.m_curves[1]
+            .build_linearize_table::<u16, LERP_DEPTH, BP>()
+            .ok_or(CmsError::InvalidTrcCurve)?;
+        let curve2 = mab.m_curves[2]
+            .build_linearize_table::<u16, LERP_DEPTH, BP>()
+            .ok_or(CmsError::InvalidTrcCurve)?;
+        let matrix = mab.matrix;
+        let bias = mab.bias;
+        let m_curves = MCurves3::<DEPTH> {
+            curve0,
+            curve1,
+            curve2,
+            matrix,
+            bias,
+            inverse: false,
+        };
+        m_curves.transform(lut)?;
     }
 
     if mab.b_curves.len() == 3 {
@@ -488,6 +536,47 @@ pub(crate) fn prepare_mba_3x3(
 
     if mab.a_curves.len() == 3 && mab.clut.is_some() {
         let clut = &mab.clut.as_ref().map(|x| x.to_clut_f32()).unwrap();
+        let lut_grid = mab.grid_points[0] as usize
+            * mab.grid_points[1] as usize
+            * mab.grid_points[2] as usize
+            * mab.num_output_channels as usize;
+        if clut.len() != lut_grid {
+            return Err(CmsError::LUTTablesInvalidKind);
+        }
+        #[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
+        if mab.a_curves[0].is_linear() && mab.a_curves[1].is_linear() && mab.a_curves[2].is_linear()
+        {
+            use crate::conversions::neon::ACurves3OptimizedNeon;
+            let a_curves = ACurves3OptimizedNeon {
+                clut,
+                grid_size: [mab.grid_points[0], mab.grid_points[1], mab.grid_points[2]],
+                interpolation_method: options.interpolation_method,
+                pcs,
+            };
+            a_curves.transform(lut)?;
+        } else {
+            use crate::conversions::neon::ACurves3InverseNeon;
+            let curve0 = mab.a_curves[0]
+                .build_linearize_table::<u16, LERP_DEPTH, BP>()
+                .ok_or(CmsError::InvalidTrcCurve)?;
+            let curve1 = mab.a_curves[1]
+                .build_linearize_table::<u16, LERP_DEPTH, BP>()
+                .ok_or(CmsError::InvalidTrcCurve)?;
+            let curve2 = mab.a_curves[2]
+                .build_linearize_table::<u16, LERP_DEPTH, BP>()
+                .ok_or(CmsError::InvalidTrcCurve)?;
+            let a_curves = ACurves3InverseNeon::<DEPTH> {
+                curve0,
+                curve1,
+                curve2,
+                clut,
+                grid_size: [mab.grid_points[0], mab.grid_points[1], mab.grid_points[2]],
+                interpolation_method: options.interpolation_method,
+                pcs,
+            };
+            a_curves.transform(lut)?;
+        }
+        #[cfg(not(all(target_arch = "aarch64", target_feature = "neon", feature = "neon")))]
         if mab.a_curves[0].is_linear() && mab.a_curves[1].is_linear() && mab.a_curves[2].is_linear()
         {
             let a_curves = ACurves3Optimized {

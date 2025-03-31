@@ -342,6 +342,20 @@ pub(crate) fn lut_interp_linear_float(x: f32, table: &[f32]) -> f32 {
     mlaf(neg_mlaf(tu, tu, diff), table[lower as usize], diff)
 }
 
+/// Lut interpolation float where values is already clamped
+#[inline]
+#[allow(dead_code)]
+pub(crate) fn lut_interp_linear_float_unbounded(x: f32, table: &[f32]) -> f32 {
+    let value = x.min(1.).max(0.) * (table.len() - 1) as f32;
+
+    let upper: i32 = value.ceil() as i32;
+    let lower: i32 = value.floor() as i32;
+
+    let diff = upper as f32 - value;
+    let tu = table[upper as usize];
+    mlaf(neg_mlaf(tu, tu, diff), table[lower as usize], diff)
+}
+
 #[inline]
 pub(crate) fn lut_interp_linear(input_value: f64, table: &[u16]) -> f32 {
     let mut input_value = input_value;
@@ -598,8 +612,8 @@ pub(crate) fn lut_interp_linear16(input_value: u16, table: &[u16]) -> u16 {
     // Start scaling input_value to the length of the array: 65535*(length-1).
     // We'll divide out the 65535 next
     let mut value: u32 = input_value as u32 * (table.len() as u32 - 1);
-    let upper: u32 = value.div_ceil(65535); // equivalent to ceil(value/65535)
-    let lower: u32 = value / 65535; // equivalent to floor(value/65535)
+    let upper: u16 = value.div_ceil(65535) as u16; // equivalent to ceil(value/65535)
+    let lower: u16 = (value / 65535) as u16; // equivalent to floor(value/65535)
     // interp is the distance from upper to value scaled to 0..65535
     let interp: u32 = value % 65535; // 0..65535*65535
     value = (table[upper as usize] as u32 * interp
@@ -636,18 +650,20 @@ fn lut_inverse_interp16(value: u16, lut_table: &[u16]) -> u16 {
     let length = lut_table.len() as i32;
 
     let mut num_zeroes: i32 = 0;
-    while lut_table[num_zeroes as usize] as i32 == 0 && num_zeroes < length - 1 {
-        num_zeroes += 1
+    for &item in lut_table.iter() {
+        if item == 0 { num_zeroes += 1 } else { break }
     }
 
     if num_zeroes == 0 && value as i32 == 0 {
         return 0u16;
     }
     let mut num_of_polys: i32 = 0;
-    while lut_table[(length - 1 - num_of_polys) as usize] as i32 == 0xffff
-        && num_of_polys < length - 1
-    {
-        num_of_polys += 1
+    for &item in lut_table.iter().rev() {
+        if item == 0xffff {
+            num_of_polys += 1
+        } else {
+            break;
+        }
     }
     // Does the curve belong to this case?
     if num_zeroes > 1 || num_of_polys > 1 {

@@ -30,7 +30,7 @@
 use crate::profile::LutDataType;
 use crate::trc::lut_interp_linear_float;
 use crate::{
-    Array3D, CmsError, DataColorSpace, InterpolationMethod, Stage, TransformOptions, Vector3f,
+    CmsError, Cube, DataColorSpace, InterpolationMethod, Stage, TransformOptions, Vector3f,
 };
 
 #[derive(Default)]
@@ -116,7 +116,7 @@ impl Lut3x3 {
 
 impl Stage for Lut3x3 {
     fn transform(&self, src: &[f32], dst: &mut [f32]) -> Result<(), CmsError> {
-        let l_tbl = Array3D::new(&self.clut, self.grid_size as usize);
+        let l_tbl = Cube::new(&self.clut, self.grid_size as usize);
 
         // If PCS is LAB then linear interpolation should be used
         if self.pcs == DataColorSpace::Lab {

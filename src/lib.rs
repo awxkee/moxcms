@@ -93,7 +93,7 @@ pub use matrix::{
     SRGB_MATRIX, Vector3, Vector3d, Vector3f, Vector3i, Vector3u, Vector4, Vector4d, Vector4f,
     Vector4i, XyY, Xyz, Xyzd,
 };
-pub use nd_array::{Array3D, Array4D};
+pub use nd_array::{Cube, Hypercube};
 pub use oklab::Oklab;
 pub use oklch::Oklch;
 pub use profile::{

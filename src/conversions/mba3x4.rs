@@ -28,7 +28,7 @@
  */
 use crate::conversions::mab::{BCurves3, MCurves3};
 use crate::{
-    Array3D, CmsError, DataColorSpace, InPlaceStage, InterpolationMethod, LutMultidimensionalType,
+    CmsError, Cube, DataColorSpace, InPlaceStage, InterpolationMethod, LutMultidimensionalType,
     Matrix3f, Stage, TransformOptions, Vector3f, Vector4f,
 };
 
@@ -106,7 +106,7 @@ impl ACurves3x4InverseOptimized<'_> {
 
 impl<const DEPTH: usize> Stage for ACurves3x4Inverse<'_, DEPTH> {
     fn transform(&self, src: &[f32], dst: &mut [f32]) -> Result<(), CmsError> {
-        let lut = Array3D::new_hexahedron(self.clut, self.grid_size);
+        let lut = Cube::new_cube(self.clut, self.grid_size);
 
         // If PCS is LAB then linear interpolation should be used
         if self.pcs == DataColorSpace::Lab {
@@ -136,7 +136,7 @@ impl<const DEPTH: usize> Stage for ACurves3x4Inverse<'_, DEPTH> {
 
 impl Stage for ACurves3x4InverseOptimized<'_> {
     fn transform(&self, src: &[f32], dst: &mut [f32]) -> Result<(), CmsError> {
-        let lut = Array3D::new_hexahedron(self.clut, self.grid_size);
+        let lut = Cube::new_cube(self.clut, self.grid_size);
 
         // If PCS is LAB then linear interpolation should be used
         if self.pcs == DataColorSpace::Lab {

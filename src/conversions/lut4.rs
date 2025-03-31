@@ -29,11 +29,12 @@
 use crate::profile::LutDataType;
 use crate::trc::lut_interp_linear_float;
 use crate::{
-    Array4D, CmsError, DataColorSpace, InterpolationMethod, Stage, TransformOptions, Vector3f,
+    CmsError, DataColorSpace, Hypercube, InterpolationMethod, Stage, TransformOptions, Vector3f,
 };
 
+#[allow(unused)]
 #[derive(Default)]
-struct Lut4 {
+struct Lut4x3 {
     linearization: [Vec<f32>; 4],
     clut: Vec<f32>,
     grid_size: u8,
@@ -42,7 +43,8 @@ struct Lut4 {
     pcs: DataColorSpace,
 }
 
-impl Lut4 {
+#[allow(unused)]
+impl Lut4x3 {
     fn transform_impl<Fetch: Fn(f32, f32, f32, f32) -> Vector3f>(
         &self,
         src: &[f32],
@@ -77,7 +79,7 @@ macro_rules! define_lut4_dispatch {
     ($dispatcher: ident) => {
         impl Stage for $dispatcher {
             fn transform(&self, src: &[f32], dst: &mut [f32]) -> Result<(), CmsError> {
-                let l_tbl = Array4D::new(&self.clut, self.grid_size as usize);
+                let l_tbl = Hypercube::new(&self.clut, self.grid_size as usize);
 
                 // If Source PCS is LAB trilinear should be used
                 if self.pcs == DataColorSpace::Lab {
@@ -110,7 +112,7 @@ macro_rules! define_lut4_dispatch {
     };
 }
 
-define_lut4_dispatch!(Lut4);
+define_lut4_dispatch!(Lut4x3);
 
 fn stage_lut_4x3(
     lut: &LutDataType,
@@ -150,17 +152,35 @@ fn stage_lut_4x3(
         .to_vec();
 
     let clut_table = lut.clut_table.to_clut_f32();
-    assert_eq!(clut_length, clut_table.len());
+    if clut_table.len() != clut_length {
+        return Err(CmsError::InvalidClutSize);
+    }
 
-    let transform = Lut4 {
-        linearization: [lin_curve0, lin_curve1, lin_curve2, lin_curve3],
-        interpolation_method: options.interpolation_method,
-        pcs,
-        clut: clut_table,
-        grid_size: lut.num_clut_grid_points,
-        output: [gamma_curve0, gamma_curve1, gamma_curve2],
-    };
-    Ok(Box::new(transform))
+    #[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
+    {
+        use crate::conversions::neon::Lut4x3Neon;
+        let transform = Lut4x3Neon {
+            linearization: [lin_curve0, lin_curve1, lin_curve2, lin_curve3],
+            interpolation_method: options.interpolation_method,
+            pcs,
+            clut: clut_table,
+            grid_size: lut.num_clut_grid_points,
+            output: [gamma_curve0, gamma_curve1, gamma_curve2],
+        };
+        Ok(Box::new(transform))
+    }
+    #[cfg(not(all(target_arch = "aarch64", target_feature = "neon", feature = "neon")))]
+    {
+        let transform = Lut4x3 {
+            linearization: [lin_curve0, lin_curve1, lin_curve2, lin_curve3],
+            interpolation_method: options.interpolation_method,
+            pcs,
+            clut: clut_table,
+            grid_size: lut.num_clut_grid_points,
+            output: [gamma_curve0, gamma_curve1, gamma_curve2],
+        };
+        Ok(Box::new(transform))
+    }
 }
 
 pub(crate) fn create_lut4_norm_samples<const SAMPLES: usize>() -> Vec<f32> {

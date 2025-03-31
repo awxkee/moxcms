@@ -182,19 +182,19 @@ impl DataColorSpace {
     }
 
     pub(crate) fn is_three_channels(self) -> bool {
-        match self {
-            DataColorSpace::Xyz => true,
-            DataColorSpace::Lab => true,
-            DataColorSpace::Luv => true,
-            DataColorSpace::YCbr => true,
-            DataColorSpace::Yxy => true,
-            DataColorSpace::Rgb => true,
-            DataColorSpace::Hsv => true,
-            DataColorSpace::Hls => true,
-            DataColorSpace::Cmy => true,
-            DataColorSpace::Color3 => true,
-            _ => false,
-        }
+        matches!(
+            self,
+            DataColorSpace::Xyz
+                | DataColorSpace::Lab
+                | DataColorSpace::Luv
+                | DataColorSpace::YCbr
+                | DataColorSpace::Yxy
+                | DataColorSpace::Rgb
+                | DataColorSpace::Hsv
+                | DataColorSpace::Hls
+                | DataColorSpace::Cmy
+                | DataColorSpace::Color3
+        )
     }
 }
 

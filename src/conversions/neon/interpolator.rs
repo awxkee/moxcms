@@ -29,7 +29,7 @@
 #![allow(dead_code)]
 use crate::conversions::interpolator::BarycentricWeight;
 use crate::conversions::neon::rgb_xyz::NeonAlignedF32;
-use crate::math::FusedMultiplyAdd;
+use crate::math::{FusedMultiplyAdd, FusedMultiplyNegAdd};
 use num_traits::AsPrimitive;
 use std::arch::aarch64::*;
 use std::ops::{Add, Mul, Sub};
@@ -185,7 +185,7 @@ impl FusedMultiplyAdd<NeonVector> for NeonVector {
     }
 }
 
-impl NeonVector {
+impl FusedMultiplyNegAdd<NeonVector> for NeonVector {
     #[inline(always)]
     fn neg_mla(&self, b: NeonVector, c: NeonVector) -> NeonVector {
         NeonVector {
