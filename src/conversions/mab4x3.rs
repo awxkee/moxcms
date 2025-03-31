@@ -212,6 +212,7 @@ pub(crate) fn prepare_mab_4x3(
             };
             a_curves.transform(lut, &mut new_lut)?;
         } else {
+            use crate::conversions::neon::ACurves4x3Neon;
             let curves: Result<Vec<_>, _> = mab
                 .a_curves
                 .iter()
