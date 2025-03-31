@@ -38,14 +38,17 @@ use std::ops::{Add, Mul, Sub};
 #[repr(align(8), C)]
 pub(crate) struct SseAlignedI16x4(pub(crate) [i16; 4]);
 
+#[cfg(feature = "options")]
 pub(crate) struct TetrahedralSseQ0_15<'a, const GRID_SIZE: usize> {
     pub(crate) cube: &'a [SseAlignedI16x4],
 }
 
+#[cfg(feature = "options")]
 pub(crate) struct PyramidalSseQ0_15<'a, const GRID_SIZE: usize> {
     pub(crate) cube: &'a [SseAlignedI16x4],
 }
 
+#[cfg(feature = "options")]
 pub(crate) struct PrismaticSseQ0_15<'a, const GRID_SIZE: usize> {
     pub(crate) cube: &'a [SseAlignedI16x4],
 }
@@ -140,6 +143,7 @@ pub(crate) trait SseMdInterpolationQ0_15<'a, const GRID_SIZE: usize> {
     ) -> SseVector;
 }
 
+#[cfg(feature = "options")]
 impl<const GRID_SIZE: usize> TetrahedralSseQ0_15<'_, GRID_SIZE> {
     #[inline(always)]
     fn interpolate<U: AsPrimitive<usize>, const BINS: usize>(
@@ -240,11 +244,15 @@ macro_rules! define_inter_sse {
     };
 }
 
+#[cfg(feature = "options")]
 define_inter_sse!(TetrahedralSseQ0_15);
+#[cfg(feature = "options")]
 define_inter_sse!(PyramidalSseQ0_15);
+#[cfg(feature = "options")]
 define_inter_sse!(PrismaticSseQ0_15);
 define_inter_sse!(TrilinearSseQ0_15);
 
+#[cfg(feature = "options")]
 impl<const GRID_SIZE: usize> PyramidalSseQ0_15<'_, GRID_SIZE> {
     #[inline(always)]
     fn interpolate<U: AsPrimitive<usize>, const BINS: usize>(
@@ -322,6 +330,7 @@ impl<const GRID_SIZE: usize> PyramidalSseQ0_15<'_, GRID_SIZE> {
     }
 }
 
+#[cfg(feature = "options")]
 impl<const GRID_SIZE: usize> PrismaticSseQ0_15<'_, GRID_SIZE> {
     #[inline(always)]
     fn interpolate<U: AsPrimitive<usize>, const BINS: usize>(

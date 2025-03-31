@@ -107,7 +107,7 @@ fn compute_abs_diff42(src: &[f32], dst: &[f32]) {
 }
 
 fn main() {
-    let funny_icc = fs::read("./assets/Uncoated_Fogra47L_VIGC_300.icc").unwrap();
+    let funny_icc = fs::read("./assets/PSO_INP_Paper_eci.icc").unwrap();
 
     // println!("{:?}", decoded);
 

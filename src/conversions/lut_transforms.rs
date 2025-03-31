@@ -617,13 +617,7 @@ where
         return Ok(make_transform_3x4::<T, GRID_SIZE, BIT_DEPTH>(
             src_layout, lut, options,
         ));
-    } else if (source.color_space == DataColorSpace::Rgb
-        || source.color_space == DataColorSpace::Lab
-        || source.color_space == DataColorSpace::Color3)
-        && (dest.color_space == DataColorSpace::Rgb
-            || dest.color_space == DataColorSpace::Lab
-            || dest.color_space == DataColorSpace::Color3)
-    {
+    } else if (source.color_space.is_three_channels()) && (dest.color_space.is_three_channels()) {
         source.color_space.check_layout(src_layout)?;
         dest.color_space.check_layout(dst_layout)?;
 

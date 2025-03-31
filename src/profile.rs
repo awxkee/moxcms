@@ -180,6 +180,22 @@ impl DataColorSpace {
             Ok(())
         }
     }
+
+    pub(crate) fn is_three_channels(self) -> bool {
+        match self {
+            DataColorSpace::Xyz => true,
+            DataColorSpace::Lab => true,
+            DataColorSpace::Luv => true,
+            DataColorSpace::YCbr => true,
+            DataColorSpace::Yxy => true,
+            DataColorSpace::Rgb => true,
+            DataColorSpace::Hsv => true,
+            DataColorSpace::Hls => true,
+            DataColorSpace::Cmy => true,
+            DataColorSpace::Color3 => true,
+            _ => false,
+        }
+    }
 }
 
 #[repr(u32)]
@@ -1097,7 +1113,7 @@ impl ColorProfile {
                 [red_xyz.z, green_xyz.z, blue_xyz.z],
             ],
         };
-        let colorants = ColorProfile::rgb_to_xyz_const(xyz_matrix, white_point.to_xyzd());
+        let colorants = ColorProfile::rgb_to_xyz_d(xyz_matrix, white_point.to_xyzd());
         adapt_to_d50_d(colorants, white_point)
     }
 
@@ -1110,7 +1126,7 @@ impl ColorProfile {
         self.update_rgb_colorimetry_triplet(white_point, red_xyz, green_xyz, blue_xyz)
     }
 
-    /// Updates RGB triple colorimetry from 3 [Xyz] and white point
+    /// Updates RGB triple colorimetry from 3 [Xyzd] and white point
     ///
     /// To work on `const` context this method does have restrictions.
     /// If invalid values were provided it may return invalid matrix or NaNs.
@@ -1128,7 +1144,7 @@ impl ColorProfile {
                 [red_xyz.z, green_xyz.z, blue_xyz.z],
             ],
         };
-        let colorants = ColorProfile::rgb_to_xyz_const(xyz_matrix, white_point.to_xyzd());
+        let colorants = ColorProfile::rgb_to_xyz_d(xyz_matrix, white_point.to_xyzd());
         let colorants = adapt_to_d50_d(colorants, white_point);
 
         self.update_colorants(colorants);
@@ -1175,17 +1191,16 @@ impl ColorProfile {
         false
     }
 
-    pub fn rgb_to_xyz(&self, xyz_matrix: Matrix3f, wp: Xyz) -> Option<Matrix3f> {
+    pub const fn rgb_to_xyz(&self, xyz_matrix: Matrix3f, wp: Xyz) -> Matrix3f {
         let xyz_inverse = xyz_matrix.inverse();
         let s = xyz_inverse.mul_vector(wp.to_vector());
         let mut v = xyz_matrix.mul_row_vector::<0>(s);
         v = v.mul_row_vector::<1>(s);
-        v = v.mul_row_vector::<2>(s);
-        Some(v)
+        v.mul_row_vector::<2>(s)
     }
 
     /// If Primaries is invalid will return invalid matrix on const context
-    pub const fn rgb_to_xyz_const(xyz_matrix: Matrix3d, wp: Xyzd) -> Matrix3d {
+    pub const fn rgb_to_xyz_d(xyz_matrix: Matrix3d, wp: Xyzd) -> Matrix3d {
         let xyz_inverse = xyz_matrix.inverse();
         let s = xyz_inverse.mul_vector(wp.to_vector_d());
         let mut v = xyz_matrix.mul_row_vector::<0>(s);
@@ -1197,7 +1212,7 @@ impl ColorProfile {
     pub fn rgb_to_xyz_matrix(&self) -> Matrix3d {
         let xyz_matrix = self.colorant_matrix();
         let white_point = Chromaticity::D50.to_xyzd();
-        ColorProfile::rgb_to_xyz_const(xyz_matrix, white_point)
+        ColorProfile::rgb_to_xyz_d(xyz_matrix, white_point)
     }
 
     /// Computes transform matrix RGB -> XYZ -> RGB
