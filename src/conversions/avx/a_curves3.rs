@@ -62,6 +62,7 @@ pub(crate) struct ACurves3InverseAvxFma<'a, const DEPTH: usize> {
 }
 
 impl<const DEPTH: usize> ACurves3AvxFma<'_, DEPTH> {
+    #[allow(unused_unsafe)]
     #[target_feature(enable = "avx2", enable = "fma")]
     unsafe fn transform_impl<Fetch: Fn(f32, f32, f32) -> AvxVectorSse>(
         &self,
@@ -89,6 +90,7 @@ impl<const DEPTH: usize> ACurves3AvxFma<'_, DEPTH> {
 }
 
 impl ACurves3OptimizedAvxFma<'_> {
+    #[allow(unused_unsafe)]
     #[target_feature(enable = "avx2", enable = "fma")]
     unsafe fn transform_impl<Fetch: Fn(f32, f32, f32) -> AvxVectorSse>(
         &self,
@@ -175,6 +177,7 @@ impl InPlaceStage for ACurves3OptimizedAvxFma<'_> {
 }
 
 impl<const DEPTH: usize> ACurves3InverseAvxFma<'_, DEPTH> {
+    #[allow(unused_unsafe)]
     #[target_feature(enable = "avx2", enable = "fma")]
     unsafe fn transform_impl<Fetch: Fn(f32, f32, f32) -> AvxVectorSse>(
         &self,

@@ -46,6 +46,7 @@ pub(crate) struct Lut4x3AvxFma {
 }
 
 impl Lut4x3AvxFma {
+    #[allow(unused_unsafe)]
     #[target_feature(enable = "avx2", enable = "fma")]
     unsafe fn transform_impl<Fetch: Fn(f32, f32, f32, f32) -> AvxVectorSse>(
         &self,
