@@ -484,9 +484,9 @@ where
             CmsError::UnsupportedLutRenderingIntent(source.rendering_intent),
         )? {
             LutWarehouse::Lut(lut) => create_lut4::<GRID_SIZE>(lut, options, source.pcs)?,
-            LutWarehouse::MCurves(m_curves) => {
+            LutWarehouse::Multidimensional(m_curves) => {
                 let mut samples = create_lut4_norm_samples::<GRID_SIZE>();
-                prepare_mab_4x3::<GRID_SIZE>(m_curves, &mut samples, options, source.pcs)?
+                prepare_mab_4x3(m_curves, &mut samples, options, source.pcs)?
             }
         };
 
@@ -531,7 +531,9 @@ where
                 LutWarehouse::Lut(lut_data_type) => {
                     lut = create_lut3x3(lut_data_type, &lut, options, dest.pcs)?
                 }
-                LutWarehouse::MCurves(mab) => prepare_mba_3x3(mab, &mut lut, options, dest.pcs)?,
+                LutWarehouse::Multidimensional(mab) => {
+                    prepare_mba_3x3(mab, &mut lut, options, dest.pcs)?
+                }
             }
         }
 
@@ -580,7 +582,9 @@ where
                 LutWarehouse::Lut(lut_data_type) => {
                     lut = create_lut3x3(lut_data_type, &lut, options, source.pcs)?;
                 }
-                LutWarehouse::MCurves(mab) => prepare_mab_3x3(mab, &mut lut, options, source.pcs)?,
+                LutWarehouse::Multidimensional(mab) => {
+                    prepare_mab_3x3(mab, &mut lut, options, source.pcs)?
+                }
             }
         } else if source.has_full_colors_triplet() {
             lut = create_rgb_lin_lut::<T, BIT_DEPTH, LINEAR_CAP, GRID_SIZE>(source, options)?;
@@ -605,7 +609,7 @@ where
             .ok_or(CmsError::UnsupportedProfileConnection)?
         {
             LutWarehouse::Lut(lut_type) => create_lut3x4(lut_type, &lut, options, dest.pcs)?,
-            LutWarehouse::MCurves(m_curves) => {
+            LutWarehouse::Multidimensional(m_curves) => {
                 prepare_mba_3x4(m_curves, &mut lut, options, dest.pcs)?
             }
         };
@@ -613,13 +617,7 @@ where
         return Ok(make_transform_3x4::<T, GRID_SIZE, BIT_DEPTH>(
             src_layout, lut, options,
         ));
-    } else if (source.color_space == DataColorSpace::Rgb
-        || source.color_space == DataColorSpace::Lab
-        || source.color_space == DataColorSpace::Color3)
-        && (dest.color_space == DataColorSpace::Rgb
-            || dest.color_space == DataColorSpace::Lab
-            || dest.color_space == DataColorSpace::Color3)
-    {
+    } else if (source.color_space.is_three_channels()) && (dest.color_space.is_three_channels()) {
         source.color_space.check_layout(src_layout)?;
         dest.color_space.check_layout(dst_layout)?;
 
@@ -637,7 +635,9 @@ where
                 LutWarehouse::Lut(lut_data_type) => {
                     lut = create_lut3x3(lut_data_type, &lut, options, source.pcs)?;
                 }
-                LutWarehouse::MCurves(mab) => prepare_mab_3x3(mab, &mut lut, options, source.pcs)?,
+                LutWarehouse::Multidimensional(mab) => {
+                    prepare_mab_3x3(mab, &mut lut, options, source.pcs)?
+                }
             }
         } else if source.has_full_colors_triplet() {
             lut = create_rgb_lin_lut::<T, BIT_DEPTH, LINEAR_CAP, GRID_SIZE>(source, options)?;
@@ -665,7 +665,9 @@ where
                 LutWarehouse::Lut(lut_data_type) => {
                     lut = create_lut3x3(lut_data_type, &lut, options, dest.pcs)?;
                 }
-                LutWarehouse::MCurves(mab) => prepare_mba_3x3(mab, &mut lut, options, dest.pcs)?,
+                LutWarehouse::Multidimensional(mab) => {
+                    prepare_mba_3x3(mab, &mut lut, options, dest.pcs)?
+                }
             }
         } else if dest.has_full_colors_triplet() {
             prepare_inverse_lut_rgb_xyz::<T, BIT_DEPTH, GAMMA_LUT>(dest, &mut lut, options)?;

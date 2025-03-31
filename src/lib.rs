@@ -90,15 +90,15 @@ pub use math::{
 };
 pub use matrix::{
     BT2020_MATRIX, Chromaticity, DISPLAY_P3_MATRIX, Matrix3, Matrix3d, Matrix3f, Matrix4f,
-    SRGB_MATRIX, Vector3, Vector3d, Vector3f, Vector3i, Vector3u, Vector4, Vector4d, Vector4f, XyY,
-    Xyz, Xyzd,
+    SRGB_MATRIX, Vector3, Vector3d, Vector3f, Vector3i, Vector3u, Vector4, Vector4d, Vector4f,
+    Vector4i, XyY, Xyz, Xyzd,
 };
-pub use nd_array::{Array3D, Array4D};
+pub use nd_array::{Cube, Hypercube};
 pub use oklab::Oklab;
 pub use oklch::Oklch;
 pub use profile::{
     CicpProfile, ColorProfile, DataColorSpace, DescriptionString, LocalizableString,
-    LutMCurvesType, LutStore, LutType, LutWarehouse, Measurement, MeasurementGeometry,
+    LutMultidimensionalType, LutStore, LutType, LutWarehouse, Measurement, MeasurementGeometry,
     ProfileClass, ProfileSignature, ProfileText, ProfileVersion, RenderingIntent,
     StandardIlluminant, StandardObserver, TechnologySignatures, ViewingConditions,
 };

@@ -32,7 +32,9 @@ use crate::cicp::{
 use crate::dat::ColorDateTime;
 use crate::err::CmsError;
 use crate::matrix::{BT2020_MATRIX, DISPLAY_P3_MATRIX, Matrix3f, SRGB_MATRIX, XyY, Xyz};
-use crate::reader::{s15_fixed16_number_to_float, uint8_number_to_float, uint16_number_to_float};
+use crate::reader::{
+    s15_fixed16_number_to_float, uint8_number_to_float_fast, uint16_number_to_float_fast,
+};
 use crate::safe_reader::{SafeAdd, SafeMul};
 use crate::tag::{TAG_SIZE, Tag};
 use crate::trc::ToneReprCurve;
@@ -178,6 +180,22 @@ impl DataColorSpace {
             Ok(())
         }
     }
+
+    pub(crate) fn is_three_channels(self) -> bool {
+        matches!(
+            self,
+            DataColorSpace::Xyz
+                | DataColorSpace::Lab
+                | DataColorSpace::Luv
+                | DataColorSpace::YCbr
+                | DataColorSpace::Yxy
+                | DataColorSpace::Rgb
+                | DataColorSpace::Hsv
+                | DataColorSpace::Hls
+                | DataColorSpace::Cmy
+                | DataColorSpace::Color3
+        )
+    }
 }
 
 #[repr(u32)]
@@ -238,10 +256,13 @@ pub enum LutStore {
 impl LutStore {
     pub fn to_clut_f32(&self) -> Vec<f32> {
         match self {
-            LutStore::Store8(store) => store.iter().map(|x| uint8_number_to_float(*x)).collect(),
+            LutStore::Store8(store) => store
+                .iter()
+                .map(|x| uint8_number_to_float_fast(*x))
+                .collect(),
             LutStore::Store16(store) => store
                 .iter()
-                .map(|x| uint16_number_to_float(*x as u32))
+                .map(|x| uint16_number_to_float_fast(*x as u32))
                 .collect(),
         }
     }
@@ -471,7 +492,7 @@ impl From<u32> for TechnologySignatures {
 #[derive(Debug, Clone)]
 pub enum LutWarehouse {
     Lut(LutDataType),
-    MCurves(LutMCurvesType),
+    Multidimensional(LutMultidimensionalType),
 }
 
 #[derive(Debug, Clone)]
@@ -507,7 +528,7 @@ impl LutDataType {
 }
 
 #[derive(Debug, Clone)]
-pub struct LutMCurvesType {
+pub struct LutMultidimensionalType {
     pub num_input_channels: u8,
     pub num_output_channels: u8,
     pub grid_points: [u8; 16],
@@ -841,7 +862,7 @@ pub struct ColorProfile {
     pub blue_trc: Option<ToneReprCurve>,
     pub gray_trc: Option<ToneReprCurve>,
     pub cicp: Option<CicpProfile>,
-    pub chromatic_adaptation: Option<Matrix3f>,
+    pub chromatic_adaptation: Option<Matrix3d>,
     pub lut_a_to_b_perceptual: Option<LutWarehouse>,
     pub lut_a_to_b_colorimetric: Option<LutWarehouse>,
     pub lut_a_to_b_saturation: Option<LutWarehouse>,
@@ -1092,7 +1113,7 @@ impl ColorProfile {
                 [red_xyz.z, green_xyz.z, blue_xyz.z],
             ],
         };
-        let colorants = ColorProfile::rgb_to_xyz_const(xyz_matrix, white_point.to_xyzd());
+        let colorants = ColorProfile::rgb_to_xyz_d(xyz_matrix, white_point.to_xyzd());
         adapt_to_d50_d(colorants, white_point)
     }
 
@@ -1105,7 +1126,7 @@ impl ColorProfile {
         self.update_rgb_colorimetry_triplet(white_point, red_xyz, green_xyz, blue_xyz)
     }
 
-    /// Updates RGB triple colorimetry from 3 [Xyz] and white point
+    /// Updates RGB triple colorimetry from 3 [Xyzd] and white point
     ///
     /// To work on `const` context this method does have restrictions.
     /// If invalid values were provided it may return invalid matrix or NaNs.
@@ -1123,7 +1144,7 @@ impl ColorProfile {
                 [red_xyz.z, green_xyz.z, blue_xyz.z],
             ],
         };
-        let colorants = ColorProfile::rgb_to_xyz_const(xyz_matrix, white_point.to_xyzd());
+        let colorants = ColorProfile::rgb_to_xyz_d(xyz_matrix, white_point.to_xyzd());
         let colorants = adapt_to_d50_d(colorants, white_point);
 
         self.update_colorants(colorants);
@@ -1170,17 +1191,16 @@ impl ColorProfile {
         false
     }
 
-    pub fn rgb_to_xyz(&self, xyz_matrix: Matrix3f, wp: Xyz) -> Option<Matrix3f> {
+    pub const fn rgb_to_xyz(&self, xyz_matrix: Matrix3f, wp: Xyz) -> Matrix3f {
         let xyz_inverse = xyz_matrix.inverse();
         let s = xyz_inverse.mul_vector(wp.to_vector());
         let mut v = xyz_matrix.mul_row_vector::<0>(s);
         v = v.mul_row_vector::<1>(s);
-        v = v.mul_row_vector::<2>(s);
-        Some(v)
+        v.mul_row_vector::<2>(s)
     }
 
     /// If Primaries is invalid will return invalid matrix on const context
-    pub const fn rgb_to_xyz_const(xyz_matrix: Matrix3d, wp: Xyzd) -> Matrix3d {
+    pub const fn rgb_to_xyz_d(xyz_matrix: Matrix3d, wp: Xyzd) -> Matrix3d {
         let xyz_inverse = xyz_matrix.inverse();
         let s = xyz_inverse.mul_vector(wp.to_vector_d());
         let mut v = xyz_matrix.mul_row_vector::<0>(s);
@@ -1192,7 +1212,7 @@ impl ColorProfile {
     pub fn rgb_to_xyz_matrix(&self) -> Matrix3d {
         let xyz_matrix = self.colorant_matrix();
         let white_point = Chromaticity::D50.to_xyzd();
-        ColorProfile::rgb_to_xyz_const(xyz_matrix, white_point)
+        ColorProfile::rgb_to_xyz_d(xyz_matrix, white_point)
     }
 
     /// Computes transform matrix RGB -> XYZ -> RGB

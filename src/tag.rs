@@ -186,6 +186,11 @@ pub(crate) enum TagTypeDefinition {
     Cicp,
     DateTime,
     S15Fixed16Array,
+    U8Array,
+    U16Fixed16Array,
+    U16Array,
+    U32Array,
+    U64Array,
     Measurement,
     NotAllowed,
 }
@@ -218,10 +223,20 @@ impl From<u32> for TagTypeDefinition {
             return TagTypeDefinition::Cicp;
         } else if value == u32::from_ne_bytes(*b"dtim").to_be() {
             return TagTypeDefinition::DateTime;
-        } else if value == u32::from_ne_bytes(*b"sf32").to_be() {
-            return TagTypeDefinition::S15Fixed16Array;
         } else if value == u32::from_ne_bytes(*b"meas").to_be() {
             return TagTypeDefinition::Measurement;
+        } else if value == u32::from_ne_bytes(*b"sf32").to_be() {
+            return TagTypeDefinition::S15Fixed16Array;
+        } else if value == u32::from_ne_bytes(*b"uf32").to_be() {
+            return TagTypeDefinition::U16Fixed16Array;
+        } else if value == u32::from_ne_bytes(*b"ui16").to_be() {
+            return TagTypeDefinition::U16Array;
+        } else if value == u32::from_ne_bytes(*b"ui32").to_be() {
+            return TagTypeDefinition::U32Array;
+        } else if value == u32::from_ne_bytes(*b"ui64").to_be() {
+            return TagTypeDefinition::U64Array;
+        } else if value == u32::from_ne_bytes(*b"ui08").to_be() {
+            return TagTypeDefinition::U8Array;
         }
         TagTypeDefinition::NotAllowed
     }
@@ -244,6 +259,11 @@ impl From<TagTypeDefinition> for u32 {
             TagTypeDefinition::Cicp => u32::from_ne_bytes(*b"cicp").to_be(),
             TagTypeDefinition::DateTime => u32::from_ne_bytes(*b"dtim").to_be(),
             TagTypeDefinition::S15Fixed16Array => u32::from_ne_bytes(*b"sf32").to_be(),
+            TagTypeDefinition::U16Fixed16Array => u32::from_ne_bytes(*b"uf32").to_be(),
+            TagTypeDefinition::U8Array => u32::from_ne_bytes(*b"ui08").to_be(),
+            TagTypeDefinition::U16Array => u32::from_ne_bytes(*b"ui16").to_be(),
+            TagTypeDefinition::U32Array => u32::from_ne_bytes(*b"ui32").to_be(),
+            TagTypeDefinition::U64Array => u32::from_ne_bytes(*b"ui64").to_be(),
             TagTypeDefinition::Measurement => u32::from_ne_bytes(*b"meas").to_be(),
             TagTypeDefinition::NotAllowed => 0,
         }

@@ -80,39 +80,39 @@ where
         src: &[T],
         dst: &mut [T],
     ) {
-        let src_cn = Layout::from(SRC_LAYOUT);
-        let src_channels = src_cn.channels();
+        unsafe {
+            let src_cn = Layout::from(SRC_LAYOUT);
+            let src_channels = src_cn.channels();
 
-        let dst_cn = Layout::from(DST_LAYOUT);
-        let dst_channels = dst_cn.channels();
+            let dst_cn = Layout::from(DST_LAYOUT);
+            let dst_channels = dst_cn.channels();
 
-        let value_scale = unsafe { vdupq_n_f32(((1 << BIT_DEPTH) - 1) as f32) };
-        let max_value = ((1u32 << BIT_DEPTH) - 1).as_();
+            let value_scale = vdupq_n_f32(((1 << BIT_DEPTH) - 1) as f32);
+            let max_value = ((1u32 << BIT_DEPTH) - 1).as_();
 
-        for (src, dst) in src
-            .chunks_exact(src_channels)
-            .zip(dst.chunks_exact_mut(dst_channels))
-        {
-            let x = <() as LutBarycentricReduction<T, U>>::reduce::<BIT_DEPTH, BARYCENTRIC_BINS>(
-                src[src_cn.r_i()],
-            );
-            let y = <() as LutBarycentricReduction<T, U>>::reduce::<BIT_DEPTH, BARYCENTRIC_BINS>(
-                src[src_cn.g_i()],
-            );
-            let z = <() as LutBarycentricReduction<T, U>>::reduce::<BIT_DEPTH, BARYCENTRIC_BINS>(
-                src[src_cn.b_i()],
-            );
+            for (src, dst) in src
+                .chunks_exact(src_channels)
+                .zip(dst.chunks_exact_mut(dst_channels))
+            {
+                let x = <() as LutBarycentricReduction<T, U>>::reduce::<BIT_DEPTH, BARYCENTRIC_BINS>(
+                    src[src_cn.r_i()],
+                );
+                let y = <() as LutBarycentricReduction<T, U>>::reduce::<BIT_DEPTH, BARYCENTRIC_BINS>(
+                    src[src_cn.g_i()],
+                );
+                let z = <() as LutBarycentricReduction<T, U>>::reduce::<BIT_DEPTH, BARYCENTRIC_BINS>(
+                    src[src_cn.b_i()],
+                );
 
-            let a = if src_channels == 4 {
-                src[src_cn.a_i()]
-            } else {
-                max_value
-            };
+                let a = if src_channels == 4 {
+                    src[src_cn.a_i()]
+                } else {
+                    max_value
+                };
 
-            let tetrahedral = Interpolator::new(&self.lut);
-            let v = tetrahedral.inter3_neon(x, y, z, &self.weights);
-            if T::FINITE {
-                unsafe {
+                let tetrahedral = Interpolator::new(&self.lut);
+                let v = tetrahedral.inter3_neon(x, y, z, &self.weights);
+                if T::FINITE {
                     let mut r = vfmaq_f32(vdupq_n_f32(0.5f32), v.v, value_scale);
                     r = vminq_f32(r, value_scale);
                     let jvx = vcvtaq_u32_f32(r);
@@ -120,18 +120,16 @@ where
                     dst[dst_cn.r_i()] = vgetq_lane_u32::<0>(jvx).as_();
                     dst[dst_cn.g_i()] = vgetq_lane_u32::<1>(jvx).as_();
                     dst[dst_cn.b_i()] = vgetq_lane_u32::<2>(jvx).as_();
-                }
-            } else {
-                unsafe {
+                } else {
                     let mut r = vminq_f32(v.v, value_scale);
                     r = vmaxq_f32(r, vdupq_n_f32(0.));
                     dst[dst_cn.r_i()] = vgetq_lane_f32::<0>(r).as_();
                     dst[dst_cn.g_i()] = vgetq_lane_f32::<1>(r).as_();
                     dst[dst_cn.b_i()] = vgetq_lane_f32::<2>(r).as_();
                 }
-            }
-            if dst_channels == 4 {
-                dst[dst_cn.a_i()] = a;
+                if dst_channels == 4 {
+                    dst[dst_cn.a_i()] = a;
+                }
             }
         }
     }

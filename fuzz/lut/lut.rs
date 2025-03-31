@@ -10,6 +10,11 @@ static STATIC_US_SWOP: LazyLock<ColorProfile> = LazyLock::new(|| {
     ColorProfile::new_from_slice(&cmyk_icc).unwrap()
 });
 
+static STATIC_SRGB_PERCEPTUAL: LazyLock<ColorProfile> = LazyLock::new(|| {
+    let cmyk_icc = fs::read("./assets/srgb_perceptual.icc").unwrap();
+    ColorProfile::new_from_slice(&cmyk_icc).unwrap()
+});
+
 fuzz_target!(|data: (u8, u8, u16, u8, u8, u8, f32, bool, bool)| {
     let dst_layout = if data.3 % 2 == 0 {
         Layout::Rgba
@@ -228,7 +233,7 @@ fn fuzz_lut_rgb_8_bit(
     let src_image_rgb = vec![px; width * height * 4];
     let mut dst_image_rgb = vec![px; width * height * dst_layout.channels()];
     let dst_profile = ColorProfile::new_display_p3();
-    let transform = STATIC_US_SWOP
+    let transform = STATIC_SRGB_PERCEPTUAL
         .create_transform_8bit(
             Layout::Rgba,
             &dst_profile,

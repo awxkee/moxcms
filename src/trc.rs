@@ -28,6 +28,7 @@
  */
 use crate::math::m_clamp;
 use crate::mlaf::{mlaf, neg_mlaf};
+use crate::reader::uint16_number_to_float_fast;
 use crate::transform::PointeeSizeExpressible;
 use crate::writer::FloatToFixedU8Fixed8;
 use crate::{CmsError, ColorProfile, f_pow, f_powf};
@@ -37,6 +38,48 @@ use num_traits::AsPrimitive;
 pub enum ToneReprCurve {
     Lut(Vec<u16>),
     Parametric(Vec<f32>),
+}
+
+impl ToneReprCurve {
+    pub(crate) fn is_linear(&self) -> bool {
+        match &self {
+            ToneReprCurve::Lut(lut) => {
+                if lut.is_empty() {
+                    return true;
+                }
+                if lut.len() == 1 {
+                    let gamma = 1. / u8_fixed_8number_to_float(lut[0]);
+                    if (gamma - 1.).abs() < 1e-4 {
+                        return true;
+                    }
+                }
+                if lut.len() > 1 && lut.len() < 50 {
+                    let mut all_linear = true;
+                    let lut_size = 1. / (lut.len() as f32 - 1.);
+                    for (i, &value) in lut.iter().enumerate() {
+                        let scaled_value = uint16_number_to_float_fast(value as u32);
+                        let current_value = i as f32 * lut_size;
+                        if (scaled_value - current_value).abs() > 1e-5 {
+                            all_linear = false;
+                        }
+                    }
+                    if all_linear {
+                        return true;
+                    }
+                }
+                false
+            }
+            ToneReprCurve::Parametric(parametric) => {
+                if parametric.is_empty() {
+                    return true;
+                }
+                if parametric.len() == 1 && parametric[0] == 1. {
+                    return true;
+                }
+                false
+            }
+        }
+    }
 }
 
 #[allow(clippy::many_single_char_names)]
@@ -299,6 +342,20 @@ pub(crate) fn lut_interp_linear_float(x: f32, table: &[f32]) -> f32 {
     mlaf(neg_mlaf(tu, tu, diff), table[lower as usize], diff)
 }
 
+/// Lut interpolation float where values is already clamped
+#[inline(always)]
+#[allow(dead_code)]
+pub(crate) fn lut_interp_linear_float_unbounded(x: f32, table: &[f32]) -> f32 {
+    let value = x * (table.len() - 1) as f32;
+
+    let upper: i32 = value.ceil() as i32;
+    let lower: i32 = value.floor() as i32;
+
+    let diff = upper as f32 - value;
+    let tu = table[upper as usize];
+    mlaf(neg_mlaf(tu, tu, diff), table[lower as usize], diff)
+}
+
 #[inline]
 pub(crate) fn lut_interp_linear(input_value: f64, table: &[u16]) -> f32 {
     let mut input_value = input_value;
@@ -550,12 +607,13 @@ where
     new_table
 }
 
+#[inline]
 pub(crate) fn lut_interp_linear16(input_value: u16, table: &[u16]) -> u16 {
     // Start scaling input_value to the length of the array: 65535*(length-1).
     // We'll divide out the 65535 next
-    let mut value: u32 = input_value as u32 * (table.len() as u32 - 1); // equivalent to ceil(value/65535)
-    let upper: u32 = value.div_ceil(65535); // equivalent to floor(value/65535)
-    let lower: u32 = value / 65535;
+    let mut value: u32 = input_value as u32 * (table.len() as u32 - 1);
+    let upper: u16 = value.div_ceil(65535) as u16; // equivalent to ceil(value/65535)
+    let lower: u16 = (value / 65535) as u16; // equivalent to floor(value/65535)
     // interp is the distance from upper to value scaled to 0..65535
     let interp: u32 = value % 65535; // 0..65535*65535
     value = (table[upper as usize] as u32 * interp
@@ -592,18 +650,20 @@ fn lut_inverse_interp16(value: u16, lut_table: &[u16]) -> u16 {
     let length = lut_table.len() as i32;
 
     let mut num_zeroes: i32 = 0;
-    while lut_table[num_zeroes as usize] as i32 == 0 && num_zeroes < length - 1 {
-        num_zeroes += 1
+    for &item in lut_table.iter() {
+        if item == 0 { num_zeroes += 1 } else { break }
     }
 
     if num_zeroes == 0 && value as i32 == 0 {
         return 0u16;
     }
     let mut num_of_polys: i32 = 0;
-    while lut_table[(length - 1 - num_of_polys) as usize] as i32 == 0xffff
-        && num_of_polys < length - 1
-    {
-        num_of_polys += 1
+    for &item in lut_table.iter().rev() {
+        if item == 0xffff {
+            num_of_polys += 1
+        } else {
+            break;
+        }
     }
     // Does the curve belong to this case?
     if num_zeroes > 1 || num_of_polys > 1 {

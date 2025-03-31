@@ -53,6 +53,7 @@ pub enum CmsError {
     InvalidAtoBLut,
     OverflowingError,
     LUTTablesInvalidKind,
+    InvalidClutSize,
 }
 
 impl Display for CmsError {
@@ -98,6 +99,7 @@ impl Display for CmsError {
                 f.write_str("Overflowing was happen, that is not allowed")
             }
             CmsError::LUTTablesInvalidKind => f.write_str("All LUT curves must have same kind"),
+            CmsError::InvalidClutSize => f.write_str("Invalid CLUT size"),
         }
     }
 }

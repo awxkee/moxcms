@@ -107,7 +107,7 @@ fn compute_abs_diff42(src: &[f32], dst: &[f32]) {
 }
 
 fn main() {
-    let funny_icc = fs::read("./assets/srgb_perceptual.icc").unwrap();
+    let funny_icc = fs::read("./assets/us_swop_coated.icc").unwrap();
 
     // println!("{:?}", decoded);
 
@@ -153,15 +153,15 @@ fn main() {
                 rendering_intent: RenderingIntent::Perceptual,
                 allow_use_cicp_transfer: false,
                 prefer_fixed_point: true,
-                interpolation_method: InterpolationMethod::Pyramid,
+                interpolation_method: InterpolationMethod::Tetrahedral,
                 barycentric_weight_scale: BarycentricWeightScale::Low,
             },
         )
         .unwrap();
 
-    transform.transform(&real_dst, &mut cmyk).unwrap();
+    println!("Creating time: {:?}", time.elapsed());
 
-    let time = Instant::now();
+    transform.transform(&real_dst, &mut cmyk).unwrap();
 
     let transform = funny_profile
         .create_transform_8bit(
@@ -172,12 +172,12 @@ fn main() {
                 rendering_intent: RenderingIntent::Perceptual,
                 allow_use_cicp_transfer: false,
                 prefer_fixed_point: true,
-                interpolation_method: InterpolationMethod::Pyramid,
+                interpolation_method: InterpolationMethod::Prism,
                 barycentric_weight_scale: BarycentricWeightScale::Low,
             },
         )
         .unwrap();
-    println!("Rendering took {:?}", time.elapsed());
+    println!("Creating time 2 took {:?}", time.elapsed());
     let mut dst = vec![0u8; real_dst.len()];
 
     for (src, dst) in cmyk

@@ -27,7 +27,7 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::conversions::interpolator::BarycentricWeight;
-use crate::math::FusedMultiplyAdd;
+use crate::math::{FusedMultiplyAdd, FusedMultiplyNegAdd};
 use num_traits::AsPrimitive;
 #[cfg(target_arch = "x86")]
 use std::arch::x86::*;
@@ -210,9 +210,9 @@ impl AvxVector {
     }
 }
 
-impl AvxVectorSse {
+impl FusedMultiplyNegAdd<AvxVectorSse> for AvxVectorSse {
     #[inline(always)]
-    pub(crate) fn neg_mla(self, b: AvxVectorSse, c: AvxVectorSse) -> Self {
+    fn neg_mla(&self, b: AvxVectorSse, c: AvxVectorSse) -> Self {
         Self {
             v: unsafe { _mm_fnmadd_ps(b.v, c.v, self.v) },
         }

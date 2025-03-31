@@ -118,7 +118,10 @@ pub(crate) const fn adaption_matrix(
     compute_chromatic_adaption(source_illumination, target_illumination, BRADFORD_F)
 }
 
-const fn adaption_matrix_d(source_illumination: Xyz, target_illumination: Xyz) -> Matrix3d {
+pub(crate) const fn adaption_matrix_d(
+    source_illumination: Xyz,
+    target_illumination: Xyz,
+) -> Matrix3d {
     compute_chromatic_adaption_d(source_illumination, target_illumination, BRADFORD_D)
 }
 

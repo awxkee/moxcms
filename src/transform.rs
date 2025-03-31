@@ -302,7 +302,8 @@ impl PointeeSizeExpressible for f64 {
 
 impl ColorProfile {
     pub(crate) fn has_full_colors_triplet(&self) -> bool {
-        self.red_colorant != Xyzd::default()
+        self.color_space == DataColorSpace::Rgb
+            && self.red_colorant != Xyzd::default()
             && self.green_colorant != Xyzd::default()
             && self.blue_colorant != Xyzd::default()
             && self.red_trc.is_some()
@@ -517,15 +518,11 @@ impl ColorProfile {
             return Ok(make_rgb_to_gray::<T, LINEAR_CAP, BIT_DEPTH, GAMMA_CAP>(
                 src_layout, dst_layout, trc_box, vector,
             ));
-        } else if (self.color_space == DataColorSpace::Cmyk
-            || self.color_space == DataColorSpace::Rgb
-            || self.color_space == DataColorSpace::Lab
-            || self.color_space == DataColorSpace::Color3
+        } else if (self.color_space.is_three_channels()
+            || self.color_space == DataColorSpace::Cmyk
             || self.color_space == DataColorSpace::Color4)
-            && (dst_pr.color_space == DataColorSpace::Rgb
+            && (dst_pr.color_space.is_three_channels()
                 || dst_pr.color_space == DataColorSpace::Cmyk
-                || dst_pr.color_space == DataColorSpace::Lab
-                || dst_pr.color_space == DataColorSpace::Color3
                 || dst_pr.color_space == DataColorSpace::Color4)
             && (dst_pr.pcs == DataColorSpace::Xyz || dst_pr.pcs == DataColorSpace::Lab)
             && (self.pcs == DataColorSpace::Xyz || self.pcs == DataColorSpace::Lab)
