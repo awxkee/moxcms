@@ -124,9 +124,13 @@ fn stage_lut_4x3(
     // - Linearization curves are non-linear, but gamma is linear
     // - Gamma curves are non-linear, but linearization is linear
     // - All curves linear
-    // Currently not optimized
     let clut_length: usize = (lut.num_clut_grid_points as usize).pow(lut.num_input_channels as u32)
         * lut.num_output_channels as usize;
+
+    let clut_table = lut.clut_table.to_clut_f32();
+    if clut_table.len() != clut_length {
+        return Err(CmsError::InvalidClutSize);
+    }
 
     let linearization_table = lut.input_table.to_clut_f32();
 
@@ -150,11 +154,6 @@ fn stage_lut_4x3(
     let gamma_curve2 = gamma_table
         [lut.num_output_table_entries as usize * 2..lut.num_output_table_entries as usize * 3]
         .to_vec();
-
-    let clut_table = lut.clut_table.to_clut_f32();
-    if clut_table.len() != clut_length {
-        return Err(CmsError::InvalidClutSize);
-    }
 
     #[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
     {

@@ -40,9 +40,11 @@ mod mab4x3;
 mod mba3x4;
 #[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
 mod neon;
+mod prelude_lut_xyz_rgb;
 mod rgb2gray;
 mod rgbxyz;
 mod rgbxyz_fixed;
+mod rgbxyz_float;
 #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"))]
 mod sse;
 mod transform_lut3_to_3;
@@ -55,3 +57,7 @@ pub(crate) use lut_transforms::make_lut_transform;
 pub(crate) use rgb2gray::{ToneReproductionRgbToGray, make_rgb_to_gray};
 pub(crate) use rgbxyz::RgbXyzFactory;
 pub(crate) use rgbxyz::TransformProfileRgb;
+pub(crate) use rgbxyz_float::{
+    TransformProfileRgbFloat, TransformProfileRgbFloatInOut, make_rgb_xyz_rgb_transform_float,
+    make_rgb_xyz_rgb_transform_float_in_out,
+};

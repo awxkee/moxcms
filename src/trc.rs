@@ -26,12 +26,12 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+use crate::cicp::create_rec709_parametric;
 use crate::math::m_clamp;
 use crate::mlaf::{mlaf, neg_mlaf};
-use crate::reader::uint16_number_to_float_fast;
 use crate::transform::PointeeSizeExpressible;
 use crate::writer::FloatToFixedU8Fixed8;
-use crate::{CmsError, ColorProfile, f_pow, f_powf};
+use crate::{CmsError, ColorProfile, Rgb, TransferCharacteristics, f_pow, f_powf};
 use num_traits::AsPrimitive;
 
 #[derive(Clone, Debug)]
@@ -53,21 +53,7 @@ impl ToneReprCurve {
                         return true;
                     }
                 }
-                if lut.len() > 1 && lut.len() < 50 {
-                    let mut all_linear = true;
-                    let lut_size = 1. / (lut.len() as f32 - 1.);
-                    for (i, &value) in lut.iter().enumerate() {
-                        let scaled_value = uint16_number_to_float_fast(value as u32);
-                        let current_value = i as f32 * lut_size;
-                        if (scaled_value - current_value).abs() > 1e-5 {
-                            all_linear = false;
-                        }
-                    }
-                    if all_linear {
-                        return true;
-                    }
-                }
-                false
+                is_curve_linear16(lut)
             }
             ToneReprCurve::Parametric(parametric) => {
                 if parametric.is_empty() {
@@ -80,42 +66,6 @@ impl ToneReprCurve {
             }
         }
     }
-}
-
-#[allow(clippy::many_single_char_names)]
-pub(crate) fn build_srgb_gamma_table(num_entries: i32) -> Vec<u16> {
-    let gamma: f64 = 2.4;
-    let a: f64 = 1.0 / 1.055;
-    let b: f64 = 0.055 / 1.055;
-    let c: f64 = 1.0 / 12.92;
-    let d: f64 = 0.04045;
-    build_parametric_table(num_entries, a, b, c, d, gamma)
-}
-
-#[allow(clippy::many_single_char_names)]
-#[inline]
-pub(crate) fn build_parametric_table(
-    num_entries: i32,
-    a: f64,
-    b: f64,
-    c: f64,
-    d: f64,
-    g: f64,
-) -> Vec<u16> {
-    build_trc_table(
-        num_entries,
-        // IEC 61966-2.1 (sRGB)
-        // Y = (aX + b)^Gamma | X >= d
-        // Y = cX             | X < d
-        |x| {
-            if x >= d {
-                let e: f64 = a * x + b;
-                if e > 0. { f_pow(e, g) } else { 0. }
-            } else {
-                c * x
-            }
-        },
-    )
 }
 
 pub(crate) fn build_trc_table(num_entries: i32, eotf: impl Fn(f64) -> f64) -> Vec<u16> {
@@ -330,6 +280,54 @@ fn linear_forward_table<T: PointeeSizeExpressible, const N: usize, const BIT_DEP
     gamma_table
 }
 
+#[inline]
+pub(crate) fn is_curve_linear16(curve: &[u16]) -> bool {
+    let scale = 1. / (curve.len() - 1) as f32 * 65535.;
+    for (index, &value) in curve.iter().enumerate() {
+        let quantized = (index as f32 * scale).round() as u16;
+        let diff = (quantized as i32 - value as i32).abs();
+        if diff > 0x0f {
+            return false;
+        }
+    }
+    true
+}
+
+#[inline]
+pub(crate) fn is_curve_descending<T: PartialOrd>(v: &[T]) -> bool {
+    if v.is_empty() {
+        return false;
+    }
+    if v.len() == 1 {
+        return false;
+    }
+    v[0] > v[v.len() - 1]
+}
+
+#[inline]
+pub(crate) fn is_curve_ascending<T: PartialOrd>(v: &[T]) -> bool {
+    if v.is_empty() {
+        return false;
+    }
+    if v.len() == 1 {
+        return false;
+    }
+    v[0] < v[v.len() - 1]
+}
+
+#[inline]
+pub(crate) fn is_curve_linear8(curve: &[u8]) -> bool {
+    let scale = 1. / (curve.len() - 1) as f32 * 255.;
+    for (index, &value) in curve.iter().enumerate() {
+        let quantized = (index as f32 * scale).round() as u16;
+        let diff = (quantized as i32 - value as i32).abs();
+        if diff > 0x03 {
+            return false;
+        }
+    }
+    true
+}
+
 #[inline(always)]
 pub(crate) fn lut_interp_linear_float(x: f32, table: &[f32]) -> f32 {
     let value = x.min(1.).max(0.) * (table.len() - 1) as f32;
@@ -345,7 +343,7 @@ pub(crate) fn lut_interp_linear_float(x: f32, table: &[f32]) -> f32 {
 /// Lut interpolation float where values is already clamped
 #[inline(always)]
 #[allow(dead_code)]
-pub(crate) fn lut_interp_linear_float_unbounded(x: f32, table: &[f32]) -> f32 {
+pub(crate) fn lut_interp_linear_float_clamped(x: f32, table: &[f32]) -> f32 {
     let value = x * (table.len() - 1) as f32;
 
     let upper: i32 = value.ceil() as i32;
@@ -622,6 +620,21 @@ pub(crate) fn lut_interp_linear16(input_value: u16, table: &[u16]) -> u16 {
     value as u16
 }
 
+#[inline]
+pub(crate) fn lut_interp_linear16_boxed<const N: usize>(input_value: u16, table: &[u16; N]) -> u16 {
+    // Start scaling input_value to the length of the array: 65535*(length-1).
+    // We'll divide out the 65535 next
+    let mut value: u32 = input_value as u32 * (table.len() as u32 - 1);
+    let upper: u16 = value.div_ceil(65535) as u16; // equivalent to ceil(value/65535)
+    let lower: u16 = (value / 65535) as u16; // equivalent to floor(value/65535)
+    // interp is the distance from upper to value scaled to 0..65535
+    let interp: u32 = value % 65535; // 0..65535*65535
+    value = (table[upper as usize] as u32 * interp
+        + table[lower as usize] as u32 * (65535 - interp))
+        / 65535;
+    value as u16
+}
+
 fn make_gamma_pow_table<
     T: Default + Copy + 'static + PointeeSizeExpressible,
     const BUCKET: usize,
@@ -636,10 +649,54 @@ where
     let mut table = Box::new([T::default(); BUCKET]);
     let scale = 1f32 / (N - 1) as f32;
     let cap = ((1 << BIT_DEPTH) - 1) as f32;
-    for (v, output) in table.iter_mut().take(N).enumerate() {
-        *output = (cap * f_powf(v as f32 * scale, gamma)).round().as_();
+    if T::FINITE {
+        for (v, output) in table.iter_mut().take(N).enumerate() {
+            *output = (cap * f_powf(v as f32 * scale, gamma)).round().as_();
+        }
+    } else {
+        for (v, output) in table.iter_mut().take(N).enumerate() {
+            *output = (cap * f_powf(v as f32 * scale, gamma)).as_();
+        }
     }
     table
+}
+
+fn make_gamma_parametric_table<
+    T: Default + Copy + 'static + PointeeSizeExpressible,
+    const BUCKET: usize,
+    const N: usize,
+    const BIT_DEPTH: usize,
+>(
+    parametric_curve: ParametricCurve,
+) -> Box<[T; BUCKET]>
+where
+    f32: AsPrimitive<T>,
+{
+    let mut table = Box::new([T::default(); BUCKET]);
+    let scale = 1f32 / (N - 1) as f32;
+    let cap = ((1 << BIT_DEPTH) - 1) as f32;
+    if T::FINITE {
+        for (v, output) in table.iter_mut().take(N).enumerate() {
+            *output = (cap * parametric_curve.eval(v as f32 * scale))
+                .round()
+                .as_();
+        }
+    } else {
+        for (v, output) in table.iter_mut().take(N).enumerate() {
+            *output = (cap * parametric_curve.eval(v as f32 * scale)).as_();
+        }
+    }
+    table
+}
+
+#[inline]
+fn compare_parametric(src: &[f32], dst: &[f32]) -> bool {
+    for (src, dst) in src.iter().zip(dst.iter()) {
+        if (src - dst).abs() > 1e-4 {
+            return false;
+        }
+    }
+    true
 }
 
 fn lut_inverse_interp16(value: u16, lut_table: &[u16]) -> u16 {
@@ -734,15 +791,120 @@ fn lut_inverse_interp16(value: u16, lut_table: &[u16]) -> u16 {
     (f + 0.5f64).floor() as u16
 }
 
+fn lut_inverse_interp16_boxed<const N: usize>(value: u16, lut_table: &[u16; N]) -> u16 {
+    let mut l: i32 = 1; // 'int' Give spacing for negative values
+    let mut r: i32 = 0x10000;
+    let mut x: i32 = 0;
+    let mut res: i32;
+    let length = lut_table.len() as i32;
+
+    let mut num_zeroes: i32 = 0;
+    for &item in lut_table.iter() {
+        if item == 0 { num_zeroes += 1 } else { break }
+    }
+
+    if num_zeroes == 0 && value as i32 == 0 {
+        return 0u16;
+    }
+    let mut num_of_polys: i32 = 0;
+    for &item in lut_table.iter().rev() {
+        if item == 0xffff {
+            num_of_polys += 1
+        } else {
+            break;
+        }
+    }
+    // Does the curve belong to this case?
+    if num_zeroes > 1 || num_of_polys > 1 {
+        let a_0: i32;
+        let b_0: i32;
+        // Identify if value fall downto 0 or FFFF zone
+        if value as i32 == 0 {
+            return 0u16;
+        }
+        // if (Value == 0xFFFF) return 0xFFFF;
+        // else restrict to valid zone
+        if num_zeroes > 1 {
+            a_0 = (num_zeroes - 1) * 0xffff / (length - 1);
+            l = a_0 - 1
+        }
+        if num_of_polys > 1 {
+            b_0 = (length - 1 - num_of_polys) * 0xffff / (length - 1);
+            r = b_0 + 1
+        }
+    }
+    if r <= l {
+        // If this happens LutTable is not invertible
+        return 0u16;
+    }
+
+    while r > l {
+        x = (l + r) / 2;
+        res = lut_interp_linear16_boxed((x - 1) as u16, lut_table) as i32;
+        if res == value as i32 {
+            // Found exact match.
+            return (x - 1) as u16;
+        }
+        if res > value as i32 {
+            r = x - 1
+        } else {
+            l = x + 1
+        }
+    }
+
+    // Not found, should we interpolate?
+
+    // Get surrounding nodes
+    debug_assert!(x >= 1);
+
+    let val2: f64 = (length - 1) as f64 * ((x - 1) as f64 / 65535.0);
+    let cell0: i32 = val2.floor() as i32;
+    let cell1: i32 = val2.ceil() as i32;
+    if cell0 == cell1 {
+        return x as u16;
+    }
+
+    let y0: f64 = lut_table[cell0 as usize] as f64;
+    let x0: f64 = 65535.0 * cell0 as f64 / (length - 1) as f64;
+    let y1: f64 = lut_table[cell1 as usize] as f64;
+    let x1: f64 = 65535.0 * cell1 as f64 / (length - 1) as f64;
+    let a: f64 = (y1 - y0) / (x1 - x0);
+    let b: f64 = y0 - a * x0;
+    if a.abs() < 0.01f64 {
+        return x as u16;
+    }
+    let f: f64 = (value as i32 as f64 - b) / a;
+    if f < 0.0 {
+        return 0u16;
+    }
+    if f >= 65535.0 {
+        return 0xffffu16;
+    }
+    (f + 0.5f64).floor() as u16
+}
+
 fn invert_lut(table: &[u16], out_length: usize) -> Vec<u16> {
-    // For now we invert the lut by creating a lut of size out_length
-    // and attempting to lookup a value for each entry using lut_inverse_interp16
+    // For now, we invert the lut by creating a lut of size out_length
+    // and attempting to look up a value for each entry using lut_inverse_interp16
     let mut output = vec![0u16; out_length];
     let scale_value = 65535f64 / (out_length - 1) as f64;
     for (i, out) in output.iter_mut().enumerate() {
         let x: f64 = i as f64 * scale_value;
         let input: u16 = (x + 0.5f64).floor() as u16;
         *out = lut_inverse_interp16(input, table);
+    }
+    output
+}
+
+fn invert_lut_boxed<const N: usize>(table: &[u16; N], out_length: usize) -> Vec<u16> {
+    // For now, we invert the lut by creating a lut of size out_length
+    // and attempting to look up a value for each entry using lut_inverse_interp16
+    let mut output = vec![0u16; out_length];
+    let scale_value = 65535f64 / (out_length - 1) as f64;
+    for (i, out) in output.iter_mut().enumerate() {
+        let x: f64 = i as f64 * scale_value;
+        let input: u16 = (x + 0.5f64).floor() as u16;
+        *out = lut_inverse_interp16_boxed(input, table);
     }
     output
 }
@@ -781,6 +943,38 @@ impl ToneReprCurve {
     {
         match self {
             ToneReprCurve::Parametric(params) => {
+                if params.len() == 5 {
+                    let srgb_params = vec![2.4, 1. / 1.055, 0.055 / 1.055, 1. / 12.92, 0.04045];
+                    let rec709_params = create_rec709_parametric();
+
+                    let mut lc_params: [f32; 5] = [0.; 5];
+                    for (dst, src) in lc_params.iter_mut().zip(params.iter()) {
+                        *dst = *src;
+                    }
+
+                    if compare_parametric(lc_params.as_slice(), srgb_params.as_slice()) {
+                        return Some(
+                            TransferCharacteristics::Srgb
+                                .make_gamma_table::<T, BUCKET, N, BIT_DEPTH>(),
+                        );
+                    }
+
+                    if compare_parametric(lc_params.as_slice(), rec709_params.as_slice()) {
+                        return Some(
+                            TransferCharacteristics::Bt709
+                                .make_gamma_table::<T, BUCKET, N, BIT_DEPTH>(),
+                        );
+                    }
+                }
+
+                let parametric_curve = ParametricCurve::new(params);
+                if let Some(v) = parametric_curve?
+                    .invert()
+                    .map(|x| make_gamma_parametric_table::<T, BUCKET, N, BIT_DEPTH>(x))
+                {
+                    return Some(v);
+                }
+
                 let mut gamma_table_uint = Box::new([0; N]);
 
                 let inverted_size: usize = N;
@@ -788,7 +982,7 @@ impl ToneReprCurve {
                 for (&src, dst) in gamma_table.iter().zip(gamma_table_uint.iter_mut()) {
                     *dst = (src * 65535f32) as u16;
                 }
-                let inverted = invert_lut(gamma_table_uint.as_slice(), inverted_size);
+                let inverted = invert_lut_boxed(&gamma_table_uint, inverted_size);
                 Some(make_gamma_lut::<T, BUCKET, N, BIT_DEPTH>(&inverted))
             }
             ToneReprCurve::Lut(data) => match data.len() {
@@ -966,4 +1160,210 @@ impl ColorProfile {
             .and_then(|trc| trc.build_gamma_table::<T, BUCKET, N, BIT_DEPTH>())
             .ok_or(CmsError::BuildTransferFunction)
     }
+
+    /// Checks if profile gamma can work in extended precision and we have implementation for this
+    pub(crate) fn try_extended_gamma_evaluator(
+        &self,
+    ) -> Option<Box<dyn ExtendedGammaEvaluator + Send + Sync>> {
+        if let Some(tc) = self.cicp.as_ref().map(|c| c.transfer_characteristics) {
+            if tc.has_transfer_curve() {
+                return Some(Box::new(ExtendedGammaCicpEvaluator {
+                    trc: tc.extended_gamma_tristimulus(),
+                }));
+            }
+        }
+        if !self.are_all_trc_the_same() {
+            return None;
+        }
+        if let Some(red_trc) = &self.red_trc {
+            match red_trc {
+                ToneReprCurve::Lut(lut) => {
+                    if lut.is_empty() {
+                        return Some(Box::new(ExtendedGammaEvaluatorLinear {}));
+                    }
+                    if lut.len() == 1 {
+                        let gamma = 1. / u8_fixed_8number_to_float(lut[0]);
+                        return Some(Box::new(ExtendedGammaEvaluatorPureGamma { gamma }));
+                    }
+                }
+                ToneReprCurve::Parametric(params) => {
+                    if params.len() == 5 {
+                        let srgb_params = vec![2.4, 1. / 1.055, 0.055 / 1.055, 1. / 12.92, 0.04045];
+                        let rec709_params = create_rec709_parametric();
+
+                        let mut lc_params: [f32; 5] = [0.; 5];
+                        for (dst, src) in lc_params.iter_mut().zip(params.iter()) {
+                            *dst = *src;
+                        }
+
+                        if compare_parametric(lc_params.as_slice(), srgb_params.as_slice()) {
+                            return Some(Box::new(ExtendedGammaCicpEvaluator {
+                                trc: TransferCharacteristics::Srgb.extended_gamma_tristimulus(),
+                            }));
+                        }
+
+                        if compare_parametric(lc_params.as_slice(), rec709_params.as_slice()) {
+                            return Some(Box::new(ExtendedGammaCicpEvaluator {
+                                trc: TransferCharacteristics::Bt709.extended_gamma_tristimulus(),
+                            }));
+                        }
+                    }
+
+                    let parametric_curve = ParametricCurve::new(params);
+                    if let Some(v) = parametric_curve?.invert() {
+                        return Some(Box::new(ExtendedParametricEvaluator { parametric: v }));
+                    }
+                }
+            }
+        }
+        None
+    }
+
+    /// Check if all TRC are the same
+    fn are_all_trc_the_same(&self) -> bool {
+        if let (Some(red_trc), Some(green_trc), Some(blue_trc)) =
+            (&self.red_trc, &self.green_trc, &self.blue_trc)
+        {
+            if !matches!(
+                (red_trc, green_trc, blue_trc),
+                (
+                    ToneReprCurve::Lut(_),
+                    ToneReprCurve::Lut(_),
+                    ToneReprCurve::Lut(_),
+                ) | (
+                    ToneReprCurve::Parametric(_),
+                    ToneReprCurve::Parametric(_),
+                    ToneReprCurve::Parametric(_)
+                )
+            ) {
+                return false;
+            }
+            if let (ToneReprCurve::Lut(lut0), ToneReprCurve::Lut(lut1), ToneReprCurve::Lut(lut2)) =
+                (red_trc, green_trc, blue_trc)
+            {
+                if lut0 == lut1 || lut1 == lut2 {
+                    return true;
+                }
+            }
+            if let (
+                ToneReprCurve::Parametric(lut0),
+                ToneReprCurve::Parametric(lut1),
+                ToneReprCurve::Parametric(lut2),
+            ) = (red_trc, green_trc, blue_trc)
+            {
+                if lut0 == lut1 || lut1 == lut2 {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    /// Checks if profile linearization can work in extended precision and we have implementation for this
+    pub(crate) fn try_extended_linearizing_evaluator(
+        &self,
+    ) -> Option<Box<dyn ExtendedGammaEvaluator + Send + Sync>> {
+        if let Some(tc) = self.cicp.as_ref().map(|c| c.transfer_characteristics) {
+            if tc.has_transfer_curve() {
+                return Some(Box::new(ExtendedGammaCicpEvaluator {
+                    trc: tc.extended_linear_tristimulus(),
+                }));
+            }
+        }
+        if !self.are_all_trc_the_same() {
+            return None;
+        }
+        if let Some(red_trc) = &self.red_trc {
+            match red_trc {
+                ToneReprCurve::Lut(lut) => {
+                    if lut.is_empty() {
+                        return Some(Box::new(ExtendedGammaEvaluatorLinear {}));
+                    }
+                    if lut.len() == 1 {
+                        let gamma = u8_fixed_8number_to_float(lut[0]);
+                        return Some(Box::new(ExtendedGammaEvaluatorPureGamma { gamma }));
+                    }
+                }
+                ToneReprCurve::Parametric(params) => {
+                    if params.len() == 5 {
+                        let srgb_params = vec![2.4, 1. / 1.055, 0.055 / 1.055, 1. / 12.92, 0.04045];
+                        let rec709_params = create_rec709_parametric();
+
+                        let mut lc_params: [f32; 5] = [0.; 5];
+                        for (dst, src) in lc_params.iter_mut().zip(params.iter()) {
+                            *dst = *src;
+                        }
+
+                        if compare_parametric(lc_params.as_slice(), srgb_params.as_slice()) {
+                            return Some(Box::new(ExtendedGammaCicpEvaluator {
+                                trc: TransferCharacteristics::Srgb.extended_linear_tristimulus(),
+                            }));
+                        }
+
+                        if compare_parametric(lc_params.as_slice(), rec709_params.as_slice()) {
+                            return Some(Box::new(ExtendedGammaCicpEvaluator {
+                                trc: TransferCharacteristics::Bt709.extended_linear_tristimulus(),
+                            }));
+                        }
+                    }
+
+                    let parametric_curve = ParametricCurve::new(params);
+                    if let Some(v) = parametric_curve {
+                        return Some(Box::new(ExtendedParametricEvaluator { parametric: v }));
+                    }
+                }
+            }
+        }
+        None
+    }
+}
+
+pub(crate) struct ExtendedGammaCicpEvaluator {
+    trc: fn(Rgb<f32>) -> Rgb<f32>,
+}
+
+pub(crate) struct ExtendedParametricEvaluator {
+    parametric: ParametricCurve,
+}
+
+pub(crate) struct ExtendedGammaEvaluatorPureGamma {
+    gamma: f32,
+}
+
+pub(crate) struct ExtendedGammaEvaluatorLinear {}
+
+impl ExtendedGammaEvaluator for ExtendedGammaCicpEvaluator {
+    fn evaluate(&self, rgb: Rgb<f32>) -> Rgb<f32> {
+        (self.trc)(rgb)
+    }
+}
+
+impl ExtendedGammaEvaluator for ExtendedParametricEvaluator {
+    fn evaluate(&self, rgb: Rgb<f32>) -> Rgb<f32> {
+        Rgb::new(
+            self.parametric.eval(rgb.r),
+            self.parametric.eval(rgb.g),
+            self.parametric.eval(rgb.b),
+        )
+    }
+}
+
+impl ExtendedGammaEvaluator for ExtendedGammaEvaluatorPureGamma {
+    fn evaluate(&self, rgb: Rgb<f32>) -> Rgb<f32> {
+        Rgb::new(
+            f_powf(rgb.r, self.gamma),
+            f_powf(rgb.g, self.gamma),
+            f_powf(rgb.b, self.gamma),
+        )
+    }
+}
+
+impl ExtendedGammaEvaluator for ExtendedGammaEvaluatorLinear {
+    fn evaluate(&self, rgb: Rgb<f32>) -> Rgb<f32> {
+        rgb
+    }
+}
+
+pub(crate) trait ExtendedGammaEvaluator {
+    fn evaluate(&self, rgb: Rgb<f32>) -> Rgb<f32>;
 }

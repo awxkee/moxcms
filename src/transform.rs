@@ -34,6 +34,7 @@ use crate::err::CmsError;
 use crate::trc::GammaLutInterpolate;
 use crate::{ColorProfile, DataColorSpace, LutWarehouse, RenderingIntent, Vector3f, Xyzd};
 use num_traits::AsPrimitive;
+use std::marker::PhantomData;
 
 /// Transformation executor itself
 pub trait TransformExecutor<V: Copy + Default> {
@@ -80,13 +81,21 @@ pub struct TransformOptions {
     /// Do not change it if you're not sure that extreme precision is required,
     /// in most cases it is a simple way to spend energy to warming up environment
     /// a little.
+    ///
+    /// Q4.12 for RGB->XYZ->RGB is used.
+    /// LUT interpolation goes with Q0.15.
     pub prefer_fixed_point: bool,
     /// Interpolation method for 3D LUT
     pub interpolation_method: InterpolationMethod,
-    /// Barycentrial weights scale.
+    /// Barycentric weights scale.
     ///
     /// This value controls LUT weights precision.
     pub barycentric_weight_scale: BarycentricWeightScale,
+    /// For floating points transform, it will try to detect gamma function.
+    /// If gamma function is found, then it will be used instead of LUT table.
+    /// This allows to work with excellent precision with extended range, 
+    /// at a cost of execution time.
+    pub allow_extended_range_rgb_xyz: bool,
     // pub black_point_compensation: bool,
 }
 
@@ -121,6 +130,7 @@ impl Default for TransformOptions {
             prefer_fixed_point: true,
             interpolation_method: InterpolationMethod::default(),
             barycentric_weight_scale: BarycentricWeightScale::default(),
+            allow_extended_range_rgb_xyz: false,
             // black_point_compensation: false,
         }
     }
@@ -351,6 +361,8 @@ impl ColorProfile {
     /// Data has to be normalized into [0, 1] range.
     /// ICC profiles and LUT tables do not exist in infinite precision.
     /// Thus, this implementation considers `f32` as 14-bit values.
+    /// Floating point transformer works in extended mode, that means returned data might be negative
+    /// or more than 1.
     pub fn create_transform_f32(
         &self,
         src_layout: Layout,
@@ -365,6 +377,8 @@ impl ColorProfile {
     /// Data has to be normalized into [0, 1] range.
     /// ICC profiles and LUT tables do not exist in infinite precision.
     /// Thus, this implementation considers `f64` as 16-bit values.
+    /// Floating point transformer works in extended mode, that means returned data might be negative
+    /// or more than 1.
     pub fn create_transform_f64(
         &self,
         src_layout: Layout,
@@ -414,7 +428,52 @@ impl ColorProfile {
             if dst_layout == Layout::Gray || dst_layout == Layout::GrayAlpha {
                 return Err(CmsError::InvalidLayout);
             }
+
             let transform = self.transform_matrix(dst_pr);
+
+            if !T::FINITE && options.allow_extended_range_rgb_xyz {
+                if let Some(gamma_evaluator) = dst_pr.try_extended_gamma_evaluator() {
+                    if let Some(linear_evaluator) = dst_pr.try_extended_linearizing_evaluator() {
+                        use crate::conversions::{
+                            TransformProfileRgbFloatInOut, make_rgb_xyz_rgb_transform_float_in_out,
+                        };
+                        let p = TransformProfileRgbFloatInOut {
+                            linear_evaluator,
+                            gamma_evaluator,
+                            adaptation_matrix: transform.to_f32(),
+                            phantom_data: PhantomData,
+                        };
+                        return make_rgb_xyz_rgb_transform_float_in_out::<T, BIT_DEPTH>(
+                            src_layout, dst_layout, p,
+                        );
+                    }
+
+                    let lin_r = self.build_r_linearize_table::<T, LINEAR_CAP, BIT_DEPTH>(
+                        options.allow_use_cicp_transfer,
+                    )?;
+                    let lin_g = self.build_g_linearize_table::<T, LINEAR_CAP, BIT_DEPTH>(
+                        options.allow_use_cicp_transfer,
+                    )?;
+                    let lin_b = self.build_b_linearize_table::<T, LINEAR_CAP, BIT_DEPTH>(
+                        options.allow_use_cicp_transfer,
+                    )?;
+
+                    use crate::conversions::{
+                        TransformProfileRgbFloat, make_rgb_xyz_rgb_transform_float,
+                    };
+                    let p = TransformProfileRgbFloat {
+                        r_linear: lin_r,
+                        g_linear: lin_g,
+                        b_linear: lin_b,
+                        gamma_evaluator,
+                        adaptation_matrix: transform.to_f32(),
+                        phantom_data: PhantomData,
+                    };
+                    return make_rgb_xyz_rgb_transform_float::<T, LINEAR_CAP, BIT_DEPTH>(
+                        src_layout, dst_layout, p,
+                    );
+                }
+            }
 
             let lin_r = self.build_r_linearize_table::<T, LINEAR_CAP, BIT_DEPTH>(
                 options.allow_use_cicp_transfer,

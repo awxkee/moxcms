@@ -107,13 +107,13 @@ fn compute_abs_diff42(src: &[f32], dst: &[f32]) {
 }
 
 fn main() {
-    let funny_icc = fs::read("./assets/us_swop_coated.icc").unwrap();
+    let funny_icc = fs::read("./assets/fogra39_coated.icc").unwrap();
 
     // println!("{:?}", decoded);
 
     let srgb_perceptual_icc = fs::read("./assets/srgb_perceptual.icc").unwrap();
 
-    let funny_profile = ColorProfile::new_from_slice(&funny_icc).unwrap();
+    let funny_profile = ColorProfile::new_display_p3(); // ColorProfile::new_from_slice(&funny_icc).unwrap();
 
     let srgb_perceptual_profile = ColorProfile::new_from_slice(&srgb_perceptual_icc).unwrap();
     let out_profile = ColorProfile::new_srgb();
@@ -128,24 +128,37 @@ fn main() {
 
     let options = DecoderOptions::new_fast().jpeg_set_out_colorspace(ColorSpace::RGB);
 
+    // let real_dst = img
+    //     .as_bytes()
+    //     .chunks_exact(3)
+    //     .flat_map(|x| [x[0], x[1], x[2], 255u8])
+    //     .collect::<Vec<_>>();
+
     let real_dst = img
         .as_bytes()
         .chunks_exact(3)
-        .flat_map(|x| [x[0], x[1], x[2], 255u8])
+        .flat_map(|x| {
+            [
+                x[0] as f32 / 255.,
+                x[1] as f32 / 255.,
+                x[2] as f32 / 255.,
+                1.,
+            ]
+        })
         .collect::<Vec<_>>();
 
-    let mut cmyk = vec![0u8; (img.as_bytes().len() / 3) * 4];
+    let mut cmyk = vec![0f32; (img.as_bytes().len() / 3) * 4];
 
     let color_profile = ColorProfile::new_from_slice(&srgb_perceptual_icc).unwrap();
     // let color_profile = ColorProfile::new_gray_with_gamma(2.2);
-    let mut dest_profile = ColorProfile::new_srgb();
+    let dest_profile = ColorProfile::new_srgb();
 
     // t1.transform_pixels(&real_dst, &mut cmyk);
 
     let time = Instant::now();
 
     let transform = dest_profile
-        .create_transform_8bit(
+        .create_transform_f32(
             Layout::Rgba,
             &funny_profile,
             Layout::Rgba,
@@ -155,6 +168,7 @@ fn main() {
                 prefer_fixed_point: true,
                 interpolation_method: InterpolationMethod::Tetrahedral,
                 barycentric_weight_scale: BarycentricWeightScale::Low,
+                allow_extended_range_rgb_xyz: false,
             },
         )
         .unwrap();
@@ -163,8 +177,10 @@ fn main() {
 
     transform.transform(&real_dst, &mut cmyk).unwrap();
 
+    let time = Instant::now();
+
     let transform = funny_profile
-        .create_transform_8bit(
+        .create_transform_f32(
             Layout::Rgba,
             &out_profile,
             Layout::Rgba,
@@ -174,12 +190,14 @@ fn main() {
                 prefer_fixed_point: true,
                 interpolation_method: InterpolationMethod::Prism,
                 barycentric_weight_scale: BarycentricWeightScale::Low,
+                allow_extended_range_rgb_xyz: false,
             },
         )
         .unwrap();
     println!("Creating time 2 took {:?}", time.elapsed());
-    let mut dst = vec![0u8; real_dst.len()];
+    let mut dst = vec![0.; real_dst.len()];
 
+    let time = Instant::now();
     for (src, dst) in cmyk
         .chunks_exact(img.width() as usize * 4)
         .zip(dst.chunks_exact_mut(img.width() as usize * 4))
@@ -191,11 +209,24 @@ fn main() {
             )
             .unwrap();
     }
+    println!("Exec time 2 took {:?}", time.elapsed());
 
-    dst = dst
+    // dst = dst
+    //     .chunks_exact(4)
+    //     .flat_map(|x| [x[0], x[1], x[2], 255])
+    //     .collect();
+
+    let dst = dst
         .chunks_exact(4)
-        .flat_map(|x| [x[0], x[1], x[2], 255])
-        .collect();
+        .flat_map(|x| {
+            [
+                (x[0] * 255.) as u8,
+                (x[1] * 255.) as u8,
+                (x[2] * 255.) as u8,
+                255u8,
+            ]
+        })
+        .collect::<Vec<_>>();
 
     // println!("Estimated time: {:?}", instant.elapsed());
 

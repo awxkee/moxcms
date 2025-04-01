@@ -28,7 +28,7 @@
  */
 use crate::conversions::neon::hypercube::HypercubeNeon;
 use crate::conversions::neon::interpolator::NeonVector;
-use crate::trc::{lut_interp_linear_float, lut_interp_linear_float_unbounded};
+use crate::trc::{lut_interp_linear_float, lut_interp_linear_float_clamped};
 use crate::{CmsError, DataColorSpace, InterpolationMethod, Stage};
 use std::arch::aarch64::{vdupq_n_f32, vgetq_lane_f32, vmaxq_f32, vminq_f32};
 
@@ -66,11 +66,11 @@ impl Lut4x3Neon {
                 v = vminq_f32(v, vdupq_n_f32(1.));
 
                 let pcs_x =
-                    lut_interp_linear_float_unbounded(vgetq_lane_f32::<0>(v), &self.output[0]);
+                    lut_interp_linear_float_clamped(vgetq_lane_f32::<0>(v), &self.output[0]);
                 let pcs_y =
-                    lut_interp_linear_float_unbounded(vgetq_lane_f32::<1>(v), &self.output[1]);
+                    lut_interp_linear_float_clamped(vgetq_lane_f32::<1>(v), &self.output[1]);
                 let pcs_z =
-                    lut_interp_linear_float_unbounded(vgetq_lane_f32::<2>(v), &self.output[2]);
+                    lut_interp_linear_float_clamped(vgetq_lane_f32::<2>(v), &self.output[2]);
                 dest[0] = pcs_x;
                 dest[1] = pcs_y;
                 dest[2] = pcs_z;
@@ -80,41 +80,50 @@ impl Lut4x3Neon {
     }
 }
 
-impl Stage for Lut4x3Neon {
-    fn transform(&self, src: &[f32], dst: &mut [f32]) -> Result<(), CmsError> {
-        let l_tbl = HypercubeNeon::new(
-            &self.clut,
-            [
-                self.grid_size,
-                self.grid_size,
-                self.grid_size,
-                self.grid_size,
-            ],
-            3,
-        );
+macro_rules! dispatch_preheat {
+    ($heater: ident) => {
+        impl Stage for $heater {
+            fn transform(&self, src: &[f32], dst: &mut [f32]) -> Result<(), CmsError> {
+                let l_tbl = HypercubeNeon::new(
+                    &self.clut,
+                    [
+                        self.grid_size,
+                        self.grid_size,
+                        self.grid_size,
+                        self.grid_size,
+                    ],
+                    3,
+                );
 
-        // If Source PCS is LAB trilinear should be used
-        if self.pcs == DataColorSpace::Lab {
-            return self.transform_impl(src, dst, |x, y, z, w| l_tbl.quadlinear_vec3(x, y, z, w));
-        }
+                // If Source PCS is LAB trilinear should be used
+                if self.pcs == DataColorSpace::Lab {
+                    return self
+                        .transform_impl(src, dst, |x, y, z, w| l_tbl.quadlinear_vec3(x, y, z, w));
+                }
 
-        match self.interpolation_method {
-            #[cfg(feature = "options")]
-            InterpolationMethod::Tetrahedral => {
-                self.transform_impl(src, dst, |x, y, z, w| l_tbl.tetra_vec3(x, y, z, w))?;
-            }
-            #[cfg(feature = "options")]
-            InterpolationMethod::Pyramid => {
-                self.transform_impl(src, dst, |x, y, z, w| l_tbl.pyramid_vec3(x, y, z, w))?;
-            }
-            #[cfg(feature = "options")]
-            InterpolationMethod::Prism => {
-                self.transform_impl(src, dst, |x, y, z, w| l_tbl.prism_vec3(x, y, z, w))?
-            }
-            InterpolationMethod::Linear => {
-                self.transform_impl(src, dst, |x, y, z, w| l_tbl.quadlinear_vec3(x, y, z, w))?
+                match self.interpolation_method {
+                    #[cfg(feature = "options")]
+                    InterpolationMethod::Tetrahedral => {
+                        self.transform_impl(src, dst, |x, y, z, w| l_tbl.tetra_vec3(x, y, z, w))?;
+                    }
+                    #[cfg(feature = "options")]
+                    InterpolationMethod::Pyramid => {
+                        self.transform_impl(src, dst, |x, y, z, w| l_tbl.pyramid_vec3(x, y, z, w))?;
+                    }
+                    #[cfg(feature = "options")]
+                    InterpolationMethod::Prism => {
+                        self.transform_impl(src, dst, |x, y, z, w| l_tbl.prism_vec3(x, y, z, w))?
+                    }
+                    InterpolationMethod::Linear => {
+                        self.transform_impl(src, dst, |x, y, z, w| {
+                            l_tbl.quadlinear_vec3(x, y, z, w)
+                        })?
+                    }
+                }
+                Ok(())
             }
         }
-        Ok(())
-    }
+    };
 }
+
+dispatch_preheat!(Lut4x3Neon);

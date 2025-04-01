@@ -54,7 +54,7 @@ pub struct LCh {
 }
 
 use crate::math::cbrtf;
-use crate::{Chromaticity, Lab, Xyz, atan2f, const_hypotf, f_cosf, f_sinf, hypotf, powf};
+use crate::{Chromaticity, Lab, Xyz, atan2f, const_hypotf, f_atan2f, f_cosf, f_sinf, hypotf, powf};
 use num_traits::Pow;
 use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 
@@ -145,17 +145,17 @@ impl LCh {
         LCh {
             l: luv.l,
             c: hypotf(luv.u, luv.v),
-            h: atan2f(luv.v, luv.u),
+            h: f_atan2f(luv.v, luv.u),
         }
     }
 
     /// Converts Lab to LCh(ab)
     #[inline]
-    pub fn from_lab(luv: Lab) -> Self {
+    pub fn from_lab(lab: Lab) -> Self {
         LCh {
-            l: luv.l,
-            c: hypotf(luv.a, luv.b),
-            h: atan2f(luv.b, luv.a),
+            l: lab.l,
+            c: hypotf(lab.a, lab.b),
+            h: f_atan2f(lab.b, lab.a),
         }
     }
 

@@ -131,11 +131,9 @@ where
                 }
             } else {
                 unsafe {
-                    let mut r = _mm_max_ps(v.v, _mm_setzero_ps());
-                    r = _mm_min_ps(r, value_scale);
-                    dst[dst_cn.r_i()] = f32::from_bits(_mm_extract_ps::<0>(r) as u32).as_();
-                    dst[dst_cn.g_i()] = f32::from_bits(_mm_extract_ps::<1>(r) as u32).as_();
-                    dst[dst_cn.b_i()] = f32::from_bits(_mm_extract_ps::<2>(r) as u32).as_();
+                    dst[dst_cn.r_i()] = f32::from_bits(_mm_extract_ps::<0>(v.v) as u32).as_();
+                    dst[dst_cn.g_i()] = f32::from_bits(_mm_extract_ps::<1>(v.v) as u32).as_();
+                    dst[dst_cn.b_i()] = f32::from_bits(_mm_extract_ps::<2>(v.v) as u32).as_();
                 }
             }
             if dst_channels == 4 {

@@ -33,7 +33,7 @@ use crate::gamma::{
 use crate::{
     Chromaticity,
     err::CmsError,
-    trc::{ToneReprCurve, build_srgb_gamma_table, build_trc_table, curve_from_gamma},
+    trc::{ToneReprCurve, build_trc_table, curve_from_gamma},
 };
 use std::convert::TryFrom;
 
@@ -415,6 +415,22 @@ impl TransferCharacteristics {
     }
 }
 
+pub(crate) fn create_rec709_parametric() -> [f32; 5] {
+    const ALPHA: f32 = 1.099;
+    const BETA: f32 = 0.018;
+
+    const LINEAR_CONF: f32 = 4.500;
+    const POW_EXP: f32 = 0.45;
+
+    const G: f32 = 1. / POW_EXP;
+    const A: f32 = 1. / ALPHA;
+    const B: f32 = 1. - A;
+    const C: f32 = 1. / LINEAR_CONF;
+    const D: f32 = LINEAR_CONF * BETA;
+
+    [G, A, B, C, D]
+}
+
 impl TryFrom<TransferCharacteristics> for ToneReprCurve {
     type Error = CmsError;
     /// See [ICC.1:2010](https://www.color.org/specification/ICC1v43_2010-12.pdf)
@@ -460,21 +476,7 @@ impl TryFrom<TransferCharacteristics> for ToneReprCurve {
                 // profiles after converting to s15Fixed16Number, providing us
                 // good test coverage.
 
-                type Float = f32;
-
-                const ALPHA: Float = 1.099;
-                const BETA: Float = 0.018;
-
-                const LINEAR_CONF: Float = 4.500;
-                const POW_EXP: Float = 0.45;
-
-                const G: Float = 1. / POW_EXP;
-                const A: Float = 1. / ALPHA;
-                const B: Float = 1. - A;
-                const C: Float = 1. / LINEAR_CONF;
-                const D: Float = LINEAR_CONF * BETA;
-
-                ToneReprCurve::Parametric(vec![G, A, B, C, D])
+                ToneReprCurve::Parametric(create_rec709_parametric().to_vec())
             }
             TransferCharacteristics::Unspecified => {
                 return Err(CmsError::UnsupportedTrc(value as u8));
@@ -503,10 +505,8 @@ impl TryFrom<TransferCharacteristics> for ToneReprCurve {
                 ToneReprCurve::Lut(table)
             }
             TransferCharacteristics::Srgb => {
-                // Should we prefer this or curveType::Parametric?
-                ToneReprCurve::Lut(build_srgb_gamma_table(NUM_TRC_TABLE_ENTRIES))
+                ToneReprCurve::Parametric(vec![2.4, 1. / 1.055, 0.055 / 1.055, 1. / 12.92, 0.04045])
             }
-
             TransferCharacteristics::Smpte2084 => {
                 let table = build_trc_table(NUM_TRC_TABLE_ENTRIES, pq_to_linear);
                 ToneReprCurve::Lut(table)

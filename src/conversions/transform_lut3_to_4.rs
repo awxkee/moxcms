@@ -90,15 +90,18 @@ where
 
             let tetrahedral = Tetrahedral::new(&self.lut);
             let v = tetrahedral.inter4(x, y, z, &self.weights);
-            let r = if T::FINITE {
-                v * value_scale + 0.5f32
+            if T::FINITE {
+                let r = v * value_scale + 0.5f32;
+                dst[0] = r.v[0].min(value_scale).max(0f32).as_();
+                dst[1] = r.v[1].min(value_scale).max(0f32).as_();
+                dst[2] = r.v[2].min(value_scale).max(0f32).as_();
+                dst[3] = r.v[3].min(value_scale).max(0f32).as_();
             } else {
-                v
-            };
-            dst[0] = r.v[0].min(value_scale).max(0f32).as_();
-            dst[1] = r.v[1].min(value_scale).max(0f32).as_();
-            dst[2] = r.v[2].min(value_scale).max(0f32).as_();
-            dst[3] = r.v[3].min(value_scale).max(0f32).as_();
+                dst[0] = v.v[0].as_();
+                dst[1] = v.v[1].as_();
+                dst[2] = v.v[2].as_();
+                dst[3] = v.v[3].as_();
+            }
         }
     }
 }

@@ -121,14 +121,14 @@ where
 
                 let tetrahedral = Interpolator::new(&self.lut);
                 let v = tetrahedral.inter3_neon(x, y, z, &self.weights);
-                let mut o = vmax_s16(v.v, vdup_n_s16(0));
-                o = vmin_s16(o, v_max_scale);
                 if T::FINITE {
+                    let mut o = vmax_s16(v.v, vdup_n_s16(0));
+                    o = vmin_s16(o, v_max_scale);
                     dst[dst_cn.r_i()] = (vget_lane_s16::<0>(o) as u32).as_();
                     dst[dst_cn.g_i()] = (vget_lane_s16::<1>(o) as u32).as_();
                     dst[dst_cn.b_i()] = (vget_lane_s16::<2>(o) as u32).as_();
                 } else {
-                    let o = vcvtq_f32_s32(vmovl_s16(o));
+                    let o = vcvtq_f32_s32(vmovl_s16(v.v));
                     let r = vmulq_f32(o, f_value_scale);
                     dst[dst_cn.r_i()] = vgetq_lane_f32::<0>(r).as_();
                     dst[dst_cn.g_i()] = vgetq_lane_f32::<1>(r).as_();

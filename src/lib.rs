@@ -74,10 +74,7 @@ pub use defaults::{
     WHITE_POINT_DCI_P3,
 };
 pub use err::CmsError;
-pub use gamut::{
-    gamut_clip_adaptive_l0_0_5, gamut_clip_adaptive_l0_l_cusp, gamut_clip_preserve_chroma,
-    gamut_clip_project_to_l_cusp,
-};
+pub use gamut::filmlike_clip;
 pub use ictcp::ICtCp;
 pub use jzazbz::Jzazbz;
 pub use jzczhz::Jzczhz;
@@ -85,8 +82,8 @@ pub use lab::Lab;
 pub use luv::{LCh, Luv};
 pub use math::{
     atan2f, atanf, cbrtf, const_hypotf, cosf, exp, expf, f_atan2f, f_atanf, f_cbrtf, f_cosf, f_exp,
-    f_exp2, f_exp2f, f_expf, f_log, f_log2, f_log2f, f_logf, f_pow, f_powf, f_sinf, floor, floorf,
-    hypotf, log, logf, pow, powf, rounding_div_ceil, sinf, sqrtf,
+    f_exp2, f_exp2f, f_expf, f_log, f_log2, f_log2f, f_log10, f_logf, f_pow, f_powf, f_sinf, floor,
+    floorf, hypotf, log, logf, pow, powf, rounding_div_ceil, sinf, sqrtf,
 };
 pub use matrix::{
     BT2020_MATRIX, Chromaticity, DISPLAY_P3_MATRIX, Matrix3, Matrix3d, Matrix3f, Matrix4f,
