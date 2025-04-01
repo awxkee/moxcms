@@ -121,11 +121,9 @@ where
                     dst[dst_cn.g_i()] = vgetq_lane_u32::<1>(jvx).as_();
                     dst[dst_cn.b_i()] = vgetq_lane_u32::<2>(jvx).as_();
                 } else {
-                    let mut r = vminq_f32(v.v, value_scale);
-                    r = vmaxq_f32(r, vdupq_n_f32(0.));
-                    dst[dst_cn.r_i()] = vgetq_lane_f32::<0>(r).as_();
-                    dst[dst_cn.g_i()] = vgetq_lane_f32::<1>(r).as_();
-                    dst[dst_cn.b_i()] = vgetq_lane_f32::<2>(r).as_();
+                    dst[dst_cn.r_i()] = vgetq_lane_f32::<0>(v.v).as_();
+                    dst[dst_cn.g_i()] = vgetq_lane_f32::<1>(v.v).as_();
+                    dst[dst_cn.b_i()] = vgetq_lane_f32::<2>(v.v).as_();
                 }
                 if dst_channels == 4 {
                     dst[dst_cn.a_i()] = a;

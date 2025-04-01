@@ -64,11 +64,7 @@ impl Vector3fCmykLerp for NonFiniteVector3fLerp {
     #[inline(always)]
     fn interpolate(a: Vector3f, b: Vector3f, t: f32, _: f32) -> Vector3f {
         let t = Vector3f::from(t);
-        let mut new_vec = a.neg_mla(a, t).mla(b, t);
-        new_vec.v[0] = m_clamp(new_vec.v[0], 0.0, 1.0);
-        new_vec.v[1] = m_clamp(new_vec.v[1], 0.0, 1.0);
-        new_vec.v[2] = m_clamp(new_vec.v[2], 0.0, 1.0);
-        new_vec
+        a.neg_mla(a, t).mla(b, t)
     }
 }
 

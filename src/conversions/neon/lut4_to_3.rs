@@ -131,9 +131,7 @@ where
                 unsafe {
                     let t0 = vdupq_n_f32(t);
                     let hp = vfmsq_f32(a0, a0, t0);
-                    let mut v = vfmaq_f32(hp, b0, t0);
-                    v = vminq_f32(v, value_scale);
-                    v = vmaxq_f32(v, vdupq_n_f32(0.));
+                    let v = vfmaq_f32(hp, b0, t0);
 
                     dst[cn.r_i()] = vgetq_lane_f32::<0>(v).as_();
                     dst[cn.g_i()] = vgetq_lane_f32::<1>(v).as_();

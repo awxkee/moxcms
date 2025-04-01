@@ -55,14 +55,12 @@ pub fn filmlike_clip(rgb: Rgb<f32>) -> Rgb<f32> {
         } else {
             Rgb::new(rgb.r.min(L), rgb.g.min(L), rgb.g);
         }
+    } else if rgb.r >= rgb.b {
+        filmlike_clip_rgb_tone(&mut rgb.g, &mut rgb.r, &mut rgb.b, L);
+    } else if rgb.b > rgb.g {
+        filmlike_clip_rgb_tone(&mut rgb.b, &mut rgb.g, &mut rgb.r, L);
     } else {
-        if rgb.r >= rgb.b {
-            filmlike_clip_rgb_tone(&mut rgb.g, &mut rgb.r, &mut rgb.b, L);
-        } else if rgb.b > rgb.g {
-            filmlike_clip_rgb_tone(&mut rgb.b, &mut rgb.g, &mut rgb.r, L);
-        } else {
-            filmlike_clip_rgb_tone(&mut rgb.g, &mut rgb.b, &mut rgb.r, L);
-        }
+        filmlike_clip_rgb_tone(&mut rgb.g, &mut rgb.b, &mut rgb.r, L);
     }
     rgb
 }

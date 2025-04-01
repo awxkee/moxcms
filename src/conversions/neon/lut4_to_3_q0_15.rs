@@ -116,10 +116,10 @@ where
                 let t0 = vdup_n_s16(t);
                 let hp = vqrdmlsh_s16(a0, a0, t0);
                 let mut v = vqrdmlah_s16(hp, b0, t0);
-                v = vmax_s16(v, vdup_n_s16(0));
-                v = vmin_s16(v, v_max_scale);
 
                 if T::FINITE {
+                    v = vmax_s16(v, vdup_n_s16(0));
+                    v = vmin_s16(v, v_max_scale);
                     dst[cn.r_i()] = (vget_lane_s16::<0>(v) as u32).as_();
                     dst[cn.g_i()] = (vget_lane_s16::<1>(v) as u32).as_();
                     dst[cn.b_i()] = (vget_lane_s16::<2>(v) as u32).as_();

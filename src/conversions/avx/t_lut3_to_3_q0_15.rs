@@ -124,9 +124,9 @@ where
 
                 let tetrahedral = Interpolator::new(&self.lut);
                 let v = tetrahedral.inter3_sse(x, y, z, &self.weights);
-                let mut o = _mm_max_epi16(v.v, _mm_setzero_si128());
-                o = _mm_min_epi16(o, v_max_scale);
                 if T::FINITE {
+                    let mut o = _mm_max_epi16(v.v, _mm_setzero_si128());
+                    o = _mm_min_epi16(o, v_max_scale);
                     let x = _mm_extract_epi16::<0>(o);
                     let y = _mm_extract_epi16::<1>(o);
                     let z = _mm_extract_epi16::<2>(o);
@@ -135,7 +135,7 @@ where
                     dst[dst_cn.g_i()] = (y as u32).as_();
                     dst[dst_cn.b_i()] = (z as u32).as_();
                 } else {
-                    let mut r = _mm_cvtepi32_ps(_mm_unpacklo_epi16(o, _mm_setzero_si128()));
+                    let mut r = _mm_cvtepi32_ps(_mm_unpacklo_epi16(v.v, _mm_setzero_si128()));
                     r = _mm_mul_ps(r, f_value_scale);
                     dst[dst_cn.r_i()] = f32::from_bits(_mm_extract_ps::<0>(r) as u32).as_();
                     dst[dst_cn.g_i()] = f32::from_bits(_mm_extract_ps::<1>(r) as u32).as_();

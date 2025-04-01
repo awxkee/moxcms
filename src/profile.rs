@@ -37,7 +37,9 @@ use crate::reader::{
 };
 use crate::safe_reader::{SafeAdd, SafeMul};
 use crate::tag::{TAG_SIZE, Tag};
-use crate::trc::ToneReprCurve;
+use crate::trc::{
+    ToneReprCurve, is_curve_ascending, is_curve_descending, is_curve_linear8, is_curve_linear16,
+};
 use crate::{Chromaticity, Layout, Matrix3d, Vector3f, Xyzd, adapt_to_d50_d};
 use std::io::Read;
 
@@ -264,6 +266,39 @@ impl LutStore {
                 .iter()
                 .map(|x| uint16_number_to_float_fast(*x as u32))
                 .collect(),
+        }
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn is_linear(&self, entries: usize, channel: usize) -> bool {
+        let start = entries * channel;
+        let end = start + entries;
+
+        match &self {
+            LutStore::Store8(v) => is_curve_linear8(&v[start..end]),
+            LutStore::Store16(v) => is_curve_linear16(&v[start..end]),
+        }
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn is_descending(&self, entries: usize, channel: usize) -> bool {
+        let start = entries * channel;
+        let end = start + entries;
+
+        match &self {
+            LutStore::Store8(v) => is_curve_descending(&v[start..end]),
+            LutStore::Store16(v) => is_curve_descending(&v[start..end]),
+        }
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn is_ascending(&self, entries: usize, channel: usize) -> bool {
+        let start = entries * channel;
+        let end = start + entries;
+
+        match &self {
+            LutStore::Store8(v) => is_curve_ascending(&v[start..end]),
+            LutStore::Store16(v) => is_curve_ascending(&v[start..end]),
         }
     }
 }

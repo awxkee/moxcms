@@ -27,7 +27,7 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::transform::PointeeSizeExpressible;
-use crate::{TransferCharacteristics, exp, f_log, f_log10, f_pow, f_powf};
+use crate::{Rgb, TransferCharacteristics, exp, f_log, f_log10, f_pow, f_powf};
 use num_traits::AsPrimitive;
 
 #[inline]
@@ -48,6 +48,16 @@ fn srgb_to_linear(gamma: f64) -> f64 {
 }
 
 #[inline]
+/// Linear transfer function for sRGB
+fn srgb_to_linear_extended(gamma: f32) -> f32 {
+    if gamma < 12.92 * 0.0030412825601275209 {
+        gamma * (1. / 12.92f32)
+    } else {
+        f_powf((gamma + 0.0550107189475866) / 1.0550107189475866, 2.4)
+    }
+}
+
+#[inline]
 /// Gamma transfer function for sRGB
 fn srgb_from_linear(linear: f64) -> f64 {
     if linear < 0.0f64 {
@@ -58,6 +68,16 @@ fn srgb_from_linear(linear: f64) -> f64 {
         1.0550107189475866f64 * f_pow(linear, 1.0f64 / 2.4f64) - 0.0550107189475866f64
     } else {
         1.0f64
+    }
+}
+
+#[inline]
+/// Gamma transfer function for sRGB
+pub(crate) fn srgb_from_linear_extended(linear: f32) -> f32 {
+    if linear < 0.0030412825601275209f32 {
+        linear * 12.92f32
+    } else {
+        1.0550107189475866f32 * f_powf(linear, 1.0f32 / 2.4f32) - 0.0550107189475866f32
     }
 }
 
@@ -79,6 +99,16 @@ fn rec709_to_linear(gamma: f64) -> f64 {
 }
 
 #[inline]
+/// Linear transfer function for Rec.709
+fn rec709_to_linear_extended(gamma: f32) -> f32 {
+    if gamma < 4.5 * 0.018053968510807 {
+        gamma * (1. / 4.5)
+    } else {
+        f_powf((gamma + 0.09929682680944) / 1.09929682680944, 1.0 / 0.45)
+    }
+}
+
+#[inline]
 /// Gamma transfer function for Rec.709
 fn rec709_from_linear(linear: f64) -> f64 {
     if linear < 0.0f64 {
@@ -89,6 +119,16 @@ fn rec709_from_linear(linear: f64) -> f64 {
         1.09929682680944f64 * f_pow(linear, 0.45f64) - 0.09929682680944f64
     } else {
         1.0f64
+    }
+}
+
+#[inline]
+/// Gamma transfer function for Rec.709
+fn rec709_from_linear_extended(linear: f32) -> f32 {
+    if linear < 0.018053968510807 {
+        linear * 4.5
+    } else {
+        1.09929682680944 * f_powf(linear, 0.45) - 0.09929682680944
     }
 }
 
@@ -225,6 +265,12 @@ fn pure_gamma_function(x: f64, gamma: f64) -> f64 {
     }
 }
 
+#[inline(always)]
+/// Pure gamma transfer function for gamma 2.2
+fn pure_gamma_function_f(x: f32, gamma: f32) -> f32 {
+    if x <= 0. { 0. } else { f_powf(x, gamma) }
+}
+
 #[inline]
 pub(crate) fn iec61966_to_linear(gamma: f64) -> f64 {
     if gamma < -4.5f64 * 0.018053968510807f64 {
@@ -260,9 +306,21 @@ fn gamma2p2_from_linear(linear: f64) -> f64 {
 }
 
 #[inline]
+/// Pure gamma transfer function for gamma 2.2
+fn gamma2p2_from_linear_f(linear: f32) -> f32 {
+    pure_gamma_function_f(linear, 1. / 2.2)
+}
+
+#[inline]
 /// Linear transfer function for gamma 2.2
 fn gamma2p2_to_linear(gamma: f64) -> f64 {
     pure_gamma_function(gamma, 2.2f64)
+}
+
+#[inline]
+/// Linear transfer function for gamma 2.2
+fn gamma2p2_to_linear_f(gamma: f32) -> f32 {
+    pure_gamma_function_f(gamma, 2.2)
 }
 
 #[inline]
@@ -272,9 +330,21 @@ fn gamma2p8_from_linear(linear: f64) -> f64 {
 }
 
 #[inline]
+/// Pure gamma transfer function for gamma 2.8
+fn gamma2p8_from_linear_f(linear: f32) -> f32 {
+    pure_gamma_function_f(linear, 1. / 2.8)
+}
+
+#[inline]
 /// Linear transfer function for gamma 2.8
 fn gamma2p8_to_linear(gamma: f64) -> f64 {
     pure_gamma_function(gamma, 2.8f64)
+}
+
+#[inline]
+/// Linear transfer function for gamma 2.8
+fn gamma2p8_to_linear_f(gamma: f32) -> f32 {
+    pure_gamma_function_f(gamma, 2.8)
 }
 
 #[inline]
@@ -414,6 +484,192 @@ impl TransferCharacteristics {
             TransferCharacteristics::Smpte2084 => pq_from_linear(v),
             TransferCharacteristics::Smpte428 => smpte428_from_linear(v),
             TransferCharacteristics::Hlg => hlg_from_linear(v),
+        }
+    }
+
+    pub(crate) fn extended_gamma_tristimulus(self) -> fn(Rgb<f32>) -> Rgb<f32> {
+        match self {
+            TransferCharacteristics::Reserved => |x| Rgb::new(x.r, x.g, x.b),
+            TransferCharacteristics::Bt709
+            | TransferCharacteristics::Bt601
+            | TransferCharacteristics::Bt202010bit
+            | TransferCharacteristics::Bt202012bit => |x| {
+                Rgb::new(
+                    rec709_from_linear_extended(x.r),
+                    rec709_from_linear_extended(x.g),
+                    rec709_from_linear_extended(x.b),
+                )
+            },
+            TransferCharacteristics::Unspecified => |x| Rgb::new(x.r, x.g, x.b),
+            TransferCharacteristics::Bt470M => |x| {
+                Rgb::new(
+                    gamma2p2_from_linear_f(x.r),
+                    gamma2p2_from_linear_f(x.g),
+                    gamma2p2_from_linear_f(x.b),
+                )
+            },
+            TransferCharacteristics::Bt470Bg => |x| {
+                Rgb::new(
+                    gamma2p8_from_linear_f(x.r),
+                    gamma2p8_from_linear_f(x.g),
+                    gamma2p8_from_linear_f(x.b),
+                )
+            },
+            TransferCharacteristics::Smpte240 => |x| {
+                Rgb::new(
+                    smpte240_from_linear(x.r as f64) as f32,
+                    smpte240_from_linear(x.g as f64) as f32,
+                    smpte240_from_linear(x.b as f64) as f32,
+                )
+            },
+            TransferCharacteristics::Linear => |x| Rgb::new(x.r, x.g, x.b),
+            TransferCharacteristics::Log100 => |x| {
+                Rgb::new(
+                    log100_from_linear(x.r as f64) as f32,
+                    log100_from_linear(x.g as f64) as f32,
+                    log100_from_linear(x.b as f64) as f32,
+                )
+            },
+            TransferCharacteristics::Log100sqrt10 => |x| {
+                Rgb::new(
+                    log100_sqrt10_from_linear(x.r as f64) as f32,
+                    log100_sqrt10_from_linear(x.g as f64) as f32,
+                    log100_sqrt10_from_linear(x.b as f64) as f32,
+                )
+            },
+            TransferCharacteristics::Iec61966 => |x| {
+                Rgb::new(
+                    iec61966_from_linear(x.r as f64) as f32,
+                    iec61966_from_linear(x.g as f64) as f32,
+                    iec61966_from_linear(x.b as f64) as f32,
+                )
+            },
+            TransferCharacteristics::Bt1361 => |x| {
+                Rgb::new(
+                    bt1361_from_linear(x.r as f64) as f32,
+                    bt1361_from_linear(x.g as f64) as f32,
+                    bt1361_from_linear(x.b as f64) as f32,
+                )
+            },
+            TransferCharacteristics::Srgb => |x| {
+                Rgb::new(
+                    srgb_from_linear_extended(x.r),
+                    srgb_from_linear_extended(x.g),
+                    srgb_from_linear_extended(x.b),
+                )
+            },
+            TransferCharacteristics::Smpte2084 => |x| {
+                Rgb::new(
+                    pq_from_linearf(x.r),
+                    pq_from_linearf(x.g),
+                    pq_from_linearf(x.b),
+                )
+            },
+            TransferCharacteristics::Smpte428 => |x| {
+                Rgb::new(
+                    smpte428_from_linear(x.r as f64) as f32,
+                    smpte428_from_linear(x.g as f64) as f32,
+                    smpte428_from_linear(x.b as f64) as f32,
+                )
+            },
+            TransferCharacteristics::Hlg => |x| {
+                Rgb::new(
+                    hlg_from_linear(x.r as f64) as f32,
+                    hlg_from_linear(x.g as f64) as f32,
+                    hlg_from_linear(x.b as f64) as f32,
+                )
+            },
+        }
+    }
+
+    pub(crate) fn extended_linear_tristimulus(self) -> fn(Rgb<f32>) -> Rgb<f32> {
+        match self {
+            TransferCharacteristics::Reserved => |x| Rgb::new(x.r, x.g, x.b),
+            TransferCharacteristics::Bt709
+            | TransferCharacteristics::Bt601
+            | TransferCharacteristics::Bt202010bit
+            | TransferCharacteristics::Bt202012bit => |x| {
+                Rgb::new(
+                    rec709_to_linear_extended(x.r),
+                    rec709_to_linear_extended(x.g),
+                    rec709_to_linear_extended(x.b),
+                )
+            },
+            TransferCharacteristics::Unspecified => |x| Rgb::new(x.r, x.g, x.b),
+            TransferCharacteristics::Bt470M => |x| {
+                Rgb::new(
+                    gamma2p2_to_linear_f(x.r),
+                    gamma2p2_to_linear_f(x.g),
+                    gamma2p2_to_linear_f(x.b),
+                )
+            },
+            TransferCharacteristics::Bt470Bg => |x| {
+                Rgb::new(
+                    gamma2p8_to_linear_f(x.r),
+                    gamma2p8_to_linear_f(x.g),
+                    gamma2p8_to_linear_f(x.b),
+                )
+            },
+            TransferCharacteristics::Smpte240 => |x| {
+                Rgb::new(
+                    smpte240_to_linear(x.r as f64) as f32,
+                    smpte240_to_linear(x.g as f64) as f32,
+                    smpte240_to_linear(x.b as f64) as f32,
+                )
+            },
+            TransferCharacteristics::Linear => |x| Rgb::new(x.r, x.g, x.b),
+            TransferCharacteristics::Log100 => |x| {
+                Rgb::new(
+                    log100_to_linear(x.r as f64) as f32,
+                    log100_to_linear(x.g as f64) as f32,
+                    log100_to_linear(x.b as f64) as f32,
+                )
+            },
+            TransferCharacteristics::Log100sqrt10 => |x| {
+                Rgb::new(
+                    log100_sqrt10_to_linear(x.r as f64) as f32,
+                    log100_sqrt10_to_linear(x.g as f64) as f32,
+                    log100_sqrt10_to_linear(x.b as f64) as f32,
+                )
+            },
+            TransferCharacteristics::Iec61966 => |x| {
+                Rgb::new(
+                    iec61966_to_linear(x.r as f64) as f32,
+                    iec61966_to_linear(x.g as f64) as f32,
+                    iec61966_to_linear(x.b as f64) as f32,
+                )
+            },
+            TransferCharacteristics::Bt1361 => |x| {
+                Rgb::new(
+                    bt1361_to_linear(x.r as f64) as f32,
+                    bt1361_to_linear(x.g as f64) as f32,
+                    bt1361_to_linear(x.b as f64) as f32,
+                )
+            },
+            TransferCharacteristics::Srgb => |x| {
+                Rgb::new(
+                    srgb_to_linear_extended(x.r),
+                    srgb_to_linear_extended(x.g),
+                    srgb_to_linear_extended(x.b),
+                )
+            },
+            TransferCharacteristics::Smpte2084 => {
+                |x| Rgb::new(pq_to_linearf(x.r), pq_to_linearf(x.g), pq_to_linearf(x.b))
+            }
+            TransferCharacteristics::Smpte428 => |x| {
+                Rgb::new(
+                    smpte428_to_linear(x.r as f64) as f32,
+                    smpte428_to_linear(x.g as f64) as f32,
+                    smpte428_to_linear(x.b as f64) as f32,
+                )
+            },
+            TransferCharacteristics::Hlg => |x| {
+                Rgb::new(
+                    hlg_to_linear(x.r as f64) as f32,
+                    hlg_to_linear(x.g as f64) as f32,
+                    hlg_to_linear(x.b as f64) as f32,
+                )
+            },
         }
     }
 

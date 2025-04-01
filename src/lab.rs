@@ -187,19 +187,19 @@ impl Lab {
             let h = lch.h * (180.0 / std::f32::consts::PI);
 
             // There are 4 zones
-            if (h >= 0. && h < 45.) || (h >= 315. && h <= 360.) {
+            if (0. ..45.).contains(&h) || (315. ..=360.).contains(&h) {
                 // clip by amax
                 new_lab.a = amax;
                 new_lab.b = amax * slope;
-            } else if h >= 45. && h < 135. {
+            } else if (45. ..135.).contains(&h) {
                 // clip by bmax
                 new_lab.b = bmax;
                 new_lab.a = bmax / slope;
-            } else if h >= 135. && h < 225. {
+            } else if (135. ..225.).contains(&h) {
                 // clip by amin
                 new_lab.a = amin;
                 new_lab.b = amin * slope;
-            } else if h >= 225. && h < 315. {
+            } else if (225. ..315.).contains(&h) {
                 // clip by bmin
                 new_lab.b = bmin;
                 new_lab.a = bmin / slope;

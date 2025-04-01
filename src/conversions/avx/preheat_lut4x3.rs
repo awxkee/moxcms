@@ -28,7 +28,7 @@
  */
 use crate::conversions::avx::hypercube::HypercubeAvx;
 use crate::conversions::avx::interpolator::AvxVectorSse;
-use crate::trc::{lut_interp_linear_float, lut_interp_linear_float_unbounded};
+use crate::trc::{lut_interp_linear_float, lut_interp_linear_float_clamped};
 use crate::{CmsError, DataColorSpace, InterpolationMethod, Stage};
 #[cfg(target_arch = "x86")]
 use std::arch::x86::*;
@@ -71,15 +71,15 @@ impl Lut4x3AvxFma {
                 v = _mm_max_ps(v, _mm_setzero_ps());
                 v = _mm_min_ps(v, ones);
 
-                let pcs_x = lut_interp_linear_float_unbounded(
+                let pcs_x = lut_interp_linear_float_clamped(
                     f32::from_bits(_mm_extract_ps::<0>(v) as u32),
                     &self.output[0],
                 );
-                let pcs_y = lut_interp_linear_float_unbounded(
+                let pcs_y = lut_interp_linear_float_clamped(
                     f32::from_bits(_mm_extract_ps::<1>(v) as u32),
                     &self.output[1],
                 );
-                let pcs_z = lut_interp_linear_float_unbounded(
+                let pcs_z = lut_interp_linear_float_clamped(
                     f32::from_bits(_mm_extract_ps::<2>(v) as u32),
                     &self.output[2],
                 );

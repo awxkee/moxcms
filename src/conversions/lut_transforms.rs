@@ -35,7 +35,7 @@ use crate::lab::Lab;
 use crate::mlaf::mlaf;
 use crate::{
     CmsError, ColorProfile, DataColorSpace, InPlaceStage, Layout, LutWarehouse, Matrix3f,
-    ProfileVersion, Rgb, TransformExecutor, TransformOptions, Xyz,
+    ProfileVersion, TransformExecutor, TransformOptions, Xyz,
 };
 use num_traits::AsPrimitive;
 use std::marker::PhantomData;
@@ -46,7 +46,7 @@ pub(crate) struct StageLabToXyz {}
 impl InPlaceStage for StageLabToXyz {
     fn transform(&self, dst: &mut [f32]) -> Result<(), CmsError> {
         for dst in dst.chunks_exact_mut(3) {
-            let lab = Lab::new(dst[0], dst[1], dst[2]).desaturate_pcs();
+            let lab = Lab::new(dst[0], dst[1], dst[2]);
             let xyz = lab.to_pcs_xyz();
             dst[0] = xyz.x;
             dst[1] = xyz.y;
@@ -68,63 +68,6 @@ impl InPlaceStage for StageXyzToLab {
             dst[1] = lab.a;
             dst[2] = lab.b;
         }
-        Ok(())
-    }
-}
-
-struct XyzToRgbStage<T: Clone, const BIT_DEPTH: usize, const GAMMA_LUT: usize> {
-    r_gamma: Box<[T; 65536]>,
-    g_gamma: Box<[T; 65536]>,
-    b_gamma: Box<[T; 65536]>,
-    matrices: Vec<Matrix3f>,
-}
-
-impl<T: Clone + AsPrimitive<f32>, const BIT_DEPTH: usize, const GAMMA_LUT: usize> InPlaceStage
-    for XyzToRgbStage<T, BIT_DEPTH, GAMMA_LUT>
-{
-    fn transform(&self, dst: &mut [f32]) -> Result<(), CmsError> {
-        assert!(BIT_DEPTH > 0);
-        if !self.matrices.is_empty() {
-            let m = self.matrices[0];
-            for dst in dst.chunks_exact_mut(3) {
-                let x = dst[0];
-                let y = dst[1];
-                let z = dst[2];
-                dst[0] = mlaf(mlaf(x * m.v[0][0], y, m.v[0][1]), z, m.v[0][2]);
-                dst[1] = mlaf(mlaf(x * m.v[1][0], y, m.v[1][1]), z, m.v[1][2]);
-                dst[2] = mlaf(mlaf(x * m.v[2][0], y, m.v[2][1]), z, m.v[2][2]);
-            }
-        }
-
-        for m in self.matrices.iter().skip(1) {
-            for dst in dst.chunks_exact_mut(3) {
-                let x = dst[0];
-                let y = dst[1];
-                let z = dst[2];
-                dst[0] = mlaf(mlaf(x * m.v[0][0], y, m.v[0][1]), z, m.v[0][2]);
-                dst[1] = mlaf(mlaf(x * m.v[1][0], y, m.v[1][1]), z, m.v[1][2]);
-                dst[2] = mlaf(mlaf(x * m.v[2][0], y, m.v[2][1]), z, m.v[2][2]);
-            }
-        }
-
-        let max_colors = (1 << BIT_DEPTH) - 1;
-        let color_scale = 1f32 / max_colors as f32;
-        let lut_cap = (GAMMA_LUT - 1) as f32;
-
-        for dst in dst.chunks_exact_mut(3) {
-            let mut rgb = Rgb::new(dst[0], dst[1], dst[2]);
-            if rgb.is_out_of_gamut() {
-                rgb = filmlike_clip(rgb);
-            }
-            let r = mlaf(0.5f32, rgb.r, lut_cap).min(lut_cap).max(0f32) as u16;
-            let g = mlaf(0.5f32, rgb.g, lut_cap).min(lut_cap).max(0f32) as u16;
-            let b = mlaf(0.5f32, rgb.b, lut_cap).min(lut_cap).max(0f32) as u16;
-
-            dst[0] = self.r_gamma[r as usize].as_() * color_scale;
-            dst[1] = self.g_gamma[g as usize].as_() * color_scale;
-            dst[2] = self.b_gamma[b as usize].as_() * color_scale;
-        }
-
         Ok(())
     }
 }
@@ -440,7 +383,7 @@ make_transform_4x3_fn!(make_transformer_4x3, DefaultLut4x3Factory);
 
 #[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
 use crate::conversions::neon::NeonLut4x3Factory;
-use crate::gamut::filmlike_clip;
+use crate::conversions::prelude_lut_xyz_rgb::{XyzToRgbStage, XyzToRgbStageExtended};
 use crate::transform::PointeeSizeExpressible;
 use crate::trc::GammaLutInterpolate;
 
@@ -775,6 +718,28 @@ where
     f32: AsPrimitive<T>,
     u32: AsPrimitive<T>,
 {
+    if !T::FINITE {
+        if let Some(extended_gamma) = dest.try_extended_gamma_evaluator() {
+            let xyz_to_rgb = dest.rgb_to_xyz_matrix().inverse();
+
+            let mut matrices = vec![Matrix3f {
+                v: [
+                    [65535.0 / 32768.0, 0.0, 0.0],
+                    [0.0, 65535.0 / 32768.0, 0.0],
+                    [0.0, 0.0, 65535.0 / 32768.0],
+                ],
+            }];
+
+            matrices.push(xyz_to_rgb.to_f32());
+            let xyz_to_rgb_stage = XyzToRgbStageExtended::<T> {
+                gamma_evaluator: extended_gamma,
+                matrices,
+                phantom_data: PhantomData,
+            };
+            xyz_to_rgb_stage.transform(lut)?;
+            return Ok(());
+        }
+    }
     let gamma_map_r = dest.build_gamma_table::<T, 65536, GAMMA_LUT, BIT_DEPTH>(
         &dest.red_trc,
         options.allow_use_cicp_transfer,
