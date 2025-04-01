@@ -92,7 +92,7 @@ pub struct TransformOptions {
     /// This value controls LUT weights precision.
     pub barycentric_weight_scale: BarycentricWeightScale,
     /// For floating points transform, it will try to detect gamma function.
-    /// If gamma function is found, then it will be used instead of gamma table.
+    /// If gamma function is found, then it will be used instead of LUT table.
     /// This allows to work with excellent precision, at a cost of execution time.
     pub allow_extended_precision_rgb_xyz: bool,
     // pub black_point_compensation: bool,
@@ -430,7 +430,7 @@ impl ColorProfile {
 
             let transform = self.transform_matrix(dst_pr);
 
-            if !T::FINITE {
+            if !T::FINITE && options.allow_extended_precision_rgb_xyz {
                 if let Some(gamma_evaluator) = dst_pr.try_extended_gamma_evaluator() {
                     if let Some(linear_evaluator) = dst_pr.try_extended_linearizing_evaluator() {
                         use crate::conversions::{
