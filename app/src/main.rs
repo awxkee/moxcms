@@ -168,7 +168,7 @@ fn main() {
                 prefer_fixed_point: true,
                 interpolation_method: InterpolationMethod::Tetrahedral,
                 barycentric_weight_scale: BarycentricWeightScale::Low,
-                allow_extended_precision_rgb_xyz: false,
+                allow_extended_range_rgb_xyz: false,
             },
         )
         .unwrap();
@@ -190,7 +190,7 @@ fn main() {
                 prefer_fixed_point: true,
                 interpolation_method: InterpolationMethod::Prism,
                 barycentric_weight_scale: BarycentricWeightScale::Low,
-                allow_extended_precision_rgb_xyz: false,
+                allow_extended_range_rgb_xyz: false,
             },
         )
         .unwrap();
