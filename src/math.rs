@@ -682,6 +682,68 @@ fn f_log2fx(d: f32) -> f64 {
     }
 }
 
+/// Natural logarithm using FMA
+#[inline(always)]
+pub fn f_log10(d: f64) -> f64 {
+    let n = ilogb2k(d * (1. / 0.75));
+    let a = ldexp3k(d, -n);
+
+    let x = (a - 1.) / (a + 1.);
+
+    let x2 = x * x;
+    #[cfg(any(
+        all(
+            any(target_arch = "x86", target_arch = "x86_64"),
+            target_feature = "fma"
+        ),
+        all(target_arch = "aarch64", target_feature = "neon")
+    ))]
+    {
+        let mut u = 0.6649188665468565036e-1;
+        u = f_fmla(u, x2, 0.6626356000208320253e-1);
+        u = f_fmla(u, x2, 0.7898070278332813658e-1);
+        u = f_fmla(u, x2, 0.9650955996041670360e-1);
+        u = f_fmla(u, x2, 0.1240841408366660991e+0);
+        u = f_fmla(u, x2, 0.1737177927463646569e+0);
+        u = f_fmla(u, x2, 0.2895296546021949510e+0);
+        let s = f_fmla(
+            x,
+            0.8685889638065036472e+0,
+            0.30102999566398119802 * n as f64,
+        );
+        f_fmla(x2 * x, u, s)
+    }
+    #[cfg(not(any(
+        all(
+            any(target_arch = "x86", target_arch = "x86_64"),
+            target_feature = "fma"
+        ),
+        all(target_arch = "aarch64", target_feature = "neon")
+    )))]
+    {
+        let rx2 = x2 * x2;
+        let rx4 = rx2 * rx2;
+        let u = poly7!(
+            x2,
+            rx2,
+            rx4,
+            0.6649188665468565036e-1,
+            0.6626356000208320253e-1,
+            0.7898070278332813658e-1,
+            0.9650955996041670360e-1,
+            0.1240841408366660991e+0,
+            0.1737177927463646569e+0,
+            0.2895296546021949510e+0
+        );
+        let s = f_fmla(
+            x,
+            0.8685889638065036472e+0,
+            0.30102999566398119802 * n as f64,
+        );
+        f_fmla(x2 * x, u, s)
+    }
+}
+
 /// Copies sign from `y` to `x`
 #[inline]
 pub(crate) const fn copysignfk(x: f32, y: f32) -> f32 {
@@ -1663,6 +1725,27 @@ mod tests {
         let scale_factor = 2.0_f64.powi(c_exponent - 53);
         let diff = (d - c) / scale_factor;
         diff.abs()
+    }
+
+    #[test]
+    fn test_log10d() {
+        println!("{}", f_log10(10.));
+        let mut max_diff = f64::MIN;
+        let mut max_away = 0;
+        let mut ulp_peak: f64 = 0.;
+        for i in 1..20000 {
+            let my_expf = f_log10(i as f64 / 1000.);
+            let system = (i as f64 / 1000.).log10();
+            max_diff = max_diff.max((my_expf - system).abs());
+            max_away = (my_expf.to_bits() as i64 - system.to_bits() as i64)
+                .abs()
+                .max(max_away);
+            ulp_peak = ulp_peak.max(count_ulp_f64(my_expf, system));
+        }
+        println!("{} max away {}, ULP {}", max_diff, max_away, ulp_peak);
+        assert!((f_log10(0.35) - 0.35f64.log10()).abs() < 1e-8);
+        assert!((f_log10(0.9) - 0.9f64.log10()).abs() < 1e-8);
+        assert!((f_log10(10.) - 10f64.log10()).abs() < 1e-8);
     }
 
     #[test]

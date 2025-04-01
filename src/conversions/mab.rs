@@ -239,11 +239,7 @@ impl<const DEPTH: usize> InPlaceStage for MCurves3<DEPTH> {
             let m = self.matrix;
             let b = self.bias;
 
-            if !m.test_equality(Matrix3f::IDENTITY)
-                || !b.eq(&Vector3f {
-                    v: [0f32, 0f32, 0f32],
-                })
-            {
+            if !m.test_equality(Matrix3f::IDENTITY) || !b.eq(&Vector3f::default()) {
                 for dst in dst.chunks_exact_mut(3) {
                     let x = dst[0];
                     let y = dst[1];
@@ -271,11 +267,7 @@ impl<const DEPTH: usize> InPlaceStage for MCurves3<DEPTH> {
             let m = self.matrix;
             let b = self.bias;
 
-            if !m.test_equality(Matrix3f::IDENTITY)
-                || !b.eq(&Vector3f {
-                    v: [0f32, 0f32, 0f32],
-                })
-            {
+            if !m.test_equality(Matrix3f::IDENTITY) || !b.eq(&Vector3f::default()) {
                 for dst in dst.chunks_exact_mut(3) {
                     let x = dst[0];
                     let y = dst[1];
@@ -355,15 +347,17 @@ pub(crate) fn prepare_mab_3x3(
             a_curves.transform(lut)?;
         } else {
             use crate::conversions::neon::ACurves3Neon;
-            let curve0 = mab.a_curves[0]
-                .build_linearize_table::<u16, LERP_DEPTH, BP>()
-                .ok_or(CmsError::InvalidTrcCurve)?;
-            let curve1 = mab.a_curves[1]
-                .build_linearize_table::<u16, LERP_DEPTH, BP>()
-                .ok_or(CmsError::InvalidTrcCurve)?;
-            let curve2 = mab.a_curves[2]
-                .build_linearize_table::<u16, LERP_DEPTH, BP>()
-                .ok_or(CmsError::InvalidTrcCurve)?;
+            let curves: Result<Vec<_>, _> = mab
+                .a_curves
+                .iter()
+                .map(|c| {
+                    c.build_linearize_table::<u16, LERP_DEPTH, BP>()
+                        .ok_or(CmsError::InvalidTrcCurve)
+                })
+                .collect();
+
+            let [curve0, curve1, curve2] =
+                curves?.try_into().map_err(|_| CmsError::InvalidTrcCurve)?;
             let a_curves = ACurves3Neon::<DEPTH> {
                 curve0,
                 curve1,
@@ -463,52 +457,55 @@ pub(crate) fn prepare_mab_3x3(
         }
     }
 
-    if mab.m_curves.len() == 3
-        && (!mab.m_curves[0].is_linear()
-            || !mab.m_curves[1].is_linear()
-            || !mab.m_curves[2].is_linear()
+    if mab.m_curves.len() == 3 {
+        let all_curves_linear = mab.m_curves.iter().all(|curve| curve.is_linear());
+        if !all_curves_linear
             || !mab.matrix.test_equality(Matrix3f::IDENTITY)
-            || mab.bias.ne(&Vector3f::default()))
-    {
-        let curve0 = mab.m_curves[0]
-            .build_linearize_table::<u16, LERP_DEPTH, BP>()
-            .ok_or(CmsError::InvalidTrcCurve)?;
-        let curve1 = mab.m_curves[1]
-            .build_linearize_table::<u16, LERP_DEPTH, BP>()
-            .ok_or(CmsError::InvalidTrcCurve)?;
-        let curve2 = mab.m_curves[2]
-            .build_linearize_table::<u16, LERP_DEPTH, BP>()
-            .ok_or(CmsError::InvalidTrcCurve)?;
-        let matrix = mab.matrix;
-        let bias = mab.bias;
-        let m_curves = MCurves3::<DEPTH> {
-            curve0,
-            curve1,
-            curve2,
-            matrix,
-            bias,
-            inverse: false,
-        };
-        m_curves.transform(lut)?;
+            || mab.bias.ne(&Vector3f::default())
+        {
+            let curves: Result<Vec<_>, _> = mab
+                .m_curves
+                .iter()
+                .map(|c| {
+                    c.build_linearize_table::<u16, LERP_DEPTH, BP>()
+                        .ok_or(CmsError::InvalidTrcCurve)
+                })
+                .collect();
+
+            let [curve0, curve1, curve2] =
+                curves?.try_into().map_err(|_| CmsError::InvalidTrcCurve)?;
+            let matrix = mab.matrix;
+            let bias = mab.bias;
+            let m_curves = MCurves3::<DEPTH> {
+                curve0,
+                curve1,
+                curve2,
+                matrix,
+                bias,
+                inverse: false,
+            };
+            m_curves.transform(lut)?;
+        }
     }
 
     if mab.b_curves.len() == 3 {
         const LERP_DEPTH: usize = 65536;
         const BP: usize = 13;
         const DEPTH: usize = 8192;
-        if !mab.b_curves[0].is_linear()
-            || !mab.b_curves[1].is_linear()
-            || !mab.b_curves[2].is_linear()
-        {
-            let curve0 = mab.b_curves[0]
-                .build_linearize_table::<u16, LERP_DEPTH, BP>()
-                .ok_or(CmsError::InvalidTrcCurve)?;
-            let curve1 = mab.b_curves[1]
-                .build_linearize_table::<u16, LERP_DEPTH, BP>()
-                .ok_or(CmsError::InvalidTrcCurve)?;
-            let curve2 = mab.b_curves[2]
-                .build_linearize_table::<u16, LERP_DEPTH, BP>()
-                .ok_or(CmsError::InvalidTrcCurve)?;
+        let all_curves_linear = mab.b_curves.iter().all(|curve| curve.is_linear());
+        if !all_curves_linear {
+            let curves: Result<Vec<_>, _> = mab
+                .b_curves
+                .iter()
+                .map(|c| {
+                    c.build_linearize_table::<u16, LERP_DEPTH, BP>()
+                        .ok_or(CmsError::InvalidTrcCurve)
+                })
+                .collect();
+
+            let [curve0, curve1, curve2] =
+                curves?.try_into().map_err(|_| CmsError::InvalidTrcCurve)?;
+
             let b_curves = BCurves3::<DEPTH> {
                 curve0,
                 curve1,
@@ -537,19 +534,19 @@ pub(crate) fn prepare_mba_3x3(
     const DEPTH: usize = 8192;
 
     if mab.b_curves.len() == 3 {
-        if !mab.b_curves[0].is_linear()
-            || !mab.b_curves[1].is_linear()
-            || !mab.b_curves[2].is_linear()
-        {
-            let curve0 = mab.b_curves[0]
-                .build_linearize_table::<u16, LERP_DEPTH, BP>()
-                .ok_or(CmsError::InvalidTrcCurve)?;
-            let curve1 = mab.b_curves[1]
-                .build_linearize_table::<u16, LERP_DEPTH, BP>()
-                .ok_or(CmsError::InvalidTrcCurve)?;
-            let curve2 = mab.b_curves[2]
-                .build_linearize_table::<u16, LERP_DEPTH, BP>()
-                .ok_or(CmsError::InvalidTrcCurve)?;
+        let all_curves_linear = mab.b_curves.iter().all(|curve| curve.is_linear());
+        if !all_curves_linear {
+            let curves: Result<Vec<_>, _> = mab
+                .b_curves
+                .iter()
+                .map(|c| {
+                    c.build_linearize_table::<u16, LERP_DEPTH, BP>()
+                        .ok_or(CmsError::InvalidTrcCurve)
+                })
+                .collect();
+
+            let [curve0, curve1, curve2] =
+                curves?.try_into().map_err(|_| CmsError::InvalidTrcCurve)?;
             let b_curves = BCurves3::<DEPTH> {
                 curve0,
                 curve1,
@@ -561,33 +558,36 @@ pub(crate) fn prepare_mba_3x3(
         return Err(CmsError::InvalidAtoBLut);
     }
 
-    if mab.m_curves.len() == 3
-        && (!mab.m_curves[0].is_linear()
-            || !mab.m_curves[1].is_linear()
-            || !mab.m_curves[2].is_linear()
+    if mab.m_curves.len() == 3 {
+        let all_curves_linear = mab.m_curves.iter().all(|curve| curve.is_linear());
+        if !all_curves_linear
             || !mab.matrix.test_equality(Matrix3f::IDENTITY)
-            || mab.bias.ne(&Vector3f::default()))
-    {
-        let curve0 = mab.m_curves[0]
-            .build_linearize_table::<u16, LERP_DEPTH, BP>()
-            .ok_or(CmsError::InvalidTrcCurve)?;
-        let curve1 = mab.m_curves[1]
-            .build_linearize_table::<u16, LERP_DEPTH, BP>()
-            .ok_or(CmsError::InvalidTrcCurve)?;
-        let curve2 = mab.m_curves[2]
-            .build_linearize_table::<u16, LERP_DEPTH, BP>()
-            .ok_or(CmsError::InvalidTrcCurve)?;
-        let matrix = mab.matrix;
-        let bias = mab.bias;
-        let m_curves = MCurves3::<DEPTH> {
-            curve0,
-            curve1,
-            curve2,
-            matrix,
-            bias,
-            inverse: true,
-        };
-        m_curves.transform(lut)?;
+            || mab.bias.ne(&Vector3f::default())
+        {
+            let curves: Result<Vec<_>, _> = mab
+                .m_curves
+                .iter()
+                .map(|c| {
+                    c.build_linearize_table::<u16, LERP_DEPTH, BP>()
+                        .ok_or(CmsError::InvalidTrcCurve)
+                })
+                .collect();
+
+            let [curve0, curve1, curve2] =
+                curves?.try_into().map_err(|_| CmsError::InvalidTrcCurve)?;
+
+            let matrix = mab.matrix;
+            let bias = mab.bias;
+            let m_curves = MCurves3::<DEPTH> {
+                curve0,
+                curve1,
+                curve2,
+                matrix,
+                bias,
+                inverse: true,
+            };
+            m_curves.transform(lut)?;
+        }
     }
 
     if mab.a_curves.len() == 3 && mab.clut.is_some() {

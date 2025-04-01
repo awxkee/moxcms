@@ -190,7 +190,7 @@ pub(crate) fn prepare_mab_4x3(
             * mab.grid_points[3] as usize
             * mab.num_output_channels as usize;
         if clut.len() != lut_grid {
-            return Err(CmsError::LUTTablesInvalidKind);
+            return Err(CmsError::InvalidClutSize);
         }
 
         let all_curves_linear = mab.a_curves.iter().all(|curve| curve.is_linear());
@@ -329,42 +329,41 @@ pub(crate) fn prepare_mab_4x3(
         return Err(CmsError::UnsupportedProfileConnection);
     }
 
-    if mab.m_curves.len() == 3
-        && (!mab.m_curves[0].is_linear()
-            || !mab.m_curves[1].is_linear()
-            || !mab.m_curves[2].is_linear()
+    if mab.m_curves.len() == 3 {
+        let all_curves_linear = mab.m_curves.iter().all(|curve| curve.is_linear());
+        if !all_curves_linear
             || !mab.matrix.test_equality(Matrix3f::IDENTITY)
-            || mab.bias.ne(&Vector3f::default()))
-    {
-        let curves: Result<Vec<_>, _> = mab
-            .m_curves
-            .iter()
-            .map(|c| {
-                c.build_linearize_table::<u16, LERP_DEPTH, BP>()
-                    .ok_or(CmsError::InvalidTrcCurve)
-            })
-            .collect();
+            || mab.bias.ne(&Vector3f::default())
+        {
+            let curves: Result<Vec<_>, _> = mab
+                .m_curves
+                .iter()
+                .map(|c| {
+                    c.build_linearize_table::<u16, LERP_DEPTH, BP>()
+                        .ok_or(CmsError::InvalidTrcCurve)
+                })
+                .collect();
 
-        let [curve0, curve1, curve2] = curves?.try_into().map_err(|_| CmsError::InvalidTrcCurve)?;
+            let [curve0, curve1, curve2] =
+                curves?.try_into().map_err(|_| CmsError::InvalidTrcCurve)?;
 
-        let matrix = mab.matrix;
-        let bias = mab.bias;
-        let m_curves = MCurves3::<DEPTH> {
-            curve0,
-            curve1,
-            curve2,
-            matrix,
-            bias,
-            inverse: false,
-        };
-        m_curves.transform(&mut new_lut)?;
+            let matrix = mab.matrix;
+            let bias = mab.bias;
+            let m_curves = MCurves3::<DEPTH> {
+                curve0,
+                curve1,
+                curve2,
+                matrix,
+                bias,
+                inverse: false,
+            };
+            m_curves.transform(&mut new_lut)?;
+        }
     }
 
     if mab.b_curves.len() == 3 {
-        if !mab.b_curves[0].is_linear()
-            || !mab.b_curves[1].is_linear()
-            || !mab.b_curves[2].is_linear()
-        {
+        let all_curves_linear = mab.b_curves.iter().all(|curve| curve.is_linear());
+        if !all_curves_linear {
             let curves: Result<Vec<_>, _> = mab
                 .b_curves
                 .iter()

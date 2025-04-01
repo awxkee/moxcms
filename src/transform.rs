@@ -80,6 +80,9 @@ pub struct TransformOptions {
     /// Do not change it if you're not sure that extreme precision is required,
     /// in most cases it is a simple way to spend energy to warming up environment
     /// a little.
+    ///
+    /// Q4.12 for RGB->XYZ->RGB is used.
+    /// LUT interpolation goes with Q0.15.
     pub prefer_fixed_point: bool,
     /// Interpolation method for 3D LUT
     pub interpolation_method: InterpolationMethod,

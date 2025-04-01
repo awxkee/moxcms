@@ -162,7 +162,7 @@ macro_rules! create_rgb_xyz_dependant_q4_12_executor {
             u32: AsPrimitive<T>,
         {
             let q4_12_profile =
-                profile.to_q4_n::<$resolution, PRECISION, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>();
+                profile.to_q4_12_n::<$resolution, PRECISION, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>();
             if (src_layout == Layout::Rgba) && (dst_layout == Layout::Rgba) {
                 return Ok(Box::new($dependant::<
                     T,

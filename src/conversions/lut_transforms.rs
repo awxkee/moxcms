@@ -35,7 +35,7 @@ use crate::lab::Lab;
 use crate::mlaf::mlaf;
 use crate::{
     CmsError, ColorProfile, DataColorSpace, InPlaceStage, Layout, LutWarehouse, Matrix3f,
-    ProfileVersion, TransformExecutor, TransformOptions, Xyz,
+    ProfileVersion, Rgb, TransformExecutor, TransformOptions, Xyz,
 };
 use num_traits::AsPrimitive;
 use std::marker::PhantomData;
@@ -46,7 +46,7 @@ pub(crate) struct StageLabToXyz {}
 impl InPlaceStage for StageLabToXyz {
     fn transform(&self, dst: &mut [f32]) -> Result<(), CmsError> {
         for dst in dst.chunks_exact_mut(3) {
-            let lab = Lab::new(dst[0], dst[1], dst[2]);
+            let lab = Lab::new(dst[0], dst[1], dst[2]).desaturate_pcs();
             let xyz = lab.to_pcs_xyz();
             dst[0] = xyz.x;
             dst[1] = xyz.y;
@@ -112,9 +112,14 @@ impl<T: Clone + AsPrimitive<f32>, const BIT_DEPTH: usize, const GAMMA_LUT: usize
         let lut_cap = (GAMMA_LUT - 1) as f32;
 
         for dst in dst.chunks_exact_mut(3) {
-            let r = mlaf(0.5f32, dst[0], lut_cap).min(lut_cap).max(0f32) as u16;
-            let g = mlaf(0.5f32, dst[1], lut_cap).min(lut_cap).max(0f32) as u16;
-            let b = mlaf(0.5f32, dst[2], lut_cap).min(lut_cap).max(0f32) as u16;
+            let mut rgb = Rgb::new(dst[0], dst[1], dst[2]);
+            if rgb.is_out_of_gamut() {
+                rgb = filmlike_clip(rgb);
+            }
+            let r = mlaf(0.5f32, rgb.r, lut_cap).min(lut_cap).max(0f32) as u16;
+            let g = mlaf(0.5f32, rgb.g, lut_cap).min(lut_cap).max(0f32) as u16;
+            let b = mlaf(0.5f32, rgb.b, lut_cap).min(lut_cap).max(0f32) as u16;
+
             dst[0] = self.r_gamma[r as usize].as_() * color_scale;
             dst[1] = self.g_gamma[g as usize].as_() * color_scale;
             dst[2] = self.b_gamma[b as usize].as_() * color_scale;
@@ -435,6 +440,7 @@ make_transform_4x3_fn!(make_transformer_4x3, DefaultLut4x3Factory);
 
 #[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
 use crate::conversions::neon::NeonLut4x3Factory;
+use crate::gamut::filmlike_clip;
 use crate::transform::PointeeSizeExpressible;
 use crate::trc::GammaLutInterpolate;
 

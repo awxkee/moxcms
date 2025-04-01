@@ -191,7 +191,7 @@ pub(crate) struct TransformProfileRgb<T: Clone, const BUCKET: usize> {
 }
 
 impl<T: Clone + PointeeSizeExpressible, const BUCKET: usize> TransformProfileRgb<T, BUCKET> {
-    pub(crate) fn to_q4_n<
+    pub(crate) fn to_q4_12_n<
         R: Copy + 'static + Default,
         const PRECISION: i32,
         const LINEAR_CAP: usize,

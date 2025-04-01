@@ -27,7 +27,7 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::math::cbrtf;
-use crate::{Chromaticity, Xyz};
+use crate::{Chromaticity, LCh, Xyz};
 
 /// Holds CIE LAB values
 #[repr(C)]
@@ -155,6 +155,57 @@ impl Lab {
         let y = (y1 as f64 / (1.0f64 + 32767.0f64 / 32768.0f64)) as f32;
         let z = (z as f64 / (1.0f64 + 32767.0f64 / 32768.0f64)) as f32;
         Xyz::new(x, y, z)
+    }
+
+    /// Desaturates out of gamut PCS encoded LAB
+    pub fn desaturate_pcs(self) -> Lab {
+        if self.l < 0. {
+            return Lab::new(0., 0., 0.);
+        }
+
+        let mut new_lab = self;
+        if new_lab.l > 1. {
+            new_lab.l = 1.;
+        }
+
+        let amax = 1.0;
+        let amin = 0.0;
+        let bmin = 0.0;
+        let bmax = 1.0;
+        if self.a < amin || self.a > amax || self.b < bmin || self.b > bmax {
+            if self.a == 0.0 {
+                // Is hue exactly 90?
+
+                // atan will not work, so clamp here
+                new_lab.b = if new_lab.b < bmin { bmin } else { bmax };
+                return Lab::new(self.l, self.a, self.b);
+            }
+
+            let lch = LCh::from_lab(new_lab);
+
+            let slope = new_lab.b / new_lab.a;
+            let h = lch.h * (180.0 / std::f32::consts::PI);
+
+            // There are 4 zones
+            if (h >= 0. && h < 45.) || (h >= 315. && h <= 360.) {
+                // clip by amax
+                new_lab.a = amax;
+                new_lab.b = amax * slope;
+            } else if h >= 45. && h < 135. {
+                // clip by bmax
+                new_lab.b = bmax;
+                new_lab.a = bmax / slope;
+            } else if h >= 135. && h < 225. {
+                // clip by amin
+                new_lab.a = amin;
+                new_lab.b = amin * slope;
+            } else if h >= 225. && h < 315. {
+                // clip by bmin
+                new_lab.b = bmin;
+                new_lab.a = bmin / slope;
+            }
+        }
+        new_lab
     }
 }
 

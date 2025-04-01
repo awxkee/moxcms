@@ -203,33 +203,33 @@ pub(crate) fn prepare_mba_3x4(
         return Err(CmsError::InvalidAtoBLut);
     }
 
-    if mab.m_curves.len() == 3
-        && (!mab.m_curves[0].is_linear()
-            || !mab.m_curves[1].is_linear()
-            || !mab.m_curves[2].is_linear()
+    if mab.m_curves.len() == 3 {
+        let all_curves_linear = mab.m_curves.iter().all(|curve| curve.is_linear());
+        if !all_curves_linear
             || !mab.matrix.test_equality(Matrix3f::IDENTITY)
-            || mab.bias.ne(&Vector3f::default()))
-    {
-        let curve0 = mab.m_curves[0]
-            .build_linearize_table::<u16, LERP_DEPTH, BP>()
-            .ok_or(CmsError::InvalidTrcCurve)?;
-        let curve1 = mab.m_curves[1]
-            .build_linearize_table::<u16, LERP_DEPTH, BP>()
-            .ok_or(CmsError::InvalidTrcCurve)?;
-        let curve2 = mab.m_curves[2]
-            .build_linearize_table::<u16, LERP_DEPTH, BP>()
-            .ok_or(CmsError::InvalidTrcCurve)?;
-        let matrix = mab.matrix;
-        let bias = mab.bias;
-        let m_curves = MCurves3::<DEPTH> {
-            curve0,
-            curve1,
-            curve2,
-            matrix,
-            bias,
-            inverse: true,
-        };
-        m_curves.transform(lut)?;
+            || mab.bias.ne(&Vector3f::default())
+        {
+            let curve0 = mab.m_curves[0]
+                .build_linearize_table::<u16, LERP_DEPTH, BP>()
+                .ok_or(CmsError::InvalidTrcCurve)?;
+            let curve1 = mab.m_curves[1]
+                .build_linearize_table::<u16, LERP_DEPTH, BP>()
+                .ok_or(CmsError::InvalidTrcCurve)?;
+            let curve2 = mab.m_curves[2]
+                .build_linearize_table::<u16, LERP_DEPTH, BP>()
+                .ok_or(CmsError::InvalidTrcCurve)?;
+            let matrix = mab.matrix;
+            let bias = mab.bias;
+            let m_curves = MCurves3::<DEPTH> {
+                curve0,
+                curve1,
+                curve2,
+                matrix,
+                bias,
+                inverse: true,
+            };
+            m_curves.transform(lut)?;
+        }
     }
 
     let mut new_lut = vec![0f32; (lut.len() / 3) * 4];
@@ -237,11 +237,19 @@ pub(crate) fn prepare_mba_3x4(
     if mab.a_curves.len() == 4 && mab.clut.is_some() {
         let clut = &mab.clut.as_ref().map(|x| x.to_clut_f32()).unwrap();
 
-        if mab.a_curves[0].is_linear()
-            && mab.a_curves[1].is_linear()
-            && mab.a_curves[2].is_linear()
-            && mab.a_curves[3].is_linear()
-        {
+        let lut_grid = mab.grid_points[0] as usize
+            * mab.grid_points[1] as usize
+            * mab.grid_points[2] as usize
+            * mab.num_output_channels as usize;
+        if clut.len() != lut_grid {
+            return Err(CmsError::InvalidClutSize);
+        }
+
+        let grid_size = [mab.grid_points[0], mab.grid_points[1], mab.grid_points[2]];
+
+        let all_curves_linear = mab.a_curves.iter().all(|curve| curve.is_linear());
+
+        if all_curves_linear {
             let a_curves = ACurves3x4InverseOptimized {
                 clut,
                 grid_size: [mab.grid_points[0], mab.grid_points[1], mab.grid_points[2]],
@@ -250,25 +258,25 @@ pub(crate) fn prepare_mba_3x4(
             };
             a_curves.transform(lut, &mut new_lut)?;
         } else {
-            let curve0 = mab.a_curves[0]
-                .build_linearize_table::<u16, LERP_DEPTH, BP>()
-                .ok_or(CmsError::InvalidTrcCurve)?;
-            let curve1 = mab.a_curves[1]
-                .build_linearize_table::<u16, LERP_DEPTH, BP>()
-                .ok_or(CmsError::InvalidTrcCurve)?;
-            let curve2 = mab.a_curves[2]
-                .build_linearize_table::<u16, LERP_DEPTH, BP>()
-                .ok_or(CmsError::InvalidTrcCurve)?;
-            let curve3 = mab.a_curves[3]
-                .build_linearize_table::<u16, LERP_DEPTH, BP>()
-                .ok_or(CmsError::InvalidTrcCurve)?;
+            let curves: Result<Vec<_>, _> = mab
+                .a_curves
+                .iter()
+                .map(|c| {
+                    c.build_linearize_table::<u16, LERP_DEPTH, BP>()
+                        .ok_or(CmsError::InvalidTrcCurve)
+                })
+                .collect();
+
+            let [curve0, curve1, curve2, curve3] =
+                curves?.try_into().map_err(|_| CmsError::InvalidTrcCurve)?;
+
             let a_curves = ACurves3x4Inverse::<DEPTH> {
                 curve0,
                 curve1,
                 curve2,
                 curve3,
                 clut,
-                grid_size: [mab.grid_points[0], mab.grid_points[1], mab.grid_points[2]],
+                grid_size,
                 interpolation_method: options.interpolation_method,
                 pcs,
             };

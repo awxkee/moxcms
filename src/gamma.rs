@@ -27,7 +27,7 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::transform::PointeeSizeExpressible;
-use crate::{TransferCharacteristics, exp, f_pow, f_powf};
+use crate::{TransferCharacteristics, exp, f_log, f_log10, f_pow, f_powf};
 use num_traits::AsPrimitive;
 
 #[inline]
@@ -140,7 +140,7 @@ fn log100_from_linear(linear: f64) -> f64 {
     if linear <= 0.01f64 {
         0.
     } else {
-        1. + linear.min(1.).log10() / 2.0
+        1. + f_log10(linear.min(1.)) / 2.0
     }
 }
 
@@ -174,7 +174,7 @@ fn log100_sqrt10_from_linear(linear: f64) -> f64 {
     if linear <= 0.00316227766 {
         0.0
     } else {
-        1.0 + linear.min(1.).log10() / 2.5
+        1.0 + f_log10(linear.min(1.)) / 2.5
     }
 }
 
@@ -359,7 +359,7 @@ fn hlg_from_linear(linear: f64) -> f64 {
     } else if linear <= (1.0 / 12.0) {
         (3.0 * linear).sqrt()
     } else {
-        0.17883277 * (12.0 * linear - 0.28466892).ln() + 0.55991073
+        0.17883277 * f_log(12.0 * linear - 0.28466892) + 0.55991073
     }
 }
 
@@ -457,12 +457,14 @@ impl TransferCharacteristics {
         let mut table = Box::new([T::default(); BUCKET]);
         let max_range = 1f64 / (N - 1) as f64;
         let max_value = ((1 << BIT_DEPTH) - 1) as f64;
-        for (v, output) in table.iter_mut().take(N).enumerate() {
-            if T::FINITE {
+        if T::FINITE {
+            for (v, output) in table.iter_mut().take(N).enumerate() {
                 *output = ((self.gamma(v as f64 * max_range) * max_value) as f32)
                     .round()
                     .as_();
-            } else {
+            }
+        } else {
+            for (v, output) in table.iter_mut().take(N).enumerate() {
                 *output = (self.gamma(v as f64 * max_range) as f32).as_();
             }
         }

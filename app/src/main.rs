@@ -163,6 +163,8 @@ fn main() {
 
     transform.transform(&real_dst, &mut cmyk).unwrap();
 
+    let time = Instant::now();
+
     let transform = funny_profile
         .create_transform_8bit(
             Layout::Rgba,
