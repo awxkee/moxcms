@@ -1280,6 +1280,9 @@ impl ColorProfile {
                     if lut.is_empty() {
                         return true;
                     }
+                    if is_curve_linear16(lut) {
+                        return true;
+                    }
                     false
                 }
                 ToneReprCurve::Parametric(params) => {

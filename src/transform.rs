@@ -88,9 +88,13 @@ pub struct TransformOptions {
     /// Interpolation method for 3D LUT
     ///
     /// This parameter has no effect on LAB/XYZ interpolation and scene linear RGB.
-    /// For tetra, prism and pyramid we want to make decision how to split cube
-    /// based on perceptual weights and that weights should have same meaning,
-    /// which is not true for LAB/XYZ and scene linear RGB.
+    ///
+    /// Technically, it should be assumed to perform cube dividing interpolation:
+    /// - Colorspace is gamma-encoded (discards scene linear RGB and XYZ).
+    /// - Colorspace is uniform.
+    /// - Colorspace has linear scaling (discards LAB).
+    /// - Interpolation doesn't shift hues (discards LAB).
+    ///
     /// For LAB, XYZ and scene linear RGB `trilinear/quadlinear` always in force.
     pub interpolation_method: InterpolationMethod,
     /// Barycentric weights scale.

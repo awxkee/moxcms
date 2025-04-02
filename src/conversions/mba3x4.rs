@@ -109,7 +109,7 @@ impl<const DEPTH: usize> Stage for ACurves3x4Inverse<'_, DEPTH> {
         let lut = Cube::new_cube(self.clut, self.grid_size);
 
         // If PCS is LAB then linear interpolation should be used
-        if self.pcs == DataColorSpace::Lab {
+        if self.pcs == DataColorSpace::Lab || self.pcs == DataColorSpace::Xyz {
             return self.transform_impl(src, dst, |x, y, z| lut.trilinear_vec4(x, y, z));
         }
 
@@ -139,7 +139,7 @@ impl Stage for ACurves3x4InverseOptimized<'_> {
         let lut = Cube::new_cube(self.clut, self.grid_size);
 
         // If PCS is LAB then linear interpolation should be used
-        if self.pcs == DataColorSpace::Lab {
+        if self.pcs == DataColorSpace::Lab || self.pcs == DataColorSpace::Xyz {
             return self.transform_impl(src, dst, |x, y, z| lut.trilinear_vec4(x, y, z));
         }
 

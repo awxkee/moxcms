@@ -144,7 +144,7 @@ impl Stage for Lut3x4 {
         let l_tbl = Cube::new(&self.clut, self.grid_size as usize);
 
         // If PCS is LAB then linear interpolation should be used
-        if self.pcs == DataColorSpace::Lab {
+        if self.pcs == DataColorSpace::Lab || self.pcs == DataColorSpace::Xyz {
             return self.transform_impl(src, dst, |x, y, z| l_tbl.trilinear_vec4(x, y, z));
         }
 

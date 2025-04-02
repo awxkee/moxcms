@@ -30,6 +30,8 @@ use crate::mlaf::mlaf;
 use crate::{Matrix3f, Vector3f, Xyz, f_atan2f, f_cosf, f_sinf, hypotf};
 
 /// Structure for Yrg colorspace
+///
+/// Kirk Yrg 2021.
 #[repr(C)]
 #[derive(Default, Debug, PartialOrd, PartialEq, Copy, Clone)]
 pub struct Yrg {
@@ -68,6 +70,10 @@ impl Yrg {
         Yrg { y, r, g }
     }
 
+    /// Convert [Xyz] D65 to [Yrg]
+    ///
+    /// Yrg defined in D65 white point. Ensure Xyz values is adapted.
+    /// Yrg use CIE XYZ 2006, adapt CIE XYZ 1931 by using [cie_y_1931_to_cie_y_2006] at first.
     #[inline]
     pub fn from_xyz(xyz: Xyz) -> Self {
         let lms = XYZ_TO_LMS.f_mul_vector(Vector3f {

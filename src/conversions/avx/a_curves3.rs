@@ -118,7 +118,7 @@ impl<const DEPTH: usize> InPlaceStage for ACurves3AvxFma<'_, DEPTH> {
 
         unsafe {
             // If PCS is LAB then linear interpolation should be used
-            if self.pcs == DataColorSpace::Lab {
+            if self.pcs == DataColorSpace::Lab || self.pcs == DataColorSpace::Xyz {
                 return self.transform_impl(dst, |x, y, z| lut.trilinear_vec3(x, y, z));
             }
 
@@ -150,7 +150,7 @@ impl InPlaceStage for ACurves3OptimizedAvxFma<'_> {
 
         unsafe {
             // If PCS is LAB then linear interpolation should be used
-            if self.pcs == DataColorSpace::Lab {
+            if self.pcs == DataColorSpace::Lab || self.pcs == DataColorSpace::Xyz {
                 return self.transform_impl(dst, |x, y, z| lut.trilinear_vec3(x, y, z));
             }
 
@@ -213,7 +213,7 @@ impl<const DEPTH: usize> InPlaceStage for ACurves3InverseAvxFma<'_, DEPTH> {
 
         unsafe {
             // If PCS is LAB then linear interpolation should be used
-            if self.pcs == DataColorSpace::Lab {
+            if self.pcs == DataColorSpace::Lab || self.pcs == DataColorSpace::Xyz {
                 return self.transform_impl(dst, |x, y, z| lut.trilinear_vec3(x, y, z));
             }
 

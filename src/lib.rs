@@ -65,7 +65,7 @@ mod yrg;
 
 pub use chad::{
     adapt_to_d50, adapt_to_d50_d, adapt_to_illuminant, adapt_to_illuminant_d,
-    adapt_to_illuminant_xyz, adapt_to_illuminant_xyz_d,
+    adapt_to_illuminant_xyz, adapt_to_illuminant_xyz_d, adaption_matrix, adaption_matrix_d,
 };
 pub use cicp::{CicpColorPrimaries, ColorPrimaries, MatrixCoefficients, TransferCharacteristics};
 pub use dat::ColorDateTime;

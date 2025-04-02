@@ -986,6 +986,24 @@ impl Matrix3d {
     }
 }
 
+impl Mul<Matrix3f> for Matrix3f {
+    type Output = Matrix3f;
+
+    #[inline]
+    fn mul(self, rhs: Matrix3f) -> Self::Output {
+        self.mat_mul(rhs)
+    }
+}
+
+impl Mul<Matrix3d> for Matrix3d {
+    type Output = Matrix3d;
+
+    #[inline]
+    fn mul(self, rhs: Matrix3d) -> Self::Output {
+        self.mat_mul(rhs)
+    }
+}
+
 /// Holds CIE XYZ representation
 #[repr(C)]
 #[derive(Clone, Debug, Copy, Default)]

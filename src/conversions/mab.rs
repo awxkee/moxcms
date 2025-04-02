@@ -101,7 +101,7 @@ impl<const DEPTH: usize> InPlaceStage for ACurves3<'_, DEPTH> {
         let lut = Cube::new_cube(self.clut, self.grid_size);
 
         // If PCS is LAB then linear interpolation should be used
-        if self.pcs == DataColorSpace::Lab {
+        if self.pcs == DataColorSpace::Lab || self.pcs == DataColorSpace::Xyz {
             return self.transform_impl(dst, |x, y, z| lut.trilinear_vec3(x, y, z));
         }
 
@@ -197,7 +197,7 @@ impl<const DEPTH: usize> InPlaceStage for ACurves3Inverse<'_, DEPTH> {
         let lut = Cube::new_cube(self.clut, self.grid_size);
 
         // If PCS is LAB then linear interpolation should be used
-        if self.pcs == DataColorSpace::Lab {
+        if self.pcs == DataColorSpace::Lab || self.pcs == DataColorSpace::Xyz {
             return self.transform_impl(dst, |x, y, z| lut.trilinear_vec3(x, y, z));
         }
 

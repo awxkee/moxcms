@@ -86,11 +86,17 @@ impl Jzazbz {
         Jzazbz { jz, az, bz }
     }
 
+    /// Creates new [Jzazbz] from CIE [Xyz].
+    ///
+    /// JzAzBz is defined in D65 white point, adapt XYZ if needed first.
     #[inline]
     pub fn from_xyz(xyz: Xyz) -> Jzazbz {
         Self::from_xyz_with_display_luminance(xyz, 200f32)
     }
 
+    /// Creates new [Jzazbz] from CIE [Xyz].
+    ///
+    /// JzAzBz is defined in D65 white point, adapt XYZ if needed first.
     #[inline]
     pub fn from_xyz_with_display_luminance(xyz: Xyz, display_luminance: f32) -> Jzazbz {
         let abs_xyz = xyz * display_luminance;
@@ -116,7 +122,7 @@ impl Jzazbz {
         Jzazbz::new(jz, az, bz)
     }
 
-    /// Converts [Jzazbz] to [Xyz]
+    /// Converts [Jzazbz] to [Xyz] D65
     #[inline]
     pub fn to_xyz(&self, display_luminance: f32) -> Xyz {
         let jz = self.jz + 1.6295499532821566e-11;
