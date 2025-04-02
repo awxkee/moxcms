@@ -122,7 +122,7 @@ impl<const DEPTH: usize> Stage for ACurves4x3AvxFma<'_, DEPTH> {
 
         unsafe {
             // If PCS is LAB then linear interpolation should be used
-            if self.pcs == DataColorSpace::Lab {
+            if self.pcs == DataColorSpace::Lab || self.pcs == DataColorSpace::Xyz {
                 return self.transform_impl(src, dst, |x, y, z, w| lut.quadlinear_vec3(x, y, z, w));
             }
 
@@ -158,7 +158,7 @@ impl Stage for ACurves4x3AvxFmaOptimized<'_> {
 
         unsafe {
             // If PCS is LAB then linear interpolation should be used
-            if self.pcs == DataColorSpace::Lab {
+            if self.pcs == DataColorSpace::Lab || self.pcs == DataColorSpace::Xyz {
                 return self.transform_impl(src, dst, |x, y, z, w| lut.quadlinear_vec3(x, y, z, w));
             }
 

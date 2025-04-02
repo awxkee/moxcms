@@ -83,7 +83,7 @@ macro_rules! define_lut4_dispatch {
                 let l_tbl = Hypercube::new(&self.clut, self.grid_size as usize);
 
                 // If Source PCS is LAB trilinear should be used
-                if self.pcs == DataColorSpace::Lab {
+                if self.pcs == DataColorSpace::Lab || self.pcs == DataColorSpace::Xyz {
                     return self
                         .transform_impl(src, dst, |x, y, z, w| l_tbl.quadlinear_vec3(x, y, z, w));
                 }

@@ -86,6 +86,9 @@ impl Jzazbz {
         Jzazbz { jz, az, bz }
     }
 
+    /// Creates new [Jzazbz] from CIE [Xyz].
+    ///
+    /// JzAzBz is defined in D65 white point, adapt XYZ if needed first.
     #[inline]
     pub fn from_xyz(xyz: Xyz) -> Jzazbz {
         Self::from_xyz_with_display_luminance(xyz, 200f32)

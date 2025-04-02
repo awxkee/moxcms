@@ -111,17 +111,11 @@ pub(crate) const fn compute_chromatic_adaption_d(
     chad_inv.mat_mul_const(p0)
 }
 
-pub(crate) const fn adaption_matrix(
-    source_illumination: Xyz,
-    target_illumination: Xyz,
-) -> Matrix3f {
+pub const fn adaption_matrix(source_illumination: Xyz, target_illumination: Xyz) -> Matrix3f {
     compute_chromatic_adaption(source_illumination, target_illumination, BRADFORD_F)
 }
 
-pub(crate) const fn adaption_matrix_d(
-    source_illumination: Xyz,
-    target_illumination: Xyz,
-) -> Matrix3d {
+pub const fn adaption_matrix_d(source_illumination: Xyz, target_illumination: Xyz) -> Matrix3d {
     compute_chromatic_adaption_d(source_illumination, target_illumination, BRADFORD_D)
 }
 

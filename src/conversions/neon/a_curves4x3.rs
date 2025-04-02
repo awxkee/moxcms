@@ -111,7 +111,7 @@ impl<const DEPTH: usize> Stage for ACurves4x3Neon<'_, DEPTH> {
         let lut = HypercubeNeon::new(self.clut, self.grid_size, 3);
 
         // If PCS is LAB then linear interpolation should be used
-        if self.pcs == DataColorSpace::Lab {
+        if self.pcs == DataColorSpace::Lab || self.pcs == DataColorSpace::Xyz {
             return self.transform_impl(src, dst, |x, y, z, w| lut.quadlinear_vec3(x, y, z, w));
         }
 
@@ -141,7 +141,7 @@ impl Stage for ACurves4x3NeonOptimizedNeon<'_> {
         let lut = HypercubeNeon::new(self.clut, self.grid_size, 3);
 
         // If PCS is LAB then linear interpolation should be used
-        if self.pcs == DataColorSpace::Lab {
+        if self.pcs == DataColorSpace::Lab || self.pcs == DataColorSpace::Xyz {
             return self.transform_impl(src, dst, |x, y, z, w| lut.quadlinear_vec3(x, y, z, w));
         }
 
