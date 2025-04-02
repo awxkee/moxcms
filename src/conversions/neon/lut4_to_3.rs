@@ -35,8 +35,8 @@ use crate::conversions::neon::lut4_to_3_q0_15::TransformLut4XyzToRgbNeonQ0_15;
 use crate::conversions::neon::rgb_xyz::NeonAlignedF32;
 use crate::transform::PointeeSizeExpressible;
 use crate::{
-    BarycentricWeightScale, CmsError, InterpolationMethod, Layout, TransformExecutor,
-    TransformOptions,
+    BarycentricWeightScale, CmsError, DataColorSpace, InterpolationMethod, Layout,
+    TransformExecutor, TransformOptions,
 };
 use num_traits::AsPrimitive;
 use std::arch::aarch64::*;
@@ -56,6 +56,8 @@ struct TransformLut4XyzToRgbNeon<
     _phantom1: PhantomData<U>,
     interpolation_method: InterpolationMethod,
     weights: Box<[BarycentricWeight<f32>; BINS]>,
+    color_space: DataColorSpace,
+    is_linear: bool,
 }
 
 impl<
@@ -175,21 +177,28 @@ where
             return Err(CmsError::LaneSizeMismatch);
         }
 
-        match self.interpolation_method {
-            #[cfg(feature = "options")]
-            InterpolationMethod::Tetrahedral => {
-                self.transform_chunk::<TetrahedralNeonDouble<GRID_SIZE>>(src, dst);
-            }
-            #[cfg(feature = "options")]
-            InterpolationMethod::Pyramid => {
-                self.transform_chunk::<PyramidalNeonDouble<GRID_SIZE>>(src, dst);
-            }
-            #[cfg(feature = "options")]
-            InterpolationMethod::Prism => {
-                self.transform_chunk::<PrismaticNeonDouble<GRID_SIZE>>(src, dst);
-            }
-            InterpolationMethod::Linear => {
-                self.transform_chunk::<TrilinearNeonDouble<GRID_SIZE>>(src, dst);
+        if self.color_space == DataColorSpace::Lab
+            || (self.is_linear && self.color_space == DataColorSpace::Rgb)
+            || self.color_space == DataColorSpace::Xyz
+        {
+            self.transform_chunk::<TrilinearNeonDouble<GRID_SIZE>>(src, dst);
+        } else {
+            match self.interpolation_method {
+                #[cfg(feature = "options")]
+                InterpolationMethod::Tetrahedral => {
+                    self.transform_chunk::<TetrahedralNeonDouble<GRID_SIZE>>(src, dst);
+                }
+                #[cfg(feature = "options")]
+                InterpolationMethod::Pyramid => {
+                    self.transform_chunk::<PyramidalNeonDouble<GRID_SIZE>>(src, dst);
+                }
+                #[cfg(feature = "options")]
+                InterpolationMethod::Prism => {
+                    self.transform_chunk::<PrismaticNeonDouble<GRID_SIZE>>(src, dst);
+                }
+                InterpolationMethod::Linear => {
+                    self.transform_chunk::<TrilinearNeonDouble<GRID_SIZE>>(src, dst);
+                }
             }
         }
 
@@ -208,6 +217,8 @@ impl Lut4x3Factory for NeonLut4x3Factory {
     >(
         lut: Vec<f32>,
         options: TransformOptions,
+        color_space: DataColorSpace,
+        is_linear: bool,
     ) -> Box<dyn TransformExecutor<T> + Sync + Send>
     where
         f32: AsPrimitive<T>,
@@ -250,6 +261,8 @@ impl Lut4x3Factory for NeonLut4x3Factory {
                     _phantom1: PhantomData,
                     interpolation_method: options.interpolation_method,
                     weights: BarycentricWeight::<i16>::create_ranged_256::<GRID_SIZE>(),
+                    color_space,
+                    is_linear,
                 }),
                 #[cfg(feature = "options")]
                 BarycentricWeightScale::High => Box::new(TransformLut4XyzToRgbNeonQ0_15::<
@@ -266,6 +279,8 @@ impl Lut4x3Factory for NeonLut4x3Factory {
                     _phantom1: PhantomData,
                     interpolation_method: options.interpolation_method,
                     weights: BarycentricWeight::<i16>::create_binned::<GRID_SIZE, 65536>(),
+                    color_space,
+                    is_linear,
                 }),
             };
         }
@@ -282,6 +297,8 @@ impl Lut4x3Factory for NeonLut4x3Factory {
                         _phantom1: PhantomData,
                         interpolation_method: options.interpolation_method,
                         weights: BarycentricWeight::<f32>::create_ranged_256::<GRID_SIZE>(),
+                        color_space,
+                        is_linear,
                     },
                 )
             }
@@ -300,6 +317,8 @@ impl Lut4x3Factory for NeonLut4x3Factory {
                 _phantom1: PhantomData,
                 interpolation_method: options.interpolation_method,
                 weights: BarycentricWeight::<f32>::create_binned::<GRID_SIZE, 65536>(),
+                color_space,
+                is_linear,
             }),
         }
     }

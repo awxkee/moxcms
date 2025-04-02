@@ -117,6 +117,8 @@ pub(crate) trait Lut3x3Factory {
     >(
         lut: Vec<f32>,
         options: TransformOptions,
+        color_space: DataColorSpace,
+        is_linear: bool,
     ) -> Box<dyn TransformExecutor<T> + Send + Sync>
     where
         f32: AsPrimitive<T>,
@@ -134,6 +136,8 @@ pub(crate) trait Lut4x3Factory {
     >(
         lut: Vec<f32>,
         options: TransformOptions,
+        color_space: DataColorSpace,
+        is_linear: bool,
     ) -> Box<dyn TransformExecutor<T> + Sync + Send>
     where
         f32: AsPrimitive<T>,
@@ -250,6 +254,8 @@ macro_rules! make_transform_3x3_fn {
             dst_layout: Layout,
             lut: Vec<f32>,
             options: TransformOptions,
+            color_space: DataColorSpace,
+            is_linear: bool,
         ) -> Box<dyn TransformExecutor<T> + Send + Sync>
         where
             f32: AsPrimitive<T>,
@@ -265,14 +271,14 @@ macro_rules! make_transform_3x3_fn {
                         { Layout::Rgb as u8 },
                         GRID_SIZE,
                         BIT_DEPTH,
-                    >(lut, options),
+                    >(lut, options, color_space, is_linear),
                     Layout::Rgba => $exec_impl::make_transform_3x3::<
                         T,
                         { Layout::Rgb as u8 },
                         { Layout::Rgba as u8 },
                         GRID_SIZE,
                         BIT_DEPTH,
-                    >(lut, options),
+                    >(lut, options, color_space, is_linear),
                     _ => unimplemented!(),
                 },
                 Layout::Rgba => match dst_layout {
@@ -282,14 +288,14 @@ macro_rules! make_transform_3x3_fn {
                         { Layout::Rgb as u8 },
                         GRID_SIZE,
                         BIT_DEPTH,
-                    >(lut, options),
+                    >(lut, options, color_space, is_linear),
                     Layout::Rgba => $exec_impl::make_transform_3x3::<
                         T,
                         { Layout::Rgba as u8 },
                         { Layout::Rgba as u8 },
                         GRID_SIZE,
                         BIT_DEPTH,
-                    >(lut, options),
+                    >(lut, options, color_space, is_linear),
                     _ => unimplemented!(),
                 },
                 _ => unimplemented!(),
@@ -314,12 +320,14 @@ macro_rules! make_transform_4x3_fn {
             dst_layout: Layout,
             lut: Vec<f32>,
             options: TransformOptions,
+            data_color_space: DataColorSpace,
+            is_linear: bool,
         ) -> Box<dyn TransformExecutor<T> + Send + Sync>
         where
             f32: AsPrimitive<T>,
             u32: AsPrimitive<T>,
             (): LutBarycentricReduction<T, u8>,
-        (): LutBarycentricReduction<T, u16>,
+            (): LutBarycentricReduction<T, u16>,
         {
             match dst_layout {
                 Layout::Rgb => $exec_name::make_transform_4x3::<
@@ -327,13 +335,13 @@ macro_rules! make_transform_4x3_fn {
                     { Layout::Rgb as u8 },
                     GRID_SIZE,
                     BIT_DEPTH,
-                >(lut, options),
+                >(lut, options, data_color_space, is_linear),
                 Layout::Rgba => $exec_name::make_transform_4x3::<
                     T,
                     { Layout::Rgba as u8 },
                     GRID_SIZE,
                     BIT_DEPTH,
-                >(lut, options),
+                >(lut, options, data_color_space, is_linear),
                 _ => unimplemented!(),
             }
         }
@@ -486,6 +494,10 @@ where
             }
         }
 
+        let is_dest_linear_profile = dest.color_space == DataColorSpace::Rgb
+            && dest.is_matrix_shaper()
+            && dest.is_linear_matrix_shaper();
+
         #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
         {
             #[cfg(feature = "avx")]
@@ -493,19 +505,31 @@ where
                 && std::arch::is_x86_feature_detected!("fma")
             {
                 return Ok(make_transformer_4x3_avx_fma::<T, GRID_SIZE, BIT_DEPTH>(
-                    dst_layout, lut, options,
+                    dst_layout,
+                    lut,
+                    options,
+                    dest.color_space,
+                    is_dest_linear_profile,
                 ));
             }
             #[cfg(feature = "sse")]
             if std::arch::is_x86_feature_detected!("sse4.1") {
                 return Ok(make_transformer_4x3_sse41::<T, GRID_SIZE, BIT_DEPTH>(
-                    dst_layout, lut, options,
+                    dst_layout,
+                    lut,
+                    options,
+                    dest.color_space,
+                    is_dest_linear_profile,
                 ));
             }
         }
 
         return Ok(make_transformer_4x3::<T, GRID_SIZE, BIT_DEPTH>(
-            dst_layout, lut, options,
+            dst_layout,
+            lut,
+            options,
+            dest.color_space,
+            is_dest_linear_profile,
         ));
     } else if (source.color_space == DataColorSpace::Rgb
         || source.color_space == DataColorSpace::Lab)
@@ -563,8 +587,16 @@ where
             }
         };
 
+        let is_dest_linear_profile = dest.color_space == DataColorSpace::Rgb
+            && dest.is_matrix_shaper()
+            && dest.is_linear_matrix_shaper();
+
         return Ok(make_transform_3x4::<T, GRID_SIZE, BIT_DEPTH>(
-            src_layout, lut, options,
+            src_layout,
+            lut,
+            options,
+            dest.color_space,
+            is_dest_linear_profile,
         ));
     } else if (source.color_space.is_three_channels()) && (dest.color_space.is_three_channels()) {
         source.color_space.check_layout(src_layout)?;
@@ -624,24 +656,43 @@ where
             return Err(CmsError::UnsupportedProfileConnection);
         }
 
+        let is_dest_linear_profile = dest.color_space == DataColorSpace::Rgb
+            && dest.is_matrix_shaper()
+            && dest.is_linear_matrix_shaper();
+
         #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
         {
             #[cfg(feature = "avx")]
             if std::arch::is_x86_feature_detected!("avx2") && std::is_x86_feature_detected!("fma") {
                 return Ok(make_transformer_3x3_avx_fma::<T, GRID_SIZE, BIT_DEPTH>(
-                    src_layout, dst_layout, lut, options,
+                    src_layout,
+                    dst_layout,
+                    lut,
+                    options,
+                    dest.color_space,
+                    is_dest_linear_profile,
                 ));
             }
             #[cfg(feature = "sse")]
             if std::arch::is_x86_feature_detected!("sse4.1") {
                 return Ok(make_transformer_3x3_sse41::<T, GRID_SIZE, BIT_DEPTH>(
-                    src_layout, dst_layout, lut, options,
+                    src_layout,
+                    dst_layout,
+                    lut,
+                    options,
+                    dest.color_space,
+                    is_dest_linear_profile,
                 ));
             }
         }
 
         return Ok(make_transformer_3x3::<T, GRID_SIZE, BIT_DEPTH>(
-            src_layout, dst_layout, lut, options,
+            src_layout,
+            dst_layout,
+            lut,
+            options,
+            dest.color_space,
+            is_dest_linear_profile,
         ));
     }
 

@@ -30,7 +30,7 @@ use crate::conversions::LutBarycentricReduction;
 use crate::conversions::interpolator::BarycentricWeight;
 use crate::conversions::neon::interpolator_q0_15::*;
 use crate::transform::PointeeSizeExpressible;
-use crate::{CmsError, InterpolationMethod, Layout, TransformExecutor};
+use crate::{CmsError, DataColorSpace, InterpolationMethod, Layout, TransformExecutor};
 use num_traits::AsPrimitive;
 use std::arch::aarch64::*;
 use std::marker::PhantomData;
@@ -49,6 +49,8 @@ pub(crate) struct TransformLut4XyzToRgbNeonQ0_15<
     pub(crate) _phantom1: PhantomData<U>,
     pub(crate) interpolation_method: InterpolationMethod,
     pub(crate) weights: Box<[BarycentricWeight<i16>; BINS]>,
+    pub(crate) color_space: DataColorSpace,
+    pub(crate) is_linear: bool,
 }
 
 impl<
@@ -169,21 +171,28 @@ where
         }
 
         unsafe {
-            match self.interpolation_method {
-                #[cfg(feature = "options")]
-                InterpolationMethod::Tetrahedral => {
-                    self.transform_chunk::<TetrahedralNeonQ0_15Double<GRID_SIZE>>(src, dst);
-                }
-                #[cfg(feature = "options")]
-                InterpolationMethod::Pyramid => {
-                    self.transform_chunk::<PyramidalNeonQ0_15Double<GRID_SIZE>>(src, dst);
-                }
-                #[cfg(feature = "options")]
-                InterpolationMethod::Prism => {
-                    self.transform_chunk::<PrismaticNeonQ0_15Double<GRID_SIZE>>(src, dst);
-                }
-                InterpolationMethod::Linear => {
-                    self.transform_chunk::<TrilinearNeonQ0_15Double<GRID_SIZE>>(src, dst);
+            if self.color_space == DataColorSpace::Lab
+                || (self.is_linear && self.color_space == DataColorSpace::Rgb)
+                || self.color_space == DataColorSpace::Xyz
+            {
+                self.transform_chunk::<TrilinearNeonQ0_15Double<GRID_SIZE>>(src, dst);
+            } else {
+                match self.interpolation_method {
+                    #[cfg(feature = "options")]
+                    InterpolationMethod::Tetrahedral => {
+                        self.transform_chunk::<TetrahedralNeonQ0_15Double<GRID_SIZE>>(src, dst);
+                    }
+                    #[cfg(feature = "options")]
+                    InterpolationMethod::Pyramid => {
+                        self.transform_chunk::<PyramidalNeonQ0_15Double<GRID_SIZE>>(src, dst);
+                    }
+                    #[cfg(feature = "options")]
+                    InterpolationMethod::Prism => {
+                        self.transform_chunk::<PrismaticNeonQ0_15Double<GRID_SIZE>>(src, dst);
+                    }
+                    InterpolationMethod::Linear => {
+                        self.transform_chunk::<TrilinearNeonQ0_15Double<GRID_SIZE>>(src, dst);
+                    }
                 }
             }
         }

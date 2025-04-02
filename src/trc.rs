@@ -159,6 +159,13 @@ impl ParametricCurve {
         }
     }
 
+    fn is_linear(&self) -> bool {
+        (self.g - 1.0).abs() < 1e-5
+            && (self.a - 1.0).abs() < 1e-5
+            && self.b.abs() < 1e-5
+            && self.c.abs() < 1e-5
+    }
+
     fn eval(&self, x: f32) -> f32 {
         if x < self.d {
             self.c * x + self.f
@@ -1255,6 +1262,33 @@ impl ColorProfile {
                     return true;
                 }
             }
+        }
+        false
+    }
+
+    /// Checks if profile is matrix shaper, have same TRC and TRC is linear.
+    pub(crate) fn is_linear_matrix_shaper(&self) -> bool {
+        if !self.is_matrix_shaper() {
+            return false;
+        }
+        if !self.are_all_trc_the_same() {
+            return false;
+        }
+        if let Some(red_trc) = &self.red_trc {
+            return match red_trc {
+                ToneReprCurve::Lut(lut) => {
+                    if lut.is_empty() {
+                        return true;
+                    }
+                    false
+                }
+                ToneReprCurve::Parametric(params) => {
+                    if let Some(curve) = ParametricCurve::new(params) {
+                        return curve.is_linear();
+                    }
+                    false
+                }
+            };
         }
         false
     }

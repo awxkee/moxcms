@@ -34,8 +34,8 @@ use crate::conversions::interpolator::BarycentricWeight;
 use crate::conversions::lut_transforms::Lut3x3Factory;
 use crate::transform::PointeeSizeExpressible;
 use crate::{
-    BarycentricWeightScale, CmsError, InterpolationMethod, Layout, TransformExecutor,
-    TransformOptions,
+    BarycentricWeightScale, CmsError, DataColorSpace, InterpolationMethod, Layout,
+    TransformExecutor, TransformOptions,
 };
 use num_traits::AsPrimitive;
 #[cfg(target_arch = "x86")]
@@ -59,6 +59,8 @@ struct TransformLut3x3AvxFma<
     _phantom2: PhantomData<U>,
     interpolation_method: InterpolationMethod,
     weights: Box<[BarycentricWeight<f32>; BINS]>,
+    color_space: DataColorSpace,
+    is_linear: bool,
 }
 
 impl<
@@ -187,21 +189,28 @@ where
         }
 
         unsafe {
-            match self.interpolation_method {
-                #[cfg(feature = "options")]
-                InterpolationMethod::Tetrahedral => {
-                    self.transform_chunk::<TetrahedralAvxFma<GRID_SIZE>>(src, dst);
-                }
-                #[cfg(feature = "options")]
-                InterpolationMethod::Pyramid => {
-                    self.transform_chunk::<PyramidalAvxFma<GRID_SIZE>>(src, dst);
-                }
-                #[cfg(feature = "options")]
-                InterpolationMethod::Prism => {
-                    self.transform_chunk::<PrismaticAvxFma<GRID_SIZE>>(src, dst);
-                }
-                InterpolationMethod::Linear => {
-                    self.transform_chunk::<TrilinearAvxFma<GRID_SIZE>>(src, dst);
+            if self.color_space == DataColorSpace::Lab
+                || (self.is_linear && self.color_space == DataColorSpace::Rgb)
+                || self.color_space == DataColorSpace::Xyz
+            {
+                self.transform_chunk::<TrilinearAvxFma<GRID_SIZE>>(src, dst);
+            } else {
+                match self.interpolation_method {
+                    #[cfg(feature = "options")]
+                    InterpolationMethod::Tetrahedral => {
+                        self.transform_chunk::<TetrahedralAvxFma<GRID_SIZE>>(src, dst);
+                    }
+                    #[cfg(feature = "options")]
+                    InterpolationMethod::Pyramid => {
+                        self.transform_chunk::<PyramidalAvxFma<GRID_SIZE>>(src, dst);
+                    }
+                    #[cfg(feature = "options")]
+                    InterpolationMethod::Prism => {
+                        self.transform_chunk::<PrismaticAvxFma<GRID_SIZE>>(src, dst);
+                    }
+                    InterpolationMethod::Linear => {
+                        self.transform_chunk::<TrilinearAvxFma<GRID_SIZE>>(src, dst);
+                    }
                 }
             }
         }
@@ -221,6 +230,8 @@ impl Lut3x3Factory for AvxLut3x3Factory {
     >(
         lut: Vec<f32>,
         options: TransformOptions,
+        color_space: DataColorSpace,
+        is_linear: bool,
     ) -> Box<dyn TransformExecutor<T> + Send + Sync>
     where
         f32: AsPrimitive<T>,
@@ -261,6 +272,8 @@ impl Lut3x3Factory for AvxLut3x3Factory {
                     _phantom2: PhantomData,
                     interpolation_method: options.interpolation_method,
                     weights: BarycentricWeight::<i16>::create_ranged_256::<GRID_SIZE>(),
+                    color_space,
+                    is_linear,
                 }),
                 #[cfg(feature = "options")]
                 BarycentricWeightScale::High => Box::new(TransformLut3x3AvxQ0_15::<
@@ -278,6 +291,8 @@ impl Lut3x3Factory for AvxLut3x3Factory {
                     _phantom2: PhantomData,
                     interpolation_method: options.interpolation_method,
                     weights: BarycentricWeight::<i16>::create_binned::<GRID_SIZE, 65536>(),
+                    color_space,
+                    is_linear,
                 }),
             };
         }
@@ -305,6 +320,8 @@ impl Lut3x3Factory for AvxLut3x3Factory {
                 _phantom2: PhantomData,
                 interpolation_method: options.interpolation_method,
                 weights: BarycentricWeight::<f32>::create_ranged_256::<GRID_SIZE>(),
+                color_space,
+                is_linear,
             }),
             #[cfg(feature = "options")]
             BarycentricWeightScale::High => Box::new(TransformLut3x3AvxFma::<
@@ -322,6 +339,8 @@ impl Lut3x3Factory for AvxLut3x3Factory {
                 _phantom2: PhantomData,
                 interpolation_method: options.interpolation_method,
                 weights: BarycentricWeight::<f32>::create_binned::<GRID_SIZE, 65536>(),
+                color_space,
+                is_linear,
             }),
         }
     }

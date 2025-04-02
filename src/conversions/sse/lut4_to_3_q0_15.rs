@@ -30,7 +30,7 @@ use crate::conversions::LutBarycentricReduction;
 use crate::conversions::interpolator::BarycentricWeight;
 use crate::conversions::sse::interpolator_q0_15::*;
 use crate::transform::PointeeSizeExpressible;
-use crate::{CmsError, InterpolationMethod, Layout, TransformExecutor};
+use crate::{CmsError, DataColorSpace, InterpolationMethod, Layout, TransformExecutor};
 use num_traits::AsPrimitive;
 #[cfg(target_arch = "x86")]
 use std::arch::x86::*;
@@ -52,6 +52,8 @@ pub(crate) struct TransformLut4XyzToRgbSseQ0_15<
     pub(crate) _phantom1: PhantomData<U>,
     pub(crate) interpolation_method: InterpolationMethod,
     pub(crate) weights: Box<[BarycentricWeight<i16>; BINS]>,
+    pub(crate) color_space: DataColorSpace,
+    pub(crate) is_linear: bool,
 }
 
 impl<
@@ -179,21 +181,28 @@ where
         }
 
         unsafe {
-            match self.interpolation_method {
-                #[cfg(feature = "options")]
-                InterpolationMethod::Tetrahedral => {
-                    self.transform_chunk::<TetrahedralSseQ0_15<GRID_SIZE>>(src, dst);
-                }
-                #[cfg(feature = "options")]
-                InterpolationMethod::Pyramid => {
-                    self.transform_chunk::<PyramidalSseQ0_15<GRID_SIZE>>(src, dst);
-                }
-                #[cfg(feature = "options")]
-                InterpolationMethod::Prism => {
-                    self.transform_chunk::<PrismaticSseQ0_15<GRID_SIZE>>(src, dst);
-                }
-                InterpolationMethod::Linear => {
-                    self.transform_chunk::<TrilinearSseQ0_15<GRID_SIZE>>(src, dst);
+            if self.color_space == DataColorSpace::Lab
+                || (self.is_linear && self.color_space == DataColorSpace::Rgb)
+                || self.color_space == DataColorSpace::Xyz
+            {
+                self.transform_chunk::<TrilinearSseQ0_15<GRID_SIZE>>(src, dst);
+            } else {
+                match self.interpolation_method {
+                    #[cfg(feature = "options")]
+                    InterpolationMethod::Tetrahedral => {
+                        self.transform_chunk::<TetrahedralSseQ0_15<GRID_SIZE>>(src, dst);
+                    }
+                    #[cfg(feature = "options")]
+                    InterpolationMethod::Pyramid => {
+                        self.transform_chunk::<PyramidalSseQ0_15<GRID_SIZE>>(src, dst);
+                    }
+                    #[cfg(feature = "options")]
+                    InterpolationMethod::Prism => {
+                        self.transform_chunk::<PrismaticSseQ0_15<GRID_SIZE>>(src, dst);
+                    }
+                    InterpolationMethod::Linear => {
+                        self.transform_chunk::<TrilinearSseQ0_15<GRID_SIZE>>(src, dst);
+                    }
                 }
             }
         }
