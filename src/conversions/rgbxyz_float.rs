@@ -326,7 +326,7 @@ where
             dst[dst_cn.r_i()] = rgb.r.as_();
             dst[dst_cn.g_i()] = rgb.g.as_();
             dst[dst_cn.b_i()] = rgb.b.as_();
-            
+
             if dst_channels == 4 {
                 dst[dst_cn.a_i()] = a;
             }

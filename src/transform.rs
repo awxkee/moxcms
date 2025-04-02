@@ -93,7 +93,7 @@ pub struct TransformOptions {
     pub barycentric_weight_scale: BarycentricWeightScale,
     /// For floating points transform, it will try to detect gamma function.
     /// If gamma function is found, then it will be used instead of LUT table.
-    /// This allows to work with excellent precision with extended range, 
+    /// This allows to work with excellent precision with extended range,
     /// at a cost of execution time.
     pub allow_extended_range_rgb_xyz: bool,
     // pub black_point_compensation: bool,

@@ -254,6 +254,18 @@ struct TransformProfilePcsXYZRgb<
     pub(crate) profile: TransformProfileRgb<T, LINEAR_CAP>,
 }
 
+#[allow(unused)]
+struct TransformProfilePcsXYZRgbClip<
+    T: Clone,
+    const SRC_LAYOUT: u8,
+    const DST_LAYOUT: u8,
+    const LINEAR_CAP: usize,
+    const GAMMA_LUT: usize,
+    const BIT_DEPTH: usize,
+> {
+    pub(crate) profile: TransformProfileRgb<T, LINEAR_CAP>,
+}
+
 #[cfg(any(
     any(target_arch = "x86", target_arch = "x86_64"),
     all(target_arch = "aarch64", target_feature = "neon")

@@ -187,7 +187,7 @@ fn main() {
             TransformOptions {
                 rendering_intent: RenderingIntent::Perceptual,
                 allow_use_cicp_transfer: false,
-                prefer_fixed_point: true,
+                prefer_fixed_point: false,
                 interpolation_method: InterpolationMethod::Prism,
                 barycentric_weight_scale: BarycentricWeightScale::Low,
                 allow_extended_range_rgb_xyz: false,
