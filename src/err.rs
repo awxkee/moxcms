@@ -30,7 +30,13 @@ use crate::RenderingIntent;
 use std::error::Error;
 use std::fmt::Display;
 
-#[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialOrd, PartialEq)]
+pub struct MalformedSize {
+    pub size: usize,
+    pub expected: usize,
+}
+
+#[derive(Debug, Copy, Clone, PartialOrd, PartialEq)]
 pub enum CmsError {
     LaneSizeMismatch,
     LaneMultipleOfChannels,
@@ -53,7 +59,8 @@ pub enum CmsError {
     InvalidAtoBLut,
     OverflowingError,
     LUTTablesInvalidKind,
-    InvalidClutSize,
+    MalformedClut(MalformedSize),
+    MalformedCurveLutTable(MalformedSize),
 }
 
 impl Display for CmsError {
@@ -99,7 +106,12 @@ impl Display for CmsError {
                 f.write_str("Overflowing was happen, that is not allowed")
             }
             CmsError::LUTTablesInvalidKind => f.write_str("All LUT curves must have same kind"),
-            CmsError::InvalidClutSize => f.write_str("Invalid CLUT size"),
+            CmsError::MalformedClut(size) => {
+                f.write_fmt(format_args!("Invalid CLUT size: {:?}", size))
+            }
+            CmsError::MalformedCurveLutTable(size) => {
+                f.write_fmt(format_args!("Malformed curve LUT size: {:?}", size))
+            }
         }
     }
 }

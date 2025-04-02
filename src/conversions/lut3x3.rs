@@ -27,6 +27,7 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+use crate::err::MalformedSize;
 use crate::profile::LutDataType;
 use crate::trc::lut_interp_linear_float;
 use crate::{
@@ -47,11 +48,19 @@ fn stage_lut_3x3(
     lut: &LutDataType,
     options: TransformOptions,
     pcs: DataColorSpace,
-) -> Box<dyn Stage> {
+) -> Result<Box<dyn Stage>, CmsError> {
     let clut_length: usize = (lut.num_clut_grid_points as usize).pow(lut.num_input_channels as u32)
         * lut.num_output_channels as usize;
 
     let lin_table = lut.input_table.to_clut_f32();
+
+    if lin_table.len() < lut.num_input_table_entries as usize * 3 {
+        return Err(CmsError::MalformedCurveLutTable(MalformedSize {
+            size: lin_table.len(),
+            expected: lut.num_input_table_entries as usize * 3,
+        }));
+    }
+
     let lin_curve0 = lin_table[0..lut.num_input_table_entries as usize].to_vec();
     let lin_curve1 = lin_table
         [lut.num_input_table_entries as usize..lut.num_input_table_entries as usize * 2]
@@ -61,9 +70,21 @@ fn stage_lut_3x3(
         .to_vec();
 
     let clut_table = lut.clut_table.to_clut_f32();
-    assert_eq!(clut_length, clut_table.len());
+    if clut_table.len() != clut_length {
+        return Err(CmsError::MalformedClut(MalformedSize {
+            size: clut_table.len(),
+            expected: clut_length,
+        }));
+    }
 
     let gamma_curves = lut.output_table.to_clut_f32();
+
+    if gamma_curves.len() < lut.num_output_table_entries as usize * 3 {
+        return Err(CmsError::MalformedCurveLutTable(MalformedSize {
+            size: gamma_curves.len(),
+            expected: lut.num_output_table_entries as usize * 3,
+        }));
+    }
 
     let gamma_curve0 = gamma_curves[0..lut.num_output_table_entries as usize].to_vec();
     let gamma_curve1 = gamma_curves
@@ -82,7 +103,7 @@ fn stage_lut_3x3(
         pcs,
     };
 
-    Box::new(transform)
+    Ok(Box::new(transform))
 }
 
 impl Lut3x3 {
@@ -156,7 +177,7 @@ pub(crate) fn create_lut3x3(
 
     let mut dest = vec![0.; src.len()];
 
-    let lut_stage = stage_lut_3x3(lut, options, pcs);
+    let lut_stage = stage_lut_3x3(lut, options, pcs)?;
     lut_stage.transform(src, &mut dest)?;
     Ok(dest)
 }

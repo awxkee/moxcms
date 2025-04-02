@@ -1188,32 +1188,32 @@ define_xyz!(Xyzd, f64, Matrix3d);
 /// Holds CIE XyY representation
 #[derive(Clone, Debug, Copy, Default)]
 pub struct XyY {
-    pub x: f32,
-    pub y: f32,
-    pub yb: f32,
+    pub x: f64,
+    pub y: f64,
+    pub yb: f64,
 }
 
 impl XyY {
     #[inline]
-    pub const fn new(x: f32, y: f32, yb: f32) -> Self {
+    pub const fn new(x: f64, y: f64, yb: f64) -> Self {
         Self { x, y, yb }
     }
 
     #[inline]
     pub const fn to_xyz(self) -> Xyz {
         Xyz {
-            x: self.x / self.y * self.yb,
-            y: self.yb,
-            z: (1. - self.x - self.y) / self.y * self.yb,
+            x: (self.x / self.y * self.yb) as f32,
+            y: self.yb as f32,
+            z: ((1. - self.x - self.y) / self.y * self.yb) as f32,
         }
     }
 
     #[inline]
     pub const fn to_xyzd(self) -> Xyzd {
         Xyzd {
-            x: self.x as f64 / self.y as f64 * self.yb as f64,
-            y: self.yb as f64,
-            z: (1. - self.x as f64 - self.y as f64) / self.y as f64 * self.yb as f64,
+            x: self.x / self.y * self.yb,
+            y: self.yb,
+            z: (1. - self.x - self.y) / self.y * self.yb,
         }
     }
 }
@@ -1252,9 +1252,9 @@ impl Chromaticity {
     #[inline]
     pub const fn to_xyyb(&self) -> XyY {
         XyY {
-            x: self.x,
-            y: self.y,
-            yb: 1f32,
+            x: self.x as f64,
+            y: self.y as f64,
+            yb: 1.,
         }
     }
 

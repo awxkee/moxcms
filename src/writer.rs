@@ -31,8 +31,8 @@ use crate::tag::{TAG_SIZE, Tag, TagTypeDefinition};
 use crate::trc::ToneReprCurve;
 use crate::{
     CicpProfile, CmsError, ColorDateTime, ColorProfile, LocalizableString, LutMultidimensionalType,
-    LutStore, LutType, LutWarehouse, Matrix3d, Matrix3f, ProfileSignature, ProfileText,
-    ProfileVersion, Vector3f, Xyzd,
+    LutStore, LutType, LutWarehouse, Matrix3d, ProfileSignature, ProfileText, ProfileVersion,
+    Vector3d, Xyzd,
 };
 
 pub(crate) trait FloatToFixedS15Fixed16 {
@@ -271,21 +271,6 @@ fn write_chad(into: &mut Vec<u8>, matrix: Matrix3d) {
 }
 
 #[inline]
-fn write_matrix3f(into: &mut Vec<u8>, v: Matrix3f) {
-    write_i32_be(into, v.v[0][0].to_s15_fixed16());
-    write_i32_be(into, v.v[0][1].to_s15_fixed16());
-    write_i32_be(into, v.v[0][2].to_s15_fixed16());
-
-    write_i32_be(into, v.v[1][0].to_s15_fixed16());
-    write_i32_be(into, v.v[1][1].to_s15_fixed16());
-    write_i32_be(into, v.v[1][2].to_s15_fixed16());
-
-    write_i32_be(into, v.v[2][0].to_s15_fixed16());
-    write_i32_be(into, v.v[2][1].to_s15_fixed16());
-    write_i32_be(into, v.v[2][2].to_s15_fixed16());
-}
-
-#[inline]
 fn write_matrix3d(into: &mut Vec<u8>, v: Matrix3d) {
     write_i32_be(into, v.v[0][0].to_s15_fixed16());
     write_i32_be(into, v.v[0][1].to_s15_fixed16());
@@ -301,7 +286,7 @@ fn write_matrix3d(into: &mut Vec<u8>, v: Matrix3d) {
 }
 
 #[inline]
-fn write_vector3f(into: &mut Vec<u8>, v: Vector3f) {
+fn write_vector3d(into: &mut Vec<u8>, v: Vector3d) {
     write_i32_be(into, v.v[0].to_s15_fixed16());
     write_i32_be(into, v.v[1].to_s15_fixed16());
     write_i32_be(into, v.v[2].to_s15_fixed16());
@@ -323,7 +308,7 @@ fn write_lut_entry(into: &mut Vec<u8>, lut: &LutDataType) -> Result<usize, CmsEr
     into.push(lut.num_output_channels);
     into.push(lut.num_clut_grid_points);
     into.push(0);
-    write_matrix3f(into, lut.matrix);
+    write_matrix3d(into, lut.matrix);
     write_u16_be(into, lut.num_input_table_entries);
     write_u16_be(into, lut.num_output_table_entries);
     match &lut.input_table {
@@ -403,8 +388,8 @@ fn write_mab_entry(
     }
     // Offset to matrix
     write_u32_be(into, working_offset as u32);
-    write_matrix3f(&mut data, lut.matrix);
-    write_vector3f(&mut data, lut.bias);
+    write_matrix3d(&mut data, lut.matrix);
+    write_vector3d(&mut data, lut.bias);
     working_offset += 9 * 4 + 3 * 4;
     // Offset to "M curves"
     if !lut.m_curves.is_empty() {

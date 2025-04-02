@@ -132,7 +132,7 @@ where
                     dst[cn.g_i()] = (y as u32).as_();
                     dst[cn.b_i()] = (z as u32).as_();
                 } else {
-                    let mut r = _mm_cvtepi32_ps(_mm_unpacklo_epi16(v, _mm_setzero_si128()));
+                    let mut r = _mm_cvtepi32_ps(_mm_cvtepi16_epi32(v));
                     r = _mm_mul_ps(r, f_value_scale);
                     dst[cn.r_i()] = f32::from_bits(_mm_extract_ps::<0>(r) as u32).as_();
                     dst[cn.g_i()] = f32::from_bits(_mm_extract_ps::<1>(r) as u32).as_();

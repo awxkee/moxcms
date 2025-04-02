@@ -42,9 +42,9 @@ use crate::{
 /// similar to argyll: `icx_DTEMP2XYZ()`
 const fn white_point_from_temperature(temp_k: i32) -> XyY {
     let mut white_point = XyY {
-        x: 0f32,
-        y: 0f32,
-        yb: 0f32,
+        x: 0.,
+        y: 0.,
+        yb: 0.,
     };
     // No optimization provided.
     let temp_k = temp_k as f64; // Square
@@ -70,8 +70,8 @@ const fn white_point_from_temperature(temp_k: i32) -> XyY {
     // let M1 = (-1.3515 - 1.7703*x + 5.9114 *y)/(0.0241 + 0.2562*x - 0.7341*y);
     // let M2 = (0.0300 - 31.4424*x + 30.0717*y)/(0.0241 + 0.2562*x - 0.7341*y);
     // Fill white_point struct
-    white_point.x = x as f32;
-    white_point.y = y as f32;
+    white_point.x = x;
+    white_point.y = y;
     white_point.yb = 1.0;
     white_point
 }

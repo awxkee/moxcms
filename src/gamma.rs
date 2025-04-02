@@ -27,7 +27,7 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::transform::PointeeSizeExpressible;
-use crate::{Rgb, TransferCharacteristics, exp, f_log, f_log10, f_pow, f_powf};
+use crate::{Rgb, TransferCharacteristics, f_exp, f_expf, f_log, f_log10, f_logf, f_pow, f_powf};
 use num_traits::AsPrimitive;
 
 #[inline]
@@ -140,10 +140,24 @@ pub(crate) fn smpte428_to_linear(gamma: f64) -> f64 {
 }
 
 #[inline]
+/// Linear transfer function for Smpte 428
+pub(crate) fn smpte428_to_linearf_extended(gamma: f32) -> f32 {
+    const SCALE: f32 = 1. / 0.91655527974030934;
+    f_powf(gamma.max(0.), 2.6) * SCALE
+}
+
+#[inline]
 /// Gamma transfer function for Smpte 428
 fn smpte428_from_linear(linear: f64) -> f64 {
     const POWER_VALUE: f64 = 1.0f64 / 2.6f64;
-    (0.91655527974030934f64 * linear.max(0.)).powf(POWER_VALUE)
+    f_pow(0.91655527974030934f64 * linear.max(0.), POWER_VALUE)
+}
+
+#[inline]
+/// Gamma transfer function for Smpte 428
+fn smpte428_from_linearf(linear: f32) -> f32 {
+    const POWER_VALUE: f32 = 1.0 / 2.6;
+    f_powf(0.91655527974030934 * linear.max(0.), POWER_VALUE)
 }
 
 #[inline]
@@ -161,6 +175,16 @@ pub(crate) fn smpte240_to_linear(gamma: f64) -> f64 {
 }
 
 #[inline]
+/// Linear transfer function for Smpte 240
+pub(crate) fn smpte240_to_linearf_extended(gamma: f32) -> f32 {
+    if gamma < 4.0 * 0.022821585529445 {
+        gamma / 4.0
+    } else {
+        f_powf((gamma + 0.111572195921731) / 1.111572195921731, 1.0 / 0.45)
+    }
+}
+
+#[inline]
 /// Gamma transfer function for Smpte 240
 fn smpte240_from_linear(linear: f64) -> f64 {
     if linear < 0.0 {
@@ -171,6 +195,16 @@ fn smpte240_from_linear(linear: f64) -> f64 {
         1.111572195921731 * f_pow(linear, 0.45) - 0.111572195921731
     } else {
         1.0
+    }
+}
+
+#[inline]
+/// Gamma transfer function for Smpte 240
+fn smpte240_from_linearf_extended(linear: f32) -> f32 {
+    if linear < 0.022821585529445 {
+        linear * 4.0
+    } else {
+        1.111572195921731 * f_powf(linear, 0.45) - 0.111572195921731
     }
 }
 
@@ -411,7 +445,23 @@ pub(crate) fn hlg_to_linear(gamma: f64) -> f64 {
         f_pow((gamma * gamma) * (1.0 / 3.0), 1.2)
     } else {
         f_pow(
-            (exp((gamma - 0.55991073) / 0.17883277) + 0.28466892) / 12.0,
+            (f_exp((gamma - 0.55991073) / 0.17883277) + 0.28466892) / 12.0,
+            1.2,
+        )
+    }
+}
+
+#[inline]
+/// Linear transfer function for HLG
+pub(crate) fn hlg_to_linearf(gamma: f32) -> f32 {
+    if gamma < 0.0 {
+        return 0.0;
+    }
+    if gamma <= 0.5 {
+        f_powf((gamma * gamma) * (1.0 / 3.0), 1.2)
+    } else {
+        f_powf(
+            (f_expf((gamma - 0.55991073) / 0.17883277) + 0.28466892) / 12.0,
             1.2,
         )
     }
@@ -430,6 +480,22 @@ fn hlg_from_linear(linear: f64) -> f64 {
         (3.0 * linear).sqrt()
     } else {
         0.17883277 * f_log(12.0 * linear - 0.28466892) + 0.55991073
+    }
+}
+
+#[inline]
+/// Gamma transfer function for HLG
+fn hlg_from_linearf(linear: f32) -> f32 {
+    // Scale from extended SDR range to [0.0, 1.0].
+    let mut linear = linear.max(0.);
+    // Inverse OOTF followed by OETF see Table 5 and Note 5i in ITU-R BT.2100-2 page 7-8.
+    linear = f_powf(linear, 1.0 / 1.2);
+    if linear < 0.0 {
+        0.0
+    } else if linear <= (1.0 / 12.0) {
+        (3.0 * linear).sqrt()
+    } else {
+        0.17883277 * f_logf(12.0 * linear - 0.28466892) + 0.55991073
     }
 }
 
@@ -517,9 +583,9 @@ impl TransferCharacteristics {
             },
             TransferCharacteristics::Smpte240 => |x| {
                 Rgb::new(
-                    smpte240_from_linear(x.r as f64) as f32,
-                    smpte240_from_linear(x.g as f64) as f32,
-                    smpte240_from_linear(x.b as f64) as f32,
+                    smpte240_from_linearf_extended(x.r),
+                    smpte240_from_linearf_extended(x.g),
+                    smpte240_from_linearf_extended(x.b),
                 )
             },
             TransferCharacteristics::Linear => |x| Rgb::new(x.r, x.g, x.b),
@@ -567,16 +633,16 @@ impl TransferCharacteristics {
             },
             TransferCharacteristics::Smpte428 => |x| {
                 Rgb::new(
-                    smpte428_from_linear(x.r as f64) as f32,
-                    smpte428_from_linear(x.g as f64) as f32,
-                    smpte428_from_linear(x.b as f64) as f32,
+                    smpte428_from_linearf(x.r),
+                    smpte428_from_linearf(x.g),
+                    smpte428_from_linearf(x.b),
                 )
             },
             TransferCharacteristics::Hlg => |x| {
                 Rgb::new(
-                    hlg_from_linear(x.r as f64) as f32,
-                    hlg_from_linear(x.g as f64) as f32,
-                    hlg_from_linear(x.b as f64) as f32,
+                    hlg_from_linearf(x.r),
+                    hlg_from_linearf(x.g),
+                    hlg_from_linearf(x.b),
                 )
             },
         }
@@ -612,9 +678,9 @@ impl TransferCharacteristics {
             },
             TransferCharacteristics::Smpte240 => |x| {
                 Rgb::new(
-                    smpte240_to_linear(x.r as f64) as f32,
-                    smpte240_to_linear(x.g as f64) as f32,
-                    smpte240_to_linear(x.b as f64) as f32,
+                    smpte240_to_linearf_extended(x.r),
+                    smpte240_to_linearf_extended(x.g),
+                    smpte240_to_linearf_extended(x.b),
                 )
             },
             TransferCharacteristics::Linear => |x| Rgb::new(x.r, x.g, x.b),
@@ -658,16 +724,16 @@ impl TransferCharacteristics {
             }
             TransferCharacteristics::Smpte428 => |x| {
                 Rgb::new(
-                    smpte428_to_linear(x.r as f64) as f32,
-                    smpte428_to_linear(x.g as f64) as f32,
-                    smpte428_to_linear(x.b as f64) as f32,
+                    smpte428_to_linearf_extended(x.r),
+                    smpte428_to_linearf_extended(x.g),
+                    smpte428_to_linearf_extended(x.b),
                 )
             },
             TransferCharacteristics::Hlg => |x| {
                 Rgb::new(
-                    hlg_to_linear(x.r as f64) as f32,
-                    hlg_to_linear(x.g as f64) as f32,
-                    hlg_to_linear(x.b as f64) as f32,
+                    hlg_to_linearf(x.r),
+                    hlg_to_linearf(x.g),
+                    hlg_to_linearf(x.b),
                 )
             },
         }

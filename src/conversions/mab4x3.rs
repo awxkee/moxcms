@@ -29,7 +29,7 @@
 use crate::conversions::mab::{BCurves3, MCurves3};
 use crate::{
     CmsError, DataColorSpace, Hypercube, InPlaceStage, InterpolationMethod,
-    LutMultidimensionalType, Matrix3f, Stage, TransformOptions, Vector3f,
+    LutMultidimensionalType, MalformedSize, Matrix3d, Stage, TransformOptions, Vector3d, Vector3f,
 };
 
 #[allow(dead_code)]
@@ -190,7 +190,10 @@ pub(crate) fn prepare_mab_4x3(
             * mab.grid_points[3] as usize
             * mab.num_output_channels as usize;
         if clut.len() != lut_grid {
-            return Err(CmsError::InvalidClutSize);
+            return Err(CmsError::MalformedClut(MalformedSize {
+                size: clut.len(),
+                expected: lut_grid,
+            }));
         }
 
         let all_curves_linear = mab.a_curves.iter().all(|curve| curve.is_linear());
@@ -332,8 +335,8 @@ pub(crate) fn prepare_mab_4x3(
     if mab.m_curves.len() == 3 {
         let all_curves_linear = mab.m_curves.iter().all(|curve| curve.is_linear());
         if !all_curves_linear
-            || !mab.matrix.test_equality(Matrix3f::IDENTITY)
-            || mab.bias.ne(&Vector3f::default())
+            || !mab.matrix.test_equality(Matrix3d::IDENTITY)
+            || mab.bias.ne(&Vector3d::default())
         {
             let curves: Result<Vec<_>, _> = mab
                 .m_curves
@@ -347,8 +350,8 @@ pub(crate) fn prepare_mab_4x3(
             let [curve0, curve1, curve2] =
                 curves?.try_into().map_err(|_| CmsError::InvalidTrcCurve)?;
 
-            let matrix = mab.matrix;
-            let bias = mab.bias;
+            let matrix = mab.matrix.to_f32();
+            let bias: Vector3f = mab.bias.cast();
             let m_curves = MCurves3::<DEPTH> {
                 curve0,
                 curve1,

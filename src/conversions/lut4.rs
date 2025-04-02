@@ -29,7 +29,8 @@
 use crate::profile::LutDataType;
 use crate::trc::lut_interp_linear_float;
 use crate::{
-    CmsError, DataColorSpace, Hypercube, InterpolationMethod, Stage, TransformOptions, Vector3f,
+    CmsError, DataColorSpace, Hypercube, InterpolationMethod, MalformedSize, Stage,
+    TransformOptions, Vector3f,
 };
 
 #[allow(unused)]
@@ -129,10 +130,20 @@ fn stage_lut_4x3(
 
     let clut_table = lut.clut_table.to_clut_f32();
     if clut_table.len() != clut_length {
-        return Err(CmsError::InvalidClutSize);
+        return Err(CmsError::MalformedClut(MalformedSize {
+            size: clut_table.len(),
+            expected: clut_length,
+        }));
     }
 
     let linearization_table = lut.input_table.to_clut_f32();
+
+    if linearization_table.len() < lut.num_input_table_entries as usize * 4 {
+        return Err(CmsError::MalformedCurveLutTable(MalformedSize {
+            size: linearization_table.len(),
+            expected: lut.num_input_table_entries as usize * 4,
+        }));
+    }
 
     let lin_curve0 = linearization_table[0..lut.num_input_table_entries as usize].to_vec();
     let lin_curve1 = linearization_table
@@ -146,6 +157,13 @@ fn stage_lut_4x3(
         .to_vec();
 
     let gamma_table = lut.output_table.to_clut_f32();
+
+    if gamma_table.len() < lut.num_output_table_entries as usize * 3 {
+        return Err(CmsError::MalformedCurveLutTable(MalformedSize {
+            size: gamma_table.len(),
+            expected: lut.num_output_table_entries as usize * 3,
+        }));
+    }
 
     let gamma_curve0 = gamma_table[0..lut.num_output_table_entries as usize].to_vec();
     let gamma_curve1 = gamma_table
