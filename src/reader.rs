@@ -34,7 +34,7 @@ use crate::{
     LocalizableString, LutMultidimensionalType, LutStore, LutType, LutWarehouse, Matrix3d,
     Matrix3f, MatrixCoefficients, Measurement, MeasurementGeometry, ProfileText,
     StandardIlluminant, StandardObserver, TechnologySignatures, ToneReprCurve,
-    TransferCharacteristics, Vector3f, ViewingConditions, Xyz, Xyzd,
+    TransferCharacteristics, Vector3d, ViewingConditions, Xyz, Xyzd,
 };
 
 /// Produces the nearest float to `a` with a maximum error of 1/1024 which
@@ -379,8 +379,8 @@ impl ColorProfile {
         let matrix_offset = u32::from_be_bytes([tag[16], tag[17], tag[18], tag[19]]) as usize;
         let b_curve_offset = u32::from_be_bytes([tag[12], tag[13], tag[14], tag[15]]) as usize;
 
-        let transform: Matrix3f;
-        let bias;
+        let transform: Matrix3d;
+        let bias: Vector3d;
         if matrix_offset != 0 {
             let matrix_end = matrix_offset.safe_add(12 * 4)?;
             if tag.len() < matrix_end {
@@ -405,36 +405,36 @@ impl ColorProfile {
             let b1 = i32::from_be_bytes([m_tag[40], m_tag[41], m_tag[42], m_tag[43]]);
             let b2 = i32::from_be_bytes([m_tag[44], m_tag[45], m_tag[46], m_tag[47]]);
 
-            transform = Matrix3f {
+            transform = Matrix3d {
                 v: [
                     [
-                        s15_fixed16_number_to_float(e00),
-                        s15_fixed16_number_to_float(e01),
-                        s15_fixed16_number_to_float(e02),
+                        s15_fixed16_number_to_double(e00),
+                        s15_fixed16_number_to_double(e01),
+                        s15_fixed16_number_to_double(e02),
                     ],
                     [
-                        s15_fixed16_number_to_float(e10),
-                        s15_fixed16_number_to_float(e11),
-                        s15_fixed16_number_to_float(e12),
+                        s15_fixed16_number_to_double(e10),
+                        s15_fixed16_number_to_double(e11),
+                        s15_fixed16_number_to_double(e12),
                     ],
                     [
-                        s15_fixed16_number_to_float(e20),
-                        s15_fixed16_number_to_float(e21),
-                        s15_fixed16_number_to_float(e22),
+                        s15_fixed16_number_to_double(e20),
+                        s15_fixed16_number_to_double(e21),
+                        s15_fixed16_number_to_double(e22),
                     ],
                 ],
             };
 
-            bias = Vector3f {
+            bias = Vector3d {
                 v: [
-                    s15_fixed16_number_to_float(b0),
-                    s15_fixed16_number_to_float(b1),
-                    s15_fixed16_number_to_float(b2),
+                    s15_fixed16_number_to_double(b0),
+                    s15_fixed16_number_to_double(b1),
+                    s15_fixed16_number_to_double(b2),
                 ],
             };
         } else {
-            transform = Matrix3f::IDENTITY;
-            bias = Vector3f::default();
+            transform = Matrix3d::IDENTITY;
+            bias = Vector3d::default();
         }
 
         let mut grid_points: [u8; 16] = [0; 16];
@@ -643,22 +643,22 @@ impl ColorProfile {
         let e21 = i32::from_be_bytes([tag[40], tag[41], tag[42], tag[43]]);
         let e22 = i32::from_be_bytes([tag[44], tag[45], tag[46], tag[47]]);
 
-        let transform = Matrix3f {
+        let transform = Matrix3d {
             v: [
                 [
-                    s15_fixed16_number_to_float(e00),
-                    s15_fixed16_number_to_float(e01),
-                    s15_fixed16_number_to_float(e02),
+                    s15_fixed16_number_to_double(e00),
+                    s15_fixed16_number_to_double(e01),
+                    s15_fixed16_number_to_double(e02),
                 ],
                 [
-                    s15_fixed16_number_to_float(e10),
-                    s15_fixed16_number_to_float(e11),
-                    s15_fixed16_number_to_float(e12),
+                    s15_fixed16_number_to_double(e10),
+                    s15_fixed16_number_to_double(e11),
+                    s15_fixed16_number_to_double(e12),
                 ],
                 [
-                    s15_fixed16_number_to_float(e20),
-                    s15_fixed16_number_to_float(e21),
-                    s15_fixed16_number_to_float(e22),
+                    s15_fixed16_number_to_double(e20),
+                    s15_fixed16_number_to_double(e21),
+                    s15_fixed16_number_to_double(e22),
                 ],
             ],
         };

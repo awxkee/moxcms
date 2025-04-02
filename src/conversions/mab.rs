@@ -29,7 +29,7 @@
 use crate::mlaf::mlaf;
 use crate::{
     CmsError, Cube, DataColorSpace, InPlaceStage, InterpolationMethod, LutMultidimensionalType,
-    Matrix3f, TransformOptions, Vector3f,
+    Matrix3d, Matrix3f, TransformOptions, Vector3d, Vector3f,
 };
 
 #[allow(unused)]
@@ -460,8 +460,8 @@ pub(crate) fn prepare_mab_3x3(
     if mab.m_curves.len() == 3 {
         let all_curves_linear = mab.m_curves.iter().all(|curve| curve.is_linear());
         if !all_curves_linear
-            || !mab.matrix.test_equality(Matrix3f::IDENTITY)
-            || mab.bias.ne(&Vector3f::default())
+            || !mab.matrix.test_equality(Matrix3d::IDENTITY)
+            || mab.bias.ne(&Vector3d::default())
         {
             let curves: Result<Vec<_>, _> = mab
                 .m_curves
@@ -474,8 +474,8 @@ pub(crate) fn prepare_mab_3x3(
 
             let [curve0, curve1, curve2] =
                 curves?.try_into().map_err(|_| CmsError::InvalidTrcCurve)?;
-            let matrix = mab.matrix;
-            let bias = mab.bias;
+            let matrix = mab.matrix.to_f32();
+            let bias: Vector3f = mab.bias.cast();
             let m_curves = MCurves3::<DEPTH> {
                 curve0,
                 curve1,
@@ -561,8 +561,8 @@ pub(crate) fn prepare_mba_3x3(
     if mab.m_curves.len() == 3 {
         let all_curves_linear = mab.m_curves.iter().all(|curve| curve.is_linear());
         if !all_curves_linear
-            || !mab.matrix.test_equality(Matrix3f::IDENTITY)
-            || mab.bias.ne(&Vector3f::default())
+            || !mab.matrix.test_equality(Matrix3d::IDENTITY)
+            || mab.bias.ne(&Vector3d::default())
         {
             let curves: Result<Vec<_>, _> = mab
                 .m_curves
@@ -576,8 +576,8 @@ pub(crate) fn prepare_mba_3x3(
             let [curve0, curve1, curve2] =
                 curves?.try_into().map_err(|_| CmsError::InvalidTrcCurve)?;
 
-            let matrix = mab.matrix;
-            let bias = mab.bias;
+            let matrix = mab.matrix.to_f32();
+            let bias: Vector3f = mab.bias.cast();
             let m_curves = MCurves3::<DEPTH> {
                 curve0,
                 curve1,

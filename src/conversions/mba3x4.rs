@@ -29,7 +29,7 @@
 use crate::conversions::mab::{BCurves3, MCurves3};
 use crate::{
     CmsError, Cube, DataColorSpace, InPlaceStage, InterpolationMethod, LutMultidimensionalType,
-    Matrix3f, Stage, TransformOptions, Vector3f, Vector4f,
+    MalformedSize, Matrix3d, Stage, TransformOptions, Vector3d, Vector4f,
 };
 
 struct ACurves3x4Inverse<'a, const DEPTH: usize> {
@@ -206,8 +206,8 @@ pub(crate) fn prepare_mba_3x4(
     if mab.m_curves.len() == 3 {
         let all_curves_linear = mab.m_curves.iter().all(|curve| curve.is_linear());
         if !all_curves_linear
-            || !mab.matrix.test_equality(Matrix3f::IDENTITY)
-            || mab.bias.ne(&Vector3f::default())
+            || !mab.matrix.test_equality(Matrix3d::IDENTITY)
+            || mab.bias.ne(&Vector3d::default())
         {
             let curve0 = mab.m_curves[0]
                 .build_linearize_table::<u16, LERP_DEPTH, BP>()
@@ -218,8 +218,8 @@ pub(crate) fn prepare_mba_3x4(
             let curve2 = mab.m_curves[2]
                 .build_linearize_table::<u16, LERP_DEPTH, BP>()
                 .ok_or(CmsError::InvalidTrcCurve)?;
-            let matrix = mab.matrix;
-            let bias = mab.bias;
+            let matrix = mab.matrix.to_f32();
+            let bias = mab.bias.cast();
             let m_curves = MCurves3::<DEPTH> {
                 curve0,
                 curve1,
@@ -242,7 +242,10 @@ pub(crate) fn prepare_mba_3x4(
             * mab.grid_points[2] as usize
             * mab.num_output_channels as usize;
         if clut.len() != lut_grid {
-            return Err(CmsError::InvalidClutSize);
+            return Err(CmsError::MalformedClut(MalformedSize {
+                size: clut.len(),
+                expected: lut_grid,
+            }));
         }
 
         let grid_size = [mab.grid_points[0], mab.grid_points[1], mab.grid_points[2]];

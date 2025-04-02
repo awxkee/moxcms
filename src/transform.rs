@@ -83,7 +83,7 @@ pub struct TransformOptions {
     /// a little.
     ///
     /// Q4.12 for RGB->XYZ->RGB is used.
-    /// LUT interpolation goes with Q0.15.
+    /// LUT interpolation use Q0.15.
     pub prefer_fixed_point: bool,
     /// Interpolation method for 3D LUT
     pub interpolation_method: InterpolationMethod,
@@ -91,9 +91,9 @@ pub struct TransformOptions {
     ///
     /// This value controls LUT weights precision.
     pub barycentric_weight_scale: BarycentricWeightScale,
-    /// For floating points transform, it will try to detect gamma function.
+    /// For floating points transform, it will try to detect gamma function on *Matrix Shaper* profiles.
     /// If gamma function is found, then it will be used instead of LUT table.
-    /// This allows to work with excellent precision with extended range, 
+    /// This allows to work with excellent precision with extended range,
     /// at a cost of execution time.
     pub allow_extended_range_rgb_xyz: bool,
     // pub black_point_compensation: bool,
@@ -311,7 +311,8 @@ impl PointeeSizeExpressible for f64 {
 }
 
 impl ColorProfile {
-    pub(crate) fn has_full_colors_triplet(&self) -> bool {
+    /// Checks if profile is valid *Matrix Shaper* profile
+    pub fn is_matrix_shaper(&self) -> bool {
         self.color_space == DataColorSpace::Rgb
             && self.red_colorant != Xyzd::default()
             && self.green_colorant != Xyzd::default()
@@ -419,8 +420,8 @@ impl ColorProfile {
             && dst_pr.pcs == DataColorSpace::Xyz
             && dst_pr.color_space == DataColorSpace::Rgb
             && self.pcs == DataColorSpace::Xyz
-            && self.has_full_colors_triplet()
-            && dst_pr.has_full_colors_triplet()
+            && self.is_matrix_shaper()
+            && dst_pr.is_matrix_shaper()
         {
             if src_layout == Layout::Gray || src_layout == Layout::GrayAlpha {
                 return Err(CmsError::InvalidLayout);

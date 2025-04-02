@@ -34,7 +34,7 @@ use num_traits::AsPrimitive;
 use std::arch::aarch64::*;
 
 #[repr(align(16), C)]
-pub(crate) struct NeonAlignedU16([u16; 8]);
+pub(crate) struct NeonAlignedU16(pub(crate) [u16; 8]);
 
 #[repr(align(16), C)]
 pub(crate) struct NeonAlignedF32(pub(crate) [f32; 4]);

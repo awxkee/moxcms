@@ -29,7 +29,8 @@
 use crate::profile::LutDataType;
 use crate::trc::lut_interp_linear_float;
 use crate::{
-    CmsError, Cube, DataColorSpace, InterpolationMethod, Stage, TransformOptions, Vector4f,
+    CmsError, Cube, DataColorSpace, InterpolationMethod, MalformedSize, Stage, TransformOptions,
+    Vector4f,
 };
 use num_traits::AsPrimitive;
 
@@ -47,11 +48,27 @@ fn stage_lut_3x4(
     lut: &LutDataType,
     options: TransformOptions,
     pcs: DataColorSpace,
-) -> Box<dyn Stage> {
+) -> Result<Box<dyn Stage>, CmsError> {
     let clut_length: usize = (lut.num_clut_grid_points as usize).pow(lut.num_input_channels as u32)
         * lut.num_output_channels as usize;
 
+    let clut_table = lut.clut_table.to_clut_f32();
+    if clut_table.len() != clut_length {
+        return Err(CmsError::MalformedClut(MalformedSize {
+            size: clut_table.len(),
+            expected: clut_length,
+        }));
+    }
+
     let linearization_table = lut.input_table.to_clut_f32();
+
+    if linearization_table.len() < lut.num_input_table_entries as usize * 3 {
+        return Err(CmsError::MalformedCurveLutTable(MalformedSize {
+            size: linearization_table.len(),
+            expected: lut.num_input_table_entries as usize * 3,
+        }));
+    }
+
     let linear_curve0 = linearization_table[0..lut.num_input_table_entries as usize].to_vec();
     let linear_curve1 = linearization_table
         [lut.num_input_table_entries as usize..lut.num_input_table_entries as usize * 2]
@@ -60,10 +77,14 @@ fn stage_lut_3x4(
         [lut.num_input_table_entries as usize * 2..lut.num_input_table_entries as usize * 3]
         .to_vec();
 
-    let clut_table = lut.clut_table.to_clut_f32();
-    assert_eq!(clut_length, clut_table.len());
-
     let gamma_table = lut.output_table.to_clut_f32();
+
+    if gamma_table.len() < lut.num_output_table_entries as usize * 4 {
+        return Err(CmsError::MalformedCurveLutTable(MalformedSize {
+            size: gamma_table.len(),
+            expected: lut.num_output_table_entries as usize * 4,
+        }));
+    }
 
     let gamma_curve0 = gamma_table[0..lut.num_output_table_entries as usize].to_vec();
     let gamma_curve1 = gamma_table
@@ -84,7 +105,7 @@ fn stage_lut_3x4(
         pcs,
         gamma: [gamma_curve0, gamma_curve1, gamma_curve2, gamma_curve3],
     };
-    Box::new(transform)
+    Ok(Box::new(transform))
 }
 
 impl Lut3x4 {
@@ -201,7 +222,7 @@ pub(crate) fn create_lut3x4(
 
     let mut dest = vec![0.; (src.len() / 3) * 4];
 
-    let lut_stage = stage_lut_3x4(lut, options, pcs);
+    let lut_stage = stage_lut_3x4(lut, options, pcs)?;
     lut_stage.transform(src, &mut dest)?;
     Ok(dest)
 }

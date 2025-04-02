@@ -48,7 +48,8 @@ impl Vector3fCmykLerp for DefaultVector3fLerp {
     #[inline(always)]
     fn interpolate(a: Vector3f, b: Vector3f, t: f32, scale: f32) -> Vector3f {
         let t = Vector3f::from(t);
-        let mut new_vec = a.neg_mla(a, t).mla(b, t) * scale + 0.5f32;
+        let inter = a.neg_mla(a, t).mla(b, t);
+        let mut new_vec = Vector3f::from(0.5f32).mla(inter, Vector3f::from(scale));
         new_vec.v[0] = m_clamp(new_vec.v[0], 0.0, scale);
         new_vec.v[1] = m_clamp(new_vec.v[1], 0.0, scale);
         new_vec.v[2] = m_clamp(new_vec.v[2], 0.0, scale);

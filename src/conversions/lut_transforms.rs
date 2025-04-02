@@ -467,7 +467,7 @@ where
         pcs_lab_v4_to_v2(dest, &mut lut);
 
         if dest.pcs == DataColorSpace::Xyz {
-            if dest.has_full_colors_triplet() {
+            if dest.is_matrix_shaper() {
                 prepare_inverse_lut_rgb_xyz::<T, BIT_DEPTH, GAMMA_LUT>(dest, &mut lut, options)?;
             } else {
                 return Err(CmsError::UnsupportedProfileConnection);
@@ -535,7 +535,7 @@ where
                     prepare_mab_3x3(mab, &mut lut, options, source.pcs)?
                 }
             }
-        } else if source.has_full_colors_triplet() {
+        } else if source.is_matrix_shaper() {
             lut = create_rgb_lin_lut::<T, BIT_DEPTH, LINEAR_CAP, GRID_SIZE>(source, options)?;
         } else {
             return Err(CmsError::UnsupportedProfileConnection);
@@ -588,7 +588,7 @@ where
                     prepare_mab_3x3(mab, &mut lut, options, source.pcs)?
                 }
             }
-        } else if source.has_full_colors_triplet() {
+        } else if source.is_matrix_shaper() {
             lut = create_rgb_lin_lut::<T, BIT_DEPTH, LINEAR_CAP, GRID_SIZE>(source, options)?;
         } else {
             return Err(CmsError::UnsupportedProfileConnection);
@@ -618,7 +618,7 @@ where
                     prepare_mba_3x3(mab, &mut lut, options, dest.pcs)?
                 }
             }
-        } else if dest.has_full_colors_triplet() {
+        } else if dest.is_matrix_shaper() {
             prepare_inverse_lut_rgb_xyz::<T, BIT_DEPTH, GAMMA_LUT>(dest, &mut lut, options)?;
         } else {
             return Err(CmsError::UnsupportedProfileConnection);
@@ -769,6 +769,7 @@ where
         g_gamma: gamma_map_g,
         b_gamma: gamma_map_b,
         matrices,
+        intent: options.rendering_intent,
     };
     xyz_to_rgb_stage.transform(lut)?;
     Ok(())

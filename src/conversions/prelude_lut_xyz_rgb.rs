@@ -28,7 +28,7 @@
  */
 use crate::mlaf::mlaf;
 use crate::trc::ExtendedGammaEvaluator;
-use crate::{CmsError, InPlaceStage, Matrix3f, Rgb, filmlike_clip};
+use crate::{CmsError, InPlaceStage, Matrix3f, RenderingIntent, Rgb, filmlike_clip};
 use num_traits::AsPrimitive;
 use std::marker::PhantomData;
 
@@ -37,6 +37,7 @@ pub(crate) struct XyzToRgbStage<T: Clone, const BIT_DEPTH: usize, const GAMMA_LU
     pub(crate) g_gamma: Box<[T; 65536]>,
     pub(crate) b_gamma: Box<[T; 65536]>,
     pub(crate) matrices: Vec<Matrix3f>,
+    pub(crate) intent: RenderingIntent,
 }
 
 impl<T: Clone + AsPrimitive<f32>, const BIT_DEPTH: usize, const GAMMA_LUT: usize> InPlaceStage
@@ -71,18 +72,31 @@ impl<T: Clone + AsPrimitive<f32>, const BIT_DEPTH: usize, const GAMMA_LUT: usize
         let color_scale = 1f32 / max_colors as f32;
         let lut_cap = (GAMMA_LUT - 1) as f32;
 
-        for dst in dst.chunks_exact_mut(3) {
-            let mut rgb = Rgb::new(dst[0], dst[1], dst[2]);
-            if rgb.is_out_of_gamut() {
-                rgb = filmlike_clip(rgb);
-            }
-            let r = mlaf(0.5f32, rgb.r, lut_cap).min(lut_cap).max(0f32) as u16;
-            let g = mlaf(0.5f32, rgb.g, lut_cap).min(lut_cap).max(0f32) as u16;
-            let b = mlaf(0.5f32, rgb.b, lut_cap).min(lut_cap).max(0f32) as u16;
+        if self.intent != RenderingIntent::AbsoluteColorimetric {
+            for dst in dst.chunks_exact_mut(3) {
+                let mut rgb = Rgb::new(dst[0], dst[1], dst[2]);
+                if rgb.is_out_of_gamut() {
+                    rgb = filmlike_clip(rgb);
+                }
+                let r = mlaf(0.5f32, rgb.r, lut_cap).min(lut_cap).max(0f32) as u16;
+                let g = mlaf(0.5f32, rgb.g, lut_cap).min(lut_cap).max(0f32) as u16;
+                let b = mlaf(0.5f32, rgb.b, lut_cap).min(lut_cap).max(0f32) as u16;
 
-            dst[0] = self.r_gamma[r as usize].as_() * color_scale;
-            dst[1] = self.g_gamma[g as usize].as_() * color_scale;
-            dst[2] = self.b_gamma[b as usize].as_() * color_scale;
+                dst[0] = self.r_gamma[r as usize].as_() * color_scale;
+                dst[1] = self.g_gamma[g as usize].as_() * color_scale;
+                dst[2] = self.b_gamma[b as usize].as_() * color_scale;
+            }
+        } else {
+            for dst in dst.chunks_exact_mut(3) {
+                let rgb = Rgb::new(dst[0], dst[1], dst[2]);
+                let r = mlaf(0.5f32, rgb.r, lut_cap).min(lut_cap).max(0f32) as u16;
+                let g = mlaf(0.5f32, rgb.g, lut_cap).min(lut_cap).max(0f32) as u16;
+                let b = mlaf(0.5f32, rgb.b, lut_cap).min(lut_cap).max(0f32) as u16;
+
+                dst[0] = self.r_gamma[r as usize].as_() * color_scale;
+                dst[1] = self.g_gamma[g as usize].as_() * color_scale;
+                dst[2] = self.b_gamma[b as usize].as_() * color_scale;
+            }
         }
 
         Ok(())

@@ -40,7 +40,7 @@ use crate::tag::{TAG_SIZE, Tag};
 use crate::trc::{
     ToneReprCurve, is_curve_ascending, is_curve_descending, is_curve_linear8, is_curve_linear16,
 };
-use crate::{Chromaticity, Layout, Matrix3d, Vector3f, Xyzd, adapt_to_d50_d};
+use crate::{Chromaticity, Layout, Matrix3d, Vector3d, Xyzd, adapt_to_d50_d};
 use std::io::Read;
 
 const MAX_PROFILE_SIZE: usize = 1024 * 1024 * 10; // 10 MB max, for Fogra39 etc
@@ -536,7 +536,7 @@ pub struct LutDataType {
     pub num_input_channels: u8,
     pub num_output_channels: u8,
     pub num_clut_grid_points: u8,
-    pub matrix: Matrix3f,
+    pub matrix: Matrix3d,
     pub num_input_table_entries: u16,
     pub num_output_table_entries: u16,
     pub input_table: LutStore,
@@ -571,8 +571,8 @@ pub struct LutMultidimensionalType {
     pub a_curves: Vec<ToneReprCurve>,
     pub b_curves: Vec<ToneReprCurve>,
     pub m_curves: Vec<ToneReprCurve>,
-    pub matrix: Matrix3f,
-    pub bias: Vector3f,
+    pub matrix: Matrix3d,
+    pub bias: Vector3d,
 }
 
 #[repr(u32)]

@@ -27,7 +27,7 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::conversions::rgbxyz_fixed::TransformProfileRgbFixedPoint;
-use crate::conversions::sse::stages::SseAlignedU16;
+use crate::conversions::sse::rgb_xyz::SseAlignedU16;
 use crate::transform::PointeeSizeExpressible;
 use crate::{CmsError, Layout, TransformExecutor};
 use num_traits::AsPrimitive;
