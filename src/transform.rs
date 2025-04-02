@@ -86,6 +86,12 @@ pub struct TransformOptions {
     /// LUT interpolation use Q0.15.
     pub prefer_fixed_point: bool,
     /// Interpolation method for 3D LUT
+    ///
+    /// This parameter has no effect on LAB/XYZ interpolation and scene linear RGB.
+    /// For tetra, prism and pyramid we want to make decision how to split cube
+    /// based on perceptual weights and that weights should have same meaning,
+    /// which is not true for LAB/XYZ and scene linear RGB.
+    /// For LAB, XYZ and scene linear RGB `trilinear/quadlinear` always in force.
     pub interpolation_method: InterpolationMethod,
     /// Barycentric weights scale.
     ///

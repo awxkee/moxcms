@@ -177,8 +177,6 @@ fn main() {
 
     transform.transform(&real_dst, &mut cmyk).unwrap();
 
-    let time = Instant::now();
-
     let src_profile_lcms = lcms2::Profile::new_icc(&funny_icc).unwrap();
     let dst_profile_lcms = lcms2::Profile::new_srgb();
 
@@ -192,8 +190,10 @@ fn main() {
         lcms2::Intent::Perceptual,
     )
     .unwrap();
-
+    let time = Instant::now();
     transform.transform_pixels(&cmyk, &mut lcms_dst);
+
+    println!("Exec time lcms2 took {:?}", time.elapsed());
 
     for chunk in lcms_dst.chunks_exact_mut(4) {
         chunk[3] = 255;
@@ -208,6 +208,8 @@ fn main() {
     )
     .unwrap();
 
+    let time = Instant::now();
+
     let transform = funny_profile
         .create_transform_8bit(
             Layout::Rgba,
@@ -217,8 +219,8 @@ fn main() {
                 rendering_intent: RenderingIntent::Perceptual,
                 allow_use_cicp_transfer: false,
                 prefer_fixed_point: true,
-                interpolation_method: InterpolationMethod::Tetrahedral,
-                barycentric_weight_scale: BarycentricWeightScale::High,
+                interpolation_method: InterpolationMethod::Linear,
+                barycentric_weight_scale: BarycentricWeightScale::Low,
                 allow_extended_range_rgb_xyz: false,
             },
         )

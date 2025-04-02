@@ -34,8 +34,8 @@ use crate::conversions::sse::interpolator_q0_15::SseAlignedI16x4;
 use crate::conversions::sse::t_lut3_to_3_q0_15::TransformLut3x3SseQ0_15;
 use crate::transform::PointeeSizeExpressible;
 use crate::{
-    BarycentricWeightScale, CmsError, InterpolationMethod, Layout, TransformExecutor,
-    TransformOptions,
+    BarycentricWeightScale, CmsError, DataColorSpace, InterpolationMethod, Layout,
+    TransformExecutor, TransformOptions,
 };
 use num_traits::AsPrimitive;
 #[cfg(target_arch = "x86")]
@@ -59,6 +59,8 @@ struct TransformLut3x3Sse<
     _phantom2: PhantomData<U>,
     interpolation_method: InterpolationMethod,
     weights: Box<[BarycentricWeight<f32>; BINS]>,
+    color_space: DataColorSpace,
+    is_linear: bool,
 }
 
 impl<
@@ -187,21 +189,28 @@ where
         }
 
         unsafe {
-            match self.interpolation_method {
-                #[cfg(feature = "options")]
-                InterpolationMethod::Tetrahedral => {
-                    self.transform_chunk::<TetrahedralSse<GRID_SIZE>>(src, dst);
-                }
-                #[cfg(feature = "options")]
-                InterpolationMethod::Pyramid => {
-                    self.transform_chunk::<PyramidalSse<GRID_SIZE>>(src, dst);
-                }
-                #[cfg(feature = "options")]
-                InterpolationMethod::Prism => {
-                    self.transform_chunk::<PrismaticSse<GRID_SIZE>>(src, dst);
-                }
-                InterpolationMethod::Linear => {
-                    self.transform_chunk::<TrilinearSse<GRID_SIZE>>(src, dst);
+            if self.color_space == DataColorSpace::Lab
+                || (self.is_linear && self.color_space == DataColorSpace::Rgb)
+                || self.color_space == DataColorSpace::Xyz
+            {
+                self.transform_chunk::<TrilinearSse<GRID_SIZE>>(src, dst);
+            } else {
+                match self.interpolation_method {
+                    #[cfg(feature = "options")]
+                    InterpolationMethod::Tetrahedral => {
+                        self.transform_chunk::<TetrahedralSse<GRID_SIZE>>(src, dst);
+                    }
+                    #[cfg(feature = "options")]
+                    InterpolationMethod::Pyramid => {
+                        self.transform_chunk::<PyramidalSse<GRID_SIZE>>(src, dst);
+                    }
+                    #[cfg(feature = "options")]
+                    InterpolationMethod::Prism => {
+                        self.transform_chunk::<PrismaticSse<GRID_SIZE>>(src, dst);
+                    }
+                    InterpolationMethod::Linear => {
+                        self.transform_chunk::<TrilinearSse<GRID_SIZE>>(src, dst);
+                    }
                 }
             }
         }
@@ -221,6 +230,8 @@ impl Lut3x3Factory for SseLut3x3Factory {
     >(
         lut: Vec<f32>,
         options: TransformOptions,
+        color_space: DataColorSpace,
+        is_linear: bool,
     ) -> Box<dyn TransformExecutor<T> + Sync + Send>
     where
         f32: AsPrimitive<T>,
@@ -261,6 +272,8 @@ impl Lut3x3Factory for SseLut3x3Factory {
                     _phantom2: PhantomData,
                     interpolation_method: options.interpolation_method,
                     weights: BarycentricWeight::<i16>::create_ranged_256::<GRID_SIZE>(),
+                    color_space,
+                    is_linear,
                 }),
                 #[cfg(feature = "options")]
                 BarycentricWeightScale::High => Box::new(TransformLut3x3SseQ0_15::<
@@ -278,6 +291,8 @@ impl Lut3x3Factory for SseLut3x3Factory {
                     _phantom2: PhantomData,
                     interpolation_method: options.interpolation_method,
                     weights: BarycentricWeight::<i16>::create_binned::<GRID_SIZE, 65536>(),
+                    color_space,
+                    is_linear,
                 }),
             };
         }
@@ -301,6 +316,8 @@ impl Lut3x3Factory for SseLut3x3Factory {
                 _phantom2: PhantomData,
                 interpolation_method: options.interpolation_method,
                 weights: BarycentricWeight::<f32>::create_ranged_256::<GRID_SIZE>(),
+                color_space,
+                is_linear,
             }),
             #[cfg(feature = "options")]
             BarycentricWeightScale::High => Box::new(TransformLut3x3Sse::<
@@ -318,6 +335,8 @@ impl Lut3x3Factory for SseLut3x3Factory {
                 _phantom2: PhantomData,
                 interpolation_method: options.interpolation_method,
                 weights: BarycentricWeight::<f32>::create_binned::<GRID_SIZE, 65536>(),
+                color_space,
+                is_linear,
             }),
         }
     }

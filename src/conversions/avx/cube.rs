@@ -106,6 +106,10 @@ impl<'a> CubeAvxFma<'a> {
         lin_z: f32,
         fetch: impl CubeFetch<T>,
     ) -> T {
+        let lin_x = lin_x.max(0.0).min(1.0);
+        let lin_y = lin_y.max(0.0).min(1.0);
+        let lin_z = lin_z.max(0.0).min(1.0);
+
         let scale_x = (self.grid_size[0] as i32 - 1) as f32;
         let scale_y = (self.grid_size[1] as i32 - 1) as f32;
         let scale_z = (self.grid_size[2] as i32 - 1) as f32;
@@ -158,6 +162,10 @@ impl<'a> CubeAvxFma<'a> {
         lin_z: f32,
         fetch: impl CubeFetch<T>,
     ) -> T {
+        let lin_x = lin_x.max(0.0).min(1.0);
+        let lin_y = lin_y.max(0.0).min(1.0);
+        let lin_z = lin_z.max(0.0).min(1.0);
+
         let scale_x = (self.grid_size[0] as i32 - 1) as f32;
         let scale_y = (self.grid_size[1] as i32 - 1) as f32;
         let scale_z = (self.grid_size[2] as i32 - 1) as f32;
@@ -240,6 +248,10 @@ impl<'a> CubeAvxFma<'a> {
         lin_z: f32,
         fetch: impl CubeFetch<T>,
     ) -> T {
+        let lin_x = lin_x.max(0.0).min(1.0);
+        let lin_y = lin_y.max(0.0).min(1.0);
+        let lin_z = lin_z.max(0.0).min(1.0);
+
         let scale_x = (self.grid_size[0] as i32 - 1) as f32;
         let scale_y = (self.grid_size[1] as i32 - 1) as f32;
         let scale_z = (self.grid_size[2] as i32 - 1) as f32;
@@ -314,6 +326,10 @@ impl<'a> CubeAvxFma<'a> {
         lin_z: f32,
         fetch: impl CubeFetch<T>,
     ) -> T {
+        let lin_x = lin_x.max(0.0).min(1.0);
+        let lin_y = lin_y.max(0.0).min(1.0);
+        let lin_z = lin_z.max(0.0).min(1.0);
+
         let scale_x = (self.grid_size[0] as i32 - 1) as f32;
         let scale_y = (self.grid_size[1] as i32 - 1) as f32;
         let scale_z = (self.grid_size[2] as i32 - 1) as f32;

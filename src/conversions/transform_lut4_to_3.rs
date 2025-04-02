@@ -30,8 +30,8 @@ use crate::conversions::interpolator::*;
 use crate::conversions::lut_transforms::Lut4x3Factory;
 use crate::math::{FusedMultiplyAdd, FusedMultiplyNegAdd, m_clamp};
 use crate::{
-    BarycentricWeightScale, CmsError, InterpolationMethod, Layout, PointeeSizeExpressible,
-    TransformExecutor, TransformOptions, Vector3f,
+    BarycentricWeightScale, CmsError, DataColorSpace, InterpolationMethod, Layout,
+    PointeeSizeExpressible, TransformExecutor, TransformOptions, Vector3f,
 };
 use num_traits::AsPrimitive;
 use std::marker::PhantomData;
@@ -96,6 +96,8 @@ struct TransformLut4XyzToRgb<
     _phantom1: PhantomData<U>,
     interpolation_method: InterpolationMethod,
     weights: Box<[BarycentricWeight<f32>; BINS]>,
+    color_space: DataColorSpace,
+    is_linear: bool,
 }
 
 #[allow(unused)]
@@ -200,36 +202,57 @@ where
             return Err(CmsError::LaneSizeMismatch);
         }
 
-        match self.interpolation_method {
-            #[cfg(feature = "options")]
-            InterpolationMethod::Tetrahedral => {
-                if T::FINITE {
-                    self.transform_chunk::<Tetrahedral<GRID_SIZE>, DefaultVector3fLerp>(src, dst);
-                } else {
-                    self.transform_chunk::<Tetrahedral<GRID_SIZE>, NonFiniteVector3fLerp>(src, dst);
-                }
+        if self.color_space == DataColorSpace::Lab
+            || (self.is_linear && self.color_space == DataColorSpace::Rgb)
+            || self.color_space == DataColorSpace::Xyz
+        {
+            if T::FINITE {
+                self.transform_chunk::<Trilinear<GRID_SIZE>, DefaultVector3fLerp>(src, dst);
+            } else {
+                self.transform_chunk::<Trilinear<GRID_SIZE>, NonFiniteVector3fLerp>(src, dst);
             }
-            #[cfg(feature = "options")]
-            InterpolationMethod::Pyramid => {
-                if T::FINITE {
-                    self.transform_chunk::<Pyramidal<GRID_SIZE>, DefaultVector3fLerp>(src, dst);
-                } else {
-                    self.transform_chunk::<Pyramidal<GRID_SIZE>, NonFiniteVector3fLerp>(src, dst);
+        } else {
+            match self.interpolation_method {
+                #[cfg(feature = "options")]
+                InterpolationMethod::Tetrahedral => {
+                    if T::FINITE {
+                        self.transform_chunk::<Tetrahedral<GRID_SIZE>, DefaultVector3fLerp>(
+                            src, dst,
+                        );
+                    } else {
+                        self.transform_chunk::<Tetrahedral<GRID_SIZE>, NonFiniteVector3fLerp>(
+                            src, dst,
+                        );
+                    }
                 }
-            }
-            #[cfg(feature = "options")]
-            InterpolationMethod::Prism => {
-                if T::FINITE {
-                    self.transform_chunk::<Prismatic<GRID_SIZE>, DefaultVector3fLerp>(src, dst);
-                } else {
-                    self.transform_chunk::<Prismatic<GRID_SIZE>, NonFiniteVector3fLerp>(src, dst);
+                #[cfg(feature = "options")]
+                InterpolationMethod::Pyramid => {
+                    if T::FINITE {
+                        self.transform_chunk::<Pyramidal<GRID_SIZE>, DefaultVector3fLerp>(src, dst);
+                    } else {
+                        self.transform_chunk::<Pyramidal<GRID_SIZE>, NonFiniteVector3fLerp>(
+                            src, dst,
+                        );
+                    }
                 }
-            }
-            InterpolationMethod::Linear => {
-                if T::FINITE {
-                    self.transform_chunk::<Trilinear<GRID_SIZE>, DefaultVector3fLerp>(src, dst);
-                } else {
-                    self.transform_chunk::<Trilinear<GRID_SIZE>, NonFiniteVector3fLerp>(src, dst);
+                #[cfg(feature = "options")]
+                InterpolationMethod::Prism => {
+                    if T::FINITE {
+                        self.transform_chunk::<Prismatic<GRID_SIZE>, DefaultVector3fLerp>(src, dst);
+                    } else {
+                        self.transform_chunk::<Prismatic<GRID_SIZE>, NonFiniteVector3fLerp>(
+                            src, dst,
+                        );
+                    }
+                }
+                InterpolationMethod::Linear => {
+                    if T::FINITE {
+                        self.transform_chunk::<Trilinear<GRID_SIZE>, DefaultVector3fLerp>(src, dst);
+                    } else {
+                        self.transform_chunk::<Trilinear<GRID_SIZE>, NonFiniteVector3fLerp>(
+                            src, dst,
+                        );
+                    }
                 }
             }
         }
@@ -251,6 +274,8 @@ impl Lut4x3Factory for DefaultLut4x3Factory {
     >(
         lut: Vec<f32>,
         options: TransformOptions,
+        color_space: DataColorSpace,
+        is_linear: bool,
     ) -> Box<dyn TransformExecutor<T> + Sync + Send>
     where
         f32: AsPrimitive<T>,
@@ -267,6 +292,8 @@ impl Lut4x3Factory for DefaultLut4x3Factory {
                         _phantom1: PhantomData,
                         interpolation_method: options.interpolation_method,
                         weights: BarycentricWeight::<f32>::create_ranged_256::<GRID_SIZE>(),
+                        color_space,
+                        is_linear,
                     },
                 )
             }
@@ -285,6 +312,8 @@ impl Lut4x3Factory for DefaultLut4x3Factory {
                 _phantom1: PhantomData,
                 interpolation_method: options.interpolation_method,
                 weights: BarycentricWeight::<f32>::create_binned::<GRID_SIZE, 65536>(),
+                color_space,
+                is_linear,
             }),
         }
     }

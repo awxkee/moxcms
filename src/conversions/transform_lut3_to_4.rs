@@ -30,8 +30,8 @@ use crate::conversions::LutBarycentricReduction;
 use crate::conversions::interpolator::{BarycentricWeight, MultidimensionalInterpolation};
 use crate::transform::PointeeSizeExpressible;
 use crate::{
-    BarycentricWeightScale, CmsError, InterpolationMethod, Layout, TransformExecutor,
-    TransformOptions,
+    BarycentricWeightScale, CmsError, DataColorSpace, InterpolationMethod, Layout,
+    TransformExecutor, TransformOptions,
 };
 use num_traits::AsPrimitive;
 use std::marker::PhantomData;
@@ -50,6 +50,8 @@ pub(crate) struct TransformLut3x4<
     pub(crate) _phantom1: PhantomData<U>,
     pub(crate) interpolation_method: InterpolationMethod,
     pub(crate) weights: Box<[BarycentricWeight<f32>; BINS]>,
+    pub(crate) color_space: DataColorSpace,
+    pub(crate) is_linear: bool,
 }
 
 impl<
@@ -136,25 +138,33 @@ where
             return Err(CmsError::LaneSizeMismatch);
         }
 
-        match self.interpolation_method {
-            #[cfg(feature = "options")]
-            InterpolationMethod::Tetrahedral => {
-                use crate::conversions::interpolator::Tetrahedral;
-                self.transform_chunk::<Tetrahedral<GRID_SIZE>>(src, dst);
-            }
-            #[cfg(feature = "options")]
-            InterpolationMethod::Pyramid => {
-                use crate::conversions::interpolator::Pyramidal;
-                self.transform_chunk::<Pyramidal<GRID_SIZE>>(src, dst);
-            }
-            #[cfg(feature = "options")]
-            InterpolationMethod::Prism => {
-                use crate::conversions::interpolator::Prismatic;
-                self.transform_chunk::<Prismatic<GRID_SIZE>>(src, dst);
-            }
-            InterpolationMethod::Linear => {
-                use crate::conversions::interpolator::Trilinear;
-                self.transform_chunk::<Trilinear<GRID_SIZE>>(src, dst);
+        if self.color_space == DataColorSpace::Lab
+            || (self.is_linear && self.color_space == DataColorSpace::Rgb)
+            || self.color_space == DataColorSpace::Xyz
+        {
+            use crate::conversions::interpolator::Trilinear;
+            self.transform_chunk::<Trilinear<GRID_SIZE>>(src, dst);
+        } else {
+            match self.interpolation_method {
+                #[cfg(feature = "options")]
+                InterpolationMethod::Tetrahedral => {
+                    use crate::conversions::interpolator::Tetrahedral;
+                    self.transform_chunk::<Tetrahedral<GRID_SIZE>>(src, dst);
+                }
+                #[cfg(feature = "options")]
+                InterpolationMethod::Pyramid => {
+                    use crate::conversions::interpolator::Pyramidal;
+                    self.transform_chunk::<Pyramidal<GRID_SIZE>>(src, dst);
+                }
+                #[cfg(feature = "options")]
+                InterpolationMethod::Prism => {
+                    use crate::conversions::interpolator::Prismatic;
+                    self.transform_chunk::<Prismatic<GRID_SIZE>>(src, dst);
+                }
+                InterpolationMethod::Linear => {
+                    use crate::conversions::interpolator::Trilinear;
+                    self.transform_chunk::<Trilinear<GRID_SIZE>>(src, dst);
+                }
             }
         }
 
@@ -170,6 +180,8 @@ pub(crate) fn make_transform_3x4<
     layout: Layout,
     lut: Vec<f32>,
     options: TransformOptions,
+    color_space: DataColorSpace,
+    is_linear: bool,
 ) -> Box<dyn TransformExecutor<T> + Sync + Send>
 where
     f32: AsPrimitive<T>,
@@ -193,6 +205,8 @@ where
                 _phantom1: PhantomData,
                 interpolation_method: options.interpolation_method,
                 weights: BarycentricWeight::<f32>::create_ranged_256::<GRID_SIZE>(),
+                color_space,
+                is_linear,
             }),
             #[cfg(feature = "options")]
             BarycentricWeightScale::High => Box::new(TransformLut3x4::<
@@ -209,6 +223,8 @@ where
                 _phantom1: PhantomData,
                 interpolation_method: options.interpolation_method,
                 weights: BarycentricWeight::<f32>::create_binned::<GRID_SIZE, 65536>(),
+                color_space,
+                is_linear,
             }),
         },
         Layout::Rgba => match options.barycentric_weight_scale {
@@ -226,6 +242,8 @@ where
                 _phantom1: PhantomData,
                 interpolation_method: options.interpolation_method,
                 weights: BarycentricWeight::<f32>::create_ranged_256::<GRID_SIZE>(),
+                color_space,
+                is_linear,
             }),
             #[cfg(feature = "options")]
             BarycentricWeightScale::High => Box::new(TransformLut3x4::<
@@ -242,6 +260,8 @@ where
                 _phantom1: PhantomData,
                 interpolation_method: options.interpolation_method,
                 weights: BarycentricWeight::<f32>::create_binned::<GRID_SIZE, 65536>(),
+                color_space,
+                is_linear,
             }),
         },
         _ => unimplemented!(),
