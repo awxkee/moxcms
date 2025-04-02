@@ -635,7 +635,7 @@ impl LutBarycentricReduction<u16, u8> for () {
         if SRC_BP == 16 {
             (v >> 8) as u8
         } else {
-            (v >> shift).min(shift) as u8
+            (v >> shift).min(255) as u8
         }
     }
 }

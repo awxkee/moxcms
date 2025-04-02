@@ -107,7 +107,7 @@ fn compute_abs_diff42(src: &[f32], dst: &[f32]) {
 }
 
 fn main() {
-    let funny_icc = fs::read("./assets/CGATS21_CRPC5.icc").unwrap();
+    let funny_icc = fs::read("./assets/bt2020_pq.icc").unwrap();
 
     // println!("{:?}", decoded);
 
@@ -132,6 +132,7 @@ fn main() {
         .as_bytes()
         .chunks_exact(3)
         .flat_map(|x| [x[0], x[1], x[2], 255u8])
+        .map(|x| ((x as u16) << 4) | ((x as u16) >> 4))
         .collect::<Vec<_>>();
 
     // let real_dst = img
@@ -147,7 +148,7 @@ fn main() {
     //     })
     //     .collect::<Vec<_>>();
 
-    let mut cmyk = vec![0u8; (img.as_bytes().len() / 3) * 4];
+    let mut cmyk = vec![0u16; (img.as_bytes().len() / 3) * 4];
 
     let color_profile = ColorProfile::new_from_slice(&srgb_perceptual_icc).unwrap();
     // let color_profile = ColorProfile::new_gray_with_gamma(2.2);
@@ -158,7 +159,7 @@ fn main() {
     let time = Instant::now();
 
     let transform = dest_profile
-        .create_transform_8bit(
+        .create_transform_12bit(
             Layout::Rgba,
             &funny_profile,
             Layout::Rgba,
@@ -177,41 +178,8 @@ fn main() {
 
     transform.transform(&real_dst, &mut cmyk).unwrap();
 
-    let src_profile_lcms = lcms2::Profile::new_icc(&funny_icc).unwrap();
-    let dst_profile_lcms = lcms2::Profile::new_srgb();
-
-    let mut lcms_dst = vec![0u8; real_dst.len()];
-
-    let transform = lcms2::Transform::new(
-        &src_profile_lcms,
-        lcms2::PixelFormat::CMYK_8,
-        &dst_profile_lcms,
-        lcms2::PixelFormat::RGBA_8,
-        lcms2::Intent::Perceptual,
-    )
-    .unwrap();
-    let time = Instant::now();
-    transform.transform_pixels(&cmyk, &mut lcms_dst);
-
-    println!("Exec time lcms2 took {:?}", time.elapsed());
-
-    for chunk in lcms_dst.chunks_exact_mut(4) {
-        chunk[3] = 255;
-    }
-
-    image::save_buffer(
-        "v_new_lcms.png",
-        &lcms_dst,
-        img.width(),
-        img.height(),
-        image::ExtendedColorType::Rgba8,
-    )
-    .unwrap();
-
-    let time = Instant::now();
-
     let transform = funny_profile
-        .create_transform_8bit(
+        .create_transform_12bit(
             Layout::Rgba,
             &out_profile,
             Layout::Rgba,
@@ -226,7 +194,7 @@ fn main() {
         )
         .unwrap();
     println!("Creating time 2 took {:?}", time.elapsed());
-    let mut dst = vec![0u8; real_dst.len()];
+    let mut dst = vec![0u16; real_dst.len()];
 
     let time = Instant::now();
     for (src, dst) in cmyk
@@ -242,10 +210,11 @@ fn main() {
     }
     println!("Exec time 2 took {:?}", time.elapsed());
 
-    dst = dst
+    let dst = dst
         .chunks_exact(4)
-        .flat_map(|x| [x[0], x[1], x[2], 255])
-        .collect();
+        .flat_map(|x| [x[0], x[1], x[2], 4095])
+        .map(|x| (x >> 4) as u8)
+        .collect::<Vec<_>>();
 
     // let dst = dst
     //     .chunks_exact(4)
