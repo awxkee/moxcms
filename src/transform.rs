@@ -94,7 +94,7 @@ pub struct TransformOptions {
     /// - Colorspace is uniform.
     /// - Colorspace has linear scaling (discards LAB).
     /// - Interpolation doesn't shift hues (discards LAB).
-    /// 
+    ///
     /// For LAB, XYZ and scene linear RGB `trilinear/quadlinear` always in force.
     pub interpolation_method: InterpolationMethod,
     /// Barycentric weights scale.

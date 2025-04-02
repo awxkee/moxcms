@@ -35,16 +35,16 @@ use std::arch::aarch64::*;
 #[allow(dead_code)]
 #[inline]
 pub(crate) fn split_by_twos<T: Copy>(data: &[T], channels: usize) -> (&[T], &[T]) {
-    let len = data.len() / channels;
-    let split_point = len / 2 * 2;
+    let len = data.len() / (channels * 4);
+    let split_point = len * 4;
     data.split_at(split_point * channels)
 }
 
 #[allow(dead_code)]
 #[inline]
 pub(crate) fn split_by_twos_mut<T: Copy>(data: &mut [T], channels: usize) -> (&mut [T], &mut [T]) {
-    let len = data.len() / channels;
-    let split_point = len / 2 * 2;
+    let len = data.len() / (channels * 4);
+    let split_point = len * 4;
     data.split_at_mut(split_point * channels)
 }
 
