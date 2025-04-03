@@ -143,11 +143,7 @@ where
             let (mut r2, mut g2, mut b2, mut a2);
             let (mut r3, mut g3, mut b3, mut a3);
 
-            for (((src0, src1), dst0), dst1) in src_iter0
-                .zip(src_iter1)
-                .zip(dst0.chunks_exact_mut(dst_channels * 2))
-                .zip(dst1.chunks_exact_mut(dst_channels * 2))
-            {
+            if let (Some(src0), Some(src1)) = (src_iter0.next(), src_iter1.next()) {
                 r0 = _xmm_broadcast_epi32(&self.profile.linear[src0[src_cn.r_i()]._as_usize()]);
                 g0 = _xmm_broadcast_epi32(&self.profile.linear[src0[src_cn.g_i()]._as_usize()]);
                 b0 = _xmm_broadcast_epi32(&self.profile.linear[src0[src_cn.b_i()]._as_usize()]);
@@ -203,7 +199,30 @@ where
                 } else {
                     max_colors
                 };
+            } else {
+                r0 = _mm_setzero_si128();
+                g0 = _mm_setzero_si128();
+                b0 = _mm_setzero_si128();
+                a0 = max_colors;
+                r1 = _mm_setzero_si128();
+                g1 = _mm_setzero_si128();
+                b1 = _mm_setzero_si128();
+                a1 = max_colors;
+                r2 = _mm_setzero_si128();
+                g2 = _mm_setzero_si128();
+                b2 = _mm_setzero_si128();
+                a2 = max_colors;
+                r3 = _mm_setzero_si128();
+                g3 = _mm_setzero_si128();
+                b3 = _mm_setzero_si128();
+                a3 = max_colors;
+            }
 
+            for (((src0, src1), dst0), dst1) in src_iter0
+                .zip(src_iter1)
+                .zip(dst0.chunks_exact_mut(dst_channels * 2))
+                .zip(dst1.chunks_exact_mut(dst_channels * 2))
+            {
                 let zr0 = _mm256_inserti128_si256::<1>(_mm256_castsi128_si256(r0), r1);
                 let mut zg0 = _mm256_inserti128_si256::<1>(_mm256_castsi128_si256(g0), g1);
                 let zb0 = _mm256_inserti128_si256::<1>(_mm256_castsi128_si256(b0), b1);
@@ -241,6 +260,20 @@ where
                 _mm256_store_si256(temporary0.0.as_mut_ptr() as *mut _, v0);
                 _mm256_store_si256(temporary1.0.as_mut_ptr() as *mut _, v1);
 
+                r0 = _xmm_broadcast_epi32(&self.profile.linear[src0[src_cn.r_i()]._as_usize()]);
+                g0 = _xmm_broadcast_epi32(&self.profile.linear[src0[src_cn.g_i()]._as_usize()]);
+                b0 = _xmm_broadcast_epi32(&self.profile.linear[src0[src_cn.b_i()]._as_usize()]);
+
+                r1 = _xmm_broadcast_epi32(
+                    &self.profile.linear[src0[src_cn.r_i() + src_channels]._as_usize()],
+                );
+                g1 = _xmm_broadcast_epi32(
+                    &self.profile.linear[src0[src_cn.g_i() + src_channels]._as_usize()],
+                );
+                b1 = _xmm_broadcast_epi32(
+                    &self.profile.linear[src0[src_cn.b_i() + src_channels]._as_usize()],
+                );
+
                 dst0[dst_cn.r_i()] = self.profile.gamma[temporary0.0[0] as usize];
                 dst0[dst_cn.g_i()] = self.profile.gamma[temporary0.0[2] as usize];
                 dst0[dst_cn.b_i()] = self.profile.gamma[temporary0.0[4] as usize];
@@ -254,6 +287,26 @@ where
                 if dst_channels == 4 {
                     dst0[dst_cn.a_i() + dst_channels] = a1;
                 }
+
+                r2 = _xmm_broadcast_epi32(
+                    &self.profile.linear[src1[src_cn.r_i()]._as_usize()],
+                );
+                g2 = _xmm_broadcast_epi32(
+                    &self.profile.linear[src1[src_cn.g_i()]._as_usize()],
+                );
+                b2 = _xmm_broadcast_epi32(
+                    &self.profile.linear[src1[src_cn.b_i()]._as_usize()],
+                );
+
+                r3 = _xmm_broadcast_epi32(
+                    &self.profile.linear[src1[src_cn.r_i() + src_channels ]._as_usize()],
+                );
+                g3 = _xmm_broadcast_epi32(
+                    &self.profile.linear[src1[src_cn.g_i() + src_channels ]._as_usize()],
+                );
+                b3 = _xmm_broadcast_epi32(
+                    &self.profile.linear[src1[src_cn.b_i() + src_channels ]._as_usize()],
+                );
 
                 dst1[dst_cn.r_i()] = self.profile.gamma[temporary1.0[0] as usize];
                 dst1[dst_cn.g_i()] = self.profile.gamma[temporary1.0[2] as usize];
