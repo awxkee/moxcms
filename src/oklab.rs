@@ -5,7 +5,7 @@
  * // license that can be found in the LICENSE file.
  */
 use crate::mlaf::mlaf;
-use crate::{Rgb, cbrtf, f_cbrtf, powf};
+use crate::{Rgb, f_cbrtf, f_powf};
 use num_traits::Pow;
 use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 
@@ -301,7 +301,11 @@ impl Pow<f32> for Oklab {
 
     #[inline]
     fn pow(self, rhs: f32) -> Self::Output {
-        Oklab::new(powf(self.l, rhs), powf(self.a, rhs), powf(self.b, rhs))
+        Oklab::new(
+            f_powf(self.l, rhs),
+            f_powf(self.a, rhs),
+            f_powf(self.b, rhs),
+        )
     }
 }
 
@@ -311,9 +315,9 @@ impl Pow<Oklab> for Oklab {
     #[inline]
     fn pow(self, rhs: Oklab) -> Self::Output {
         Oklab::new(
-            powf(self.l, rhs.l),
-            powf(self.a, rhs.a),
-            powf(self.b, rhs.b),
+            f_powf(self.l, rhs.l),
+            f_powf(self.a, rhs.a),
+            f_powf(self.b, rhs.b),
         )
     }
 }
@@ -325,8 +329,8 @@ impl Oklab {
     }
 
     #[inline]
-    pub const fn cbrt(&self) -> Oklab {
-        Oklab::new(cbrtf(self.l), cbrtf(self.a), cbrtf(self.b))
+    pub fn cbrt(&self) -> Oklab {
+        Oklab::new(f_cbrtf(self.l), f_cbrtf(self.a), f_cbrtf(self.b))
     }
 }
 

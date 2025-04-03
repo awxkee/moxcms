@@ -26,8 +26,8 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-use crate::conversions::rgbxyz_fixed::TransformMatrixShaperFixedPoint;
 use crate::conversions::sse::rgb_xyz::SseAlignedU16;
+use crate::conversions::TransformMatrixShaperOptimized;
 use crate::transform::PointeeSizeExpressible;
 use crate::{CmsError, Layout, TransformExecutor};
 use num_traits::AsPrimitive;
@@ -36,33 +36,25 @@ use std::arch::x86::*;
 #[cfg(target_arch = "x86_64")]
 use std::arch::x86_64::*;
 
-pub(crate) struct TransformProfileRgbQ12Sse<
-    T: Copy,
+pub(crate) struct TransformProfilePcsXYZRgbOptSse<
+    T: Clone + Copy + 'static + PointeeSizeExpressible + Default,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
     const LINEAR_CAP: usize,
     const GAMMA_LUT: usize,
     const BIT_DEPTH: usize,
-    const PRECISION: i32,
 > {
-    pub(crate) profile: TransformMatrixShaperFixedPoint<i32, T, LINEAR_CAP>,
-}
-
-#[inline(always)]
-pub(crate) unsafe fn _xmm_load_epi32(f: &i32) -> __m128i {
-    let float_ref: &f32 = unsafe { &*(f as *const i32 as *const f32) };
-    unsafe { _mm_castps_si128(_mm_load_ss(float_ref)) }
+    pub(crate) profile: TransformMatrixShaperOptimized<T, LINEAR_CAP>,
 }
 
 impl<
-    T: Copy + PointeeSizeExpressible + 'static,
+    T: Clone + Copy + 'static + PointeeSizeExpressible + Default,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
     const LINEAR_CAP: usize,
     const GAMMA_LUT: usize,
     const BIT_DEPTH: usize,
-    const PRECISION: i32,
-> TransformProfileRgbQ12Sse<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH, PRECISION>
+> TransformProfilePcsXYZRgbOptSse<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>
 where
     u32: AsPrimitive<T>,
 {
@@ -87,57 +79,54 @@ where
 
         let t = self.profile.adaptation_matrix.transpose();
 
-        let max_colors = ((1 << BIT_DEPTH) - 1).as_();
+        let scale = (GAMMA_LUT - 1) as f32;
+        let max_colors: T = ((1 << BIT_DEPTH) - 1).as_();
 
         unsafe {
-            let m0 = _mm_setr_epi32(t.v[0][0] as i32, t.v[0][1] as i32, t.v[0][2] as i32, 0);
-            let m1 = _mm_setr_epi32(t.v[1][0] as i32, t.v[1][1] as i32, t.v[1][2] as i32, 0);
-            let m2 = _mm_setr_epi32(t.v[2][0] as i32, t.v[2][1] as i32, t.v[2][2] as i32, 0);
+            let m0 = _mm_setr_ps(t.v[0][0], t.v[0][1], t.v[0][2], 0f32);
+            let m1 = _mm_setr_ps(t.v[1][0], t.v[1][1], t.v[1][2], 0f32);
+            let m2 = _mm_setr_ps(t.v[2][0], t.v[2][1], t.v[2][2], 0f32);
 
-            let rnd = _mm_set1_epi32((1 << (PRECISION - 1)) - 1);
+            let zeros = _mm_setzero_ps();
 
-            let zeros = _mm_setzero_si128();
-
-            let v_max_value = _mm_set1_epi32(GAMMA_LUT as i32 - 1);
+            let v_scale = _mm_set1_ps(scale);
 
             for (src, dst) in src
                 .chunks_exact(src_channels)
                 .zip(dst.chunks_exact_mut(dst_channels))
             {
-                let rp = &self.profile.r_linear[src[src_cn.r_i()]._as_usize()];
-                let gp = &self.profile.g_linear[src[src_cn.g_i()]._as_usize()];
-                let bp = &self.profile.b_linear[src[src_cn.b_i()]._as_usize()];
+                let rp = &self.profile.linear[src[src_cn.r_i()]._as_usize()];
+                let gp = &self.profile.linear[src[src_cn.g_i()]._as_usize()];
+                let bp = &self.profile.linear[src[src_cn.b_i()]._as_usize()];
 
-                let mut r = _xmm_load_epi32(rp);
-                let mut g = _xmm_load_epi32(gp);
-                let mut b = _xmm_load_epi32(bp);
+                let mut r = _mm_load_ss(rp);
+                let mut g = _mm_load_ss(gp);
+                let mut b = _mm_load_ss(bp);
                 let a = if src_channels == 4 {
                     src[src_cn.a_i()]
                 } else {
                     max_colors
                 };
 
-                r = _mm_shuffle_epi32::<0>(r);
-                g = _mm_shuffle_epi32::<0>(g);
-                b = _mm_shuffle_epi32::<0>(b);
+                r = _mm_shuffle_ps::<0>(r, r);
+                g = _mm_shuffle_ps::<0>(g, g);
+                b = _mm_shuffle_ps::<0>(b, b);
 
-                let v0 = _mm_madd_epi16(r, m0);
-                let v1 = _mm_madd_epi16(g, m1);
-                let v2 = _mm_madd_epi16(b, m2);
+                let v0 = _mm_mul_ps(r, m0);
+                let v1 = _mm_mul_ps(g, m1);
+                let v2 = _mm_mul_ps(b, m2);
 
-                let acc0 = _mm_add_epi32(v0, rnd);
-                let acc1 = _mm_add_epi32(v1, v2);
+                let mut v = _mm_add_ps(_mm_add_ps(v0, v1), v2);
+                v = _mm_max_ps(v, zeros);
+                v = _mm_mul_ps(v, v_scale);
+                v = _mm_min_ps(v, v_scale);
 
-                let mut v = _mm_add_epi32(acc0, acc1);
-                v = _mm_srai_epi32::<PRECISION>(v);
-                v = _mm_max_epi32(v, zeros);
-                v = _mm_min_epi32(v, v_max_value);
+                let zx = _mm_cvtps_epi32(v);
+                _mm_store_si128(temporary.0.as_mut_ptr() as *mut _, zx);
 
-                _mm_store_si128(temporary.0.as_mut_ptr() as *mut _, v);
-
-                dst[dst_cn.r_i()] = self.profile.r_gamma[temporary.0[0] as usize];
-                dst[dst_cn.g_i()] = self.profile.g_gamma[temporary.0[2] as usize];
-                dst[dst_cn.b_i()] = self.profile.b_gamma[temporary.0[4] as usize];
+                dst[dst_cn.r_i()] = self.profile.gamma[temporary.0[0] as usize];
+                dst[dst_cn.g_i()] = self.profile.gamma[temporary.0[2] as usize];
+                dst[dst_cn.b_i()] = self.profile.gamma[temporary.0[4] as usize];
                 if dst_channels == 4 {
                     dst[dst_cn.a_i()] = a;
                 }
@@ -149,23 +138,14 @@ where
 }
 
 impl<
-    T: Copy + PointeeSizeExpressible + 'static + Default,
+    T: Clone + Copy + 'static + PointeeSizeExpressible + Default,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
     const LINEAR_CAP: usize,
     const GAMMA_LUT: usize,
     const BIT_DEPTH: usize,
-    const PRECISION: i32,
 > TransformExecutor<T>
-    for TransformProfileRgbQ12Sse<
-        T,
-        SRC_LAYOUT,
-        DST_LAYOUT,
-        LINEAR_CAP,
-        GAMMA_LUT,
-        BIT_DEPTH,
-        PRECISION,
-    >
+    for TransformProfilePcsXYZRgbOptSse<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>
 where
     u32: AsPrimitive<T>,
 {

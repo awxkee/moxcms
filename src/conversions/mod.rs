@@ -42,6 +42,7 @@ mod mba3x4;
 mod neon;
 mod prelude_lut_xyz_rgb;
 mod rgb2gray;
+mod rgb_xyz_factory;
 mod rgbxyz;
 mod rgbxyz_fixed;
 mod rgbxyz_float;
@@ -54,9 +55,9 @@ mod transform_lut4_to_3;
 pub(crate) use gray2rgb::make_gray_to_x;
 pub(crate) use interpolator::LutBarycentricReduction;
 pub(crate) use lut_transforms::make_lut_transform;
+pub(crate) use rgb_xyz_factory::{RgbXyzFactory, RgbXyzFactoryOpt};
 pub(crate) use rgb2gray::{ToneReproductionRgbToGray, make_rgb_to_gray};
-pub(crate) use rgbxyz::RgbXyzFactory;
-pub(crate) use rgbxyz::TransformProfileRgb;
+pub(crate) use rgbxyz::{TransformMatrixShaper, TransformMatrixShaperOptimized};
 pub(crate) use rgbxyz_float::{
     TransformProfileRgbFloat, TransformProfileRgbFloatInOut, make_rgb_xyz_rgb_transform_float,
     make_rgb_xyz_rgb_transform_float_in_out,

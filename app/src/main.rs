@@ -113,7 +113,7 @@ fn main() {
 
     let srgb_perceptual_icc = fs::read("./assets/srgb_perceptual.icc").unwrap();
 
-    let funny_profile = ColorProfile::new_from_slice(&funny_icc).unwrap();
+    let funny_profile = ColorProfile::new_display_p3(); // ColorProfile::new_from_slice(&funny_icc).unwrap();
 
     let srgb_perceptual_profile = ColorProfile::new_from_slice(&srgb_perceptual_icc).unwrap();
     let out_profile = ColorProfile::new_srgb();

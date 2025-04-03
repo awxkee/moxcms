@@ -425,7 +425,7 @@ fn pq_from_linear(linear: f64) -> f64 {
 /// Gamma transfer function for PQ
 pub(crate) fn pq_from_linearf(linear: f32) -> f32 {
     if linear > 0.0 {
-        let linear = linear.clamp(0., 1.);
+        let linear = linear.max(0.);
         let pow_linear = f_powf(linear, 0.1593017578125);
         let num = 0.1640625 * pow_linear - 0.1640625;
         let den = 1.0 + 18.6875 * pow_linear;

@@ -71,6 +71,7 @@ impl ICtCp {
         ICtCp { i, ct, cp }
     }
 
+    /// Converts XYZ D65 to ICtCp
     #[inline]
     pub fn from_xyz(xyz: Xyz) -> ICtCp {
         let lms = XYZ_TO_LMS.mul_vector(xyz.to_vector());
@@ -89,7 +90,8 @@ impl ICtCp {
 
     /// Converts to [ICtCp] from linear light [Rgb]
     ///
-    /// Precompute forward matrix by [ICtCp::prepare_to_lms]
+    /// Precompute forward matrix by [ICtCp::prepare_to_lms].
+    /// D65 white point is assumed.
     #[inline]
     pub fn from_linear_rgb(rgb: Rgb<f32>, matrix: Matrix3f) -> ICtCp {
         let lms = matrix.mul_vector(rgb.to_vector());
@@ -128,6 +130,7 @@ impl ICtCp {
         }
     }
 
+    /// Converts ICtCp to XYZ D65
     #[inline]
     pub fn to_xyz(&self) -> Xyz {
         let l_lms = ICTCP_TO_L_LMS.mul_vector(Vector3f {
@@ -147,6 +150,7 @@ impl ICtCp {
         }
     }
 
+    /// Prepares RGB->LMS matrix
     #[inline]
     pub const fn prepare_to_lms(rgb_to_xyz: Matrix3f) -> Matrix3f {
         XYZ_TO_LMS.mat_mul_const(rgb_to_xyz)

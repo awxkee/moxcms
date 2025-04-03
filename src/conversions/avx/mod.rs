@@ -39,6 +39,8 @@ mod rgb_xyz;
 mod rgb_xyz_q4_12;
 mod t_lut3_to_3;
 mod t_lut3_to_3_q0_15;
+mod rgb_xyz_opt;
+mod rgb_xyz_q4_12_opt;
 
 pub(crate) use a_curves3::{ACurves3AvxFma, ACurves3InverseAvxFma, ACurves3OptimizedAvxFma};
 pub(crate) use a_curves4x3::{ACurves4x3AvxFma, ACurves4x3AvxFmaOptimized};
@@ -47,3 +49,5 @@ pub(crate) use preheat_lut4x3::Lut4x3AvxFma;
 pub(crate) use rgb_xyz::TransformProfilePcsXYZRgbAvx;
 pub(crate) use rgb_xyz_q4_12::TransformProfilePcsXYZRgbQ12Avx;
 pub(crate) use t_lut3_to_3::AvxLut3x3Factory;
+pub(crate) use rgb_xyz_opt::TransformProfilePcsXYZRgbOptAvx;
+pub(crate) use rgb_xyz_q4_12_opt::TransformProfilePcsXYZRgbQ12OptAvx;

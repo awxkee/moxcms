@@ -118,7 +118,7 @@ impl Jzazbz {
         let iz = 0.5 * (lp + mp);
         let az = mlaf(mlaf(3.524000 * lp, -4.066708, mp), 0.542708, sp);
         let bz = mlaf(mlaf(0.199076 * lp, 1.096799, mp), -1.295875, sp);
-        let jz = (0.44 * iz) / (1. - 0.56 * iz) - 1.6295499532821566e-11;
+        let jz = (0.44 * iz) / mlaf(1., -0.56, iz) - 1.6295499532821566e-11;
         Jzazbz::new(jz, az, bz)
     }
 
@@ -127,7 +127,7 @@ impl Jzazbz {
     pub fn to_xyz(&self, display_luminance: f32) -> Xyz {
         let jz = self.jz + 1.6295499532821566e-11;
 
-        let iz = jz / (0.44f32 + 0.56f32 * jz);
+        let iz = jz / mlaf(0.44f32, 0.56f32, jz);
         let l = perceptual_quantizer_inverse(mlaf(
             mlaf(iz, 1.386050432715393e-1, self.az),
             5.804731615611869e-2,

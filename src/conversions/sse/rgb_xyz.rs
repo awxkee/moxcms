@@ -26,7 +26,7 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-use crate::conversions::TransformProfileRgb;
+use crate::conversions::TransformMatrixShaper;
 use crate::transform::PointeeSizeExpressible;
 use crate::{CmsError, Layout, TransformExecutor};
 use num_traits::AsPrimitive;
@@ -46,7 +46,7 @@ pub(crate) struct TransformProfilePcsXYZRgbSse<
     const GAMMA_LUT: usize,
     const BIT_DEPTH: usize,
 > {
-    pub(crate) profile: TransformProfileRgb<T, LINEAR_CAP>,
+    pub(crate) profile: TransformMatrixShaper<T, LINEAR_CAP>,
 }
 
 impl<
