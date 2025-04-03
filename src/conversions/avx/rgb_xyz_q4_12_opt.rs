@@ -58,15 +58,15 @@ impl<
     const BIT_DEPTH: usize,
     const PRECISION: i32,
 >
-TransformProfilePcsXYZRgbQ12OptAvx<
-    T,
-    SRC_LAYOUT,
-    DST_LAYOUT,
-    LINEAR_CAP,
-    GAMMA_LUT,
-    BIT_DEPTH,
-    PRECISION,
->
+    TransformProfilePcsXYZRgbQ12OptAvx<
+        T,
+        SRC_LAYOUT,
+        DST_LAYOUT,
+        LINEAR_CAP,
+        GAMMA_LUT,
+        BIT_DEPTH,
+        PRECISION,
+    >
 where
     u32: AsPrimitive<T>,
 {
@@ -78,8 +78,6 @@ where
         let dst_channels = dst_cn.channels();
 
         let mut temporary0 = AvxAlignedU16([0; 16]);
-
-        let mut temporary1 = AvxAlignedU16([0; 16]);
 
         if src.len() / src_channels != dst.len() / dst_channels {
             return Err(CmsError::LaneSizeMismatch);
@@ -97,21 +95,20 @@ where
 
         unsafe {
             let m0 = _mm256_setr_epi16(
-                t.v[0][0], t.v[1][0], t.v[0][1], t.v[1][1], t.v[0][2], t.v[1][2], 0, 0,
-                t.v[0][0], t.v[1][0], t.v[0][1], t.v[1][1], t.v[0][2], t.v[1][2], 0, 0,
+                t.v[0][0], t.v[1][0], t.v[0][1], t.v[1][1], t.v[0][2], t.v[1][2], 0, 0, t.v[0][0],
+                t.v[1][0], t.v[0][1], t.v[1][1], t.v[0][2], t.v[1][2], 0, 0,
             );
             let m2 = _mm256_setr_epi16(
-                t.v[2][0], 1, t.v[2][1], 1, t.v[2][2], 1, 0, 0,
-                t.v[2][0], 1, t.v[2][1], 1, t.v[2][2], 1, 0, 0,
+                t.v[2][0], 1, t.v[2][1], 1, t.v[2][2], 1, 0, 0, t.v[2][0], 1, t.v[2][1], 1,
+                t.v[2][2], 1, 0, 0,
             );
 
             let rnd_val = (((1i32 << (PRECISION - 1)) - 1) as i16).to_ne_bytes();
-            let rnd = _mm256_set1_epi32(i32::from_ne_bytes([0,0, rnd_val[0], rnd_val[1]]));
+            let rnd = _mm256_set1_epi32(i32::from_ne_bytes([0, 0, rnd_val[0], rnd_val[1]]));
 
             let zeros = _mm256_setzero_si256();
 
             let v_max_value = _mm256_set1_epi32(GAMMA_LUT as i32 - 1);
-
 
             let (mut r0, mut g0, mut b0, mut a0);
             let (mut r1, mut g1, mut b1, mut a1);
@@ -154,9 +151,7 @@ where
                 a1 = max_colors;
             }
 
-            for (src, dst) in src_iter
-                .zip(dst.chunks_exact_mut(dst_channels * 2))
-            {
+            for (src, dst) in src_iter.zip(dst.chunks_exact_mut(dst_channels * 2)) {
                 let zr0 = _mm256_inserti128_si256::<1>(_mm256_castsi128_si256(r0), r1);
                 let mut zg0 = _mm256_inserti128_si256::<1>(_mm256_castsi128_si256(g0), g1);
                 let zb0 = _mm256_inserti128_si256::<1>(_mm256_castsi128_si256(b0), b1);
@@ -166,7 +161,6 @@ where
                 let zbz0 = _mm256_or_si256(zb0, rnd);
 
                 let va0 = _mm256_madd_epi16(zrg0, m0);
-
                 let va1 = _mm256_madd_epi16(zbz0, m2);
 
                 let mut v0 = _mm256_add_epi32(va0, va1);
@@ -255,25 +249,13 @@ where
             let src = src.chunks_exact(src_channels * 2).remainder();
             let dst = dst.chunks_exact_mut(dst_channels * 2).into_remainder();
 
-            let m1 = _mm256_setr_epi32(
-                t.v[1][0] as i32,
-                t.v[1][1] as i32,
-                t.v[1][2] as i32,
-                0,
-                t.v[1][0] as i32,
-                t.v[1][1] as i32,
-                t.v[1][2] as i32,
-                0,
-            );
-
-            let rnd = _mm256_set1_epi32((1 << (PRECISION - 1)) - 1);
-
             for (src, dst) in src
                 .chunks_exact(src_channels)
                 .zip(dst.chunks_exact_mut(dst_channels))
             {
                 let r = _xmm_broadcast_epi32(&self.profile.linear[src[src_cn.r_i()]._as_usize()]);
-                let g = _xmm_broadcast_epi32(&self.profile.linear[src[src_cn.g_i()]._as_usize()]);
+                let mut g =
+                    _xmm_broadcast_epi32(&self.profile.linear[src[src_cn.g_i()]._as_usize()]);
                 let b = _xmm_broadcast_epi32(&self.profile.linear[src[src_cn.b_i()]._as_usize()]);
                 let a = if src_channels == 4 {
                     src[src_cn.a_i()]
@@ -281,14 +263,15 @@ where
                     max_colors
                 };
 
-                let v0 = _mm_madd_epi16(r, _mm256_castsi256_si128(m0));
-                let v1 = _mm_madd_epi16(g, _mm256_castsi256_si128(m1));
-                let v2 = _mm_madd_epi16(b, _mm256_castsi256_si128(m2));
+                g = _mm_slli_epi32::<16>(g);
 
-                let acc0 = _mm_add_epi32(v0, _mm256_castsi256_si128(rnd));
-                let acc1 = _mm_add_epi32(v1, v2);
+                let zrg0 = _mm_or_si128(r, g);
+                let zbz0 = _mm_or_si128(b, _mm256_castsi256_si128(rnd));
 
-                let mut v = _mm_add_epi32(acc0, acc1);
+                let v0 = _mm_madd_epi16(zrg0, _mm256_castsi256_si128(m0));
+                let v1 = _mm_madd_epi16(zbz0, _mm256_castsi256_si128(m2));
+
+                let mut v = _mm_add_epi32(v0, v1);
 
                 v = _mm_srai_epi32::<PRECISION>(v);
                 v = _mm_max_epi32(v, _mm_setzero_si128());
@@ -318,15 +301,15 @@ impl<
     const BIT_DEPTH: usize,
     const PRECISION: i32,
 > TransformExecutor<T>
-for TransformProfilePcsXYZRgbQ12OptAvx<
-    T,
-    SRC_LAYOUT,
-    DST_LAYOUT,
-    LINEAR_CAP,
-    GAMMA_LUT,
-    BIT_DEPTH,
-    PRECISION,
->
+    for TransformProfilePcsXYZRgbQ12OptAvx<
+        T,
+        SRC_LAYOUT,
+        DST_LAYOUT,
+        LINEAR_CAP,
+        GAMMA_LUT,
+        BIT_DEPTH,
+        PRECISION,
+    >
 where
     u32: AsPrimitive<T>,
 {
