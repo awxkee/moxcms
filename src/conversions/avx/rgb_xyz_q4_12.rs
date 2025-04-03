@@ -49,7 +49,7 @@ pub(crate) struct TransformProfilePcsXYZRgbQ12Avx<
 }
 
 #[inline(always)]
-unsafe fn _xmm_broadcast_epi32(f: &i32) -> __m128i {
+pub(crate) unsafe fn _xmm_broadcast_epi32(f: &i32) -> __m128i {
     let float_ref: &f32 = unsafe { &*(f as *const i32 as *const f32) };
     unsafe { _mm_castps_si128(_mm_broadcast_ss(float_ref)) }
 }

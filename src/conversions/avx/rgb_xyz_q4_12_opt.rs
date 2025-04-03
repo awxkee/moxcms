@@ -27,6 +27,7 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::conversions::avx::rgb_xyz::AvxAlignedU16;
+use crate::conversions::avx::rgb_xyz_q4_12::_xmm_broadcast_epi32;
 use crate::conversions::rgbxyz_fixed::TransformMatrixShaperFixedPointOpt;
 use crate::transform::PointeeSizeExpressible;
 use crate::{CmsError, Layout, TransformExecutor};
@@ -46,12 +47,6 @@ pub(crate) struct TransformProfilePcsXYZRgbQ12OptAvx<
     const PRECISION: i32,
 > {
     pub(crate) profile: TransformMatrixShaperFixedPointOpt<i32, T, LINEAR_CAP>,
-}
-
-#[inline(always)]
-unsafe fn _xmm_broadcast_epi32(f: &i32) -> __m128i {
-    let float_ref: &f32 = unsafe { &*(f as *const i32 as *const f32) };
-    unsafe { _mm_castps_si128(_mm_broadcast_ss(float_ref)) }
 }
 
 impl<
