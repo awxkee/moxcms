@@ -257,13 +257,14 @@ where
                 let mut g =
                     _xmm_broadcast_epi32(&self.profile.linear[src[src_cn.g_i()]._as_usize()]);
                 let b = _xmm_broadcast_epi32(&self.profile.linear[src[src_cn.b_i()]._as_usize()]);
+
+                g = _mm_slli_epi32::<16>(g);
+
                 let a = if src_channels == 4 {
                     src[src_cn.a_i()]
                 } else {
                     max_colors
                 };
-
-                g = _mm_slli_epi32::<16>(g);
 
                 let zrg0 = _mm_or_si128(r, g);
                 let zbz0 = _mm_or_si128(b, _mm256_castsi256_si128(rnd));
