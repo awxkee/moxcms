@@ -36,6 +36,7 @@ use std::arch::x86::*;
 use std::arch::x86_64::*;
 
 #[repr(align(32), C)]
+#[derive(Debug)]
 pub(crate) struct AvxAlignedU16(pub(crate) [u16; 16]);
 
 pub(crate) struct TransformProfilePcsXYZRgbAvx<

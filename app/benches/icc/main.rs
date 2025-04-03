@@ -58,7 +58,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
         })
     });
 
-    c.bench_function("moxcms: LUT Tetra RGB -> RGB", |b| {
+    /*c.bench_function("moxcms: LUT Tetra RGB -> RGB", |b| {
         let color_profile = ColorProfile::new_from_slice(&srgb_perceptual_icc).unwrap();
         let dest_profile = ColorProfile::new_srgb();
         let mut dst = vec![0u8; rgb.len()];
@@ -226,7 +226,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
         b.iter(|| {
             transform.transform(&rgb, &mut dst).unwrap();
         })
-    });
+    });*/
 
     c.bench_function("moxcms: RGBA -> RGBA", |b| {
         let color_profile = ColorProfile::new_from_slice(&src_icc_profile).unwrap();
