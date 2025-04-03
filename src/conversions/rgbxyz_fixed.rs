@@ -364,7 +364,7 @@ create_rgb_xyz_dependant_q4_12_executor!(
 );
 
 #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"))]
-use crate::conversions::sse::{TransformProfileRgbQ12Sse, TransformProfileRgbQ12OptSse};
+use crate::conversions::sse::{TransformProfileRgbQ12OptSse, TransformProfileRgbQ12Sse};
 
 #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"))]
 create_rgb_xyz_dependant_q4_12_executor!(
@@ -383,7 +383,9 @@ create_rgb_xyz_dependant_q4_12_executor!(
 );
 
 #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "avx"))]
-use crate::conversions::avx::{TransformProfilePcsXYZRgbQ12Avx, TransformProfilePcsXYZRgbQ12OptAvx};
+use crate::conversions::avx::{
+    TransformProfilePcsXYZRgbQ12Avx, TransformProfilePcsXYZRgbQ12OptAvx,
+};
 use crate::conversions::rgbxyz::TransformMatrixShaperOptimized;
 use crate::transform::PointeeSizeExpressible;
 

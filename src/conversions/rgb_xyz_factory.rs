@@ -344,9 +344,13 @@ impl RgbXyzFactoryOpt<u8> for u8 {
             {
                 use crate::conversions::rgbxyz_fixed::make_rgb_xyz_q4_12_transform_sse_41_opt;
                 if std::arch::is_x86_feature_detected!("sse4.1") {
-                    return make_rgb_xyz_q4_12_transform_sse_41_opt::<u8, LINEAR_CAP, GAMMA_LUT, 8, 12>(
-                        src_layout, dst_layout, profile,
-                    );
+                    return make_rgb_xyz_q4_12_transform_sse_41_opt::<
+                        u8,
+                        LINEAR_CAP,
+                        GAMMA_LUT,
+                        8,
+                        12,
+                    >(src_layout, dst_layout, profile);
                 }
             }
             make_rgb_xyz_q4_12_opt::<u8, LINEAR_CAP, GAMMA_LUT, 8, 12>(
