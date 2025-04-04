@@ -27,8 +27,8 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::conversions::{
-    LutBarycentricReduction, RgbXyzFactory, ToneReproductionRgbToGray, TransformProfileRgb,
-    make_gray_to_x, make_lut_transform, make_rgb_to_gray,
+    LutBarycentricReduction, RgbXyzFactory, RgbXyzFactoryOpt, ToneReproductionRgbToGray,
+    TransformMatrixShaper, make_gray_to_x, make_lut_transform, make_rgb_to_gray,
 };
 use crate::err::CmsError;
 use crate::trc::GammaLutInterpolate;
@@ -82,7 +82,7 @@ pub struct TransformOptions {
     /// in most cases it is a simple way to spend energy to warming up environment
     /// a little.
     ///
-    /// Q4.12 for RGB->XYZ->RGB is used.
+    /// Q2.13 for RGB->XYZ->RGB is used.
     /// LUT interpolation use Q0.15.
     pub prefer_fixed_point: bool,
     /// Interpolation method for 3D LUT
@@ -90,7 +90,7 @@ pub struct TransformOptions {
     /// This parameter has no effect on LAB/XYZ interpolation and scene linear RGB.
     ///
     /// Technically, it should be assumed to perform cube dividing interpolation:
-    /// - Colorspace is gamma-encoded (discards scene linear RGB and XYZ).
+    /// - Source colorspace is gamma-encoded (discards scene linear RGB and XYZ).
     /// - Colorspace is uniform.
     /// - Colorspace has linear scaling (discards LAB).
     /// - Interpolation doesn't shift hues (discards LAB).
@@ -409,6 +409,7 @@ impl ColorProfile {
             + Sync
             + AsPrimitive<f32>
             + RgbXyzFactory<T>
+            + RgbXyzFactoryOpt<T>
             + GammaLutInterpolate,
         const BIT_DEPTH: usize,
         const LINEAR_CAP: usize,
@@ -486,6 +487,30 @@ impl ColorProfile {
                 }
             }
 
+            if self.are_all_trc_the_same() && dst_pr.are_all_trc_the_same() {
+                let linear = self.build_r_linearize_table::<T, LINEAR_CAP, BIT_DEPTH>(
+                    options.allow_use_cicp_transfer,
+                )?;
+
+                let gamma = dst_pr.build_gamma_table::<T, 65536, GAMMA_CAP, BIT_DEPTH>(
+                    &self.red_trc,
+                    options.allow_use_cicp_transfer,
+                )?;
+
+                let profile_transform = crate::conversions::TransformMatrixShaperOptimized {
+                    linear,
+                    gamma,
+                    adaptation_matrix: transform.to_f32(),
+                };
+
+                return T::make_optimized_transform::<LINEAR_CAP, GAMMA_CAP, BIT_DEPTH>(
+                    src_layout,
+                    dst_layout,
+                    profile_transform,
+                    options,
+                );
+            }
+
             let lin_r = self.build_r_linearize_table::<T, LINEAR_CAP, BIT_DEPTH>(
                 options.allow_use_cicp_transfer,
             )?;
@@ -509,7 +534,7 @@ impl ColorProfile {
                 options.allow_use_cicp_transfer,
             )?;
 
-            let profile_transform = TransformProfileRgb {
+            let profile_transform = TransformMatrixShaper {
                 r_linear: lin_r,
                 g_linear: lin_g,
                 b_linear: lin_b,

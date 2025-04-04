@@ -107,7 +107,7 @@ fn compute_abs_diff42(src: &[f32], dst: &[f32]) {
 }
 
 fn main() {
-    let funny_icc = fs::read("./assets/strange_effect.icc").unwrap();
+    let funny_icc = fs::read("./assets/us_swop_coated.icc").unwrap();
 
     // println!("{:?}", decoded);
 
@@ -118,7 +118,7 @@ fn main() {
     let srgb_perceptual_profile = ColorProfile::new_from_slice(&srgb_perceptual_icc).unwrap();
     let out_profile = ColorProfile::new_srgb();
 
-    let f_str = "./assets/strange_effect.png";
+    let f_str = "./assets/bench.jpg";
     let file = File::open(f_str).expect("Failed to open file");
 
     let img = image::ImageReader::open(f_str).unwrap().decode().unwrap();
@@ -154,7 +154,7 @@ fn main() {
     //     })
     //     .collect::<Vec<_>>();
 
-    let mut cmyk = vec![0u16; (img.as_bytes().len() / 3) * 4];
+    let mut cmyk = vec![0u8; (img.as_bytes().len() / 3) * 4];
 
     let color_profile = ColorProfile::new_from_slice(&srgb_perceptual_icc).unwrap();
     // let color_profile = ColorProfile::new_gray_with_gamma(2.2);
@@ -164,25 +164,25 @@ fn main() {
 
     let time = Instant::now();
 
-    // let transform = dest_profile
-    //     .create_transform_12bit(
-    //         Layout::Rgba,
-    //         &funny_profile,
-    //         Layout::Rgba,
-    //         TransformOptions {
-    //             rendering_intent: RenderingIntent::Perceptual,
-    //             allow_use_cicp_transfer: false,
-    //             prefer_fixed_point: true,
-    //             interpolation_method: InterpolationMethod::Tetrahedral,
-    //             barycentric_weight_scale: BarycentricWeightScale::Low,
-    //             allow_extended_range_rgb_xyz: false,
-    //         },
-    //     )
-    //     .unwrap();
-    //
-    // println!("Creating time: {:?}", time.elapsed());
-    //
-    // transform.transform(&real_dst, &mut cmyk).unwrap();
+    let transform = dest_profile
+        .create_transform_8bit(
+            Layout::Rgba,
+            &funny_profile,
+            Layout::Rgba,
+            TransformOptions {
+                rendering_intent: RenderingIntent::Perceptual,
+                allow_use_cicp_transfer: false,
+                prefer_fixed_point: true,
+                interpolation_method: InterpolationMethod::Tetrahedral,
+                barycentric_weight_scale: BarycentricWeightScale::Low,
+                allow_extended_range_rgb_xyz: false,
+            },
+        )
+        .unwrap();
+
+    println!("Creating time: {:?}", time.elapsed());
+
+    transform.transform(&real_dst, &mut cmyk).unwrap();
 
     let transform = funny_profile
         .create_transform_8bit(
@@ -203,7 +203,7 @@ fn main() {
     let mut dst = vec![0u8; real_dst.len()];
 
     let time = Instant::now();
-    for (src, dst) in real_dst
+    for (src, dst) in cmyk
         .chunks_exact(img.width() as usize * 4)
         .zip(dst.chunks_exact_mut(img.width() as usize * 4))
     {
@@ -318,7 +318,7 @@ fn main() {
     //     .map(|&x| (x * 255f32).round() as u8)
     //     .collect::<Vec<_>>();
     image::save_buffer(
-        "v_new_dst2.jpg",
+        "v_new_dst3_12.jpg",
         &dst,
         img.width(),
         img.height(),
@@ -330,21 +330,19 @@ fn main() {
 // fn main() {
 //     let us_swop_icc = fs::read("./assets/srgb_perceptual.icc").unwrap();
 //
-//     let width = 5000;
-//     let height = 5000;
+//     let width = 1920;
+//     let height = 1080;
 //
 //     let cmyk = vec![0u8; width * height * 4];
 //
-//     let color_profile = ColorProfile::new_from_slice(&us_swop_icc).unwrap();
+//     let color_profile = ColorProfile::new_display_p3();// ColorProfile::new_from_slice(&us_swop_icc).unwrap();
 //     let dest_profile = ColorProfile::new_srgb();
 //     let mut dst = vec![32u8; width * height * 4];
-//     let r= rand::rng().random_range(0..255) as u8;
-//     let g= rand::rng().random_range(0..255) as u8;
-//     let b= rand::rng().random_range(0..255) as u8;
 //     for dst in dst.chunks_exact_mut(4) {
-//         dst[0] =r ;
-//         dst[1] = g ;
-//         dst[2] = b;
+//         let v = rand::rng().random_range(0..255) as u8;
+//         dst[0] = v;
+//         dst[1] =v;
+//         dst[2] =v;
 //         dst[3] = 255;
 //     }
 //     let transform = color_profile

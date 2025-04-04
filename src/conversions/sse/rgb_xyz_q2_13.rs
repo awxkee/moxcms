@@ -26,7 +26,7 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-use crate::conversions::rgbxyz_fixed::TransformProfileRgbFixedPoint;
+use crate::conversions::rgbxyz_fixed::TransformMatrixShaperFixedPoint;
 use crate::conversions::sse::rgb_xyz::SseAlignedU16;
 use crate::transform::PointeeSizeExpressible;
 use crate::{CmsError, Layout, TransformExecutor};
@@ -36,7 +36,7 @@ use std::arch::x86::*;
 #[cfg(target_arch = "x86_64")]
 use std::arch::x86_64::*;
 
-pub(crate) struct TransformProfileRgbQ12Sse<
+pub(crate) struct TransformProfileRgbQ2_13Sse<
     T: Copy,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
@@ -45,11 +45,11 @@ pub(crate) struct TransformProfileRgbQ12Sse<
     const BIT_DEPTH: usize,
     const PRECISION: i32,
 > {
-    pub(crate) profile: TransformProfileRgbFixedPoint<i32, T, LINEAR_CAP>,
+    pub(crate) profile: TransformMatrixShaperFixedPoint<i32, T, LINEAR_CAP>,
 }
 
 #[inline(always)]
-unsafe fn _xmm_load_epi32(f: &i32) -> __m128i {
+pub(crate) unsafe fn _xmm_load_epi32(f: &i32) -> __m128i {
     let float_ref: &f32 = unsafe { &*(f as *const i32 as *const f32) };
     unsafe { _mm_castps_si128(_mm_load_ss(float_ref)) }
 }
@@ -62,7 +62,16 @@ impl<
     const GAMMA_LUT: usize,
     const BIT_DEPTH: usize,
     const PRECISION: i32,
-> TransformProfileRgbQ12Sse<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH, PRECISION>
+>
+    TransformProfileRgbQ2_13Sse<
+        T,
+        SRC_LAYOUT,
+        DST_LAYOUT,
+        LINEAR_CAP,
+        GAMMA_LUT,
+        BIT_DEPTH,
+        PRECISION,
+    >
 where
     u32: AsPrimitive<T>,
 {
@@ -90,13 +99,13 @@ where
         let max_colors = ((1 << BIT_DEPTH) - 1).as_();
 
         unsafe {
-            let m0 = _mm_setr_epi32(t.v[0][0] as i32, t.v[0][1] as i32, t.v[0][2] as i32, 0);
-            let m1 = _mm_setr_epi32(t.v[1][0] as i32, t.v[1][1] as i32, t.v[1][2] as i32, 0);
-            let m2 = _mm_setr_epi32(t.v[2][0] as i32, t.v[2][1] as i32, t.v[2][2] as i32, 0);
+            let m0 = _mm_setr_epi16(
+                t.v[0][0], t.v[1][0], t.v[0][1], t.v[1][1], t.v[0][2], t.v[1][2], 0, 0,
+            );
+            let m2 = _mm_setr_epi16(t.v[2][0], 1, t.v[2][1], 1, t.v[2][2], 1, 0, 0);
 
-            let rnd = _mm_set1_epi32((1 << (PRECISION - 1)) - 1);
-
-            let zeros = _mm_setzero_si128();
+            let rnd_val = (((1i32 << (PRECISION - 1)) - 1) as i16).to_ne_bytes();
+            let rnd = _mm_set1_epi32(i32::from_ne_bytes([0, 0, rnd_val[0], rnd_val[1]]));
 
             let v_max_value = _mm_set1_epi32(GAMMA_LUT as i32 - 1);
 
@@ -121,16 +130,18 @@ where
                 g = _mm_shuffle_epi32::<0>(g);
                 b = _mm_shuffle_epi32::<0>(b);
 
-                let v0 = _mm_madd_epi16(r, m0);
-                let v1 = _mm_madd_epi16(g, m1);
-                let v2 = _mm_madd_epi16(b, m2);
+                g = _mm_slli_epi32::<16>(g);
 
-                let acc0 = _mm_add_epi32(v0, rnd);
-                let acc1 = _mm_add_epi32(v1, v2);
+                let zrg0 = _mm_or_si128(r, g);
+                let zbz0 = _mm_or_si128(b, rnd);
 
-                let mut v = _mm_add_epi32(acc0, acc1);
+                let v0 = _mm_madd_epi16(zrg0, m0);
+                let v1 = _mm_madd_epi16(zbz0, m2);
+
+                let mut v = _mm_add_epi32(v0, v1);
+
                 v = _mm_srai_epi32::<PRECISION>(v);
-                v = _mm_max_epi32(v, zeros);
+                v = _mm_max_epi32(v, _mm_setzero_si128());
                 v = _mm_min_epi32(v, v_max_value);
 
                 _mm_store_si128(temporary.0.as_mut_ptr() as *mut _, v);
@@ -157,7 +168,7 @@ impl<
     const BIT_DEPTH: usize,
     const PRECISION: i32,
 > TransformExecutor<T>
-    for TransformProfileRgbQ12Sse<
+    for TransformProfileRgbQ2_13Sse<
         T,
         SRC_LAYOUT,
         DST_LAYOUT,

@@ -69,7 +69,7 @@ where
 {
     #[allow(unused_unsafe)]
     #[target_feature(enable = "rdm")]
-    unsafe fn transform_chunk<'b, Interpolator: NeonMdInterpolationQ1_15Double<'b, GRID_SIZE>>(
+    unsafe fn transform_chunk<'b, Interpolator: NeonMdInterpolationQ0_15Double<'b, GRID_SIZE>>(
         &'b self,
         src: &[T],
         dst: &mut [T],

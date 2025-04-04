@@ -27,7 +27,7 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::profile::LutDataType;
-use crate::safe_reader::{SafeAdd, SafeMul};
+use crate::safe_math::{SafeAdd, SafeMul, SafePowi};
 use crate::tag::{TAG_SIZE, TagTypeDefinition};
 use crate::{
     CicpColorPrimaries, CicpProfile, CmsError, ColorDateTime, ColorProfile, DescriptionString,
@@ -615,12 +615,7 @@ impl ColorProfile {
             return Err(CmsError::InvalidProfile);
         }
         let grid_points = tag[10];
-        let clut_size = match (grid_points as u32).checked_pow(in_chan as u32) {
-            Some(clut_size) => clut_size as usize,
-            _ => {
-                return Err(CmsError::InvalidProfile);
-            }
-        };
+        let clut_size = (grid_points as u32).safe_powi(in_chan as u32)? as usize;
         match clut_size {
             1..=500_000 => {} // OK
             0 => {

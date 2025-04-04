@@ -27,7 +27,7 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::conversions::avx::rgb_xyz::AvxAlignedU16;
-use crate::conversions::rgbxyz_fixed::TransformProfileRgbFixedPoint;
+use crate::conversions::rgbxyz_fixed::TransformMatrixShaperFixedPoint;
 use crate::transform::PointeeSizeExpressible;
 use crate::{CmsError, Layout, TransformExecutor};
 use num_traits::AsPrimitive;
@@ -36,7 +36,7 @@ use std::arch::x86::*;
 #[cfg(target_arch = "x86_64")]
 use std::arch::x86_64::*;
 
-pub(crate) struct TransformProfilePcsXYZRgbQ12Avx<
+pub(crate) struct TransformProfilePcsXYZRgbQ2_13Avx<
     T: Copy,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
@@ -45,11 +45,11 @@ pub(crate) struct TransformProfilePcsXYZRgbQ12Avx<
     const BIT_DEPTH: usize,
     const PRECISION: i32,
 > {
-    pub(crate) profile: TransformProfileRgbFixedPoint<i32, T, LINEAR_CAP>,
+    pub(crate) profile: TransformMatrixShaperFixedPoint<i32, T, LINEAR_CAP>,
 }
 
 #[inline(always)]
-unsafe fn _xmm_broadcast_epi32(f: &i32) -> __m128i {
+pub(crate) unsafe fn _xmm_broadcast_epi32(f: &i32) -> __m128i {
     let float_ref: &f32 = unsafe { &*(f as *const i32 as *const f32) };
     unsafe { _mm_castps_si128(_mm_broadcast_ss(float_ref)) }
 }
@@ -63,7 +63,7 @@ impl<
     const BIT_DEPTH: usize,
     const PRECISION: i32,
 >
-    TransformProfilePcsXYZRgbQ12Avx<
+    TransformProfilePcsXYZRgbQ2_13Avx<
         T,
         SRC_LAYOUT,
         DST_LAYOUT,
@@ -99,38 +99,17 @@ where
         let max_colors = ((1 << BIT_DEPTH) - 1).as_();
 
         unsafe {
-            let m0 = _mm256_setr_epi32(
-                t.v[0][0] as i32,
-                t.v[0][1] as i32,
-                t.v[0][2] as i32,
-                0,
-                t.v[0][0] as i32,
-                t.v[0][1] as i32,
-                t.v[0][2] as i32,
-                0,
+            let m0 = _mm256_setr_epi16(
+                t.v[0][0], t.v[1][0], t.v[0][1], t.v[1][1], t.v[0][2], t.v[1][2], 0, 0, t.v[0][0],
+                t.v[1][0], t.v[0][1], t.v[1][1], t.v[0][2], t.v[1][2], 0, 0,
             );
-            let m1 = _mm256_setr_epi32(
-                t.v[1][0] as i32,
-                t.v[1][1] as i32,
-                t.v[1][2] as i32,
-                0,
-                t.v[1][0] as i32,
-                t.v[1][1] as i32,
-                t.v[1][2] as i32,
-                0,
-            );
-            let m2 = _mm256_setr_epi32(
-                t.v[2][0] as i32,
-                t.v[2][1] as i32,
-                t.v[2][2] as i32,
-                0,
-                t.v[2][0] as i32,
-                t.v[2][1] as i32,
-                t.v[2][2] as i32,
-                0,
+            let m2 = _mm256_setr_epi16(
+                t.v[2][0], 1, t.v[2][1], 1, t.v[2][2], 1, 0, 0, t.v[2][0], 1, t.v[2][1], 1,
+                t.v[2][2], 1, 0, 0,
             );
 
-            let rnd = _mm256_set1_epi32((1 << (PRECISION - 1)) - 1);
+            let rnd_val = (((1i32 << (PRECISION - 1)) - 1) as i16).to_ne_bytes();
+            let rnd = _mm256_set1_epi32(i32::from_ne_bytes([0, 0, rnd_val[0], rnd_val[1]]));
 
             let zeros = _mm256_setzero_si256();
 
@@ -180,23 +159,24 @@ where
             }
 
             for (src, dst) in src_iter.zip(dst_iter) {
-                let r = _mm256_inserti128_si256::<1>(_mm256_castsi128_si256(r0), r1);
-                let g = _mm256_inserti128_si256::<1>(_mm256_castsi128_si256(g0), g1);
-                let b = _mm256_inserti128_si256::<1>(_mm256_castsi128_si256(b0), b1);
+                let zr0 = _mm256_inserti128_si256::<1>(_mm256_castsi128_si256(r0), r1);
+                let mut zg0 = _mm256_inserti128_si256::<1>(_mm256_castsi128_si256(g0), g1);
+                let zb0 = _mm256_inserti128_si256::<1>(_mm256_castsi128_si256(b0), b1);
+                zg0 = _mm256_slli_epi32::<16>(zg0);
 
-                let v0 = _mm256_madd_epi16(r, m0);
-                let v1 = _mm256_madd_epi16(g, m1);
-                let v2 = _mm256_madd_epi16(b, m2);
+                let zrg0 = _mm256_or_si256(zr0, zg0);
+                let zbz0 = _mm256_or_si256(zb0, rnd);
 
-                let acc0 = _mm256_add_epi32(v0, rnd);
-                let acc1 = _mm256_add_epi32(v1, v2);
+                let va0 = _mm256_madd_epi16(zrg0, m0);
+                let va1 = _mm256_madd_epi16(zbz0, m2);
 
-                let mut v = _mm256_add_epi32(acc0, acc1);
-                v = _mm256_srai_epi32::<PRECISION>(v);
-                v = _mm256_max_epi32(v, zeros);
-                v = _mm256_min_epi32(v, v_max_value);
+                let mut v0 = _mm256_add_epi32(va0, va1);
 
-                _mm256_store_si256(temporary0.0.as_mut_ptr() as *mut _, v);
+                v0 = _mm256_srai_epi32::<PRECISION>(v0);
+                v0 = _mm256_max_epi32(v0, zeros);
+                v0 = _mm256_min_epi32(v0, v_max_value);
+
+                _mm256_store_si256(temporary0.0.as_mut_ptr() as *mut _, v0);
 
                 r0 = _xmm_broadcast_epi32(&self.profile.r_linear[src[src_cn.r_i()]._as_usize()]);
                 g0 = _xmm_broadcast_epi32(&self.profile.g_linear[src[src_cn.g_i()]._as_usize()]);
@@ -238,23 +218,24 @@ where
             }
 
             if let Some(dst) = dst.chunks_exact_mut(dst_channels * 2).last() {
-                let r = _mm256_inserti128_si256::<1>(_mm256_castsi128_si256(r0), r1);
-                let g = _mm256_inserti128_si256::<1>(_mm256_castsi128_si256(g0), g1);
-                let b = _mm256_inserti128_si256::<1>(_mm256_castsi128_si256(b0), b1);
+                let zr0 = _mm256_inserti128_si256::<1>(_mm256_castsi128_si256(r0), r1);
+                let mut zg0 = _mm256_inserti128_si256::<1>(_mm256_castsi128_si256(g0), g1);
+                let zb0 = _mm256_inserti128_si256::<1>(_mm256_castsi128_si256(b0), b1);
+                zg0 = _mm256_slli_epi32::<16>(zg0);
 
-                let v0 = _mm256_madd_epi16(r, m0);
-                let v1 = _mm256_madd_epi16(g, m1);
-                let v2 = _mm256_madd_epi16(b, m2);
+                let zrg0 = _mm256_or_si256(zr0, zg0);
+                let zbz0 = _mm256_or_si256(zb0, rnd);
 
-                let acc0 = _mm256_add_epi32(v0, rnd);
-                let acc1 = _mm256_add_epi32(v1, v2);
+                let va0 = _mm256_madd_epi16(zrg0, m0);
+                let va1 = _mm256_madd_epi16(zbz0, m2);
 
-                let mut v = _mm256_add_epi32(acc0, acc1);
-                v = _mm256_srai_epi32::<PRECISION>(v);
-                v = _mm256_max_epi32(v, zeros);
-                v = _mm256_min_epi32(v, v_max_value);
+                let mut v0 = _mm256_add_epi32(va0, va1);
 
-                _mm256_store_si256(temporary0.0.as_mut_ptr() as *mut _, v);
+                v0 = _mm256_srai_epi32::<PRECISION>(v0);
+                v0 = _mm256_max_epi32(v0, zeros);
+                v0 = _mm256_min_epi32(v0, v_max_value);
+
+                _mm256_store_si256(temporary0.0.as_mut_ptr() as *mut _, v0);
 
                 dst[dst_cn.r_i()] = self.profile.r_gamma[temporary0.0[0] as usize];
                 dst[dst_cn.g_i()] = self.profile.g_gamma[temporary0.0[2] as usize];
@@ -279,22 +260,25 @@ where
                 .zip(dst.chunks_exact_mut(dst_channels))
             {
                 let r = _xmm_broadcast_epi32(&self.profile.r_linear[src[src_cn.r_i()]._as_usize()]);
-                let g = _xmm_broadcast_epi32(&self.profile.g_linear[src[src_cn.g_i()]._as_usize()]);
+                let mut g =
+                    _xmm_broadcast_epi32(&self.profile.g_linear[src[src_cn.g_i()]._as_usize()]);
                 let b = _xmm_broadcast_epi32(&self.profile.b_linear[src[src_cn.b_i()]._as_usize()]);
+
+                g = _mm_slli_epi32::<16>(g);
+
                 let a = if src_channels == 4 {
                     src[src_cn.a_i()]
                 } else {
                     max_colors
                 };
 
-                let v0 = _mm_madd_epi16(r, _mm256_castsi256_si128(m0));
-                let v1 = _mm_madd_epi16(g, _mm256_castsi256_si128(m1));
-                let v2 = _mm_madd_epi16(b, _mm256_castsi256_si128(m2));
+                let zrg0 = _mm_or_si128(r, g);
+                let zbz0 = _mm_or_si128(b, _mm256_castsi256_si128(rnd));
 
-                let acc0 = _mm_add_epi32(v0, _mm256_castsi256_si128(rnd));
-                let acc1 = _mm_add_epi32(v1, v2);
+                let v0 = _mm_madd_epi16(zrg0, _mm256_castsi256_si128(m0));
+                let v1 = _mm_madd_epi16(zbz0, _mm256_castsi256_si128(m2));
 
-                let mut v = _mm_add_epi32(acc0, acc1);
+                let mut v = _mm_add_epi32(v0, v1);
 
                 v = _mm_srai_epi32::<PRECISION>(v);
                 v = _mm_max_epi32(v, _mm_setzero_si128());
@@ -324,7 +308,7 @@ impl<
     const BIT_DEPTH: usize,
     const PRECISION: i32,
 > TransformExecutor<T>
-    for TransformProfilePcsXYZRgbQ12Avx<
+    for TransformProfilePcsXYZRgbQ2_13Avx<
         T,
         SRC_LAYOUT,
         DST_LAYOUT,

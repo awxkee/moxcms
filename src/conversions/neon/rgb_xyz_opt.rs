@@ -26,20 +26,15 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-use crate::conversions::TransformMatrixShaper;
+use crate::conversions::neon::rgb_xyz::NeonAlignedU16;
 use crate::conversions::neon::rgb_xyz_q2_13::{split_by_twos, split_by_twos_mut};
+use crate::conversions::rgbxyz::TransformMatrixShaperOptimized;
 use crate::transform::PointeeSizeExpressible;
 use crate::{CmsError, Layout, TransformExecutor};
 use num_traits::AsPrimitive;
 use std::arch::aarch64::*;
 
-#[repr(align(16), C)]
-pub(crate) struct NeonAlignedU16(pub(crate) [u16; 8]);
-
-#[repr(align(16), C)]
-pub(crate) struct NeonAlignedF32(pub(crate) [f32; 4]);
-
-pub(crate) struct TransformProfilePcsXYZRgbNeon<
+pub(crate) struct TransformProfilePcsXYZRgbOptNeon<
     T: Clone + PointeeSizeExpressible + Copy + Default + 'static,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
@@ -47,7 +42,7 @@ pub(crate) struct TransformProfilePcsXYZRgbNeon<
     const GAMMA_LUT: usize,
     const BIT_DEPTH: usize,
 > {
-    pub(crate) profile: TransformMatrixShaper<T, LINEAR_CAP>,
+    pub(crate) profile: TransformMatrixShaperOptimized<T, LINEAR_CAP>,
 }
 
 impl<
@@ -58,7 +53,14 @@ impl<
     const GAMMA_LUT: usize,
     const BIT_DEPTH: usize,
 > TransformExecutor<T>
-    for TransformProfilePcsXYZRgbNeon<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>
+    for TransformProfilePcsXYZRgbOptNeon<
+        T,
+        SRC_LAYOUT,
+        DST_LAYOUT,
+        LINEAR_CAP,
+        GAMMA_LUT,
+        BIT_DEPTH,
+    >
 where
     u32: AsPrimitive<T>,
 {
@@ -111,21 +113,21 @@ where
                 let (mut r3, mut g3, mut b3, mut a3);
 
                 if let (Some(src0), Some(src1)) = (src_iter0.next(), src_iter1.next()) {
-                    let r0p = &self.profile.r_linear[src0[src_cn.r_i()]._as_usize()];
-                    let g0p = &self.profile.g_linear[src0[src_cn.g_i()]._as_usize()];
-                    let b0p = &self.profile.b_linear[src0[src_cn.b_i()]._as_usize()];
+                    let r0p = &self.profile.linear[src0[src_cn.r_i()]._as_usize()];
+                    let g0p = &self.profile.linear[src0[src_cn.g_i()]._as_usize()];
+                    let b0p = &self.profile.linear[src0[src_cn.b_i()]._as_usize()];
 
-                    let r1p = &self.profile.r_linear[src0[src_cn.r_i() + src_channels]._as_usize()];
-                    let g1p = &self.profile.g_linear[src0[src_cn.g_i() + src_channels]._as_usize()];
-                    let b1p = &self.profile.b_linear[src0[src_cn.b_i() + src_channels]._as_usize()];
+                    let r1p = &self.profile.linear[src0[src_cn.r_i() + src_channels]._as_usize()];
+                    let g1p = &self.profile.linear[src0[src_cn.g_i() + src_channels]._as_usize()];
+                    let b1p = &self.profile.linear[src0[src_cn.b_i() + src_channels]._as_usize()];
 
-                    let r2p = &self.profile.r_linear[src1[src_cn.r_i()]._as_usize()];
-                    let g2p = &self.profile.g_linear[src1[src_cn.g_i()]._as_usize()];
-                    let b2p = &self.profile.b_linear[src1[src_cn.b_i()]._as_usize()];
+                    let r2p = &self.profile.linear[src1[src_cn.r_i()]._as_usize()];
+                    let g2p = &self.profile.linear[src1[src_cn.g_i()]._as_usize()];
+                    let b2p = &self.profile.linear[src1[src_cn.b_i()]._as_usize()];
 
-                    let r3p = &self.profile.r_linear[src1[src_cn.r_i() + src_channels]._as_usize()];
-                    let g3p = &self.profile.g_linear[src1[src_cn.g_i() + src_channels]._as_usize()];
-                    let b3p = &self.profile.b_linear[src1[src_cn.b_i() + src_channels]._as_usize()];
+                    let r3p = &self.profile.linear[src1[src_cn.r_i() + src_channels]._as_usize()];
+                    let g3p = &self.profile.linear[src1[src_cn.g_i() + src_channels]._as_usize()];
+                    let b3p = &self.profile.linear[src1[src_cn.b_i() + src_channels]._as_usize()];
 
                     r0 = vld1q_dup_f32(r0p);
                     g0 = vld1q_dup_f32(g0p);
@@ -224,21 +226,21 @@ where
                     vst1q_u32(temporary2.0.as_mut_ptr() as *mut _, zx2);
                     vst1q_u32(temporary3.0.as_mut_ptr() as *mut _, zx3);
 
-                    let r0p = &self.profile.r_linear[src0[src_cn.r_i()]._as_usize()];
-                    let g0p = &self.profile.g_linear[src0[src_cn.g_i()]._as_usize()];
-                    let b0p = &self.profile.b_linear[src0[src_cn.b_i()]._as_usize()];
+                    let r0p = &self.profile.linear[src0[src_cn.r_i()]._as_usize()];
+                    let g0p = &self.profile.linear[src0[src_cn.g_i()]._as_usize()];
+                    let b0p = &self.profile.linear[src0[src_cn.b_i()]._as_usize()];
 
-                    let r1p = &self.profile.r_linear[src0[src_cn.r_i() + src_channels]._as_usize()];
-                    let g1p = &self.profile.g_linear[src0[src_cn.g_i() + src_channels]._as_usize()];
-                    let b1p = &self.profile.b_linear[src0[src_cn.b_i() + src_channels]._as_usize()];
+                    let r1p = &self.profile.linear[src0[src_cn.r_i() + src_channels]._as_usize()];
+                    let g1p = &self.profile.linear[src0[src_cn.g_i() + src_channels]._as_usize()];
+                    let b1p = &self.profile.linear[src0[src_cn.b_i() + src_channels]._as_usize()];
 
-                    let r2p = &self.profile.r_linear[src1[src_cn.r_i()]._as_usize()];
-                    let g2p = &self.profile.g_linear[src1[src_cn.g_i()]._as_usize()];
-                    let b2p = &self.profile.b_linear[src1[src_cn.b_i()]._as_usize()];
+                    let r2p = &self.profile.linear[src1[src_cn.r_i()]._as_usize()];
+                    let g2p = &self.profile.linear[src1[src_cn.g_i()]._as_usize()];
+                    let b2p = &self.profile.linear[src1[src_cn.b_i()]._as_usize()];
 
-                    let r3p = &self.profile.r_linear[src1[src_cn.r_i() + src_channels]._as_usize()];
-                    let g3p = &self.profile.g_linear[src1[src_cn.g_i() + src_channels]._as_usize()];
-                    let b3p = &self.profile.b_linear[src1[src_cn.b_i() + src_channels]._as_usize()];
+                    let r3p = &self.profile.linear[src1[src_cn.r_i() + src_channels]._as_usize()];
+                    let g3p = &self.profile.linear[src1[src_cn.g_i() + src_channels]._as_usize()];
+                    let b3p = &self.profile.linear[src1[src_cn.b_i() + src_channels]._as_usize()];
 
                     r0 = vld1q_dup_f32(r0p);
                     g0 = vld1q_dup_f32(g0p);
@@ -256,36 +258,36 @@ where
                     g3 = vld1q_dup_f32(g3p);
                     b3 = vld1q_dup_f32(b3p);
 
-                    dst0[dst_cn.r_i()] = self.profile.r_gamma[temporary0.0[0] as usize];
-                    dst0[dst_cn.g_i()] = self.profile.g_gamma[temporary0.0[2] as usize];
-                    dst0[dst_cn.b_i()] = self.profile.b_gamma[temporary0.0[4] as usize];
+                    dst0[dst_cn.r_i()] = self.profile.gamma[temporary0.0[0] as usize];
+                    dst0[dst_cn.g_i()] = self.profile.gamma[temporary0.0[2] as usize];
+                    dst0[dst_cn.b_i()] = self.profile.gamma[temporary0.0[4] as usize];
                     if dst_channels == 4 {
                         dst0[dst_cn.a_i()] = a0;
                     }
 
                     dst0[dst_cn.r_i() + dst_channels] =
-                        self.profile.r_gamma[temporary1.0[0] as usize];
+                        self.profile.gamma[temporary1.0[0] as usize];
                     dst0[dst_cn.g_i() + dst_channels] =
-                        self.profile.g_gamma[temporary1.0[2] as usize];
+                        self.profile.gamma[temporary1.0[2] as usize];
                     dst0[dst_cn.b_i() + dst_channels] =
-                        self.profile.b_gamma[temporary1.0[4] as usize];
+                        self.profile.gamma[temporary1.0[4] as usize];
                     if dst_channels == 4 {
                         dst0[dst_cn.a_i() + dst_channels] = a1;
                     }
 
-                    dst1[dst_cn.r_i()] = self.profile.r_gamma[temporary2.0[0] as usize];
-                    dst1[dst_cn.g_i()] = self.profile.g_gamma[temporary2.0[2] as usize];
-                    dst1[dst_cn.b_i()] = self.profile.b_gamma[temporary2.0[4] as usize];
+                    dst1[dst_cn.r_i()] = self.profile.gamma[temporary2.0[0] as usize];
+                    dst1[dst_cn.g_i()] = self.profile.gamma[temporary2.0[2] as usize];
+                    dst1[dst_cn.b_i()] = self.profile.gamma[temporary2.0[4] as usize];
                     if dst_channels == 4 {
                         dst1[dst_cn.a_i()] = a2;
                     }
 
                     dst1[dst_cn.r_i() + dst_channels] =
-                        self.profile.r_gamma[temporary3.0[0] as usize];
+                        self.profile.gamma[temporary3.0[0] as usize];
                     dst1[dst_cn.g_i() + dst_channels] =
-                        self.profile.g_gamma[temporary3.0[2] as usize];
+                        self.profile.gamma[temporary3.0[2] as usize];
                     dst1[dst_cn.b_i() + dst_channels] =
-                        self.profile.b_gamma[temporary3.0[4] as usize];
+                        self.profile.gamma[temporary3.0[4] as usize];
                     if dst_channels == 4 {
                         dst1[dst_cn.a_i() + dst_channels] = a3;
                     }
@@ -353,36 +355,36 @@ where
                     vst1q_u32(temporary2.0.as_mut_ptr() as *mut _, zx2);
                     vst1q_u32(temporary3.0.as_mut_ptr() as *mut _, zx3);
 
-                    dst0[dst_cn.r_i()] = self.profile.r_gamma[temporary0.0[0] as usize];
-                    dst0[dst_cn.g_i()] = self.profile.g_gamma[temporary0.0[2] as usize];
-                    dst0[dst_cn.b_i()] = self.profile.b_gamma[temporary0.0[4] as usize];
+                    dst0[dst_cn.r_i()] = self.profile.gamma[temporary0.0[0] as usize];
+                    dst0[dst_cn.g_i()] = self.profile.gamma[temporary0.0[2] as usize];
+                    dst0[dst_cn.b_i()] = self.profile.gamma[temporary0.0[4] as usize];
                     if dst_channels == 4 {
                         dst0[dst_cn.a_i()] = a0;
                     }
 
                     dst0[dst_cn.r_i() + dst_channels] =
-                        self.profile.r_gamma[temporary1.0[0] as usize];
+                        self.profile.gamma[temporary1.0[0] as usize];
                     dst0[dst_cn.g_i() + dst_channels] =
-                        self.profile.g_gamma[temporary1.0[2] as usize];
+                        self.profile.gamma[temporary1.0[2] as usize];
                     dst0[dst_cn.b_i() + dst_channels] =
-                        self.profile.b_gamma[temporary1.0[4] as usize];
+                        self.profile.gamma[temporary1.0[4] as usize];
                     if dst_channels == 4 {
                         dst0[dst_cn.a_i() + dst_channels] = a1;
                     }
 
-                    dst1[dst_cn.r_i()] = self.profile.r_gamma[temporary2.0[0] as usize];
-                    dst1[dst_cn.g_i()] = self.profile.g_gamma[temporary2.0[2] as usize];
-                    dst1[dst_cn.b_i()] = self.profile.b_gamma[temporary2.0[4] as usize];
+                    dst1[dst_cn.r_i()] = self.profile.gamma[temporary2.0[0] as usize];
+                    dst1[dst_cn.g_i()] = self.profile.gamma[temporary2.0[2] as usize];
+                    dst1[dst_cn.b_i()] = self.profile.gamma[temporary2.0[4] as usize];
                     if dst_channels == 4 {
                         dst1[dst_cn.a_i()] = a2;
                     }
 
                     dst1[dst_cn.r_i() + dst_channels] =
-                        self.profile.r_gamma[temporary3.0[0] as usize];
+                        self.profile.gamma[temporary3.0[0] as usize];
                     dst1[dst_cn.g_i() + dst_channels] =
-                        self.profile.g_gamma[temporary3.0[2] as usize];
+                        self.profile.gamma[temporary3.0[2] as usize];
                     dst1[dst_cn.b_i() + dst_channels] =
-                        self.profile.b_gamma[temporary3.0[4] as usize];
+                        self.profile.gamma[temporary3.0[4] as usize];
                     if dst_channels == 4 {
                         dst1[dst_cn.a_i() + dst_channels] = a3;
                     }
@@ -393,9 +395,9 @@ where
                 .chunks_exact(src_channels)
                 .zip(dst_remainder.chunks_exact_mut(dst_channels))
             {
-                let rp = &self.profile.r_linear[src[src_cn.r_i()]._as_usize()];
-                let gp = &self.profile.g_linear[src[src_cn.g_i()]._as_usize()];
-                let bp = &self.profile.b_linear[src[src_cn.b_i()]._as_usize()];
+                let rp = &self.profile.linear[src[src_cn.r_i()]._as_usize()];
+                let gp = &self.profile.linear[src[src_cn.g_i()]._as_usize()];
+                let bp = &self.profile.linear[src[src_cn.b_i()]._as_usize()];
                 let r = vld1q_dup_f32(rp);
                 let g = vld1q_dup_f32(gp);
                 let b = vld1q_dup_f32(bp);
@@ -415,9 +417,9 @@ where
                 let zx = vcvtq_u32_f32(v);
                 vst1q_u32(temporary0.0.as_mut_ptr() as *mut _, zx);
 
-                dst[dst_cn.r_i()] = self.profile.r_gamma[temporary0.0[0] as usize];
-                dst[dst_cn.g_i()] = self.profile.g_gamma[temporary0.0[2] as usize];
-                dst[dst_cn.b_i()] = self.profile.b_gamma[temporary0.0[4] as usize];
+                dst[dst_cn.r_i()] = self.profile.gamma[temporary0.0[0] as usize];
+                dst[dst_cn.g_i()] = self.profile.gamma[temporary0.0[2] as usize];
+                dst[dst_cn.b_i()] = self.profile.gamma[temporary0.0[4] as usize];
                 if dst_channels == 4 {
                     dst[dst_cn.a_i()] = a;
                 }

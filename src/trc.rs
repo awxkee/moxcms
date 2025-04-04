@@ -1227,7 +1227,7 @@ impl ColorProfile {
     }
 
     /// Check if all TRC are the same
-    fn are_all_trc_the_same(&self) -> bool {
+    pub(crate) fn are_all_trc_the_same(&self) -> bool {
         if let (Some(red_trc), Some(green_trc), Some(blue_trc)) =
             (&self.red_trc, &self.green_trc, &self.blue_trc)
         {

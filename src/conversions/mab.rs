@@ -29,7 +29,7 @@
 use crate::mlaf::mlaf;
 use crate::{
     CmsError, Cube, DataColorSpace, InPlaceStage, InterpolationMethod, LutMultidimensionalType,
-    Matrix3d, Matrix3f, TransformOptions, Vector3d, Vector3f,
+    MalformedSize, Matrix3d, Matrix3f, TransformOptions, Vector3d, Vector3f,
 };
 
 #[allow(unused)]
@@ -329,7 +329,10 @@ pub(crate) fn prepare_mab_3x3(
             * mab.grid_points[2] as usize
             * mab.num_output_channels as usize;
         if clut.len() != lut_grid {
-            return Err(CmsError::LUTTablesInvalidKind);
+            return Err(CmsError::MalformedCurveLutTable(MalformedSize {
+                size: clut.len(),
+                expected: lut_grid,
+            }));
         }
 
         let all_curves_linear = mab.a_curves.iter().all(|curve| curve.is_linear());
@@ -597,7 +600,10 @@ pub(crate) fn prepare_mba_3x3(
             * mab.grid_points[2] as usize
             * mab.num_output_channels as usize;
         if clut.len() != lut_grid {
-            return Err(CmsError::LUTTablesInvalidKind);
+            return Err(CmsError::MalformedCurveLutTable(MalformedSize {
+                size: clut.len(),
+                expected: lut_grid,
+            }));
         }
 
         let all_curves_linear = mab.a_curves.iter().all(|curve| curve.is_linear());

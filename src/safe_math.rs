@@ -37,6 +37,10 @@ pub(crate) trait SafeMul<T: Copy + Add<T, Output = T>> {
     fn safe_mul(&self, other: T) -> Result<T, CmsError>;
 }
 
+pub(crate) trait SafePowi<T: Copy + Add<T, Output = T>> {
+    fn safe_powi(&self, power: u32) -> Result<T, CmsError>;
+}
+
 macro_rules! safe_add_impl {
     ($type_name: ident) => {
         impl SafeAdd<$type_name> for $type_name {
@@ -74,3 +78,24 @@ safe_mul_impl!(u32);
 safe_mul_impl!(i32);
 safe_mul_impl!(usize);
 safe_mul_impl!(isize);
+
+macro_rules! safe_powi_impl {
+    ($type_name: ident) => {
+        impl SafePowi<$type_name> for $type_name {
+            #[inline(always)]
+            fn safe_powi(&self, power: u32) -> Result<$type_name, CmsError> {
+                if let Some(result) = self.checked_pow(power) {
+                    return Ok(result);
+                }
+                Err(CmsError::OverflowingError)
+            }
+        }
+    };
+}
+
+safe_powi_impl!(u8);
+safe_powi_impl!(u16);
+safe_powi_impl!(u32);
+safe_powi_impl!(i32);
+safe_powi_impl!(usize);
+safe_powi_impl!(isize);

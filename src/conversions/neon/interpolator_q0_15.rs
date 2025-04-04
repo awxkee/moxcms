@@ -273,7 +273,7 @@ pub(crate) trait NeonMdInterpolationQ0_15<'a, const GRID_SIZE: usize> {
     ) -> NeonVectorQ0_15;
 }
 
-pub(crate) trait NeonMdInterpolationQ1_15Double<'a, const GRID_SIZE: usize> {
+pub(crate) trait NeonMdInterpolationQ0_15Double<'a, const GRID_SIZE: usize> {
     fn new(table0: &'a [NeonAlignedI16x4], table1: &'a [NeonAlignedI16x4]) -> Self;
     fn inter3_neon<U: AsPrimitive<usize>, const BINS: usize>(
         &self,
@@ -458,7 +458,7 @@ macro_rules! define_md_inter_neon {
 
 macro_rules! define_md_inter_neon_d {
     ($interpolator: ident) => {
-        impl<'a, const GRID_SIZE: usize> NeonMdInterpolationQ1_15Double<'a, GRID_SIZE>
+        impl<'a, const GRID_SIZE: usize> NeonMdInterpolationQ0_15Double<'a, GRID_SIZE>
             for $interpolator<'a, GRID_SIZE>
         {
             #[inline(always)]

@@ -26,7 +26,7 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-use crate::conversions::rgbxyz_fixed::TransformProfileRgbFixedPoint;
+use crate::conversions::rgbxyz_fixed::TransformMatrixShaperFixedPoint;
 use crate::transform::PointeeSizeExpressible;
 use crate::{CmsError, Layout, TransformExecutor};
 use num_traits::AsPrimitive;
@@ -48,7 +48,7 @@ pub(crate) fn split_by_twos_mut<T: Copy>(data: &mut [T], channels: usize) -> (&m
     data.split_at_mut(split_point * channels)
 }
 
-pub(crate) struct TransformProfileRgbQ12Neon<
+pub(crate) struct TransformProfileRgbQ2_13Neon<
     T: Copy,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
@@ -57,7 +57,7 @@ pub(crate) struct TransformProfileRgbQ12Neon<
     const BIT_DEPTH: usize,
     const PRECISION: i32,
 > {
-    pub(crate) profile: TransformProfileRgbFixedPoint<i16, T, LINEAR_CAP>,
+    pub(crate) profile: TransformMatrixShaperFixedPoint<i16, T, LINEAR_CAP>,
 }
 
 impl<
@@ -69,7 +69,7 @@ impl<
     const BIT_DEPTH: usize,
     const PRECISION: i32,
 > TransformExecutor<T>
-    for TransformProfileRgbQ12Neon<
+    for TransformProfileRgbQ2_13Neon<
         T,
         SRC_LAYOUT,
         DST_LAYOUT,
