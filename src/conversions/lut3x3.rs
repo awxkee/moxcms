@@ -29,6 +29,7 @@
 
 use crate::err::MalformedSize;
 use crate::profile::LutDataType;
+use crate::safe_math::{SafeMul, SafePowi};
 use crate::trc::lut_interp_linear_float;
 use crate::{
     CmsError, Cube, DataColorSpace, InterpolationMethod, Stage, TransformOptions, Vector3f,
@@ -49,8 +50,9 @@ fn stage_lut_3x3(
     options: TransformOptions,
     pcs: DataColorSpace,
 ) -> Result<Box<dyn Stage>, CmsError> {
-    let clut_length: usize = (lut.num_clut_grid_points as usize).pow(lut.num_input_channels as u32)
-        * lut.num_output_channels as usize;
+    let clut_length: usize = (lut.num_clut_grid_points as usize)
+        .safe_powi(lut.num_input_channels as u32)?
+        .safe_mul(lut.num_output_channels as usize)?;
 
     let lin_table = lut.input_table.to_clut_f32();
 

@@ -27,7 +27,7 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::profile::LutDataType;
-use crate::safe_reader::{SafeAdd, SafeMul};
+use crate::safe_math::{SafeAdd, SafeMul};
 use crate::tag::{TAG_SIZE, TagTypeDefinition};
 use crate::{
     CicpColorPrimaries, CicpProfile, CmsError, ColorDateTime, ColorProfile, DescriptionString,

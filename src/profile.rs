@@ -35,7 +35,7 @@ use crate::matrix::{BT2020_MATRIX, DISPLAY_P3_MATRIX, Matrix3f, SRGB_MATRIX, XyY
 use crate::reader::{
     s15_fixed16_number_to_float, uint8_number_to_float_fast, uint16_number_to_float_fast,
 };
-use crate::safe_reader::{SafeAdd, SafeMul};
+use crate::safe_math::{SafeAdd, SafeMul};
 use crate::tag::{TAG_SIZE, Tag};
 use crate::trc::{
     ToneReprCurve, is_curve_ascending, is_curve_descending, is_curve_linear8, is_curve_linear16,

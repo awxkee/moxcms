@@ -56,7 +56,7 @@ mod oklch;
 mod profile;
 mod reader;
 mod rgb;
-mod safe_reader;
+mod safe_math;
 mod tag;
 mod transform;
 mod trc;

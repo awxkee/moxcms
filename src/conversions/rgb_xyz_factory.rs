@@ -65,7 +65,7 @@ impl RgbXyzFactory<u16> for u16 {
         profile: TransformMatrixShaper<u16, LINEAR_CAP>,
         transform_options: TransformOptions,
     ) -> Result<Box<dyn TransformExecutor<u16> + Send + Sync>, CmsError> {
-        if (BIT_DEPTH == 10 || BIT_DEPTH == 14) && transform_options.prefer_fixed_point {
+        if BIT_DEPTH < 16 && transform_options.prefer_fixed_point {
             #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "avx"))]
             {
                 use crate::conversions::rgbxyz_fixed::make_rgb_xyz_q2_13_transform_avx2;
@@ -231,7 +231,7 @@ impl RgbXyzFactoryOpt<u16> for u16 {
         profile: TransformMatrixShaperOptimized<u16, LINEAR_CAP>,
         transform_options: TransformOptions,
     ) -> Result<Box<dyn TransformExecutor<u16> + Send + Sync>, CmsError> {
-        if (BIT_DEPTH == 10 || BIT_DEPTH == 14) && transform_options.prefer_fixed_point {
+        if BIT_DEPTH < 16 && transform_options.prefer_fixed_point {
             #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "avx"))]
             {
                 use crate::conversions::rgbxyz_fixed::make_rgb_xyz_q2_13_transform_avx2_opt;
