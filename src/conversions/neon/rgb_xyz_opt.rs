@@ -27,7 +27,7 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::conversions::neon::rgb_xyz::NeonAlignedU16;
-use crate::conversions::neon::rgb_xyz_q4_12::{split_by_twos, split_by_twos_mut};
+use crate::conversions::neon::rgb_xyz_q2_13::{split_by_twos, split_by_twos_mut};
 use crate::conversions::rgbxyz::TransformMatrixShaperOptimized;
 use crate::transform::PointeeSizeExpressible;
 use crate::{CmsError, Layout, TransformExecutor};

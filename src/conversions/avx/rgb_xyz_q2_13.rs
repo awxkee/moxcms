@@ -36,7 +36,7 @@ use std::arch::x86::*;
 #[cfg(target_arch = "x86_64")]
 use std::arch::x86_64::*;
 
-pub(crate) struct TransformProfilePcsXYZRgbQ12Avx<
+pub(crate) struct TransformProfilePcsXYZRgbQ2_13Avx<
     T: Copy,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
@@ -63,7 +63,7 @@ impl<
     const BIT_DEPTH: usize,
     const PRECISION: i32,
 >
-    TransformProfilePcsXYZRgbQ12Avx<
+    TransformProfilePcsXYZRgbQ2_13Avx<
         T,
         SRC_LAYOUT,
         DST_LAYOUT,
@@ -308,7 +308,7 @@ impl<
     const BIT_DEPTH: usize,
     const PRECISION: i32,
 > TransformExecutor<T>
-    for TransformProfilePcsXYZRgbQ12Avx<
+    for TransformProfilePcsXYZRgbQ2_13Avx<
         T,
         SRC_LAYOUT,
         DST_LAYOUT,

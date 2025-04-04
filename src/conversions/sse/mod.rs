@@ -32,14 +32,14 @@ mod lut4_to_3;
 mod lut4_to_3_q0_15;
 mod rgb_xyz;
 mod rgb_xyz_opt;
-mod rgb_xyz_q4_12;
-mod rgb_xyz_q4_12_opt;
+mod rgb_xyz_q2_13;
+mod rgb_xyz_q2_13_opt;
 mod t_lut3_to_3;
 mod t_lut3_to_3_q0_15;
 
 pub(crate) use lut4_to_3::SseLut4x3Factory;
 pub(crate) use rgb_xyz::TransformProfilePcsXYZRgbSse;
 pub(crate) use rgb_xyz_opt::TransformProfilePcsXYZRgbOptSse;
-pub(crate) use rgb_xyz_q4_12::TransformProfileRgbQ12Sse;
-pub(crate) use rgb_xyz_q4_12_opt::TransformProfileRgbQ12OptSse;
+pub(crate) use rgb_xyz_q2_13::TransformProfileRgbQ2_13Sse;
+pub(crate) use rgb_xyz_q2_13_opt::TransformProfileRgbQ2_13OptSse;
 pub(crate) use t_lut3_to_3::SseLut3x3Factory;

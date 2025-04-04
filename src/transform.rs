@@ -82,7 +82,7 @@ pub struct TransformOptions {
     /// in most cases it is a simple way to spend energy to warming up environment
     /// a little.
     ///
-    /// Q4.12 for RGB->XYZ->RGB is used.
+    /// Q2.13 for RGB->XYZ->RGB is used.
     /// LUT interpolation use Q0.15.
     pub prefer_fixed_point: bool,
     /// Interpolation method for 3D LUT
@@ -90,7 +90,7 @@ pub struct TransformOptions {
     /// This parameter has no effect on LAB/XYZ interpolation and scene linear RGB.
     ///
     /// Technically, it should be assumed to perform cube dividing interpolation:
-    /// - Colorspace is gamma-encoded (discards scene linear RGB and XYZ).
+    /// - Source colorspace is gamma-encoded (discards scene linear RGB and XYZ).
     /// - Colorspace is uniform.
     /// - Colorspace has linear scaling (discards LAB).
     /// - Interpolation doesn't shift hues (discards LAB).

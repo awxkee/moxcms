@@ -113,7 +113,7 @@ fn main() {
 
     let srgb_perceptual_icc = fs::read("./assets/srgb_perceptual.icc").unwrap();
 
-    let funny_profile = ColorProfile::new_display_p3(); // ColorProfile::new_from_slice(&funny_icc).unwrap();
+    let funny_profile = ColorProfile::new_from_slice(&funny_icc).unwrap();
 
     let srgb_perceptual_profile = ColorProfile::new_from_slice(&srgb_perceptual_icc).unwrap();
     let out_profile = ColorProfile::new_srgb();
@@ -318,7 +318,7 @@ fn main() {
     //     .map(|&x| (x * 255f32).round() as u8)
     //     .collect::<Vec<_>>();
     image::save_buffer(
-        "v_new_dst2.jpg",
+        "v_new_dst3_12.jpg",
         &dst,
         img.width(),
         img.height(),
@@ -329,22 +329,20 @@ fn main() {
 
 // fn main() {
 //     let us_swop_icc = fs::read("./assets/srgb_perceptual.icc").unwrap();
-//
-//     let width = 5000;
-//     let height = 5000;
-//
+// 
+//     let width = 1920;
+//     let height = 1080;
+// 
 //     let cmyk = vec![0u8; width * height * 4];
-//
-//     let color_profile = ColorProfile::new_from_slice(&us_swop_icc).unwrap();
+// 
+//     let color_profile = ColorProfile::new_display_p3();// ColorProfile::new_from_slice(&us_swop_icc).unwrap();
 //     let dest_profile = ColorProfile::new_srgb();
 //     let mut dst = vec![32u8; width * height * 4];
-//     let r= rand::rng().random_range(0..255) as u8;
-//     let g= rand::rng().random_range(0..255) as u8;
-//     let b= rand::rng().random_range(0..255) as u8;
 //     for dst in dst.chunks_exact_mut(4) {
-//         dst[0] =r ;
-//         dst[1] = g ;
-//         dst[2] = b;
+//         let v = rand::rng().random_range(0..255) as u8;
+//         dst[0] = v;
+//         dst[1] =v;
+//         dst[2] =v;
 //         dst[3] = 255;
 //     }
 //     let transform = color_profile

@@ -27,7 +27,7 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::conversions::avx::rgb_xyz::AvxAlignedU16;
-use crate::conversions::avx::rgb_xyz_q4_12::_xmm_broadcast_epi32;
+use crate::conversions::avx::rgb_xyz_q2_13::_xmm_broadcast_epi32;
 use crate::conversions::rgbxyz_fixed::TransformMatrixShaperFixedPointOpt;
 use crate::transform::PointeeSizeExpressible;
 use crate::{CmsError, Layout, TransformExecutor};
@@ -37,7 +37,7 @@ use std::arch::x86::*;
 #[cfg(target_arch = "x86_64")]
 use std::arch::x86_64::*;
 
-pub(crate) struct TransformProfilePcsXYZRgbQ12OptAvx<
+pub(crate) struct TransformProfilePcsXYZRgbQ2_13OptAvx<
     T: Copy,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
@@ -58,7 +58,7 @@ impl<
     const BIT_DEPTH: usize,
     const PRECISION: i32,
 >
-    TransformProfilePcsXYZRgbQ12OptAvx<
+    TransformProfilePcsXYZRgbQ2_13OptAvx<
         T,
         SRC_LAYOUT,
         DST_LAYOUT,
@@ -302,7 +302,7 @@ impl<
     const BIT_DEPTH: usize,
     const PRECISION: i32,
 > TransformExecutor<T>
-    for TransformProfilePcsXYZRgbQ12OptAvx<
+    for TransformProfilePcsXYZRgbQ2_13OptAvx<
         T,
         SRC_LAYOUT,
         DST_LAYOUT,

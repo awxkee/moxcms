@@ -48,7 +48,7 @@ pub(crate) struct TransformMatrixShaperOptimized<T: Clone, const BUCKET: usize> 
 }
 
 impl<T: Clone + PointeeSizeExpressible, const BUCKET: usize> TransformMatrixShaper<T, BUCKET> {
-    pub(crate) fn to_q4_12_n<
+    pub(crate) fn to_q2_13_n<
         R: Copy + 'static + Default,
         const PRECISION: i32,
         const LINEAR_CAP: usize,
@@ -84,7 +84,7 @@ impl<T: Clone + PointeeSizeExpressible, const BUCKET: usize> TransformMatrixShap
         let mut dst_matrix = Matrix3::<i16> { v: [[0i16; 3]; 3] };
         for i in 0..3 {
             for j in 0..3 {
-                dst_matrix.v[i][j] = (source_matrix.v[i][j] * scale).round() as i16;
+                dst_matrix.v[i][j] = (source_matrix.v[i][j] * scale).round().min(scale) as i16;
             }
         }
         TransformMatrixShaperFixedPoint {
@@ -102,7 +102,7 @@ impl<T: Clone + PointeeSizeExpressible, const BUCKET: usize> TransformMatrixShap
 impl<T: Clone + PointeeSizeExpressible, const BUCKET: usize>
     TransformMatrixShaperOptimized<T, BUCKET>
 {
-    pub(crate) fn to_q4_12_n<
+    pub(crate) fn to_q2_13_n<
         R: Copy + 'static + Default,
         const PRECISION: i32,
         const LINEAR_CAP: usize,
@@ -130,7 +130,7 @@ impl<T: Clone + PointeeSizeExpressible, const BUCKET: usize>
         let mut dst_matrix = Matrix3::<i16> { v: [[0i16; 3]; 3] };
         for i in 0..3 {
             for j in 0..3 {
-                dst_matrix.v[i][j] = (source_matrix.v[i][j] * scale).round() as i16;
+                dst_matrix.v[i][j] = (source_matrix.v[i][j] * scale).round().min(scale) as i16;
             }
         }
         TransformMatrixShaperFixedPointOpt {

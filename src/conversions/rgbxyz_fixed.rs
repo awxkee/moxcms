@@ -32,7 +32,7 @@ use crate::matrix::Matrix3;
 use crate::{CmsError, TransformExecutor};
 use num_traits::AsPrimitive;
 
-/// Fixed point conversion Q4.12
+/// Fixed point conversion Q2.13
 pub(crate) struct TransformMatrixShaperFixedPoint<R, T, const LINEAR_CAP: usize> {
     pub(crate) r_linear: Box<[R; LINEAR_CAP]>,
     pub(crate) g_linear: Box<[R; LINEAR_CAP]>,
@@ -43,7 +43,7 @@ pub(crate) struct TransformMatrixShaperFixedPoint<R, T, const LINEAR_CAP: usize>
     pub(crate) adaptation_matrix: Matrix3<i16>,
 }
 
-/// Fixed point conversion Q4.12
+/// Fixed point conversion Q2.13
 ///
 /// Optimized routine for *all same curves* matrix shaper.
 pub(crate) struct TransformMatrixShaperFixedPointOpt<R, T, const LINEAR_CAP: usize> {
@@ -53,7 +53,7 @@ pub(crate) struct TransformMatrixShaperFixedPointOpt<R, T, const LINEAR_CAP: usi
 }
 
 #[allow(unused)]
-struct TransformMatrixShaperQ4_12<
+struct TransformMatrixShaperQ2_13<
     T: Copy,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
@@ -66,7 +66,7 @@ struct TransformMatrixShaperQ4_12<
 }
 
 #[allow(unused)]
-struct TransformMatrixShaperQ4_12Optimized<
+struct TransformMatrixShaperQ2_13Optimized<
     T: Copy,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
@@ -88,7 +88,7 @@ impl<
     const BIT_DEPTH: usize,
     const PRECISION: i32,
 > TransformExecutor<T>
-    for TransformMatrixShaperQ4_12<
+    for TransformMatrixShaperQ2_13<
         T,
         SRC_LAYOUT,
         DST_LAYOUT,
@@ -177,7 +177,7 @@ impl<
     const BIT_DEPTH: usize,
     const PRECISION: i32,
 > TransformExecutor<T>
-    for TransformMatrixShaperQ4_12Optimized<
+    for TransformMatrixShaperQ2_13Optimized<
         T,
         SRC_LAYOUT,
         DST_LAYOUT,
@@ -256,7 +256,7 @@ where
     }
 }
 
-macro_rules! create_rgb_xyz_dependant_q4_12_executor {
+macro_rules! create_rgb_xyz_dependant_q2_13_executor {
     ($dep_name: ident, $dependant: ident, $resolution: ident, $shaper: ident) => {
         pub(crate) fn $dep_name<
             T: Clone + Send + Sync + AsPrimitive<usize> + Default + PointeeSizeExpressible,
@@ -272,8 +272,8 @@ macro_rules! create_rgb_xyz_dependant_q4_12_executor {
         where
             u32: AsPrimitive<T>,
         {
-            let q4_12_profile =
-                profile.to_q4_12_n::<$resolution, PRECISION, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>();
+            let q2_13_profile =
+                profile.to_q2_13_n::<$resolution, PRECISION, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>();
             if (src_layout == Layout::Rgba) && (dst_layout == Layout::Rgba) {
                 return Ok(Box::new($dependant::<
                     T,
@@ -284,7 +284,7 @@ macro_rules! create_rgb_xyz_dependant_q4_12_executor {
                     BIT_DEPTH,
                     PRECISION,
                 > {
-                    profile: q4_12_profile,
+                    profile: q2_13_profile,
                 }));
             } else if (src_layout == Layout::Rgb) && (dst_layout == Layout::Rgba) {
                 return Ok(Box::new($dependant::<
@@ -296,7 +296,7 @@ macro_rules! create_rgb_xyz_dependant_q4_12_executor {
                     BIT_DEPTH,
                     PRECISION,
                 > {
-                    profile: q4_12_profile,
+                    profile: q2_13_profile,
                 }));
             } else if (src_layout == Layout::Rgba) && (dst_layout == Layout::Rgb) {
                 return Ok(Box::new($dependant::<
@@ -308,7 +308,7 @@ macro_rules! create_rgb_xyz_dependant_q4_12_executor {
                     BIT_DEPTH,
                     PRECISION,
                 > {
-                    profile: q4_12_profile,
+                    profile: q2_13_profile,
                 }));
             } else if (src_layout == Layout::Rgb) && (dst_layout == Layout::Rgb) {
                 return Ok(Box::new($dependant::<
@@ -320,7 +320,7 @@ macro_rules! create_rgb_xyz_dependant_q4_12_executor {
                     BIT_DEPTH,
                     PRECISION,
                 > {
-                    profile: q4_12_profile,
+                    profile: q2_13_profile,
                 }));
             }
             Err(CmsError::UnsupportedProfileConnection)
@@ -329,78 +329,78 @@ macro_rules! create_rgb_xyz_dependant_q4_12_executor {
 }
 
 #[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
-use crate::conversions::neon::{TransformProfileRgbQ12Neon, TransformProfileRgbQ12NeonOpt};
+use crate::conversions::neon::{TransformProfileRgbQ2_13Neon, TransformProfileRgbQ2_13NeonOpt};
 
 #[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
-create_rgb_xyz_dependant_q4_12_executor!(
-    make_rgb_xyz_q4_12,
-    TransformProfileRgbQ12Neon,
+create_rgb_xyz_dependant_q2_13_executor!(
+    make_rgb_xyz_q2_13,
+    TransformProfileRgbQ2_13Neon,
     i16,
     TransformMatrixShaper
 );
 
 #[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
-create_rgb_xyz_dependant_q4_12_executor!(
-    make_rgb_xyz_q4_12_opt,
-    TransformProfileRgbQ12NeonOpt,
+create_rgb_xyz_dependant_q2_13_executor!(
+    make_rgb_xyz_q2_13_opt,
+    TransformProfileRgbQ2_13NeonOpt,
     i16,
     TransformMatrixShaperOptimized
 );
 
 #[cfg(not(all(target_arch = "aarch64", target_feature = "neon", feature = "neon")))]
-create_rgb_xyz_dependant_q4_12_executor!(
-    make_rgb_xyz_q4_12,
-    TransformMatrixShaperQ4_12,
+create_rgb_xyz_dependant_q2_13_executor!(
+    make_rgb_xyz_q2_13,
+    TransformMatrixShaperQ2_13,
     i16,
     TransformMatrixShaper
 );
 
 #[cfg(not(all(target_arch = "aarch64", target_feature = "neon", feature = "neon")))]
-create_rgb_xyz_dependant_q4_12_executor!(
-    make_rgb_xyz_q4_12_opt,
-    TransformMatrixShaperQ4_12Optimized,
+create_rgb_xyz_dependant_q2_13_executor!(
+    make_rgb_xyz_q2_13_opt,
+    TransformMatrixShaperQ2_13Optimized,
     i16,
     TransformMatrixShaperOptimized
 );
 
 #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"))]
-use crate::conversions::sse::{TransformProfileRgbQ12OptSse, TransformProfileRgbQ12Sse};
+use crate::conversions::sse::{TransformProfileRgbQ2_13OptSse, TransformProfileRgbQ2_13Sse};
 
 #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"))]
-create_rgb_xyz_dependant_q4_12_executor!(
-    make_rgb_xyz_q4_12_transform_sse_41,
-    TransformProfileRgbQ12Sse,
+create_rgb_xyz_dependant_q2_13_executor!(
+    make_rgb_xyz_q2_13_transform_sse_41,
+    TransformProfileRgbQ2_13Sse,
     i32,
     TransformMatrixShaper
 );
 
 #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"))]
-create_rgb_xyz_dependant_q4_12_executor!(
-    make_rgb_xyz_q4_12_transform_sse_41_opt,
-    TransformProfileRgbQ12OptSse,
+create_rgb_xyz_dependant_q2_13_executor!(
+    make_rgb_xyz_q2_13_transform_sse_41_opt,
+    TransformProfileRgbQ2_13OptSse,
     i32,
     TransformMatrixShaperOptimized
 );
 
 #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "avx"))]
 use crate::conversions::avx::{
-    TransformProfilePcsXYZRgbQ12Avx, TransformProfilePcsXYZRgbQ12OptAvx,
+    TransformProfilePcsXYZRgbQ2_13Avx, TransformProfilePcsXYZRgbQ2_13OptAvx,
 };
 use crate::conversions::rgbxyz::TransformMatrixShaperOptimized;
 use crate::transform::PointeeSizeExpressible;
 
 #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "avx"))]
-create_rgb_xyz_dependant_q4_12_executor!(
-    make_rgb_xyz_q4_12_transform_avx2,
-    TransformProfilePcsXYZRgbQ12Avx,
+create_rgb_xyz_dependant_q2_13_executor!(
+    make_rgb_xyz_q2_13_transform_avx2,
+    TransformProfilePcsXYZRgbQ2_13Avx,
     i32,
     TransformMatrixShaper
 );
 
 #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "avx"))]
-create_rgb_xyz_dependant_q4_12_executor!(
-    make_rgb_xyz_q4_12_transform_avx2_opt,
-    TransformProfilePcsXYZRgbQ12OptAvx,
+create_rgb_xyz_dependant_q2_13_executor!(
+    make_rgb_xyz_q2_13_transform_avx2_opt,
+    TransformProfilePcsXYZRgbQ2_13OptAvx,
     i32,
     TransformMatrixShaperOptimized
 );

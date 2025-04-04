@@ -48,6 +48,7 @@ pub(crate) struct ACurves4x3NeonOptimizedNeon<'a> {
     pub(crate) interpolation_method: InterpolationMethod,
     pub(crate) pcs: DataColorSpace,
 }
+
 impl<const DEPTH: usize> ACurves4x3Neon<'_, DEPTH> {
     fn transform_impl<Fetch: Fn(f32, f32, f32, f32) -> NeonVector>(
         &self,

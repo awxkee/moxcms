@@ -26,8 +26,9 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-use crate::conversions::rgbxyz_fixed::TransformMatrixShaperFixedPoint;
+use crate::conversions::rgbxyz_fixed::TransformMatrixShaperFixedPointOpt;
 use crate::conversions::sse::rgb_xyz::SseAlignedU16;
+use crate::conversions::sse::rgb_xyz_q2_13::_xmm_load_epi32;
 use crate::transform::PointeeSizeExpressible;
 use crate::{CmsError, Layout, TransformExecutor};
 use num_traits::AsPrimitive;
@@ -36,7 +37,7 @@ use std::arch::x86::*;
 #[cfg(target_arch = "x86_64")]
 use std::arch::x86_64::*;
 
-pub(crate) struct TransformProfileRgbQ12Sse<
+pub(crate) struct TransformProfileRgbQ2_13OptSse<
     T: Copy,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
@@ -45,13 +46,7 @@ pub(crate) struct TransformProfileRgbQ12Sse<
     const BIT_DEPTH: usize,
     const PRECISION: i32,
 > {
-    pub(crate) profile: TransformMatrixShaperFixedPoint<i32, T, LINEAR_CAP>,
-}
-
-#[inline(always)]
-pub(crate) unsafe fn _xmm_load_epi32(f: &i32) -> __m128i {
-    let float_ref: &f32 = unsafe { &*(f as *const i32 as *const f32) };
-    unsafe { _mm_castps_si128(_mm_load_ss(float_ref)) }
+    pub(crate) profile: TransformMatrixShaperFixedPointOpt<i32, T, LINEAR_CAP>,
 }
 
 impl<
@@ -62,7 +57,16 @@ impl<
     const GAMMA_LUT: usize,
     const BIT_DEPTH: usize,
     const PRECISION: i32,
-> TransformProfileRgbQ12Sse<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH, PRECISION>
+>
+    TransformProfileRgbQ2_13OptSse<
+        T,
+        SRC_LAYOUT,
+        DST_LAYOUT,
+        LINEAR_CAP,
+        GAMMA_LUT,
+        BIT_DEPTH,
+        PRECISION,
+    >
 where
     u32: AsPrimitive<T>,
 {
@@ -104,9 +108,9 @@ where
                 .chunks_exact(src_channels)
                 .zip(dst.chunks_exact_mut(dst_channels))
             {
-                let rp = &self.profile.r_linear[src[src_cn.r_i()]._as_usize()];
-                let gp = &self.profile.g_linear[src[src_cn.g_i()]._as_usize()];
-                let bp = &self.profile.b_linear[src[src_cn.b_i()]._as_usize()];
+                let rp = &self.profile.linear[src[src_cn.r_i()]._as_usize()];
+                let gp = &self.profile.linear[src[src_cn.g_i()]._as_usize()];
+                let bp = &self.profile.linear[src[src_cn.b_i()]._as_usize()];
 
                 let mut r = _xmm_load_epi32(rp);
                 let mut g = _xmm_load_epi32(gp);
@@ -137,9 +141,9 @@ where
 
                 _mm_store_si128(temporary.0.as_mut_ptr() as *mut _, v);
 
-                dst[dst_cn.r_i()] = self.profile.r_gamma[temporary.0[0] as usize];
-                dst[dst_cn.g_i()] = self.profile.g_gamma[temporary.0[2] as usize];
-                dst[dst_cn.b_i()] = self.profile.b_gamma[temporary.0[4] as usize];
+                dst[dst_cn.r_i()] = self.profile.gamma[temporary.0[0] as usize];
+                dst[dst_cn.g_i()] = self.profile.gamma[temporary.0[2] as usize];
+                dst[dst_cn.b_i()] = self.profile.gamma[temporary.0[4] as usize];
                 if dst_channels == 4 {
                     dst[dst_cn.a_i()] = a;
                 }
@@ -159,7 +163,7 @@ impl<
     const BIT_DEPTH: usize,
     const PRECISION: i32,
 > TransformExecutor<T>
-    for TransformProfileRgbQ12Sse<
+    for TransformProfileRgbQ2_13OptSse<
         T,
         SRC_LAYOUT,
         DST_LAYOUT,
