@@ -382,14 +382,14 @@ create_rgb_xyz_dependant_q2_13_executor!(
     TransformMatrixShaperOptimized
 );
 
-#[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "avx"))]
+#[cfg(all(target_arch = "x86_64", feature = "avx"))]
 use crate::conversions::avx::{
     TransformProfilePcsXYZRgbQ2_13Avx, TransformProfilePcsXYZRgbQ2_13OptAvx,
 };
 use crate::conversions::rgbxyz::TransformMatrixShaperOptimized;
 use crate::transform::PointeeSizeExpressible;
 
-#[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "avx"))]
+#[cfg(all(target_arch = "x86_64", feature = "avx"))]
 create_rgb_xyz_dependant_q2_13_executor!(
     make_rgb_xyz_q2_13_transform_avx2,
     TransformProfilePcsXYZRgbQ2_13Avx,
@@ -397,7 +397,7 @@ create_rgb_xyz_dependant_q2_13_executor!(
     TransformMatrixShaper
 );
 
-#[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "avx"))]
+#[cfg(all(target_arch = "x86_64", feature = "avx"))]
 create_rgb_xyz_dependant_q2_13_executor!(
     make_rgb_xyz_q2_13_transform_avx2_opt,
     TransformProfilePcsXYZRgbQ2_13OptAvx,

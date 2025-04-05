@@ -1,5 +1,5 @@
 /*
- * // Copyright (c) Radzivon Bartoshyk 2/2025. All rights reserved.
+ * // Copyright (c) Radzivon Bartoshyk 4/2025. All rights reserved.
  * //
  * // Redistribution and use in source and binary forms, with or without modification,
  * // are permitted provided that the following conditions are met:
@@ -26,39 +26,33 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-#[cfg(all(target_arch = "x86_64", feature = "avx"))]
-mod avx;
-mod bpc;
-mod gray2rgb;
-mod interpolator;
-mod lut3x3;
-mod lut3x4;
-mod lut4;
-mod lut_transforms;
-mod mab;
-mod mab4x3;
-mod mba3x4;
-#[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
-mod neon;
-mod prelude_lut_xyz_rgb;
-mod rgb2gray;
-mod rgb_xyz_factory;
-mod rgbxyz;
-mod rgbxyz_fixed;
-mod rgbxyz_float;
-#[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"))]
-mod sse;
-mod transform_lut3_to_3;
-mod transform_lut3_to_4;
-mod transform_lut4_to_3;
+use crate::math::common::copysignk;
+use crate::math::copysignfk;
 
-pub(crate) use gray2rgb::make_gray_to_x;
-pub(crate) use interpolator::LutBarycentricReduction;
-pub(crate) use lut_transforms::make_lut_transform;
-pub(crate) use rgb_xyz_factory::{RgbXyzFactory, RgbXyzFactoryOpt};
-pub(crate) use rgb2gray::{ToneReproductionRgbToGray, make_rgb_to_gray};
-pub(crate) use rgbxyz::{TransformMatrixShaper, TransformMatrixShaperOptimized};
-pub(crate) use rgbxyz_float::{
-    TransformProfileRgbFloat, TransformProfileRgbFloatInOut, make_rgb_xyz_rgb_transform_float,
-    make_rgb_xyz_rgb_transform_float_in_out,
-};
+/// Round to integer towards minus infinity
+#[inline]
+pub const fn floorf(x: f32) -> f32 {
+    const F1_23: f32 = (1u32 << 23) as f32;
+    let mut fr = x - (x as i32 as f32);
+    fr = if fr < 0. { fr + 1. } else { fr };
+    if x.is_infinite() || (x.abs() >= F1_23) {
+        x
+    } else {
+        copysignfk(x - fr, x)
+    }
+}
+
+/// Floors value
+#[inline]
+pub const fn floor(x: f64) -> f64 {
+    const D1_31: f64 = (1u64 << 31) as f64;
+    const D1_52: f64 = (1u64 << 52) as f64;
+    let mut fr = x - D1_31 * ((x * (1. / D1_31)) as i32 as f64);
+    fr -= fr as i32 as f64;
+    fr = if fr < 0. { fr + 1. } else { fr };
+    if x.is_infinite() || (x.abs() >= D1_52) {
+        x
+    } else {
+        copysignk(x - fr, x)
+    }
+}

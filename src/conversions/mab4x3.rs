@@ -245,7 +245,7 @@ pub(crate) fn prepare_mab_4x3(
             let mut execution_box: Option<Box<dyn Stage>> = None;
 
             if all_curves_linear {
-                #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "avx"))]
+                #[cfg(all(target_arch = "x86_64", feature = "avx"))]
                 {
                     use crate::conversions::avx::ACurves4x3AvxFmaOptimized;
                     if std::arch::is_x86_feature_detected!("avx2")
@@ -268,7 +268,7 @@ pub(crate) fn prepare_mab_4x3(
                     }));
                 }
             } else {
-                #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "avx"))]
+                #[cfg(all(target_arch = "x86_64", feature = "avx"))]
                 {
                     use crate::conversions::avx::ACurves4x3AvxFma;
                     if std::arch::is_x86_feature_detected!("avx2")

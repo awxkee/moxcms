@@ -190,7 +190,7 @@ fn stage_lut_4x3(
     }
     #[cfg(not(all(target_arch = "aarch64", target_feature = "neon", feature = "neon")))]
     {
-        #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "avx"))]
+        #[cfg(all(target_arch = "x86_64", feature = "avx"))]
         {
             use crate::conversions::avx::Lut4x3AvxFma;
             if std::arch::is_x86_feature_detected!("avx2")

@@ -1,5 +1,5 @@
 /*
- * // Copyright (c) Radzivon Bartoshyk 2/2025. All rights reserved.
+ * // Copyright (c) Radzivon Bartoshyk 4/2025. All rights reserved.
  * //
  * // Redistribution and use in source and binary forms, with or without modification,
  * // are permitted provided that the following conditions are met:
@@ -26,39 +26,60 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-#[cfg(all(target_arch = "x86_64", feature = "avx"))]
-mod avx;
-mod bpc;
-mod gray2rgb;
-mod interpolator;
-mod lut3x3;
-mod lut3x4;
-mod lut4;
-mod lut_transforms;
-mod mab;
-mod mab4x3;
-mod mba3x4;
-#[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
-mod neon;
-mod prelude_lut_xyz_rgb;
-mod rgb2gray;
-mod rgb_xyz_factory;
-mod rgbxyz;
-mod rgbxyz_fixed;
-mod rgbxyz_float;
-#[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"))]
-mod sse;
-mod transform_lut3_to_3;
-mod transform_lut3_to_4;
-mod transform_lut4_to_3;
 
-pub(crate) use gray2rgb::make_gray_to_x;
-pub(crate) use interpolator::LutBarycentricReduction;
-pub(crate) use lut_transforms::make_lut_transform;
-pub(crate) use rgb_xyz_factory::{RgbXyzFactory, RgbXyzFactoryOpt};
-pub(crate) use rgb2gray::{ToneReproductionRgbToGray, make_rgb_to_gray};
-pub(crate) use rgbxyz::{TransformMatrixShaper, TransformMatrixShaperOptimized};
-pub(crate) use rgbxyz_float::{
-    TransformProfileRgbFloat, TransformProfileRgbFloatInOut, make_rgb_xyz_rgb_transform_float,
-    make_rgb_xyz_rgb_transform_float_in_out,
-};
+/// Computes Square root.
+/// Most of CPU have built-in instruction with higher precision,
+/// prefer use this only for const contexts.
+#[inline]
+pub const fn sqrtf(d: f32) -> f32 {
+    let mut q = 1.0f32;
+
+    let mut d = if d < 0f32 { f32::NAN } else { d };
+
+    if d < 5.2939559203393770e-23f32 {
+        d *= 1.8889465931478580e+22f32;
+        q = 7.2759576141834260e-12f32;
+    }
+
+    if d > 1.8446744073709552e+19f32 {
+        d *= 5.4210108624275220e-20f32;
+        q = 4294967296.0f32;
+    }
+
+    // http://en.wikipedia.org/wiki/Fast_inverse_square_root
+    let mut x = f32::from_bits(0x5f375a86 - ((d + 1e-45).to_bits() >> 1));
+
+    x = x * (1.5f32 - 0.5f32 * d * x * x);
+    x = x * (1.5f32 - 0.5f32 * d * x * x);
+    x = x * (1.5f32 - 0.5f32 * d * x * x);
+    x = x * (1.5f32 - 0.5f32 * d * x * x);
+
+    if d.is_infinite() {
+        return f32::INFINITY;
+    }
+    x * d * q
+}
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+
+    #[test]
+    fn sqrtf_test() {
+        assert!(
+            (sqrtf(4f32) - 2f32).abs() < 1e-6,
+            "Invalid result {}",
+            sqrtf(4f32)
+        );
+        assert!(
+            (sqrtf(9f32) - 3f32).abs() < 1e-6,
+            "Invalid result {}",
+            sqrtf(9f32)
+        );
+        println!("{}", sqrtf(4f32));
+        println!("{}", sqrtf(9f32));
+        println!("{}", sqrtf(12f32));
+        println!("{}", sqrtf(25f32));
+    }
+}

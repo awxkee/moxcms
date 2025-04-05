@@ -32,9 +32,6 @@ use crate::conversions::rgbxyz_fixed::TransformMatrixShaperFixedPointOpt;
 use crate::transform::PointeeSizeExpressible;
 use crate::{CmsError, Layout, TransformExecutor};
 use num_traits::AsPrimitive;
-#[cfg(target_arch = "x86")]
-use std::arch::x86::*;
-#[cfg(target_arch = "x86_64")]
 use std::arch::x86_64::*;
 
 pub(crate) struct TransformProfilePcsXYZRgbQ2_13OptAvx<

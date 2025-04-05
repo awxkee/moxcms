@@ -30,9 +30,6 @@ use crate::conversions::avx::hypercube::HypercubeAvx;
 use crate::conversions::avx::interpolator::AvxVectorSse;
 use crate::trc::{lut_interp_linear_float, lut_interp_linear_float_clamped};
 use crate::{CmsError, DataColorSpace, InterpolationMethod, Stage};
-#[cfg(target_arch = "x86")]
-use std::arch::x86::*;
-#[cfg(target_arch = "x86_64")]
 use std::arch::x86_64::*;
 
 #[derive(Default)]
