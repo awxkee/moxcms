@@ -29,9 +29,6 @@
 use crate::conversions::avx::cube::CubeAvxFma;
 use crate::conversions::avx::interpolator::AvxVectorSse;
 use crate::{CmsError, DataColorSpace, InPlaceStage, InterpolationMethod};
-#[cfg(target_arch = "x86")]
-use std::arch::x86::*;
-#[cfg(target_arch = "x86_64")]
 use std::arch::x86_64::*;
 
 pub(crate) struct ACurves3AvxFma<'a, const DEPTH: usize> {

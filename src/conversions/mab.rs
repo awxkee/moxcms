@@ -378,7 +378,7 @@ pub(crate) fn prepare_mab_3x3(
             let mut execution_box: Option<Box<dyn InPlaceStage>> = None;
 
             if all_curves_linear {
-                #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "avx"))]
+                #[cfg(all(target_arch = "x86_64", feature = "avx"))]
                 {
                     use crate::conversions::avx::ACurves3OptimizedAvxFma;
                     if std::arch::is_x86_feature_detected!("avx2")
@@ -401,7 +401,7 @@ pub(crate) fn prepare_mab_3x3(
                     }));
                 }
             } else {
-                #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "avx"))]
+                #[cfg(all(target_arch = "x86_64", feature = "avx"))]
                 {
                     use crate::conversions::avx::ACurves3AvxFma;
                     if std::arch::is_x86_feature_detected!("avx2")
@@ -648,7 +648,7 @@ pub(crate) fn prepare_mba_3x3(
             let mut execution_box: Option<Box<dyn InPlaceStage>> = None;
 
             if all_curves_linear {
-                #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "avx"))]
+                #[cfg(all(target_arch = "x86_64", feature = "avx"))]
                 {
                     use crate::conversions::avx::ACurves3OptimizedAvxFma;
                     if std::arch::is_x86_feature_detected!("avx2")
@@ -672,7 +672,7 @@ pub(crate) fn prepare_mba_3x3(
                     }));
                 }
             } else {
-                #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "avx"))]
+                #[cfg(all(target_arch = "x86_64", feature = "avx"))]
                 {
                     use crate::conversions::avx::ACurves3InverseAvxFma;
                     if std::arch::is_x86_feature_detected!("avx2")

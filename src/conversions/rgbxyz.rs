@@ -238,7 +238,7 @@ macro_rules! create_rgb_xyz_dependant_executor {
 #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"))]
 use crate::conversions::sse::{TransformProfilePcsXYZRgbOptSse, TransformProfilePcsXYZRgbSse};
 
-#[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "avx"))]
+#[cfg(all(target_arch = "x86_64", feature = "avx"))]
 use crate::conversions::avx::{TransformProfilePcsXYZRgbAvx, TransformProfilePcsXYZRgbOptAvx};
 
 #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"))]
@@ -255,14 +255,14 @@ create_rgb_xyz_dependant_executor!(
     TransformMatrixShaperOptimized
 );
 
-#[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "avx"))]
+#[cfg(all(target_arch = "x86_64", feature = "avx"))]
 create_rgb_xyz_dependant_executor!(
     make_rgb_xyz_rgb_transform_avx2,
     TransformProfilePcsXYZRgbAvx,
     TransformMatrixShaper
 );
 
-#[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "avx"))]
+#[cfg(all(target_arch = "x86_64", feature = "avx"))]
 create_rgb_xyz_dependant_executor!(
     make_rgb_xyz_rgb_transform_avx2_opt,
     TransformProfilePcsXYZRgbOptAvx,
@@ -283,20 +283,17 @@ pub(crate) fn make_rgb_xyz_rgb_transform<
 where
     u32: AsPrimitive<T>,
 {
-    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-    {
-        #[cfg(feature = "avx")]
-        if std::arch::is_x86_feature_detected!("avx2") {
-            return make_rgb_xyz_rgb_transform_avx2::<T, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>(
-                src_layout, dst_layout, profile,
-            );
-        }
-        #[cfg(feature = "sse")]
-        if std::arch::is_x86_feature_detected!("sse4.1") {
-            return make_rgb_xyz_rgb_transform_sse_41::<T, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>(
-                src_layout, dst_layout, profile,
-            );
-        }
+    #[cfg(all(feature = "avx", target_arch = "x86_64"))]
+    if std::arch::is_x86_feature_detected!("avx2") {
+        return make_rgb_xyz_rgb_transform_avx2::<T, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>(
+            src_layout, dst_layout, profile,
+        );
+    }
+    #[cfg(all(feature = "sse", any(target_arch = "x86", target_arch = "x86_64")))]
+    if std::arch::is_x86_feature_detected!("sse4.1") {
+        return make_rgb_xyz_rgb_transform_sse_41::<T, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>(
+            src_layout, dst_layout, profile,
+        );
     }
     if (src_layout == Layout::Rgba) && (dst_layout == Layout::Rgba) {
         return Ok(Box::new(TransformProfilePcsXYZRgb::<
@@ -360,20 +357,17 @@ pub(crate) fn make_rgb_xyz_rgb_transform_opt<
 where
     u32: AsPrimitive<T>,
 {
-    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-    {
-        #[cfg(feature = "avx")]
-        if std::arch::is_x86_feature_detected!("avx2") {
-            return make_rgb_xyz_rgb_transform_avx2_opt::<T, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>(
-                src_layout, dst_layout, profile,
-            );
-        }
-        #[cfg(feature = "sse")]
-        if std::arch::is_x86_feature_detected!("sse4.1") {
-            return make_rgb_xyz_rgb_transform_sse_41_opt::<T, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>(
-                src_layout, dst_layout, profile,
-            );
-        }
+    #[cfg(all(feature = "avx", target_arch = "x86_64"))]
+    if std::arch::is_x86_feature_detected!("avx2") {
+        return make_rgb_xyz_rgb_transform_avx2_opt::<T, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>(
+            src_layout, dst_layout, profile,
+        );
+    }
+    #[cfg(all(feature = "sse", any(target_arch = "x86", target_arch = "x86_64")))]
+    if std::arch::is_x86_feature_detected!("sse4.1") {
+        return make_rgb_xyz_rgb_transform_sse_41_opt::<T, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>(
+            src_layout, dst_layout, profile,
+        );
     }
     if (src_layout == Layout::Rgba) && (dst_layout == Layout::Rgba) {
         return Ok(Box::new(TransformProfileMatrixShaperOpt::<

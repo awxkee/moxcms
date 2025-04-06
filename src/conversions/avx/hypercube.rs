@@ -29,9 +29,6 @@
 use crate::conversions::avx::interpolator::AvxVectorSse;
 use crate::math::{FusedMultiplyAdd, FusedMultiplyNegAdd};
 use crate::nd_array::lerp;
-#[cfg(target_arch = "x86")]
-use std::arch::x86::*;
-#[cfg(target_arch = "x86_64")]
 use std::arch::x86_64::*;
 use std::ops::{Add, Mul, Sub};
 
