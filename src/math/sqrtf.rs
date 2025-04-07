@@ -32,7 +32,7 @@
 /// prefer use this only for const contexts.
 #[inline]
 pub const fn sqrtf(d: f32) -> f32 {
-    let mut q = 1.0f32;
+    let mut q = 0.5f32;
 
     let mut d = if d < 0f32 { f32::NAN } else { d };
 
@@ -47,17 +47,41 @@ pub const fn sqrtf(d: f32) -> f32 {
     }
 
     // http://en.wikipedia.org/wiki/Fast_inverse_square_root
-    let mut x = f32::from_bits(0x5f375a86 - ((d + 1e-45).to_bits() >> 1));
+    #[cfg(target_pointer_width = "64")]
+    {
+        let mut x = f32::from_bits(0x5f375a86 - ((d + 1e-45).to_bits() >> 1)) as f64;
 
-    x = x * (1.5f32 - 0.5f32 * d * x * x);
-    x = x * (1.5f32 - 0.5f32 * d * x * x);
-    x = x * (1.5f32 - 0.5f32 * d * x * x);
-    x = x * (1.5f32 - 0.5f32 * d * x * x);
+        x = x * (1.5 - 0.5 * (d as f64) * x * x);
+        x = x * (1.5 - 0.5 * (d as f64) * x * x);
+        x = x * (1.5 - 0.5 * (d as f64) * x * x) * (d as f64);
 
-    if d.is_infinite() {
-        return f32::INFINITY;
+        let d2 = ((d as f64) + x * x) * (1. / x);
+
+        if d.is_infinite() {
+            return f32::INFINITY;
+        }
+        (d2 * q as f64) as f32
     }
-    x * d * q
+    #[cfg(not(target_pointer_width = "64"))]
+    {
+        use crate::math::float48::Float48;
+        let mut x = f32::from_bits(0x5f375a86 - ((d + 1e-45).to_bits() >> 1));
+
+        x = x * (1.5 - 0.5 * d * x * x);
+        x = x * (1.5 - 0.5 * d * x * x);
+        x = x * (1.5 - 0.5 * d * x * x) * d;
+
+        let x48 = Float48::from_f32(x);
+
+        let k = Float48::from_f32(d).c_add(Float48::c_from_mul_product(x, x));
+        let rcp = x48.recip();
+        let z = k.c_mul(rcp);
+
+        if d.is_infinite() {
+            return f32::INFINITY;
+        }
+        z.to_f32() * q
+    }
 }
 
 #[cfg(test)]

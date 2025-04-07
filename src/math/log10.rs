@@ -35,6 +35,7 @@ use crate::math::common::*;
     all(target_arch = "aarch64", target_feature = "neon")
 )))]
 use crate::math::estrin::*;
+use crate::math::float106::Float106;
 
 /// Natural logarithm using FMA
 #[inline(always)]
@@ -42,9 +43,12 @@ pub fn f_log10(d: f64) -> f64 {
     let n = ilogb2k(d * (1. / 0.75));
     let a = ldexp3k(d, -n);
 
-    let x = (a - 1.) / (a + 1.);
+    let a106 = Float106::from_f64(a);
 
-    let x2 = x * x;
+    let x = (a106 - 1.) / (a106 + 1.);
+
+    let rx2 = x.sqr();
+    let x2 = rx2.v0;
     #[cfg(any(
         all(
             any(target_arch = "x86", target_arch = "x86_64"),
@@ -60,12 +64,8 @@ pub fn f_log10(d: f64) -> f64 {
         u = f_fmla(u, x2, 0.1240841408366660991e+0);
         u = f_fmla(u, x2, 0.1737177927463646569e+0);
         u = f_fmla(u, x2, 0.2895296546021949510e+0);
-        let s = f_fmla(
-            x,
-            0.8685889638065036472e+0,
-            0.30102999566398119802 * n as f64,
-        );
-        f_fmla(x2 * x, u, s)
+        let s = x * 0.8685889638065036472e+0 + 0.30102999566398119802 * n as f64;
+        (x2 * x * u + s).to_f64()
     }
     #[cfg(not(any(
         all(
@@ -89,12 +89,8 @@ pub fn f_log10(d: f64) -> f64 {
             0.1737177927463646569e+0,
             0.2895296546021949510e+0
         );
-        let s = f_fmla(
-            x,
-            0.8685889638065036472e+0,
-            0.30102999566398119802 * n as f64,
-        );
-        f_fmla(x2 * x, u, s)
+        let s = x * 0.8685889638065036472e+0 + 0.30102999566398119802 * n as f64;
+        (x2 * x * u + s).to_f64()
     }
 }
 

@@ -46,6 +46,8 @@ mod pow;
 mod powf;
 mod sqrtf;
 mod trigo;
+mod float106;
+mod float48;
 
 pub use atan::{atan2f, atanf, f_atan2f, f_atanf};
 pub use cbrt::{cbrtf, f_cbrtf};

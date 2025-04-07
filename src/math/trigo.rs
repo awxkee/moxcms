@@ -74,7 +74,7 @@ pub const fn cosf(d: f32) -> f32 {
 /// Computes cosine for given value
 #[inline]
 pub fn f_cosf(d: f32) -> f32 {
-    let q = 1 + 2 * (std::f32::consts::FRAC_1_PI * d - 0.5).round() as i32;
+    let q = 1 + 2 * f_fmlaf(std::f32::consts::FRAC_1_PI, d, -0.5).round() as i32;
     let qf = q as f32;
     let mut r = f_fmlaf(qf, -PI_A2 * 0.5, d);
     r = f_fmlaf(qf, -PI_B2 * 0.5, r);
@@ -212,6 +212,9 @@ mod test {
     fn cosf_test() {
         assert_eq!(cosf(0.0), 1.0);
         assert_eq!(cosf(std::f32::consts::PI), -1f32);
+
+        assert_eq!(f_cosf(0.0), 1.0);
+        assert_eq!(f_cosf(std::f32::consts::PI), -1f32);
     }
 
     #[test]
@@ -219,5 +222,9 @@ mod test {
         assert_eq!(sinf(0.0), 0.0);
         assert!((sinf(std::f32::consts::PI) - 0f32).abs() < 1e-6);
         assert!((sinf(std::f32::consts::FRAC_PI_2) - 1f32).abs() < 1e-6);
+
+        assert_eq!(f_sinf(0.0), 0.0);
+        assert!((f_sinf(std::f32::consts::PI) - 0f32).abs() < 1e-6);
+        assert!((f_sinf(std::f32::consts::FRAC_PI_2) - 1f32).abs() < 1e-6);
     }
 }
