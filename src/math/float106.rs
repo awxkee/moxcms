@@ -40,6 +40,16 @@ impl Upper for f64 {
     }
 }
 
+#[inline(always)]
+const fn upper(v: f64) -> f64 {
+    f64::from_bits(v.to_bits() & 0x_ffff_ffff_f800_0000)
+}
+
+#[inline(always)]
+const fn cn_fmla(a: f64, b: f64, c: f64) -> f64 {
+    c + a * b
+}
+
 #[derive(Copy, Clone, Debug, Default)]
 pub struct Float106 {
     pub v0: f64,
@@ -48,22 +58,22 @@ pub struct Float106 {
 
 impl Float106 {
     #[inline(always)]
-    pub fn from_f64(v: f64) -> Float106 {
+    pub const fn from_f64(v: f64) -> Float106 {
         Float106 { v0: v, v1: 0. }
     }
 
     #[inline(always)]
-    pub fn to_f64(self) -> f64 {
+    pub const fn to_f64(self) -> f64 {
         self.v0 + self.v1
     }
 
     #[inline(always)]
-    pub fn new(v0: f64, v1: f64) -> Self {
+    pub const fn new(v0: f64, v1: f64) -> Self {
         Self { v0, v1 }
     }
 
     #[inline(always)]
-    pub fn abs(self) -> Self {
+    pub const fn abs(self) -> Self {
         if self.v0 < 0. {
             Self::new(-self.v0, -self.v1)
         } else {
@@ -81,6 +91,20 @@ impl Float106 {
         let w1 = f_fmla(xh + xh, xl, w0);
         let w2 = f_fmla(xl, xl, w1);
         let w3 = f_fmla(self.v0, self.v1 + self.v1, w2);
+
+        Self::new(r0, w3)
+    }
+
+    #[inline(always)]
+    pub const fn c_sqr(self) -> Self {
+        let xh = upper(self.v0);
+        let xl = self.v0 - xh;
+        let r0 = self.v0 * self.v0;
+
+        let w0 = cn_fmla(xh, xh, -r0);
+        let w1 = cn_fmla(xh + xh, xl, w0);
+        let w2 = cn_fmla(xl, xl, w1);
+        let w3 = cn_fmla(self.v0, self.v1 + self.v1, w2);
 
         Self::new(r0, w3)
     }
@@ -112,6 +136,92 @@ impl Float106 {
         let z3 = f_fmla(-dl, tl, z2);
         let z4 = f_fmla(-self.v1, t, z3);
         Self::new(q0, t * z4)
+    }
+
+    #[inline(always)]
+    pub const fn c_add_f64(self, rhs: f64) -> Self {
+        let rx = self.v0 + rhs;
+        let v = rx - self.v0;
+        let mut ry = (self.v0 - (rx - v)) + (rhs - v);
+        ry += self.v1;
+        Float106 { v0: rx, v1: ry }
+    }
+
+    #[inline(always)]
+    pub const fn c_sub_f64(self, rhs: f64) -> Self {
+        self.c_add_f64(-rhs)
+    }
+
+    #[inline(always)]
+    pub const fn c_div(self, rhs: Float106) -> Self {
+        let t = 1. / rhs.v0;
+        let dh = upper(rhs.v0);
+        let dl = rhs.v0 - dh;
+        let th = upper(t);
+        let tl = t - th;
+        let nhh = upper(self.v0);
+        let nhl = self.v0 - nhh;
+
+        let q0 = self.v0 * t;
+
+        let w0 = cn_fmla(nhh, th, -q0);
+        let w1 = cn_fmla(nhh, tl, w0);
+        let w2 = cn_fmla(nhl, th, w1);
+        let w3 = cn_fmla(nhl, tl, w2);
+
+        let z0 = cn_fmla(-dh, th, 1.);
+        let z1 = cn_fmla(-dh, tl, z0);
+        let z2 = cn_fmla(-dl, th, z1);
+        let z3 = cn_fmla(-dl, tl, z2);
+
+        let u = cn_fmla(q0, z3, w3);
+
+        let b0 = cn_fmla(-q0, rhs.v1, self.v1);
+        let b1 = cn_fmla(t, b0, u);
+
+        Self::new(q0, b1)
+    }
+
+    #[inline(always)]
+    pub const fn c_mul(self, other: Float106) -> Self {
+        let xh = upper(self.v0);
+        let xl = self.v0 - xh;
+        let yh = upper(other.v0);
+        let yl = other.v0 - yh;
+        let r0 = self.v0 * other.v0;
+
+        let w0 = cn_fmla(xh, yh, -r0);
+        let w1 = cn_fmla(xl, yh, w0);
+        let w2 = cn_fmla(xh, yl, w1);
+        let w3 = cn_fmla(xl, yl, w2);
+        let w4 = cn_fmla(self.v0, other.v1, w3);
+        let w5 = cn_fmla(self.v1, other.v0, w4);
+
+        Self::new(r0, w5)
+    }
+
+    #[inline(always)]
+    pub const fn c_mul_f64(self, rhs: f64) -> Self {
+        let xh = upper(self.v0);
+        let xl = self.v0 - xh;
+        let yh = upper(rhs);
+        let yl = rhs - yh;
+        let r0 = self.v0 * rhs;
+
+        let w0 = cn_fmla(xh, yh, -r0);
+        let w1 = cn_fmla(xl, yh, w0);
+        let w2 = cn_fmla(xh, yl, w1);
+        let w3 = cn_fmla(xl, yl, w2);
+        let w4 = cn_fmla(self.v1, rhs, w3);
+
+        Self::new(r0, w4)
+    }
+
+    #[inline(always)]
+    pub fn fast_mul_f64(self, rhs: f64) -> Self {
+        let mut product = Self::from_mul_product(self.v0, rhs);
+        product.v1 = f_fmla(rhs, self.v1, product.v1);
+        product
     }
 }
 
@@ -262,6 +372,22 @@ impl Float106 {
         let z1 = f_fmla(xl, yh, z0);
         let z2 = f_fmla(xh, yl, z1);
         let z3 = f_fmla(xl, yl, z2);
+
+        Self { v0: r0, v1: z3 }
+    }
+
+    #[inline(always)]
+    pub const fn c_from_mul_product(v0: f64, v1: f64) -> Self {
+        let xh = upper(v0);
+        let xl = v0 - xh;
+        let yh = upper(v1);
+        let yl = v1 - yh;
+        let r0 = v0 * v1;
+
+        let z0 = cn_fmla(xh, yh, -r0);
+        let z1 = cn_fmla(xl, yh, z0);
+        let z2 = cn_fmla(xh, yl, z1);
+        let z3 = cn_fmla(xl, yl, z2);
 
         Self { v0: r0, v1: z3 }
     }

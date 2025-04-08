@@ -47,7 +47,7 @@ pub const fn sqrtf(d: f32) -> f32 {
     }
 
     // http://en.wikipedia.org/wiki/Fast_inverse_square_root
-    #[cfg(target_pointer_width = "64")]
+    #[cfg(native_64_word)]
     {
         let mut x = f32::from_bits(0x5f375a86 - ((d + 1e-45).to_bits() >> 1)) as f64;
 
@@ -62,7 +62,7 @@ pub const fn sqrtf(d: f32) -> f32 {
         }
         (d2 * q as f64) as f32
     }
-    #[cfg(not(target_pointer_width = "64"))]
+    #[cfg(not(native_64_word))]
     {
         use crate::math::float48::Float48;
         let mut x = f32::from_bits(0x5f375a86 - ((d + 1e-45).to_bits() >> 1));

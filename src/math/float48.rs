@@ -58,6 +58,11 @@ impl Float48 {
     }
 
     #[inline(always)]
+    pub const fn to_f64(self) -> f64 {
+        self.v0 as f64 + self.v1 as f64
+    }
+
+    #[inline(always)]
     pub const fn new(v0: f32, v1: f32) -> Self {
         Self { v0, v1 }
     }
@@ -107,7 +112,7 @@ impl Float48 {
             t * (1. - dh * th - dh * tl - dl * th - dl * tl - self.v1 * t),
         )
     }
-    
+
     #[inline]
     pub const fn c_add(self, rhs: Self) -> Self {
         let rx = self.v0 + rhs.v0;
@@ -133,6 +138,13 @@ impl Float48 {
         let w5 = cn_fmlaf(self.v1, rhs.v0, w4);
 
         Self::new(r0, w5)
+    }
+
+    #[inline(always)]
+    pub fn fast_mul_f32(self, rhs: f32) -> Self {
+        let mut product = Self::from_mul_product(self.v0, rhs);
+        product.v1 = f_fmlaf(rhs, self.v1, product.v1);
+        product
     }
 }
 
@@ -240,7 +252,7 @@ impl Add<Float48> for f32 {
 
     #[inline(always)]
     fn add(self, rhs: Float48) -> Self::Output {
-        let rx  = self + rhs.v0;
+        let rx = self + rhs.v0;
         let v = rhs.v0 - self;
         let ry = (self - (rx - v)) + (rhs.v0 - v) + rhs.v1;
         Float48 { v0: rx, v1: ry }
@@ -281,6 +293,22 @@ impl Float48 {
             v0: r0,
             v1: xh * yh - r0 + xl * yh + xh * yl + xl * yl,
         }
+    }
+
+    #[inline(always)]
+    pub fn from_mul_product(v0: f32, v1: f32) -> Self {
+        let xh = upper(v0);
+        let xl = v0 - xh;
+        let yh = upper(v1);
+        let yl = v1 - yh;
+        let r0 = v0 * v1;
+
+        let z0 = f_fmlaf(xh, yh, -r0);
+        let z1 = f_fmlaf(xl, yh, z0);
+        let z2 = f_fmlaf(xh, yl, z1);
+        let z3 = f_fmlaf(xl, yl, z2);
+
+        Self { v0: r0, v1: z3 }
     }
 }
 

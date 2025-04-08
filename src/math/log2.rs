@@ -27,14 +27,6 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::math::common::*;
-#[cfg(not(any(
-    all(
-        any(target_arch = "x86", target_arch = "x86_64"),
-        target_feature = "fma"
-    ),
-    all(target_arch = "aarch64", target_feature = "neon")
-)))]
-use crate::math::estrin::*;
 
 /// Natural logarithm using FMA
 #[inline]
@@ -70,6 +62,7 @@ pub fn f_log2(d: f64) -> f64 {
         all(target_arch = "aarch64", target_feature = "neon")
     )))]
     {
+        use crate::math::estrin::*;
         let rx2 = x2 * x2;
         let rx4 = rx2 * rx2;
         let u = poly7!(

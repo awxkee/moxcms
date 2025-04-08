@@ -27,14 +27,6 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::math::common::*;
-#[cfg(not(any(
-    all(
-        any(target_arch = "x86", target_arch = "x86_64"),
-        target_feature = "fma"
-    ),
-    all(target_arch = "aarch64", target_feature = "neon")
-)))]
-use crate::math::estrin::*;
 
 const L2U_F: f32 = 0.693_145_751_953_125;
 const L2L_F: f32 = 1.428_606_765_330_187_045_e-6;
@@ -102,6 +94,7 @@ pub fn f_expf(d: f32) -> f32 {
         all(target_arch = "aarch64", target_feature = "neon")
     )))]
     {
+        use crate::math::estrin::*;
         let x2 = f * f;
         u = poly3!(f, x2, EXP_POLY_3_S, EXP_POLY_2_S, EXP_POLY_1_S)
     }

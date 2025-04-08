@@ -26,24 +26,25 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+use crate::Float48;
 use crate::math::common::*;
-#[cfg(not(any(
-    all(
-        any(target_arch = "x86", target_arch = "x86_64"),
-        target_feature = "fma"
-    ),
-    all(target_arch = "aarch64", target_feature = "neon")
-)))]
-use crate::math::estrin::*;
 
 /// Natural logarithm using FMA
 #[inline]
 pub fn f_log2f(d: f32) -> f32 {
-    f_log2fx(d) as f32
+    #[cfg(native_64_word)]
+    {
+        f_log2fx(d) as f32
+    }
+    #[cfg(not(native_64_word))]
+    {
+        f_log2f48(d).to_f32()
+    }
 }
 
 /// Natural logarithm using FMA
 #[inline(always)]
+#[allow(dead_code)]
 pub(crate) fn f_log2fx(d: f32) -> f64 {
     let n = ilogb2kf(d * (1. / 0.75));
     let a = ldexp3kf(d, -n);
@@ -73,6 +74,7 @@ pub(crate) fn f_log2fx(d: f32) -> f64 {
         all(target_arch = "aarch64", target_feature = "neon")
     )))]
     {
+        use crate::math::estrin::*;
         let rx2 = x2 * x2;
         let u = poly4!(
             x2,
@@ -84,6 +86,31 @@ pub(crate) fn f_log2fx(d: f32) -> f64 {
         );
         f_fmla(x2 * x, u, f_fmla(x, 0.2885390081777926802e+1, n as f64))
     }
+}
+
+/// Natural logarithm using FMA
+#[inline(always)]
+#[allow(dead_code)]
+pub(crate) fn f_log2f48(d: f32) -> Float48 {
+    let n = ilogb2kf(d * (1. / 0.75));
+    let a = ldexp3kf(d, -n);
+
+    let a48 = Float48::from_f32(a);
+
+    let x = (a48 - 1.) / (a48 + 1.);
+
+    let x2 = x.v0 * x.v0;
+    use crate::math::estrin::*;
+    let rx2 = x2 * x2;
+    let u = poly4!(
+        x2,
+        rx2,
+        0.3205989253935977654e+0,
+        0.4121985829040184998e+0,
+        0.5770780163563688850e+0,
+        0.9617966939259744580e+0
+    );
+    x.fast_mul_f32(x2 * u) + (x.fast_mul_f32(0.2885390081777926802e+1) + n as f32)
 }
 
 #[cfg(test)]
@@ -107,5 +134,25 @@ mod tests {
         println!("{} max away {}", max_diff, max_away);
         assert!((f_log2f(0.35f32) - 0.35f32.log2()).abs() < 1e-5);
         assert!((f_log2f(0.9f32) - 0.9f32.log2()).abs() < 1e-5);
+    }
+
+    #[test]
+    fn test_log2f48() {
+        println!("{}", f_log2f48(0.35f32).to_f32());
+        println!("{}", 0.35f32.log2());
+
+        let mut max_diff = f32::MIN;
+        let mut max_away = 0;
+        for i in 1..20000 {
+            let my_expf = f_log2f48(i as f32 / 1000.).to_f32();
+            let system = (i as f32 / 1000.).log2();
+            max_diff = max_diff.max((my_expf - system).abs());
+            max_away = (my_expf.to_bits() as i64 - system.to_bits() as i64)
+                .abs()
+                .max(max_away);
+        }
+        println!("{} max away {}", max_diff, max_away);
+        assert!((f_log2f48(0.35f32).to_f32() - 0.35f32.log2()).abs() < 1e-5);
+        assert!((f_log2f48(0.9f32).to_f32() - 0.9f32.log2()).abs() < 1e-5);
     }
 }

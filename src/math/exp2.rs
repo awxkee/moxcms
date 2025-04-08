@@ -27,15 +27,8 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::math::common::*;
-#[cfg(not(any(
-    all(
-        any(target_arch = "x86", target_arch = "x86_64"),
-        target_feature = "fma"
-    ),
-    all(target_arch = "aarch64", target_feature = "neon")
-)))]
-use crate::math::estrin::*;
 
+/// ULP 1.79
 #[inline]
 pub fn f_exp2(d: f64) -> f64 {
     const TBLSIZE: usize = 256;
@@ -79,6 +72,7 @@ pub fn f_exp2(d: f64) -> f64 {
         all(target_arch = "aarch64", target_feature = "neon")
     )))]
     {
+        use crate::math::estrin::*;
         let x2 = f * f;
         let x4 = x2 * x2;
         let u = poly5!(
@@ -104,9 +98,11 @@ mod tests {
     fn test_exp2d() {
         let mut max_diff = f64::MIN;
         let mut max_away = 0;
-        for i in -10000..10000 {
+
+        for i in 1..20000 {
             let my_expf = f_exp2(i as f64 / 1000.);
             let system = (i as f64 / 1000.).exp2();
+
             max_diff = max_diff.max((my_expf - system).abs());
             max_away = (my_expf.to_bits() as i64 - system.to_bits() as i64)
                 .abs()

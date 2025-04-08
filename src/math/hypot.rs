@@ -26,6 +26,7 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+use crate::mlaf::mlaf;
 use crate::sqrtf;
 
 #[inline]
@@ -86,7 +87,7 @@ pub fn hypotf(x: f32, y: f32) -> f32 {
     let max = x.max(y);
     let min = x.min(y);
     let r = min / max;
-    let ret = max * (1f32 + r * r).sqrt();
+    let ret = max * mlaf(1., r, r).sqrt();
 
     // if (x == f32::INFINITY) || (y == f32::INFINITY) {
     //     f32::INFINITY
@@ -97,4 +98,25 @@ pub fn hypotf(x: f32, y: f32) -> f32 {
     // } else {
     if min == 0. { max } else { ret }
     // }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_hypotf() {
+        let dx = (hypotf(1f32, 1f32) - (1f32 * 1f32 + 1f32 * 1f32).sqrt()).abs();
+        assert!(dx < 1e-5);
+        let dx = (hypotf(5f32, 5f32) - (5f32 * 5f32 + 5f32 * 5f32).sqrt()).abs();
+        assert!(dx < 1e-5);
+    }
+
+    #[test]
+    fn test_c_hypotf() {
+        let dx = (const_hypotf(1f32, 1f32) - (1f32 * 1f32 + 1f32 * 1f32).sqrt()).abs();
+        assert!(dx < 1e-5);
+        let dx = (const_hypotf(5f32, 5f32) - (5f32 * 5f32 + 5f32 * 5f32).sqrt()).abs();
+        assert!(dx < 1e-5);
+    }
 }
