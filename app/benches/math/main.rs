@@ -6,11 +6,35 @@
  */
 use criterion::{Criterion, black_box, criterion_group, criterion_main};
 use moxcms::{
-    atanf, cbrtf, cosf, exp, expf, f_atanf, f_cbrtf, f_cosf, f_exp, f_exp2, f_log, f_log2, f_logf,
-    f_pow, f_powf, f_sinf, log, logf, pow, powf, sinf,
+    atanf, cbrtf, cosf, exp, expf, f_atanf, f_cbrtf, f_cosf, f_exp, f_exp2, f_log, f_log2, f_log10,
+    f_logf, f_pow, f_powf, f_sinf, log, logf, pow, powf, sinf,
 };
 
 pub fn criterion_benchmark(c: &mut Criterion) {
+    c.bench_function("libm::log10", |b| {
+        b.iter(|| {
+            for i in 1..1000 {
+                black_box(libm::log10(i as f64));
+            }
+        })
+    });
+
+    c.bench_function("system: log10", |b| {
+        b.iter(|| {
+            for i in 1..1000 {
+                black_box(f64::log10(i as f64));
+            }
+        })
+    });
+
+    c.bench_function("moxcms: FMA log10", |b| {
+        b.iter(|| {
+            for i in 1..1000 {
+                black_box(f_log10(i as f64));
+            }
+        })
+    });
+
     c.bench_function("libm::exp2", |b| {
         b.iter(|| {
             for i in 1..10000 {

@@ -27,14 +27,6 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::math::common::*;
-#[cfg(not(any(
-    all(
-        any(target_arch = "x86", target_arch = "x86_64"),
-        target_feature = "fma"
-    ),
-    all(target_arch = "aarch64", target_feature = "neon")
-)))]
-use crate::math::estrin::*;
 
 /// Natural logarithm
 #[inline]
@@ -103,6 +95,7 @@ pub fn f_logf(d: f32) -> f32 {
         all(target_arch = "aarch64", target_feature = "neon")
     )))]
     {
+        use crate::math::estrin::*;
         let rx2 = x2 * x2;
         let rx4 = rx2 * rx2;
         let u = poly5!(
@@ -142,6 +135,20 @@ mod tests {
             (logf(5f32) - 1.60943791243410037460f32).abs() < 1e-6,
             "Invalid result {}",
             logf(5f32)
+        );
+    }
+
+    #[test]
+    fn test_flogf() {
+        assert!(
+            (f_logf(1f32) - 0f32).abs() < 1e-6,
+            "Invalid result {}",
+            f_logf(1f32)
+        );
+        assert!(
+            (f_logf(5f32) - 1.60943791243410037460f32).abs() < 1e-6,
+            "Invalid result {}",
+            f_logf(5f32)
         );
     }
 }

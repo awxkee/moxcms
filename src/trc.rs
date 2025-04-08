@@ -240,7 +240,14 @@ fn u8_fixed_8number_to_float(x: u16) -> f32 {
     // 0x0000 = 0.
     // 0x0100 = 1.
     // 0xffff = 255  + 255/256
-    (x as i32 as f64 / 256.0) as f32
+    #[cfg(native_64_word)]
+    {
+        (x as i32 as f64 / 256.0) as f32
+    }
+    #[cfg(not(native_64_word))]
+    {
+        x as i32 as f32 / 256.0
+    }
 }
 
 fn passthrough_table<T: PointeeSizeExpressible, const N: usize, const BIT_DEPTH: usize>()
@@ -257,9 +264,19 @@ fn passthrough_table<T: PointeeSizeExpressible, const N: usize, const BIT_DEPTH:
         T::NOT_FINITE_LINEAR_TABLE_SIZE
     };
     assert!(cap_values <= N, "Invalid lut table construction");
-    let scale_value = 1f64 / max_value as f64;
-    for (i, g) in gamma_table.iter_mut().enumerate().take(cap_values) {
-        *g = (i as f64 * scale_value) as f32;
+    #[cfg(native_64_word)]
+    {
+        let scale_value = 1f64 / max_value as f64;
+        for (i, g) in gamma_table.iter_mut().enumerate().take(cap_values) {
+            *g = (i as f64 * scale_value) as f32;
+        }
+    }
+    #[cfg(not(native_64_word))]
+    {
+        let scale_value = 1. / max_value as f32;
+        for (i, g) in gamma_table.iter_mut().enumerate().take(cap_values) {
+            *g = i as f32 * scale_value;
+        }
     }
     gamma_table
 }
@@ -280,9 +297,20 @@ fn linear_forward_table<T: PointeeSizeExpressible, const N: usize, const BIT_DEP
         T::NOT_FINITE_LINEAR_TABLE_SIZE
     };
     assert!(cap_values <= N, "Invalid lut table construction");
-    let scale_value = 1f64 / max_value as f64;
-    for (i, g) in gamma_table.iter_mut().enumerate().take(cap_values) {
-        *g = f_pow(i as f64 * scale_value, gamma_float as f64) as f32;
+    #[cfg(native_64_word)]
+    {
+        let scale_value = 1f64 / max_value as f64;
+        for (i, g) in gamma_table.iter_mut().enumerate().take(cap_values) {
+            *g = f_pow(i as f64 * scale_value, gamma_float as f64) as f32;
+        }
+    }
+    #[cfg(not(native_64_word))]
+    {
+        let scale_value: f32 = 1. / max_value as f32;
+        use crate::math::f_powf;
+        for (i, g) in gamma_table.iter_mut().enumerate().take(cap_values) {
+            *g = f_powf(i as f32 * scale_value, gamma_float);
+        }
     }
     gamma_table
 }
@@ -361,6 +389,7 @@ pub(crate) fn lut_interp_linear_float_clamped(x: f32, table: &[f32]) -> f32 {
     mlaf(neg_mlaf(tu, tu, diff), table[lower as usize], diff)
 }
 
+#[cfg(native_64_word)]
 #[inline]
 pub(crate) fn lut_interp_linear(input_value: f64, table: &[u16]) -> f32 {
     let mut input_value = input_value;
@@ -376,7 +405,24 @@ pub(crate) fn lut_interp_linear(input_value: f64, table: &[u16]) -> f32 {
         * (1. - (upper as f64 - input_value))
         + (table[(lower as usize).min(table.len() - 1)] as f64 * (upper as f64 - input_value)))
         as f32;
-    // scale the value
+    value * (1.0 / 65535.0)
+}
+
+#[cfg(not(native_64_word))]
+#[inline]
+pub(crate) fn lut_interp_linear(input_value: f32, table: &[u16]) -> f32 {
+    let mut input_value = input_value;
+    if table.is_empty() {
+        return input_value;
+    }
+
+    input_value *= (table.len() - 1) as f32;
+
+    let upper: i32 = input_value.ceil() as i32;
+    let lower: i32 = input_value.floor() as i32;
+    let value: f32 = ((table[(upper as usize).min(table.len() - 1)] as f32)
+        * (1. - (upper as f32 - input_value))
+        + (table[(lower as usize).min(table.len() - 1)] as f32 * (upper as f32 - input_value)));
     value * (1.0 / 65535.0)
 }
 
@@ -395,9 +441,19 @@ fn linear_lut_interpolate<T: PointeeSizeExpressible, const N: usize, const BIT_D
         T::NOT_FINITE_LINEAR_TABLE_SIZE
     };
     assert!(cap_values <= N, "Invalid lut table construction");
-    let scale_value = 1f64 / max_value as f64;
-    for (i, g) in gamma_table.iter_mut().enumerate().take(cap_values) {
-        *g = lut_interp_linear(i as f64 * scale_value, table);
+    #[cfg(native_64_word)]
+    {
+        let scale_value = 1f64 / max_value as f64;
+        for (i, g) in gamma_table.iter_mut().enumerate().take(cap_values) {
+            *g = lut_interp_linear(i as f64 * scale_value, table);
+        }
+    }
+    #[cfg(not(native_64_word))]
+    {
+        let scale_value = 1. / max_value as f32;
+        for (i, g) in gamma_table.iter_mut().enumerate().take(cap_values) {
+            *g = lut_interp_linear(i as f32 * scale_value, table);
+        }
     }
     gamma_table
 }

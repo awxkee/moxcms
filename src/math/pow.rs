@@ -33,7 +33,11 @@ use crate::{exp, f_exp2, f_log2, log};
 #[inline]
 pub const fn pow(d: f64, n: f64) -> f64 {
     let value = d.abs();
-    let c = exp(n * log(value));
+    let r = n * log(value);
+    let c = exp(r);
+    if n == 0. {
+        return 1.;
+    }
     if d < 0.0 {
         let y = n as i32;
         if y % 2 == 0 { c } else { -c }
@@ -59,29 +63,26 @@ pub fn f_pow(d: f64, n: f64) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::math::common::count_ulp_f64;
 
     #[test]
     fn powf_test() {
-        println!("{}", f_pow(3., 3.));
-        println!("{}", f_pow(27., 1. / 3.));
+        println!("{}", pow(3., 3.));
+        println!("{}", pow(27., 1. / 3.));
 
         let mut max_diff = f64::MIN;
         let mut max_away = 0;
-        let mut ulp_peak: f64 = 0.;
         for i in 0..10000i32 {
-            let my_expf = f_pow(i as f64 / 1000., i.abs() as f64 / 1000.);
+            let my_expf = pow(i as f64 / 1000., i.abs() as f64 / 1000.);
             let system = (i as f64 / 1000.).powf(i.abs() as f64 / 1000.);
             max_diff = max_diff.max((my_expf - system).abs());
             max_away = (my_expf.to_bits() as i64 - system.to_bits() as i64)
                 .abs()
                 .max(max_away);
-            ulp_peak = ulp_peak.max(count_ulp_f64(my_expf, system));
+            if max_away >= 4613937818241073152 {
+                println!("Max away: {}, i {}", max_away, i);
+            }
         }
-        println!(
-            "{} max away powf {} ULP peak {}",
-            max_diff, max_away, ulp_peak
-        );
+        println!("{} max away powf {} ULP peak", max_diff, max_away,);
 
         assert!(
             (pow(2f64, 3f64) - 8f64).abs() < 1e-9,
@@ -93,6 +94,24 @@ mod tests {
             "Invalid result {}",
             pow(0.5f64, 2f64)
         );
+    }
+
+    #[test]
+    fn f_powf_test() {
+        println!("{}", f_pow(3., 3.));
+        println!("{}", f_pow(27., 1. / 3.));
+
+        let mut max_diff = f64::MIN;
+        let mut max_away = 0;
+        for i in 0..10000i32 {
+            let my_expf = f_pow(i as f64 / 1000., i.abs() as f64 / 1000.);
+            let system = (i as f64 / 1000.).powf(i.abs() as f64 / 1000.);
+            max_diff = max_diff.max((my_expf - system).abs());
+            max_away = (my_expf.to_bits() as i64 - system.to_bits() as i64)
+                .abs()
+                .max(max_away);
+        }
+        println!("{} max away powf {} ULP peak", max_diff, max_away);
 
         assert!(
             (f_pow(2f64, 3f64) - 8f64).abs() < 1e-9,

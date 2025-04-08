@@ -27,19 +27,52 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::math::common::*;
-#[cfg(not(any(
-    all(
-        any(target_arch = "x86", target_arch = "x86_64"),
-        target_feature = "fma"
-    ),
-    all(target_arch = "aarch64", target_feature = "neon")
-)))]
-use crate::math::estrin::*;
+use crate::math::float106::Float106;
 
 /// Natural logarithm
 #[inline]
 pub const fn log(d: f64) -> f64 {
-    const LN_POLY_1_D: f64 = 2.;
+    const LN_POLY_2_D: f64 = 0.666_666_666_666_777_874_006_3;
+    const LN_POLY_3_D: f64 = 0.399_999_999_950_799_600_689_777;
+    const LN_POLY_4_D: f64 = 0.285_714_294_746_548_025_383_248;
+    const LN_POLY_5_D: f64 = 0.222_221_366_518_767_365_905_163;
+    const LN_POLY_6_D: f64 = 0.181_863_266_251_982_985_677_316;
+    const LN_POLY_7_D: f64 = 0.152_519_917_006_351_951_593_857;
+    const LN_POLY_8_D: f64 = 0.153_487_338_491_425_068_243_146;
+
+    // ln(𝑥)=ln(𝑎)+𝑛ln(2)
+    let n = ilogb2k(d * (1. / 0.75));
+    let a = ldexp3k(d, -n);
+
+    let a106 = Float106::from_f64(a);
+
+    let x = a106.c_sub_f64(1.).c_div(a106.c_add_f64(1.));
+    let x2 = x.v0 * x.v0;
+    let mut u = LN_POLY_8_D;
+    u = fmla(u, x2, LN_POLY_7_D);
+    u = fmla(u, x2, LN_POLY_6_D);
+    u = fmla(u, x2, LN_POLY_5_D);
+    u = fmla(u, x2, LN_POLY_4_D);
+    u = fmla(u, x2, LN_POLY_3_D);
+    u = fmla(u, x2, LN_POLY_2_D);
+    let u = Float106::c_from_mul_product(u, x2).c_add_f64(2.);
+
+    if d == 0f64 {
+        f64::NEG_INFINITY
+    } else if (d < 0.) || d.is_nan() {
+        f64::NAN
+    } else if d.is_infinite() {
+        f64::INFINITY
+    } else {
+        x.c_mul(u)
+            .c_add_f64(std::f64::consts::LN_2 * (n as f64))
+            .to_f64()
+    }
+}
+
+/// Natural logarithm using FMA
+#[inline]
+pub fn f_log(d: f64) -> f64 {
     const LN_POLY_2_D: f64 = 0.666_666_666_666_777_874_006_3;
     const LN_POLY_3_D: f64 = 0.399_999_999_950_799_600_689_777;
     const LN_POLY_4_D: f64 = 0.285_714_294_746_548_025_383_248;
@@ -54,46 +87,8 @@ pub const fn log(d: f64) -> f64 {
 
     let x = (a - 1.) / (a + 1.);
     let x2 = x * x;
-    let mut u = LN_POLY_8_D;
-    u = fmla(u, x2, LN_POLY_7_D);
-    u = fmla(u, x2, LN_POLY_6_D);
-    u = fmla(u, x2, LN_POLY_5_D);
-    u = fmla(u, x2, LN_POLY_4_D);
-    u = fmla(u, x2, LN_POLY_3_D);
-    u = fmla(u, x2, LN_POLY_2_D);
-    u = fmla(u, x2, LN_POLY_1_D);
+    let f = x2;
 
-    if d == 0f64 {
-        f64::NEG_INFINITY
-    } else if (d < 0.) || d.is_nan() {
-        f64::NAN
-    } else if d.is_infinite() {
-        f64::INFINITY
-    } else {
-        x * u + std::f64::consts::LN_2 * (n as f64)
-    }
-}
-
-/// Natural logarithm using FMA
-#[inline]
-pub fn f_log(d: f64) -> f64 {
-    const LN_POLY_1_D: f64 = 2.;
-    const LN_POLY_2_D: f64 = 0.666_666_666_666_777_874_006_3;
-    const LN_POLY_3_D: f64 = 0.399_999_999_950_799_600_689_777;
-    const LN_POLY_4_D: f64 = 0.285_714_294_746_548_025_383_248;
-    const LN_POLY_5_D: f64 = 0.222_221_366_518_767_365_905_163;
-    const LN_POLY_6_D: f64 = 0.181_863_266_251_982_985_677_316;
-    const LN_POLY_7_D: f64 = 0.152_519_917_006_351_951_593_857;
-    const LN_POLY_8_D: f64 = 0.153_487_338_491_425_068_243_146;
-
-    // ln(𝑥)=ln(𝑎)+𝑛ln(2)
-    let n = ilogb2k(d * (1. / 0.75));
-    let a = ldexp3k(d, -n);
-
-    let x = (a - 1.) / (a + 1.);
-    let f = x * x;
-    #[allow(unused_mut)]
-    let mut u;
     #[cfg(any(
         all(
             any(target_arch = "x86", target_arch = "x86_64"),
@@ -102,14 +97,23 @@ pub fn f_log(d: f64) -> f64 {
         all(target_arch = "aarch64", target_feature = "neon")
     ))]
     {
-        u = LN_POLY_8_D;
+        let mut u = LN_POLY_8_D;
         u = f_fmla(u, f, LN_POLY_7_D);
         u = f_fmla(u, f, LN_POLY_6_D);
         u = f_fmla(u, f, LN_POLY_5_D);
         u = f_fmla(u, f, LN_POLY_4_D);
         u = f_fmla(u, f, LN_POLY_3_D);
         u = f_fmla(u, f, LN_POLY_2_D);
-        u = f_fmla(u, f, LN_POLY_1_D);
+        u = f_fmla(u, f, 2.);
+        if d == 0f64 {
+            f64::NEG_INFINITY
+        } else if (d < 0.) || d.is_nan() {
+            f64::NAN
+        } else if d.is_infinite() {
+            f64::INFINITY
+        } else {
+            f_fmla(x, u, std::f64::consts::LN_2 * (n as f64))
+        }
     }
     #[cfg(not(any(
         all(
@@ -119,9 +123,10 @@ pub fn f_log(d: f64) -> f64 {
         all(target_arch = "aarch64", target_feature = "neon")
     )))]
     {
+        use crate::math::estrin::*;
         let x2 = f * f;
         let x4 = x2 * x2;
-        u = poly8!(
+        let u = poly8!(
             f,
             x2,
             x4,
@@ -132,17 +137,17 @@ pub fn f_log(d: f64) -> f64 {
             LN_POLY_4_D,
             LN_POLY_3_D,
             LN_POLY_2_D,
-            LN_POLY_1_D
+            2.
         );
-    }
-    if d == 0f64 {
-        f64::NEG_INFINITY
-    } else if (d < 0.) || d.is_nan() {
-        f64::NAN
-    } else if d.is_infinite() {
-        f64::INFINITY
-    } else {
-        f_fmla(x, u, std::f64::consts::LN_2 * (n as f64))
+        if d == 0f64 {
+            f64::NEG_INFINITY
+        } else if (d < 0.) || d.is_nan() {
+            f64::NAN
+        } else if d.is_infinite() {
+            f64::INFINITY
+        } else {
+            f_fmla(x, u, std::f64::consts::LN_2 * (n as f64))
+        }
     }
 }
 
@@ -151,7 +156,20 @@ mod tests {
     use super::*;
 
     #[test]
-    fn logf_test() {
+    fn log_test() {
+        println!("{}", log(2.));
+        let mut max_diff = f64::MIN;
+        let mut max_away = 0;
+        for i in 1..20000 {
+            let my_expf = log(i as f64 / 1000.);
+            let system = (i as f64 / 1000.).ln();
+            max_diff = max_diff.max((my_expf - system).abs());
+            max_away = (my_expf.to_bits() as i64 - system.to_bits() as i64)
+                .abs()
+                .max(max_away);
+        }
+        println!("{} max away {}", max_diff, max_away);
+
         assert!(
             (log(1f64) - 0f64).abs() < 1e-8,
             "Invalid result {}",
@@ -162,6 +180,22 @@ mod tests {
             "Invalid result {}",
             log(5f64)
         );
+    }
+
+    #[test]
+    fn f_log_test() {
+        println!("{}", f_log(2.));
+        let mut max_diff = f64::MIN;
+        let mut max_away = 0;
+        for i in 1..20000 {
+            let my_expf = f_log(i as f64 / 1000.);
+            let system = (i as f64 / 1000.).ln();
+            max_diff = max_diff.max((my_expf - system).abs());
+            max_away = (my_expf.to_bits() as i64 - system.to_bits() as i64)
+                .abs()
+                .max(max_away);
+        }
+        println!("{} max away {}, ULP", max_diff, max_away);
 
         assert!(
             (f_log(1f64) - 0f64).abs() < 1e-8,
