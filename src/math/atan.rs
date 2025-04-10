@@ -209,4 +209,23 @@ mod tests {
             atanf(5f32)
         );
     }
+
+    #[test]
+    fn f_atan_test() {
+        assert!(
+            (f_atanf(1.0) - std::f32::consts::PI / 4f32).abs() < 1e-6,
+            "Invalid result {}",
+            f_atanf(1f32)
+        );
+        assert!(
+            (f_atanf(2f32) - 1.107148717794090503017065f32).abs() < 1e-6,
+            "Invalid result {}",
+            f_atanf(2f32)
+        );
+        assert!(
+            (f_atanf(5f32) - 1.3734007669450158608612719264f32).abs() < 1e-6,
+            "Invalid result {}",
+            f_atanf(5f32)
+        );
+    }
 }

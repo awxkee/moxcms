@@ -31,11 +31,17 @@ use crate::math::common::*;
 /// Natural logarithm using FMA
 #[inline]
 pub fn f_log2(d: f64) -> f64 {
-    let n = ilogb2k(d * (1. / 0.75));
-    let a = ldexp3k(d, -n);
-
+    // reduce into [sqrt(2)/2;sqrt(2)]
+    let mut ui: u64 = d.to_bits();
+    let mut hx = (ui >> 32) as u32;
+    hx = hx.wrapping_add(0x3ff00000 - 0x3fe6a09e);
+    let n = (hx >> 20) as i32 - 0x3ff;
+    hx = (hx & 0x000fffff).wrapping_add(0x3fe6a09e);
+    ui = (hx as u64) << 32 | (ui & 0xffffffff);
+    let a = f64::from_bits(ui);
+    
     let x = (a - 1.) / (a + 1.);
-
+    
     let x2 = x * x;
     #[cfg(any(
         all(
@@ -45,14 +51,14 @@ pub fn f_log2(d: f64) -> f64 {
         all(target_arch = "aarch64", target_feature = "neon")
     ))]
     {
-        let mut u = 0.2210319873572944675e+0;
-        u = f_fmla(u, x2, 0.2201017466118781220e+0);
-        u = f_fmla(u, x2, 0.2623693760780589253e+0);
-        u = f_fmla(u, x2, 0.3205977867563723840e+0);
-        u = f_fmla(u, x2, 0.4121985940253306314e+0);
-        u = f_fmla(u, x2, 0.5770780163029655546e+0);
-        u = f_fmla(u, x2, 0.9617966939260729972e+0);
-        f_fmla(x2 * x, u, f_fmla(x, 0.2885390081777926774e+1, n as f64))
+        let mut u = 0.2122298095941129899e+0;
+        u = f_fmla(u, x2, 0.2210493187503736762e+0);
+        u = f_fmla(u, x2, 0.2623293115969893702e+0);
+        u = f_fmla(u, x2, 0.3205986261348816382e+0);
+        u = f_fmla(u, x2, 0.4121985850084821691e+0);
+        u = f_fmla(u, x2, 0.5770780163490337802e+0);
+        u = f_fmla(u, x2, 0.9617966939259845749e+0);
+        f_fmla(x2 * x, u, f_fmla(x, 0.2885390081777926802e+1, n as f64))
     }
     #[cfg(not(any(
         all(
@@ -69,15 +75,15 @@ pub fn f_log2(d: f64) -> f64 {
             x2,
             rx2,
             rx4,
-            0.2210319873572944675e+0,
-            0.2201017466118781220e+0,
-            0.2623693760780589253e+0,
-            0.3205977867563723840e+0,
-            0.4121985940253306314e+0,
-            0.5770780163029655546e+0,
-            0.9617966939260729972e+0
+            0.2122298095941129899e+0,
+            0.2210493187503736762e+0,
+            0.2623293115969893702e+0,
+            0.3205986261348816382e+0,
+            0.4121985850084821691e+0,
+            0.5770780163490337802e+0,
+            0.9617966939259845749e+0
         );
-        f_fmla(x2 * x, u, f_fmla(x, 0.2885390081777926774e+1, n as f64))
+        f_fmla(x2 * x, u, f_fmla(x, 0.2885390081777926802e+1, n as f64))
     }
 }
 
@@ -87,9 +93,11 @@ mod tests {
 
     #[test]
     fn test_log2d() {
+        println!("{}", f_log2(34.5));
+        println!("{}", 34.5f64.log2());
         let mut max_diff = f64::MIN;
         let mut max_away = 0;
-        for i in 1..20000 {
+        for i in 1..50000 {
             let my_expf = f_log2(i as f64 / 1000.);
             let system = (i as f64 / 1000.).log2();
             max_diff = max_diff.max((my_expf - system).abs());

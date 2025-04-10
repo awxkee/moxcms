@@ -54,7 +54,9 @@ pub struct LCh {
 }
 
 use crate::math::cbrtf;
-use crate::{Chromaticity, Lab, Xyz, atan2f, const_hypotf, f_atan2f, f_cosf, f_sinf, hypotf, powf};
+use crate::{
+    Chromaticity, Lab, Xyz, atan2f, const_hypotf, f_atan2f, f_cbrtf, f_cosf, f_sinf, hypotf, powf,
+};
 use num_traits::Pow;
 use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 
@@ -74,14 +76,14 @@ impl Luv {
     /// Converts CIE XYZ to CIE Luv using D50 white point
     #[inline]
     #[allow(clippy::manual_clamp)]
-    pub const fn from_xyz(xyz: Xyz) -> Self {
+    pub fn from_xyz(xyz: Xyz) -> Self {
         let [x, y, z] = [xyz.x, xyz.y, xyz.z];
         let den = x + 15.0 * y + 3.0 * z;
 
         let l = (if y < LUV_CUTOFF_FORWARD_Y {
             LUV_MULTIPLIER_FORWARD_Y * y
         } else {
-            116f32 * cbrtf(y) - 16f32
+            116f32 * f_cbrtf(y) - 16f32
         })
         .min(100f32)
         .max(0f32);

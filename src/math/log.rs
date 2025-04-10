@@ -32,17 +32,22 @@ use crate::math::float106::Float106;
 /// Natural logarithm
 #[inline]
 pub const fn log(d: f64) -> f64 {
-    const LN_POLY_2_D: f64 = 0.666_666_666_666_777_874_006_3;
-    const LN_POLY_3_D: f64 = 0.399_999_999_950_799_600_689_777;
-    const LN_POLY_4_D: f64 = 0.285_714_294_746_548_025_383_248;
-    const LN_POLY_5_D: f64 = 0.222_221_366_518_767_365_905_163;
-    const LN_POLY_6_D: f64 = 0.181_863_266_251_982_985_677_316;
-    const LN_POLY_7_D: f64 = 0.152_519_917_006_351_951_593_857;
-    const LN_POLY_8_D: f64 = 0.153_487_338_491_425_068_243_146;
+    const LN_POLY_2_D: f64 = 0.6666666666666762678e+0;
+    const LN_POLY_3_D: f64 = 0.3999999999936908641e+0;
+    const LN_POLY_4_D: f64 = 0.2857142874046159249e+0;
+    const LN_POLY_5_D: f64 = 0.2222219947428228041e+0;
+    const LN_POLY_6_D: f64 = 0.1818349302807168999e+0;
+    const LN_POLY_7_D: f64 = 0.1531633000781658996e+0;
+    const LN_POLY_8_D: f64 = 0.1476969208015536904e+0;
 
-    // ln(𝑥)=ln(𝑎)+𝑛ln(2)
-    let n = ilogb2k(d * (1. / 0.75));
-    let a = ldexp3k(d, -n);
+    // reduce into [sqrt(2)/2;sqrt(2)]
+    let mut ui: u64 = d.to_bits();
+    let mut hx = (ui >> 32) as u32;
+    hx = hx.wrapping_add(0x3ff00000 - 0x3fe6a09e);
+    let n = (hx >> 20) as i32 - 0x3ff;
+    hx = (hx & 0x000fffff).wrapping_add(0x3fe6a09e);
+    ui = (hx as u64) << 32 | (ui & 0xffffffff);
+    let a = f64::from_bits(ui);
 
     let a106 = Float106::from_f64(a);
 
@@ -73,20 +78,27 @@ pub const fn log(d: f64) -> f64 {
 /// Natural logarithm using FMA
 #[inline]
 pub fn f_log(d: f64) -> f64 {
-    const LN_POLY_2_D: f64 = 0.666_666_666_666_777_874_006_3;
-    const LN_POLY_3_D: f64 = 0.399_999_999_950_799_600_689_777;
-    const LN_POLY_4_D: f64 = 0.285_714_294_746_548_025_383_248;
-    const LN_POLY_5_D: f64 = 0.222_221_366_518_767_365_905_163;
-    const LN_POLY_6_D: f64 = 0.181_863_266_251_982_985_677_316;
-    const LN_POLY_7_D: f64 = 0.152_519_917_006_351_951_593_857;
-    const LN_POLY_8_D: f64 = 0.153_487_338_491_425_068_243_146;
+    const LN_POLY_2_D: f64 = 0.6666666666666762678e+0;
+    const LN_POLY_3_D: f64 = 0.3999999999936908641e+0;
+    const LN_POLY_4_D: f64 = 0.2857142874046159249e+0;
+    const LN_POLY_5_D: f64 = 0.2222219947428228041e+0;
+    const LN_POLY_6_D: f64 = 0.1818349302807168999e+0;
+    const LN_POLY_7_D: f64 = 0.1531633000781658996e+0;
+    const LN_POLY_8_D: f64 = 0.1476969208015536904e+0;
 
-    // ln(𝑥)=ln(𝑎)+𝑛ln(2)
-    let n = ilogb2k(d * (1. / 0.75));
-    let a = ldexp3k(d, -n);
+    // reduce into [sqrt(2)/2;sqrt(2)]
+    let mut ui: u64 = d.to_bits();
+    let mut hx = (ui >> 32) as u32;
+    hx = hx.wrapping_add(0x3ff00000 - 0x3fe6a09e);
+    let n = (hx >> 20) as i32 - 0x3ff;
+    hx = (hx & 0x000fffff).wrapping_add(0x3fe6a09e);
+    ui = (hx as u64) << 32 | (ui & 0xffffffff);
+    let a = f64::from_bits(ui);
 
-    let x = (a - 1.) / (a + 1.);
-    let x2 = x * x;
+    let a106 = Float106::from_f64(a);
+
+    let x = (a106 - 1.) / (a106 + 1.);
+    let x2 = x.v0 * x.v0;
     let f = x2;
 
     #[cfg(any(
@@ -112,7 +124,7 @@ pub fn f_log(d: f64) -> f64 {
         } else if d.is_infinite() {
             f64::INFINITY
         } else {
-            f_fmla(x, u, std::f64::consts::LN_2 * (n as f64))
+            f_fmla(x.v0, u, std::f64::consts::LN_2 * (n as f64))
         }
     }
     #[cfg(not(any(
@@ -146,7 +158,7 @@ pub fn f_log(d: f64) -> f64 {
         } else if d.is_infinite() {
             f64::INFINITY
         } else {
-            f_fmla(x, u, std::f64::consts::LN_2 * (n as f64))
+            f_fmla(x.v0, u, std::f64::consts::LN_2 * (n as f64))
         }
     }
 }
@@ -158,18 +170,6 @@ mod tests {
     #[test]
     fn log_test() {
         println!("{}", log(2.));
-        let mut max_diff = f64::MIN;
-        let mut max_away = 0;
-        for i in 1..20000 {
-            let my_expf = log(i as f64 / 1000.);
-            let system = (i as f64 / 1000.).ln();
-            max_diff = max_diff.max((my_expf - system).abs());
-            max_away = (my_expf.to_bits() as i64 - system.to_bits() as i64)
-                .abs()
-                .max(max_away);
-        }
-        println!("{} max away {}", max_diff, max_away);
-
         assert!(
             (log(1f64) - 0f64).abs() < 1e-8,
             "Invalid result {}",
@@ -185,18 +185,6 @@ mod tests {
     #[test]
     fn f_log_test() {
         println!("{}", f_log(2.));
-        let mut max_diff = f64::MIN;
-        let mut max_away = 0;
-        for i in 1..20000 {
-            let my_expf = f_log(i as f64 / 1000.);
-            let system = (i as f64 / 1000.).ln();
-            max_diff = max_diff.max((my_expf - system).abs());
-            max_away = (my_expf.to_bits() as i64 - system.to_bits() as i64)
-                .abs()
-                .max(max_away);
-        }
-        println!("{} max away {}, ULP", max_diff, max_away);
-
         assert!(
             (f_log(1f64) - 0f64).abs() < 1e-8,
             "Invalid result {}",

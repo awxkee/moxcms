@@ -31,22 +31,21 @@ use crate::math::common::*;
 /// Natural logarithm
 #[inline]
 pub const fn logf(d: f32) -> f32 {
-    const LN_POLY_1_F: f32 = 2f32;
-    const LN_POLY_2_F: f32 = 0.6666677f32;
-    const LN_POLY_3_F: f32 = 0.40017125f32;
-    const LN_POLY_4_F: f32 = 0.28523374f32;
-    const LN_POLY_5_F: f32 = 0.23616748f32;
-    // ln(𝑥)=ln(𝑎)+𝑛ln(2)
-    let n = ilogb2kf(d * (1. / 0.75));
-    let a = ldexp3kf(d, -n);
+    let mut ix = d.to_bits();
+    /* reduce x into [sqrt(2)/2, sqrt(2)] */
+    ix += 0x3f800000 - 0x3f3504f3;
+    let n = (ix >> 23) as i32 - 0x7f;
+    ix = (ix & 0x007fffff) + 0x3f3504f3;
+    let a = f32::from_bits(ix) as f64;
 
     let x = (a - 1.) / (a + 1.);
     let x2 = x * x;
-    let mut u = LN_POLY_5_F;
-    u = fmlaf(u, x2, LN_POLY_4_F);
-    u = fmlaf(u, x2, LN_POLY_3_F);
-    u = fmlaf(u, x2, LN_POLY_2_F);
-    u = fmlaf(u, x2, LN_POLY_1_F);
+    let mut u = 0.2222220222147750310e+0;
+    u = fmla(u, x2, 0.2857142871244668543e+0);
+    u = fmla(u, x2, 0.3999999999950960318e+0);
+    u = fmla(u, x2, 0.6666666666666734090e+0);
+    u = fmla(u, x2, 2.);
+    fmla(x, u, std::f64::consts::LN_2 * (n as f64)) as f32
     // if d == 0f32 {
     //     f32::NEG_INFINITY
     // } else if (d < 0.) || d.is_nan() {
@@ -54,70 +53,137 @@ pub const fn logf(d: f32) -> f32 {
     // } else if d.is_infinite() {
     //     f32::INFINITY
     // } else {
-    x * u + std::f32::consts::LN_2 * (n as f32)
     // }
 }
 
 /// Natural logarithm using FMA
 #[inline]
 pub fn f_logf(d: f32) -> f32 {
-    const LN_POLY_1_F: f32 = 2f32;
-    const LN_POLY_2_F: f32 = 0.6666677f32;
-    const LN_POLY_3_F: f32 = 0.40017125f32;
-    const LN_POLY_4_F: f32 = 0.28523374f32;
-    const LN_POLY_5_F: f32 = 0.23616748f32;
-    // ln(𝑥)=ln(𝑎)+𝑛ln(2)
-    let n = ilogb2kf(d * (1. / 0.75));
-    let a = ldexp3kf(d, -n);
+    #[cfg(native_64_word)]
+    {
+        let mut ix = d.to_bits();
+        /* reduce x into [sqrt(2)/2, sqrt(2)] */
+        ix = ix.wrapping_add(0x3f800000 - 0x3f3504f3);
+        let n = (ix >> 23) as i32 - 0x7f;
+        ix = (ix & 0x007fffff).wrapping_add(0x3f3504f3);
+        let a = f32::from_bits(ix) as f64;
 
-    let x = (a - 1.) / (a + 1.);
-    let x2 = x * x;
-    #[cfg(any(
-        all(
-            any(target_arch = "x86", target_arch = "x86_64"),
-            target_feature = "fma"
-        ),
-        all(target_arch = "aarch64", target_feature = "neon")
-    ))]
-    {
-        let mut u = LN_POLY_5_F;
-        u = f_fmlaf(u, x2, LN_POLY_4_F);
-        u = f_fmlaf(u, x2, LN_POLY_3_F);
-        u = f_fmlaf(u, x2, LN_POLY_2_F);
-        u = f_fmlaf(u, x2, LN_POLY_1_F);
-        f_fmlaf(x, u, std::f32::consts::LN_2 * (n as f32))
+        let x = (a - 1.) / (a + 1.);
+        let x2 = x * x;
+        #[cfg(any(
+            all(
+                any(target_arch = "x86", target_arch = "x86_64"),
+                target_feature = "fma"
+            ),
+            all(target_arch = "aarch64", target_feature = "neon")
+        ))]
+        {
+            let mut u = 0.2222220222147750310e+0;
+            u = f_fmla(u, x2, 0.2857142871244668543e+0);
+            u = f_fmla(u, x2, 0.3999999999950960318e+0);
+            u = f_fmla(u, x2, 0.6666666666666734090e+0);
+            u = f_fmla(u, x2, 2.);
+            f_fmla(x, u, std::f64::consts::LN_2 * (n as f64)) as f32
+        }
+        #[cfg(not(any(
+            all(
+                any(target_arch = "x86", target_arch = "x86_64"),
+                target_feature = "fma"
+            ),
+            all(target_arch = "aarch64", target_feature = "neon")
+        )))]
+        {
+            use crate::math::estrin::*;
+            let rx2 = x2 * x2;
+            let rx4 = rx2 * rx2;
+            let u = poly5!(
+                x2,
+                rx2,
+                rx4,
+                0.2222220222147750310e+0,
+                0.2857142871244668543e+0,
+                0.3999999999950960318e+0,
+                0.6666666666666734090e+0,
+                2.
+            );
+            f_fmla(x, u, std::f64::consts::LN_2 * (n as f64)) as f32
+        }
+        // if d == 0f32 {
+        //     f32::NEG_INFINITY
+        // } else if (d < 0.) || d.is_nan() {
+        //     f32::NAN
+        // } else if d.is_infinite() {
+        //     f32::INFINITY
+        // } else {
+        // }
     }
-    #[cfg(not(any(
-        all(
-            any(target_arch = "x86", target_arch = "x86_64"),
-            target_feature = "fma"
-        ),
-        all(target_arch = "aarch64", target_feature = "neon")
-    )))]
+    #[cfg(not(native_64_word))]
     {
-        use crate::math::estrin::*;
-        let rx2 = x2 * x2;
-        let rx4 = rx2 * rx2;
-        let u = poly5!(
-            x2,
-            rx2,
-            rx4,
-            LN_POLY_5_F,
-            LN_POLY_4_F,
-            LN_POLY_3_F,
-            LN_POLY_2_F,
-            LN_POLY_1_F
-        );
-        f_fmlaf(x, u, std::f32::consts::LN_2 * (n as f32))
+        const LN_POLY_1_F: f32 = 2f32;
+        const LN_POLY_2_F: f32 = 0.6666677f32;
+        const LN_POLY_3_F: f32 = 0.40017125f32;
+        const LN_POLY_4_F: f32 = 0.28523374f32;
+        const LN_POLY_5_F: f32 = 0.23616748f32;
+        let mut ix = d.to_bits();
+        /* reduce x into [sqrt(2)/2, sqrt(2)] */
+        ix = ix.wrapping_add(0x3f800000 - 0x3f3504f3);
+        let n = (ix >> 23) as i32 - 0x7f;
+        ix = (ix & 0x007fffff).wrapping_add(0x3f3504f3);
+        let a = f32::from_bits(ix);
+
+        use crate::Float48;
+
+        let a48 = Float48::from_f32(a);
+
+        let x = (a48 - 1.) / (a48 + 1.);
+        let x2 = x.v0 * x.v0;
+        #[cfg(any(
+            all(
+                any(target_arch = "x86", target_arch = "x86_64"),
+                target_feature = "fma"
+            ),
+            all(target_arch = "aarch64", target_feature = "neon")
+        ))]
+        {
+            let mut u = LN_POLY_5_F;
+            u = f_fmlaf(u, x2, LN_POLY_4_F);
+            u = f_fmlaf(u, x2, LN_POLY_3_F);
+            u = f_fmlaf(u, x2, LN_POLY_2_F);
+            u = f_fmlaf(u, x2, LN_POLY_1_F);
+            (x.fast_mul_f32(u) + std::f32::consts::LN_2 * (n as f32)).to_f32()
+        }
+        #[cfg(not(any(
+            all(
+                any(target_arch = "x86", target_arch = "x86_64"),
+                target_feature = "fma"
+            ),
+            all(target_arch = "aarch64", target_feature = "neon")
+        )))]
+        {
+            use crate::math::estrin::*;
+            let rx2 = x2 * x2;
+            let rx4 = rx2 * rx2;
+            let u = poly5!(
+                x2,
+                rx2,
+                rx4,
+                LN_POLY_5_F,
+                LN_POLY_4_F,
+                LN_POLY_3_F,
+                LN_POLY_2_F,
+                LN_POLY_1_F
+            );
+            (x.fast_mul_f32(u) + std::f32::consts::LN_2 * (n as f32)).to_f32()
+        }
+        // if d == 0f32 {
+        //     f32::NEG_INFINITY
+        // } else if (d < 0.) || d.is_nan() {
+        //     f32::NAN
+        // } else if d.is_infinite() {
+        //     f32::INFINITY
+        // } else {
+        // }
     }
-    // if d == 0f32 {
-    //     f32::NEG_INFINITY
-    // } else if (d < 0.) || d.is_nan() {
-    //     f32::NAN
-    // } else if d.is_infinite() {
-    //     f32::INFINITY
-    // } else {
-    // }
 }
 
 #[cfg(test)]

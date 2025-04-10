@@ -136,6 +136,7 @@ pub(crate) fn exp2f48(d: Float48) -> f32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
     #[test]
     fn test_exp2f() {
         println!("{}", f_exp2f(5.4));
@@ -145,6 +146,7 @@ mod tests {
         for i in -10000..10000 {
             let my_expf = f_exp2f(i as f32 / 1000.);
             let system = (i as f32 / 1000.).exp2();
+
             max_diff = max_diff.max((my_expf - system).abs());
             max_away = (my_expf.to_bits() as i64 - system.to_bits() as i64)
                 .abs()

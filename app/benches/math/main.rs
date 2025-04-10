@@ -5,10 +5,7 @@
  * // license that can be found in the LICENSE file.
  */
 use criterion::{Criterion, black_box, criterion_group, criterion_main};
-use moxcms::{
-    atanf, cbrtf, cosf, exp, expf, f_atanf, f_cbrtf, f_cosf, f_exp, f_exp2, f_log, f_log2, f_log10,
-    f_logf, f_pow, f_powf, f_sinf, log, logf, pow, powf, sinf,
-};
+use moxcms::{atanf, cbrtf, cosf, exp, expf, f_atanf, f_cbrtf, f_cosf, f_exp, f_exp2, f_log, f_log2, f_log10, f_logf, f_pow, f_powf, f_sinf, log, logf, pow, powf, sinf, f_exp2f, f_log2f};
 
 pub fn criterion_benchmark(c: &mut Criterion) {
     c.bench_function("libm::log10", |b| {
@@ -31,6 +28,30 @@ pub fn criterion_benchmark(c: &mut Criterion) {
         b.iter(|| {
             for i in 1..1000 {
                 black_box(f_log10(i as f64));
+            }
+        })
+    });
+
+    c.bench_function("libm::exp2f", |b| {
+        b.iter(|| {
+            for i in 1..10000 {
+                black_box(libm::exp2f(i as f32 / 10000.0 - 1.));
+            }
+        })
+    });
+    
+    c.bench_function("system::exp2f", |b| {
+        b.iter(|| {
+            for i in 1..10000 {
+                black_box(f32::exp2(i as f32 / 10000.0 - 1.));
+            }
+        })
+    });
+
+    c.bench_function("moxcms::exp2f", |b| {
+        b.iter(|| {
+            for i in 1..10000 {
+                black_box(f_exp2f(i as f32 / 10000.0 - 1.));
             }
         })
     });
@@ -186,6 +207,31 @@ pub fn criterion_benchmark(c: &mut Criterion) {
             }
         })
     });
+    
+    c.bench_function("libm::log2f", |b| {
+        b.iter(|| {
+            for i in 1..1000 {
+                black_box(libm::log2f(i as f32));
+            }
+        })
+    });
+
+    c.bench_function("system::log2f", |b| {
+        b.iter(|| {
+            for i in 1..1000 {
+                black_box(f32::log2(i as f32));
+            }
+        })
+    });
+
+    c.bench_function("moxcms: FMA log2f", |b| {
+        b.iter(|| {
+            for i in 1..1000 {
+                black_box(f_log2f(i as f32));
+            }
+        })
+    });
+
 
     c.bench_function("libm::log2", |b| {
         b.iter(|| {

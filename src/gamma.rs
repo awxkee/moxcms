@@ -27,7 +27,9 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::transform::PointeeSizeExpressible;
-use crate::{Rgb, TransferCharacteristics, f_exp, f_expf, f_log, f_log10, f_logf, f_pow, f_powf};
+use crate::{
+    Rgb, TransferCharacteristics, f_exp, f_expf, f_log, f_log10, f_logf, f_pow, f_powf, log10f,
+};
 use num_traits::AsPrimitive;
 
 #[inline]
@@ -219,6 +221,16 @@ fn log100_from_linear(linear: f64) -> f64 {
 }
 
 #[inline]
+/// Gamma transfer function for Log100
+fn log100_from_linearf(linear: f32) -> f32 {
+    if linear <= 0.01 {
+        0.
+    } else {
+        1. + log10f(linear.min(1.)) / 2.0
+    }
+}
+
+#[inline]
 /// Linear transfer function for Log100
 pub(crate) fn log100_to_linear(gamma: f64) -> f64 {
     // The function is non-bijective so choose the middle of [0, 0.00316227766f].
@@ -227,6 +239,18 @@ pub(crate) fn log100_to_linear(gamma: f64) -> f64 {
         MID_INTERVAL
     } else {
         f_pow(10f64, 2. * (gamma.min(1.) - 1.))
+    }
+}
+
+#[inline]
+/// Linear transfer function for Log100
+pub(crate) fn log100_to_linearf(gamma: f32) -> f32 {
+    // The function is non-bijective so choose the middle of [0, 0.00316227766f].
+    const MID_INTERVAL: f32 = 0.01 / 2.;
+    if gamma <= 0. {
+        MID_INTERVAL
+    } else {
+        f_powf(10., 2. * (gamma.min(1.) - 1.))
     }
 }
 
@@ -243,12 +267,34 @@ pub(crate) fn log100_sqrt10_to_linear(gamma: f64) -> f64 {
 }
 
 #[inline]
+/// Linear transfer function for Log100Sqrt10
+pub(crate) fn log100_sqrt10_to_linearf(gamma: f32) -> f32 {
+    // The function is non-bijective so choose the middle of [0, 0.00316227766f].
+    const MID_INTERVAL: f32 = 0.00316227766 / 2.;
+    if gamma <= 0. {
+        MID_INTERVAL
+    } else {
+        f_powf(10., 2.5 * (gamma.min(1.) - 1.))
+    }
+}
+
+#[inline]
 /// Gamma transfer function for Log100Sqrt10
 fn log100_sqrt10_from_linear(linear: f64) -> f64 {
     if linear <= 0.00316227766 {
         0.0
     } else {
         1.0 + f_log10(linear.min(1.)) / 2.5
+    }
+}
+
+#[inline]
+/// Gamma transfer function for Log100Sqrt10
+fn log100_sqrt10_from_linearf(linear: f32) -> f32 {
+    if linear <= 0.00316227766 {
+        0.0
+    } else {
+        1.0 + log10f(linear.min(1.)) / 2.5
     }
 }
 
@@ -591,16 +637,16 @@ impl TransferCharacteristics {
             TransferCharacteristics::Linear => |x| Rgb::new(x.r, x.g, x.b),
             TransferCharacteristics::Log100 => |x| {
                 Rgb::new(
-                    log100_from_linear(x.r as f64) as f32,
-                    log100_from_linear(x.g as f64) as f32,
-                    log100_from_linear(x.b as f64) as f32,
+                    log100_from_linearf(x.r),
+                    log100_from_linearf(x.g),
+                    log100_from_linearf(x.b),
                 )
             },
             TransferCharacteristics::Log100sqrt10 => |x| {
                 Rgb::new(
-                    log100_sqrt10_from_linear(x.r as f64) as f32,
-                    log100_sqrt10_from_linear(x.g as f64) as f32,
-                    log100_sqrt10_from_linear(x.b as f64) as f32,
+                    log100_sqrt10_from_linearf(x.r),
+                    log100_sqrt10_from_linearf(x.g),
+                    log100_sqrt10_from_linearf(x.b),
                 )
             },
             TransferCharacteristics::Iec61966 => |x| {
@@ -686,16 +732,16 @@ impl TransferCharacteristics {
             TransferCharacteristics::Linear => |x| Rgb::new(x.r, x.g, x.b),
             TransferCharacteristics::Log100 => |x| {
                 Rgb::new(
-                    log100_to_linear(x.r as f64) as f32,
-                    log100_to_linear(x.g as f64) as f32,
-                    log100_to_linear(x.b as f64) as f32,
+                    log100_to_linearf(x.r),
+                    log100_to_linearf(x.g),
+                    log100_to_linearf(x.b),
                 )
             },
             TransferCharacteristics::Log100sqrt10 => |x| {
                 Rgb::new(
-                    log100_sqrt10_to_linear(x.r as f64) as f32,
-                    log100_sqrt10_to_linear(x.g as f64) as f32,
-                    log100_sqrt10_to_linear(x.b as f64) as f32,
+                    log100_sqrt10_to_linearf(x.r),
+                    log100_sqrt10_to_linearf(x.g),
+                    log100_sqrt10_to_linearf(x.b),
                 )
             },
             TransferCharacteristics::Iec61966 => |x| {

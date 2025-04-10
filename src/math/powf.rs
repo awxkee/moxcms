@@ -79,21 +79,6 @@ mod tests {
 
     #[test]
     fn powf_test() {
-        println!("{}", f_powf(3., 3.));
-        println!("{}", f_powf(27., 1. / 3.));
-
-        let mut max_diff = f32::MIN;
-        let mut max_away = 0;
-        for i in 0..10000i32 {
-            let my_expf = f_powf(i as f32 / 1000., i.abs() as f32 / 1000.);
-            let system = (i as f32 / 1000.).powf(i.abs() as f32 / 1000.);
-            max_diff = max_diff.max((my_expf - system).abs());
-            max_away = (my_expf.to_bits() as i64 - system.to_bits() as i64)
-                .abs()
-                .max(max_away);
-        }
-        println!("f32 powf: {} max away powf {} ULP peak", max_diff, max_away);
-
         assert!(
             (powf(2f32, 3f32) - 8f32).abs() < 1e-6,
             "Invalid result {}",
@@ -104,11 +89,16 @@ mod tests {
             "Invalid result {}",
             powf(0.5f32, 2f32)
         );
-
+    }
+    
+    #[test]
+    fn f_powf_test() {
+        println!("{}", f_powf(3., 3.));
+        println!("{}", f_powf(27., 1. / 3.));
         assert!(
-            (powf(2f32, 3f32) - 8f32).abs() < 1e-6,
+            (f_powf(2f32, 3f32) - 8f32).abs() < 1e-6,
             "Invalid result {}",
-            powf(2f32, 3f32)
+            f_powf(2f32, 3f32)
         );
         assert!(
             (f_powf(0.5f32, 2f32) - 0.25f32).abs() < 1e-6,

@@ -77,17 +77,17 @@ pub(crate) const fn copysign(x: f64, y: f64) -> f64 {
     f64::from_bits((x.to_bits() & !(1 << 63)) ^ (y.to_bits() & (1 << 63)))
 }
 
-#[inline]
-// Founds n in ln(𝑥)=ln(𝑎)+𝑛ln(2)
-pub(crate) const fn ilogb2kf(d: f32) -> i32 {
-    (((d.to_bits() as i32) >> 23) & 0xff) - 0x7f
-}
-
-#[inline]
-// Founds a in x=a+𝑛ln(2)
-pub(crate) const fn ldexp3kf(d: f32, n: i32) -> f32 {
-    f32::from_bits(((d.to_bits() as i32) + (n << 23)) as u32)
-}
+// #[inline]
+// // Founds n in ln(𝑥)=ln(𝑎)+𝑛ln(2)
+// pub(crate) const fn ilogb2kf(d: f32) -> i32 {
+//     (((d.to_bits() as i32) >> 23) & 0xff) - 0x7f
+// }
+// 
+// #[inline]
+// // Founds a in x=a+𝑛ln(2)
+// pub(crate) const fn ldexp3kf(d: f32, n: i32) -> f32 {
+//     f32::from_bits(((d.to_bits() as i32) + (n << 23)) as u32)
+// }
 
 #[inline]
 pub(crate) const fn pow2if(q: i32) -> f32 {
@@ -106,15 +106,15 @@ pub(crate) const fn pow2i(q: i32) -> f64 {
     f64::from_bits(((q + 0x3ff) as u64) << 52)
 }
 
-#[inline]
-pub(crate) const fn ilogb2k(d: f64) -> i32 {
-    (((d.to_bits() >> 52) & 0x7ff) as i32) - 0x3ff
-}
-
-#[inline]
-pub(crate) const fn ldexp3k(d: f64, e: i32) -> f64 {
-    f64::from_bits(((d.to_bits() as i64) + ((e as i64) << 52)) as u64)
-}
+// #[inline]
+// pub(crate) const fn ilogb2k(d: f64) -> i32 {
+//     (((d.to_bits() >> 52) & 0x7ff) as i32) - 0x3ff
+// }
+// 
+// #[inline]
+// pub(crate) const fn ldexp3k(d: f64, e: i32) -> f64 {
+//     f64::from_bits(((d.to_bits() as i64) + ((e as i64) << 52)) as u64)
+// }
 
 /// Copies sign from `y` to `x`
 #[inline]
