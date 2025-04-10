@@ -41,6 +41,7 @@ mod floor;
 mod hypot;
 mod log;
 mod log10;
+mod log10f;
 mod log2;
 mod log2f;
 mod logf;
@@ -48,7 +49,6 @@ mod pow;
 mod powf;
 mod sqrtf;
 mod trigo;
-mod log10f;
 
 pub use atan::{atan2f, atanf, f_atan2f, f_atanf};
 pub use cbrtf::{cbrtf, f_cbrtf};
@@ -66,13 +66,13 @@ pub use log::{f_log, log};
 pub use log2::f_log2;
 pub use log2f::f_log2f;
 pub use log10::f_log10;
+pub use log10f::log10f;
 pub use logf::{f_logf, logf};
 use num_traits::Num;
 pub use pow::{f_pow, pow};
 pub use powf::{f_powf, powf};
 pub use sqrtf::sqrtf;
 pub use trigo::{cosf, f_cosf, f_sinf, sinf};
-pub use log10f::log10f;
 
 #[inline(always)]
 pub const fn rounding_div_ceil(value: i32, div: i32) -> i32 {

@@ -90,7 +90,7 @@ mod tests {
             powf(0.5f32, 2f32)
         );
     }
-    
+
     #[test]
     fn f_powf_test() {
         println!("{}", f_powf(3., 3.));

@@ -5,7 +5,10 @@
  * // license that can be found in the LICENSE file.
  */
 use criterion::{Criterion, black_box, criterion_group, criterion_main};
-use moxcms::{atanf, cbrtf, cosf, exp, expf, f_atanf, f_cbrtf, f_cosf, f_exp, f_exp2, f_log, f_log2, f_log10, f_logf, f_pow, f_powf, f_sinf, log, logf, pow, powf, sinf, f_exp2f, f_log2f};
+use moxcms::{
+    atanf, cbrtf, cosf, exp, expf, f_atanf, f_cbrtf, f_cosf, f_exp, f_exp2, f_exp2f, f_log, f_log2,
+    f_log2f, f_log10, f_logf, f_pow, f_powf, f_sinf, log, logf, pow, powf, sinf,
+};
 
 pub fn criterion_benchmark(c: &mut Criterion) {
     c.bench_function("libm::log10", |b| {
@@ -39,7 +42,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
             }
         })
     });
-    
+
     c.bench_function("system::exp2f", |b| {
         b.iter(|| {
             for i in 1..10000 {
@@ -207,7 +210,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
             }
         })
     });
-    
+
     c.bench_function("libm::log2f", |b| {
         b.iter(|| {
             for i in 1..1000 {
@@ -231,7 +234,6 @@ pub fn criterion_benchmark(c: &mut Criterion) {
             }
         })
     });
-
 
     c.bench_function("libm::log2", |b| {
         b.iter(|| {

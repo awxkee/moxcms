@@ -88,7 +88,7 @@ pub(crate) fn f_log2fx(d: f32) -> f64 {
             0.5770780163490337802e+0,
             0.9617966939259845749e+0
         );
-        f_fmla(x2 * x, u, f_fmla(x,0.2885390081777926802e+1, n as f64))
+        f_fmla(x2 * x, u, f_fmla(x, 0.2885390081777926802e+1, n as f64))
     }
 }
 
@@ -102,7 +102,7 @@ pub(crate) fn f_log2f48(d: f32) -> Float48 {
     let n = (ix >> 23) as i32 - 0x7f;
     ix = (ix & 0x007fffff).wrapping_add(0x3f3504f3);
     let a = f32::from_bits(ix);
-    
+
     let a48 = Float48::from_f32(a);
 
     let x = (a48 - 1.) / (a48 + 1.);
@@ -124,7 +124,7 @@ pub(crate) fn f_log2f48(d: f32) -> Float48 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_log2f() {
         assert!((f_log2f(0.35f32) - 0.35f32.log2()).abs() < 1e-5);

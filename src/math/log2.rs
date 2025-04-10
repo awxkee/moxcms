@@ -39,9 +39,9 @@ pub fn f_log2(d: f64) -> f64 {
     hx = (hx & 0x000fffff).wrapping_add(0x3fe6a09e);
     ui = (hx as u64) << 32 | (ui & 0xffffffff);
     let a = f64::from_bits(ui);
-    
+
     let x = (a - 1.) / (a + 1.);
-    
+
     let x2 = x * x;
     #[cfg(any(
         all(
