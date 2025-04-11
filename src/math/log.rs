@@ -106,7 +106,7 @@ pub fn f_log(d: f64) -> f64 {
 
     const LN2_H: f64 = 0.6931471805599453;
     const LN2_L: f64 = 2.3190468138462996e-17;
-    
+
     #[cfg(any(
         all(
             any(target_arch = "x86", target_arch = "x86_64"),

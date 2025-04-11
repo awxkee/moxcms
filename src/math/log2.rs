@@ -69,7 +69,7 @@ pub fn f_log2(d: f64) -> f64 {
         let mut u = f_fmla(w, f64::from_bits(LG6), f64::from_bits(LG4));
         u = f_fmla(w, u, f64::from_bits(LG2));
         t1 = u * w;
-    
+
         let mut u1 = f_fmla(w, f64::from_bits(LG7), f64::from_bits(LG5));
         u1 = f_fmla(u1, w, f64::from_bits(LG3));
         u1 = f_fmla(u1, w, f64::from_bits(LG1));
