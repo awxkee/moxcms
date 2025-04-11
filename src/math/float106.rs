@@ -360,6 +360,18 @@ impl Float106 {
 }
 
 impl Float106 {
+    
+    #[inline(always)]
+    pub fn from_exact_add(a: f64, b: f64) -> Self {
+        let rhi = a + b;
+        let t1 = rhi - a;
+        let t2 = rhi - t1;
+        let t3 = b - t1;
+        let t4 = a - t2;
+        let rlo = t3 + t4;
+        Self { v0: rhi, v1: rlo }
+    }
+    
     #[inline(always)]
     pub fn from_mul_product(v0: f64, v1: f64) -> Self {
         let xh = v0.upper();

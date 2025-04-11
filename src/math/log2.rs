@@ -31,6 +31,17 @@ use crate::math::common::*;
 /// Natural logarithm using FMA
 #[inline]
 pub fn f_log2(d: f64) -> f64 {
+    const IVLN2HI: f64 = 1.44269504072144627571e+00;
+    const IVLN2LO: f64 = 1.67517131648865118353e-10;
+
+    const LG1: u64 = 0x3fe5555555555594;
+    const LG2: u64 = 0x3fd999999997f6f8;
+    const LG3: u64 = 0x3fd2492494241370;
+    const LG4: u64 = 0x3fcc71c51d01b16c;
+    const LG5: u64 = 0x3fc74664992e5112;
+    const LG6: u64 = 0x3fc39a0bb5f6a888;
+    const LG7: u64 = 0x3fc2f0edc7587e42;
+
     // reduce into [sqrt(2)/2;sqrt(2)]
     let mut ui: u64 = d.to_bits();
     let mut hx = (ui >> 32) as u32;
@@ -40,9 +51,13 @@ pub fn f_log2(d: f64) -> f64 {
     ui = (hx as u64) << 32 | (ui & 0xffffffff);
     let a = f64::from_bits(ui);
 
-    let x = (a - 1.) / (a + 1.);
-
-    let x2 = x * x;
+    let f = a - 1.0;
+    let hfsq = 0.5 * f * f;
+    let s = f / (2.0 + f);
+    let z = s * s;
+    let w = z * z;
+    let t1;
+    let t2;
     #[cfg(any(
         all(
             any(target_arch = "x86", target_arch = "x86_64"),
@@ -51,14 +66,14 @@ pub fn f_log2(d: f64) -> f64 {
         all(target_arch = "aarch64", target_feature = "neon")
     ))]
     {
-        let mut u = 0.2122298095941129899e+0;
-        u = f_fmla(u, x2, 0.2210493187503736762e+0);
-        u = f_fmla(u, x2, 0.2623293115969893702e+0);
-        u = f_fmla(u, x2, 0.3205986261348816382e+0);
-        u = f_fmla(u, x2, 0.4121985850084821691e+0);
-        u = f_fmla(u, x2, 0.5770780163490337802e+0);
-        u = f_fmla(u, x2, 0.9617966939259845749e+0);
-        f_fmla(x2 * x, u, f_fmla(x, 0.2885390081777926802e+1, n as f64))
+        let mut u = f_fmla(w, f64::from_bits(LG6), f64::from_bits(LG4));
+        u = f_fmla(w, u, f64::from_bits(LG2));
+        t1 = u * w;
+    
+        let mut u1 = f_fmla(w, f64::from_bits(LG7), f64::from_bits(LG5));
+        u1 = f_fmla(u1, w, f64::from_bits(LG3));
+        u1 = f_fmla(u1, w, f64::from_bits(LG1));
+        t2 = z * u1;
     }
     #[cfg(not(any(
         all(
@@ -68,22 +83,37 @@ pub fn f_log2(d: f64) -> f64 {
         all(target_arch = "aarch64", target_feature = "neon")
     )))]
     {
-        use crate::math::estrin::*;
-        let rx2 = x2 * x2;
-        let rx4 = rx2 * rx2;
-        let u = poly7!(
-            x2,
-            rx2,
-            rx4,
-            0.2122298095941129899e+0,
-            0.2210493187503736762e+0,
-            0.2623293115969893702e+0,
-            0.3205986261348816382e+0,
-            0.4121985850084821691e+0,
-            0.5770780163490337802e+0,
-            0.9617966939259845749e+0
-        );
-        f_fmla(x2 * x, u, f_fmla(x, 0.2885390081777926802e+1, n as f64))
+        t1 = w * (f64::from_bits(LG2) + w * (f64::from_bits(LG4) + w * f64::from_bits(LG6)));
+        t2 = z
+            * (f64::from_bits(LG1)
+                + w * (f64::from_bits(LG3) + w * (f64::from_bits(LG5) + w * f64::from_bits(LG7))))
+    }
+    let r = t2 + t1;
+
+    let mut hi = f - hfsq;
+    ui = hi.to_bits();
+    ui &= (-1i64 as u64) << 32;
+    hi = f64::from_bits(ui);
+    let lo = f_fmla(hfsq + r, s, f - hi - hfsq);
+
+    /* val_hi+val_lo ~ log10(1+f) + k*log10(2) */
+    let mut val_hi = hi * IVLN2HI;
+    let dk = n as f64;
+    let y = dk;
+    let mut val_lo = f_fmla(lo + hi, IVLN2LO, lo * IVLN2HI);
+
+    let w = y + val_hi;
+    val_lo += (y - w) + val_hi;
+    val_hi = w;
+
+    if d == 0f64 {
+        f64::NEG_INFINITY
+    } else if (d < 0.) || d.is_nan() {
+        f64::NAN
+    } else if d.is_infinite() {
+        f64::INFINITY
+    } else {
+        val_lo + val_hi
     }
 }
 
@@ -93,19 +123,8 @@ mod tests {
 
     #[test]
     fn test_log2d() {
+        println!("f_log2 {}", f_log2(2.));
         println!("{}", f_log2(34.5));
-        println!("{}", 34.5f64.log2());
-        let mut max_diff = f64::MIN;
-        let mut max_away = 0;
-        for i in 1..50000 {
-            let my_expf = f_log2(i as f64 / 1000.);
-            let system = (i as f64 / 1000.).log2();
-            max_diff = max_diff.max((my_expf - system).abs());
-            max_away = (my_expf.to_bits() as i64 - system.to_bits() as i64)
-                .abs()
-                .max(max_away);
-        }
-        println!("{} max away {}", max_diff, max_away);
         assert!((f_log2(0.35) - 0.35f64.log2()).abs() < 1e-8);
         assert!((f_log2(0.9) - 0.9f64.log2()).abs() < 1e-8);
     }
