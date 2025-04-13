@@ -57,6 +57,22 @@ pub fn f_powf(d: f32, n: f32) -> f32 {
     }
 }
 
+/// Power function for given value using FMA
+#[inline]
+pub(crate) fn dirty_powf(d: f32, n: f32) -> f32 {
+    use crate::math::exp2f::dirty_exp2f;
+    use crate::math::log2f::dirty_log2f;
+    let value = d.abs();
+    let lg = dirty_log2f(value);
+    let c = dirty_exp2f(n * lg);
+    if d < 0.0 {
+        let y = n as i32;
+        if y % 2 == 0 { c } else { -c }
+    } else {
+        c
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -88,6 +104,22 @@ mod tests {
             (f_powf(0.5f32, 2f32) - 0.25f32).abs() < 1e-6,
             "Invalid result {}",
             f_powf(0.5f32, 2f32)
+        );
+    }
+
+    #[test]
+    fn dirty_powf_test() {
+        println!("{}", dirty_powf(3., 3.));
+        println!("{}", dirty_powf(27., 1. / 3.));
+        assert!(
+            (dirty_powf(2f32, 3f32) - 8f32).abs() < 1e-6,
+            "Invalid result {}",
+            dirty_powf(2f32, 3f32)
+        );
+        assert!(
+            (dirty_powf(0.5f32, 2f32) - 0.25f32).abs() < 1e-6,
+            "Invalid result {}",
+            dirty_powf(0.5f32, 2f32)
         );
     }
 }

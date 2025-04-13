@@ -70,6 +70,7 @@ pub use log10f::log10f;
 pub use logf::{f_logf, logf};
 use num_traits::Num;
 pub use pow::{f_pow, pow};
+pub(crate) use powf::dirty_powf;
 pub use powf::{f_powf, powf};
 pub use sqrtf::sqrtf;
 pub use trigo::{cosf, f_cosf, f_sinf, sinf};

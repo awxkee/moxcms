@@ -91,6 +91,54 @@ pub(crate) fn f_log2fx(d: f32) -> f64 {
     }
 }
 
+/// Natural logarithm using FMA
+#[inline(always)]
+#[allow(dead_code)]
+pub(crate) fn dirty_log2f(d: f32) -> f32 {
+    let mut ix = d.to_bits();
+    /* reduce x into [sqrt(2)/2, sqrt(2)] */
+    ix = ix.wrapping_add(0x3f800000 - 0x3f3504f3);
+    let n = (ix >> 23) as i32 - 0x7f;
+    ix = (ix & 0x007fffff).wrapping_add(0x3f3504f3);
+    let a = f32::from_bits(ix);
+
+    let x = (a - 1.) / (a + 1.);
+
+    let x2 = x * x;
+    #[cfg(any(
+        all(
+            any(target_arch = "x86", target_arch = "x86_64"),
+            target_feature = "fma"
+        ),
+        all(target_arch = "aarch64", target_feature = "neon")
+    ))]
+    {
+        let mut u = 0.4121985850084821691e+0;
+        u = f_fmlaf(u, x2, 0.5770780163490337802e+0);
+        u = f_fmlaf(u, x2, 0.9617966939259845749e+0);
+        f_fmlaf(x2 * x, u, f_fmlaf(x, 0.2885390081777926802e+1, n as f32))
+    }
+    #[cfg(not(any(
+        all(
+            any(target_arch = "x86", target_arch = "x86_64"),
+            target_feature = "fma"
+        ),
+        all(target_arch = "aarch64", target_feature = "neon")
+    )))]
+    {
+        use crate::math::estrin::*;
+        let rx2 = x2 * x2;
+        let u = poly3!(
+            x2,
+            rx2,
+            0.4121985850084821691e+0,
+            0.5770780163490337802e+0,
+            0.9617966939259845749e+0
+        );
+        f_fmlaf(x2 * x, u, f_fmlaf(x, 0.2885390081777926802e+1, n as f32))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -99,5 +147,11 @@ mod tests {
     fn test_log2f() {
         assert!((f_log2f(0.35f32) - 0.35f32.log2()).abs() < 1e-5);
         assert!((f_log2f(0.9f32) - 0.9f32.log2()).abs() < 1e-5);
+    }
+
+    #[test]
+    fn test_dirty_log2f() {
+        assert!((dirty_log2f(0.35f32) - 0.35f32.log2()).abs() < 1e-5);
+        assert!((dirty_log2f(0.9f32) - 0.9f32.log2()).abs() < 1e-5);
     }
 }

@@ -65,6 +65,31 @@ pub fn f_exp2f(d: f32) -> f32 {
     f_fmlaf(u, z0, z0) * i2
 }
 
+#[inline]
+pub(crate) fn dirty_exp2f(d: f32) -> f32 {
+    let redux = f32::from_bits(0x4b400000) / TBLSIZE as f32;
+
+    let ui = f32::to_bits(d + redux);
+    let mut i0 = ui;
+    i0 += TBLSIZE as u32 / 2;
+    let k = i0 / TBLSIZE as u32;
+    i0 &= TBLSIZE as u32 - 1;
+    let mut uf = f32::from_bits(ui);
+    uf -= redux;
+
+    let item = EXP2FT.0[i0 as usize];
+    let z0: f32 = f32::from_bits(item.0);
+
+    let f: f32 = d - uf;
+
+    let mut u = 0.24022650695908768;
+    u = f_fmlaf(u, f, 0.69314718055994973);
+    u *= f;
+
+    let i2 = pow2if(k as i32);
+    f_fmlaf(u, z0, z0) * i2
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -73,5 +98,11 @@ mod tests {
     fn test_exp2f() {
         assert!((f_exp2f(0.35f32) - 0.35f32.exp2()).abs() < 1e-5);
         assert!((f_exp2f(-0.6f32) - (-0.6f32).exp2()).abs() < 1e-5);
+    }
+
+    #[test]
+    fn test_dirty_exp2f() {
+        assert!((dirty_exp2f(0.35f32) - 0.35f32.exp2()).abs() < 1e-5);
+        assert!((dirty_exp2f(-0.6f32) - (-0.6f32).exp2()).abs() < 1e-5);
     }
 }
