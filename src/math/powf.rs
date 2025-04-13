@@ -44,32 +44,16 @@ pub const fn powf(d: f32, n: f32) -> f32 {
 /// Power function for given value using FMA
 #[inline]
 pub fn f_powf(d: f32, n: f32) -> f32 {
-    #[cfg(native_64_word)]
-    {
-        use crate::f_exp2;
-        use crate::math::log2f::f_log2fx;
-        let value = d.abs();
-        let lg = f_log2fx(value);
-        let c = f_exp2(n as f64 * lg) as f32;
-        if d < 0.0 {
-            let y = n as i32;
-            if y % 2 == 0 { c } else { -c }
-        } else {
-            c
-        }
-    }
-    #[cfg(not(native_64_word))]
-    {
-        use crate::math::exp2f::exp2f48;
-        use crate::math::log2f::f_log2f48;
-        let lg = f_log2f48(value);
-        let c = exp2f48(n * lg);
-        if d < 0.0 {
-            let y = n as i32;
-            if y % 2 == 0 { c } else { -c }
-        } else {
-            c
-        }
+    use crate::f_exp2;
+    use crate::math::log2f::f_log2fx;
+    let value = d.abs();
+    let lg = f_log2fx(value);
+    let c = f_exp2(n as f64 * lg) as f32;
+    if d < 0.0 {
+        let y = n as i32;
+        if y % 2 == 0 { c } else { -c }
+    } else {
+        c
     }
 }
 

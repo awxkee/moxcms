@@ -41,7 +41,7 @@ fn perceptual_quantizer(x: f32) -> f32 {
     }
     let xx = f_powf(x * 1e-4, 0.1593017578125);
     let rs = f_powf(
-        (0.8359375 + 18.8515625 * xx) / (1. + 18.6875 * xx),
+        mlaf(0.8359375, 18.8515625, xx) / mlaf(1., 18.6875, xx),
         134.034375,
     );
     if rs.is_nan() {
@@ -58,7 +58,7 @@ fn perceptual_quantizer_inverse(x: f32) -> f32 {
     let xx = f_powf(x, 7.460772656268214e-03);
     let rs = 1e4
         * f_powf(
-            (0.8359375 - xx) / (18.6875 * xx - 18.8515625),
+            (0.8359375 - xx) / mlaf(-18.8515625, 18.6875, xx),
             6.277394636015326,
         );
     if rs.is_nan() {
