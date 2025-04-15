@@ -44,7 +44,7 @@ pub fn f_exp2f(d: f32) -> f32 {
 
     let ui = f32::to_bits(d + redux);
     let mut i0 = ui;
-    i0 += TBLSIZE as u32 / 2;
+    i0 = i0.wrapping_add(TBLSIZE as u32 / 2);
     let k = i0 / TBLSIZE as u32;
     i0 &= TBLSIZE as u32 - 1;
     let mut uf = f32::from_bits(ui);
@@ -71,7 +71,7 @@ pub(crate) fn dirty_exp2f(d: f32) -> f32 {
 
     let ui = f32::to_bits(d + redux);
     let mut i0 = ui;
-    i0 += TBLSIZE as u32 / 2;
+    i0 = i0.wrapping_add(TBLSIZE as u32 / 2);
     let k = i0 / TBLSIZE as u32;
     i0 &= TBLSIZE as u32 - 1;
     let mut uf = f32::from_bits(ui);

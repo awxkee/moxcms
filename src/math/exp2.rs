@@ -42,7 +42,7 @@ pub fn f_exp2(d: f64) -> f64 {
 
     let ui = f64::to_bits(d + redux);
     let mut i0 = ui;
-    i0 += TBLSIZE as u64 / 2;
+    i0 = i0.wrapping_add(TBLSIZE as u64 / 2);
     let k = i0 / TBLSIZE as u64;
     i0 &= TBLSIZE as u64 - 1;
     let mut uf = f64::from_bits(ui);
