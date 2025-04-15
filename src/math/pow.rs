@@ -69,21 +69,6 @@ mod tests {
         println!("{}", pow(3., 3.));
         println!("{}", pow(27., 1. / 3.));
 
-        let mut max_diff = f64::MIN;
-        let mut max_away = 0;
-        for i in 0..10000i32 {
-            let my_expf = pow(i as f64 / 1000., i.abs() as f64 / 1000.);
-            let system = (i as f64 / 1000.).powf(i.abs() as f64 / 1000.);
-            max_diff = max_diff.max((my_expf - system).abs());
-            max_away = (my_expf.to_bits() as i64 - system.to_bits() as i64)
-                .abs()
-                .max(max_away);
-            if max_away >= 4613937818241073152 {
-                println!("Max away: {}, i {}", max_away, i);
-            }
-        }
-        println!("{} max away powf {} ULP peak", max_diff, max_away,);
-
         assert!(
             (pow(2f64, 3f64) - 8f64).abs() < 1e-9,
             "Invalid result {}",
@@ -97,21 +82,9 @@ mod tests {
     }
 
     #[test]
-    fn f_powf_test() {
+    fn f_pow_test() {
         println!("{}", f_pow(3., 3.));
         println!("{}", f_pow(27., 1. / 3.));
-
-        let mut max_diff = f64::MIN;
-        let mut max_away = 0;
-        for i in 0..10000i32 {
-            let my_expf = f_pow(i as f64 / 1000., i.abs() as f64 / 1000.);
-            let system = (i as f64 / 1000.).powf(i.abs() as f64 / 1000.);
-            max_diff = max_diff.max((my_expf - system).abs());
-            max_away = (my_expf.to_bits() as i64 - system.to_bits() as i64)
-                .abs()
-                .max(max_away);
-        }
-        println!("{} max away powf {} ULP peak", max_diff, max_away);
 
         assert!(
             (f_pow(2f64, 3f64) - 8f64).abs() < 1e-9,

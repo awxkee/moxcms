@@ -44,32 +44,32 @@ pub const fn powf(d: f32, n: f32) -> f32 {
 /// Power function for given value using FMA
 #[inline]
 pub fn f_powf(d: f32, n: f32) -> f32 {
-    #[cfg(native_64_word)]
-    {
-        use crate::f_exp2;
-        use crate::math::log2f::f_log2fx;
-        let value = d.abs();
-        let lg = f_log2fx(value);
-        let c = f_exp2(n as f64 * lg) as f32;
-        if d < 0.0 {
-            let y = n as i32;
-            if y % 2 == 0 { c } else { -c }
-        } else {
-            c
-        }
+    use crate::f_exp2;
+    use crate::math::log2f::f_log2fx;
+    let value = d.abs();
+    let lg = f_log2fx(value);
+    let c = f_exp2(n as f64 * lg) as f32;
+    if d < 0.0 {
+        let y = n as i32;
+        if y % 2 == 0 { c } else { -c }
+    } else {
+        c
     }
-    #[cfg(not(native_64_word))]
-    {
-        use crate::math::exp2f::exp2f48;
-        use crate::math::log2f::f_log2f48;
-        let lg = f_log2f48(value);
-        let c = exp2f48(n * lg);
-        if d < 0.0 {
-            let y = n as i32;
-            if y % 2 == 0 { c } else { -c }
-        } else {
-            c
-        }
+}
+
+/// Power function for given value using FMA
+#[inline]
+pub(crate) fn dirty_powf(d: f32, n: f32) -> f32 {
+    use crate::math::exp2f::dirty_exp2f;
+    use crate::math::log2f::dirty_log2f;
+    let value = d.abs();
+    let lg = dirty_log2f(value);
+    let c = dirty_exp2f(n * lg);
+    if d < 0.0 {
+        let y = n as i32;
+        if y % 2 == 0 { c } else { -c }
+    } else {
+        c
     }
 }
 
@@ -79,21 +79,6 @@ mod tests {
 
     #[test]
     fn powf_test() {
-        println!("{}", f_powf(3., 3.));
-        println!("{}", f_powf(27., 1. / 3.));
-
-        let mut max_diff = f32::MIN;
-        let mut max_away = 0;
-        for i in 0..10000i32 {
-            let my_expf = f_powf(i as f32 / 1000., i.abs() as f32 / 1000.);
-            let system = (i as f32 / 1000.).powf(i.abs() as f32 / 1000.);
-            max_diff = max_diff.max((my_expf - system).abs());
-            max_away = (my_expf.to_bits() as i64 - system.to_bits() as i64)
-                .abs()
-                .max(max_away);
-        }
-        println!("f32 powf: {} max away powf {} ULP peak", max_diff, max_away);
-
         assert!(
             (powf(2f32, 3f32) - 8f32).abs() < 1e-6,
             "Invalid result {}",
@@ -104,16 +89,37 @@ mod tests {
             "Invalid result {}",
             powf(0.5f32, 2f32)
         );
+    }
 
+    #[test]
+    fn f_powf_test() {
+        println!("{}", f_powf(3., 3.));
+        println!("{}", f_powf(27., 1. / 3.));
         assert!(
-            (powf(2f32, 3f32) - 8f32).abs() < 1e-6,
+            (f_powf(2f32, 3f32) - 8f32).abs() < 1e-6,
             "Invalid result {}",
-            powf(2f32, 3f32)
+            f_powf(2f32, 3f32)
         );
         assert!(
             (f_powf(0.5f32, 2f32) - 0.25f32).abs() < 1e-6,
             "Invalid result {}",
             f_powf(0.5f32, 2f32)
+        );
+    }
+
+    #[test]
+    fn dirty_powf_test() {
+        println!("{}", dirty_powf(3., 3.));
+        println!("{}", dirty_powf(27., 1. / 3.));
+        assert!(
+            (dirty_powf(2f32, 3f32) - 8f32).abs() < 1e-6,
+            "Invalid result {}",
+            dirty_powf(2f32, 3f32)
+        );
+        assert!(
+            (dirty_powf(0.5f32, 2f32) - 0.25f32).abs() < 1e-6,
+            "Invalid result {}",
+            dirty_powf(0.5f32, 2f32)
         );
     }
 }

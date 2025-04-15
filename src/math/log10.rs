@@ -27,23 +27,40 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::math::common::*;
-use crate::math::float106::Float106;
 
 /// Natural logarithm using FMA
 ///
 /// ULP under 1.0
 #[inline(always)]
 pub fn f_log10(d: f64) -> f64 {
-    let n = ilogb2k(d * (1. / 0.75));
-    let a = ldexp3k(d, -n);
+    const IVLN10HI: f64 = 4.34294481878168880939e-01;
+    const IVLN10LO: f64 = 2.50829467116452752298e-11;
+    const LOG10_2HI: f64 = 3.01029995663611771306e-01;
+    const LOG10_2LO: f64 = 3.69423907715893078616e-13;
+    const LG1: u64 = 0x3fe5555555555594;
+    const LG2: u64 = 0x3fd999999997f6f8;
+    const LG3: u64 = 0x3fd2492494241370;
+    const LG4: u64 = 0x3fcc71c51d01b16c;
+    const LG5: u64 = 0x3fc74664992e5112;
+    const LG6: u64 = 0x3fc39a0bb5f6a888;
+    const LG7: u64 = 0x3fc2f0edc7587e42;
 
-    let a106 = Float106::from_f64(a);
+    // reduce into [sqrt(2)/2;sqrt(2)]
+    let mut ui: u64 = d.to_bits();
+    let mut hx = (ui >> 32) as u32;
+    hx = hx.wrapping_add(0x3ff00000 - 0x3fe6a09e);
+    let n = (hx >> 20) as i32 - 0x3ff;
+    hx = (hx & 0x000fffff).wrapping_add(0x3fe6a09e);
+    ui = (hx as u64) << 32 | (ui & 0xffffffff);
+    let a = f64::from_bits(ui);
 
-    let x = (a106 - 1.) / (a106 + 1.);
-
-    let rx2 = x.v0 * x.v0;
-    let x2 = rx2;
-
+    let f = a - 1.0;
+    let hfsq = 0.5 * f * f;
+    let s = f / (2.0 + f);
+    let z = s * s;
+    let w = z * z;
+    let t1;
+    let t2;
     #[cfg(any(
         all(
             any(target_arch = "x86", target_arch = "x86_64"),
@@ -52,16 +69,14 @@ pub fn f_log10(d: f64) -> f64 {
         all(target_arch = "aarch64", target_feature = "neon")
     ))]
     {
-        let mut u = 0.6649188665468565036e-1;
-        u = f_fmla(u, x2, 0.6626356000208320253e-1);
-        u = f_fmla(u, x2, 0.7898070278332813658e-1);
-        u = f_fmla(u, x2, 0.9650955996041670360e-1);
-        u = f_fmla(u, x2, 0.1240841408366660991e+0);
-        u = f_fmla(u, x2, 0.1737177927463646569e+0);
-        u = f_fmla(u, x2, 0.2895296546021949510e+0);
-        let s = x.fast_mul_f64(0.8685889638065036472e+0)
-            + Float106::new(0.3010299956639812, -2.8037281277851704e-18) * n as f64;
-        (x.v0 * (x2 * u) + s).to_f64()
+        let mut u = f_fmla(w, f64::from_bits(LG6), f64::from_bits(LG4));
+        u = f_fmla(w, u, f64::from_bits(LG2));
+        t1 = u * w;
+
+        let mut u1 = f_fmla(w, f64::from_bits(LG7), f64::from_bits(LG5));
+        u1 = f_fmla(u1, w, f64::from_bits(LG3));
+        u1 = f_fmla(u1, w, f64::from_bits(LG1));
+        t2 = z * u1;
     }
     #[cfg(not(any(
         all(
@@ -71,24 +86,37 @@ pub fn f_log10(d: f64) -> f64 {
         all(target_arch = "aarch64", target_feature = "neon")
     )))]
     {
-        use crate::math::estrin::*;
-        let rx2 = x2 * x2;
-        let rx4 = rx2 * rx2;
-        let u = poly7!(
-            x2,
-            rx2,
-            rx4,
-            0.6649188665468565036e-1,
-            0.6626356000208320253e-1,
-            0.7898070278332813658e-1,
-            0.9650955996041670360e-1,
-            0.1240841408366660991e+0,
-            0.1737177927463646569e+0,
-            0.2895296546021949510e+0
-        );
-        let s = x.fast_mul_f64(0.8685889638065036472e+0)
-            + Float106::new(0.3010299956639812, -2.8037281277851704e-18) * n as f64;
-        (x.v0 * (x2 * u) + s).to_f64()
+        t1 = w * (f64::from_bits(LG2) + w * (f64::from_bits(LG4) + w * f64::from_bits(LG6)));
+        t2 = z
+            * (f64::from_bits(LG1)
+                + w * (f64::from_bits(LG3) + w * (f64::from_bits(LG5) + w * f64::from_bits(LG7))))
+    }
+    let r = t2 + t1;
+
+    let mut hi = f - hfsq;
+    ui = hi.to_bits();
+    ui &= (-1i64 as u64) << 32;
+    hi = f64::from_bits(ui);
+    let lo = f_fmla(hfsq + r, s, f - hi - hfsq);
+
+    /* val_hi+val_lo ~ log10(1+f) + k*log10(2) */
+    let mut val_hi = hi * IVLN10HI;
+    let dk = n as f64;
+    let y = dk * LOG10_2HI;
+    let mut val_lo = f_fmla(dk, LOG10_2LO, f_fmla(lo + hi, IVLN10LO, lo * IVLN10HI));
+
+    let w = y + val_hi;
+    val_lo += (y - w) + val_hi;
+    val_hi = w;
+
+    if d == 0f64 {
+        f64::NEG_INFINITY
+    } else if (d < 0.) || d.is_nan() {
+        f64::NAN
+    } else if d.is_infinite() {
+        f64::INFINITY
+    } else {
+        val_lo + val_hi
     }
 }
 
@@ -99,18 +127,6 @@ mod tests {
     #[test]
     fn test_log10d() {
         println!("{}", f_log10(10.));
-        let mut max_diff = f64::MIN;
-        let mut max_away = 0;
-
-        for i in 1..20000 {
-            let my_expf = f_log10(i as f64 / 1000.);
-            let system = (i as f64 / 1000.).log10();
-            max_diff = max_diff.max((my_expf - system).abs());
-            max_away = (my_expf.to_bits() as i64 - system.to_bits() as i64)
-                .abs()
-                .max(max_away);
-        }
-        println!("{} max away {}", max_diff, max_away);
         assert!((f_log10(0.35) - 0.35f64.log10()).abs() < 1e-8);
         assert!((f_log10(0.9) - 0.9f64.log10()).abs() < 1e-8);
         assert!((f_log10(10.) - 10f64.log10()).abs() < 1e-8);

@@ -125,6 +125,10 @@ mod tests {
             "Invalid result {}",
             expf(5f32)
         );
+    }
+
+    #[test]
+    fn f_expf_test() {
         assert!(
             (f_expf(0f32) - 1f32).abs() < 1e-6,
             "Invalid result {}",

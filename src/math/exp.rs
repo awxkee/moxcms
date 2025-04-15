@@ -157,7 +157,10 @@ mod tests {
             "Invalid result {}",
             exp(5f64)
         );
+    }
 
+    #[test]
+    fn f_exp_test() {
         assert!(
             (f_exp(0f64) - 1f64).abs() < 1e-8,
             "Invalid result {}",
