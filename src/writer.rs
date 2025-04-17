@@ -60,40 +60,20 @@ pub(crate) trait FloatToFixedU8Fixed8 {
 impl FloatToFixedS15Fixed16 for f32 {
     #[inline]
     fn to_s15_fixed16(self) -> i32 {
-        #[cfg(native_64_word)]
-        {
-            const SCALE: f64 = (1 << 16) as f64;
-            (self as f64 * SCALE + 0.5)
-                .floor()
-                .clamp(i32::MIN as f64, i32::MAX as f64) as i32
-        }
-        #[cfg(not(native_64_word))]
-        {
-            const SCALE: f32 = (1 << 16) as f32;
-            (self * SCALE + 0.5)
-                .floor()
-                .clamp(i32::MIN as f32, i32::MAX as f32) as i32
-        }
+        const SCALE: f64 = (1 << 16) as f64;
+        (self as f64 * SCALE + 0.5)
+            .floor()
+            .clamp(i32::MIN as f64, i32::MAX as f64) as i32
     }
 }
 
 impl FloatToFixedS15Fixed16 for f64 {
     #[inline]
     fn to_s15_fixed16(self) -> i32 {
-        #[cfg(native_64_word)]
-        {
-            const SCALE: f64 = (1 << 16) as f64;
-            (self * SCALE + 0.5)
-                .floor()
-                .clamp(i32::MIN as f64, i32::MAX as f64) as i32
-        }
-        #[cfg(not(native_64_word))]
-        {
-            const SCALE: f32 = (1 << 16) as f32;
-            (self as f32 * SCALE + 0.5)
-                .floor()
-                .clamp(i32::MIN as f32, i32::MAX as f32) as i32
-        }
+        const SCALE: f64 = (1 << 16) as f64;
+        (self * SCALE + 0.5)
+            .floor()
+            .clamp(i32::MIN as f64, i32::MAX as f64) as i32
     }
 }
 

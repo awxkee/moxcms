@@ -31,14 +31,7 @@ use crate::math::common::*;
 /// Natural logarithm using FMA
 #[inline]
 pub fn f_log2f(d: f32) -> f32 {
-    #[cfg(native_64_word)]
-    {
-        f_log2fx(d) as f32
-    }
-    #[cfg(not(native_64_word))]
-    {
-        f_log2f48(d).to_f32()
-    }
+    f_log2fx(d) as f32
 }
 
 /// Natural logarithm using FMA

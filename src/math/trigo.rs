@@ -66,110 +66,55 @@ pub const fn cosf(d: f32) -> f32 {
 /// Computes cosine for given value
 #[inline]
 pub fn f_cosf(d: f32) -> f32 {
-    #[cfg(native_64_word)]
-    {
-        let q = 1 + 2 * f_fmla(std::f64::consts::FRAC_1_PI, d as f64, -0.5).round() as i32;
-        let qf = q as f64;
-        let mut r = f_fmla(qf, -PI_A2 * 0.5, d as f64);
-        r = f_fmla(qf, -PI_B2 * 0.5, r);
-        r = f_fmla(qf, -PI_C2 * 0.5, r);
+    let q = 1 + 2 * f_fmla(std::f64::consts::FRAC_1_PI, d as f64, -0.5).round() as i32;
+    let qf = q as f64;
+    let mut r = f_fmla(qf, -PI_A2 * 0.5, d as f64);
+    r = f_fmla(qf, -PI_B2 * 0.5, r);
+    r = f_fmla(qf, -PI_C2 * 0.5, r);
 
-        let x2 = r * r;
+    let x2 = r * r;
 
-        if q & 2 == 0 {
-            r = -r;
-        }
-
-        let mut u;
-        #[cfg(any(
-            all(
-                any(target_arch = "x86", target_arch = "x86_64"),
-                target_feature = "fma"
-            ),
-            all(target_arch = "aarch64", target_feature = "neon")
-        ))]
-        {
-            u = 2.6083159809786593541503e-06;
-            u = f_fmla(u, x2, -0.0001981069071916863322258);
-            u = f_fmla(u, x2, 0.00833307858556509017944336);
-            u = f_fmla(u, x2, -0.166666597127914428710938);
-        }
-        #[cfg(not(any(
-            all(
-                any(target_arch = "x86", target_arch = "x86_64"),
-                target_feature = "fma"
-            ),
-            all(target_arch = "aarch64", target_feature = "neon")
-        )))]
-        {
-            use crate::math::estrin::*;
-            u = poly4!(
-                x2,
-                x2 * x2,
-                2.6083159809786593541503e-06,
-                -0.0001981069071916863322258,
-                0.00833307858556509017944336,
-                -0.166666597127914428710938
-            );
-        }
-        u = f_fmla(u, x2 * r, r);
-        if isnegzerof(d) {
-            return -0.;
-        }
-        u as f32
+    if q & 2 == 0 {
+        r = -r;
     }
-    #[cfg(not(native_64_word))]
+
+    let mut u;
+    #[cfg(any(
+        all(
+            any(target_arch = "x86", target_arch = "x86_64"),
+            target_feature = "fma"
+        ),
+        all(target_arch = "aarch64", target_feature = "neon")
+    ))]
     {
-        let q = 1 + 2 * f_fmlaf(std::f32::consts::FRAC_1_PI, d, -0.5).round() as i32;
-        let qf = q as f32;
-        let mut r = f_fmlaf(qf, -PI_A2 as f32 * 0.5, d);
-        r = f_fmlaf(qf, -PI_B2 as f32 * 0.5, r);
-        r = f_fmlaf(qf, -PI_C2 as f32 * 0.5, r);
-
-        let x2 = r * r;
-
-        if q & 2 == 0 {
-            r = -r;
-        }
-
-        let mut u;
-        #[cfg(any(
-            all(
-                any(target_arch = "x86", target_arch = "x86_64"),
-                target_feature = "fma"
-            ),
-            all(target_arch = "aarch64", target_feature = "neon")
-        ))]
-        {
-            u = 2.6083159809786593541503e-06f32;
-            u = f_fmlaf(u, x2, -0.0001981069071916863322258f32);
-            u = f_fmlaf(u, x2, 0.00833307858556509017944336f32);
-            u = f_fmlaf(u, x2, -0.166666597127914428710938f32);
-        }
-        #[cfg(not(any(
-            all(
-                any(target_arch = "x86", target_arch = "x86_64"),
-                target_feature = "fma"
-            ),
-            all(target_arch = "aarch64", target_feature = "neon")
-        )))]
-        {
-            use crate::math::estrin::*;
-            u = poly4!(
-                x2,
-                x2 * x2,
-                2.6083159809786593541503e-06f32,
-                -0.0001981069071916863322258f32,
-                0.00833307858556509017944336f32,
-                -0.166666597127914428710938f32
-            );
-        }
-        u = f_fmlaf(u, x2 * r, r);
-        if isnegzerof(d) {
-            return -0.;
-        }
-        u
+        u = 2.6083159809786593541503e-06;
+        u = f_fmla(u, x2, -0.0001981069071916863322258);
+        u = f_fmla(u, x2, 0.00833307858556509017944336);
+        u = f_fmla(u, x2, -0.166666597127914428710938);
     }
+    #[cfg(not(any(
+        all(
+            any(target_arch = "x86", target_arch = "x86_64"),
+            target_feature = "fma"
+        ),
+        all(target_arch = "aarch64", target_feature = "neon")
+    )))]
+    {
+        use crate::math::estrin::*;
+        u = poly4!(
+            x2,
+            x2 * x2,
+            2.6083159809786593541503e-06,
+            -0.0001981069071916863322258,
+            0.00833307858556509017944336,
+            -0.166666597127914428710938
+        );
+    }
+    u = f_fmla(u, x2 * r, r);
+    if isnegzerof(d) {
+        return -0.;
+    }
+    u as f32
 }
 
 /// Sine function
@@ -201,106 +146,53 @@ pub const fn sinf(d: f32) -> f32 {
 /// Sine function using FMA
 #[inline]
 pub fn f_sinf(d: f32) -> f32 {
-    #[cfg(native_64_word)]
-    {
-        let qf = (std::f64::consts::FRAC_1_PI * d as f64).round();
-        let q = qf as i32;
-        let mut r = f_fmla(qf, -PI_A2, d as f64);
-        r = f_fmla(qf, -PI_B2, r);
-        r = f_fmla(qf, -PI_C2, r);
+    let qf = (std::f64::consts::FRAC_1_PI * d as f64).round();
+    let q = qf as i32;
+    let mut r = f_fmla(qf, -PI_A2, d as f64);
+    r = f_fmla(qf, -PI_B2, r);
+    r = f_fmla(qf, -PI_C2, r);
 
-        if (q & 1) != 0 {
-            r = -r;
-        }
-        let x2 = r * r;
-        let mut u: f64;
-        #[cfg(any(
-            all(
-                any(target_arch = "x86", target_arch = "x86_64"),
-                target_feature = "fma"
-            ),
-            all(target_arch = "aarch64", target_feature = "neon")
-        ))]
-        {
-            u = 2.6083159809786593541503e-06;
-            u = f_fmla(u, x2, -0.0001981069071916863322258);
-            u = f_fmla(u, x2, 0.00833307858556509017944336);
-            u = f_fmla(u, x2, -0.166666597127914428710938);
-        }
-        #[cfg(not(any(
-            all(
-                any(target_arch = "x86", target_arch = "x86_64"),
-                target_feature = "fma"
-            ),
-            all(target_arch = "aarch64", target_feature = "neon")
-        )))]
-        {
-            use crate::math::estrin::*;
-            u = poly4!(
-                x2,
-                x2 * x2,
-                2.6083159809786593541503e-06,
-                -0.0001981069071916863322258,
-                0.00833307858556509017944336,
-                -0.166666597127914428710938
-            );
-        }
-        u = f_fmla(u, x2 * r, r);
-        if isnegzerof(d) {
-            return -0f32;
-        }
-        u as f32
+    if (q & 1) != 0 {
+        r = -r;
     }
-    #[cfg(not(native_64_word))]
+    let x2 = r * r;
+    let mut u: f64;
+    #[cfg(any(
+        all(
+            any(target_arch = "x86", target_arch = "x86_64"),
+            target_feature = "fma"
+        ),
+        all(target_arch = "aarch64", target_feature = "neon")
+    ))]
     {
-        let qf = (std::f32::consts::FRAC_1_PI * d).round();
-        let q = qf as i32;
-        let mut r = f_fmlaf(qf, -PI_A2 as f32, d);
-        r = f_fmlaf(qf, -PI_B2 as f32, r);
-        r = f_fmlaf(qf, -PI_C2 as f32, r);
-
-        if (q & 1) != 0 {
-            r = -r;
-        }
-        let x2 = r * r;
-        let mut u;
-        #[cfg(any(
-            all(
-                any(target_arch = "x86", target_arch = "x86_64"),
-                target_feature = "fma"
-            ),
-            all(target_arch = "aarch64", target_feature = "neon")
-        ))]
-        {
-            u = 2.6083159809786593541503e-06f32;
-            u = f_fmlaf(u, x2, -0.0001981069071916863322258f32);
-            u = f_fmlaf(u, x2, 0.00833307858556509017944336f32);
-            u = f_fmlaf(u, x2, -0.166666597127914428710938f32);
-        }
-        #[cfg(not(any(
-            all(
-                any(target_arch = "x86", target_arch = "x86_64"),
-                target_feature = "fma"
-            ),
-            all(target_arch = "aarch64", target_feature = "neon")
-        )))]
-        {
-            use crate::math::estrin::*;
-            u = poly4!(
-                x2,
-                x2 * x2,
-                2.6083159809786593541503e-06f32,
-                -0.0001981069071916863322258f32,
-                0.00833307858556509017944336f32,
-                -0.166666597127914428710938f32
-            );
-        }
-        u = f_fmlaf(u, x2 * r, r);
-        if isnegzerof(d) {
-            return -0f32;
-        }
-        u
+        u = 2.6083159809786593541503e-06;
+        u = f_fmla(u, x2, -0.0001981069071916863322258);
+        u = f_fmla(u, x2, 0.00833307858556509017944336);
+        u = f_fmla(u, x2, -0.166666597127914428710938);
     }
+    #[cfg(not(any(
+        all(
+            any(target_arch = "x86", target_arch = "x86_64"),
+            target_feature = "fma"
+        ),
+        all(target_arch = "aarch64", target_feature = "neon")
+    )))]
+    {
+        use crate::math::estrin::*;
+        u = poly4!(
+            x2,
+            x2 * x2,
+            2.6083159809786593541503e-06,
+            -0.0001981069071916863322258,
+            0.00833307858556509017944336,
+            -0.166666597127914428710938
+        );
+    }
+    u = f_fmla(u, x2 * r, r);
+    if isnegzerof(d) {
+        return -0f32;
+    }
+    u as f32
 }
 
 #[cfg(test)]
