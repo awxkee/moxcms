@@ -49,7 +49,7 @@ pub(crate) struct TransformMatrixShaperFixedPoint<R, T, const LINEAR_CAP: usize>
 pub(crate) struct TransformMatrixShaperFixedPointOpt<R, T, const LINEAR_CAP: usize> {
     pub(crate) linear: Box<[R; LINEAR_CAP]>,
     pub(crate) gamma: Box<[T; 65536]>,
-    pub(crate) adaptation_matrix: Matrix3<i16>,
+    pub(crate) adaptation_matrix: Matrix3<R>,
 }
 
 #[allow(unused)]
@@ -328,8 +328,83 @@ macro_rules! create_rgb_xyz_dependant_q2_13_executor {
     };
 }
 
+#[cfg(all(target_arch = "aarch64", feature = "neon"))]
+macro_rules! create_rgb_xyz_dependant_q1_30_executor {
+    ($dep_name: ident, $dependant: ident, $resolution: ident, $shaper: ident) => {
+        pub(crate) fn $dep_name<
+            T: Clone + Send + Sync + AsPrimitive<usize> + Default + PointeeSizeExpressible,
+            const LINEAR_CAP: usize,
+            const GAMMA_LUT: usize,
+            const BIT_DEPTH: usize,
+            const PRECISION: i32,
+        >(
+            src_layout: Layout,
+            dst_layout: Layout,
+            profile: $shaper<T, LINEAR_CAP>,
+        ) -> Result<Box<dyn TransformExecutor<T> + Send + Sync>, CmsError>
+        where
+            u32: AsPrimitive<T>,
+        {
+            let q1_30_profile =
+                profile.to_q1_30_n::<$resolution, PRECISION, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>();
+            if (src_layout == Layout::Rgba) && (dst_layout == Layout::Rgba) {
+                return Ok(Box::new($dependant::<
+                    T,
+                    { Layout::Rgba as u8 },
+                    { Layout::Rgba as u8 },
+                    LINEAR_CAP,
+                    GAMMA_LUT,
+                    BIT_DEPTH,
+                    PRECISION,
+                > {
+                    profile: q1_30_profile,
+                }));
+            } else if (src_layout == Layout::Rgb) && (dst_layout == Layout::Rgba) {
+                return Ok(Box::new($dependant::<
+                    T,
+                    { Layout::Rgb as u8 },
+                    { Layout::Rgba as u8 },
+                    LINEAR_CAP,
+                    GAMMA_LUT,
+                    BIT_DEPTH,
+                    PRECISION,
+                > {
+                    profile: q1_30_profile,
+                }));
+            } else if (src_layout == Layout::Rgba) && (dst_layout == Layout::Rgb) {
+                return Ok(Box::new($dependant::<
+                    T,
+                    { Layout::Rgba as u8 },
+                    { Layout::Rgb as u8 },
+                    LINEAR_CAP,
+                    GAMMA_LUT,
+                    BIT_DEPTH,
+                    PRECISION,
+                > {
+                    profile: q1_30_profile,
+                }));
+            } else if (src_layout == Layout::Rgb) && (dst_layout == Layout::Rgb) {
+                return Ok(Box::new($dependant::<
+                    T,
+                    { Layout::Rgb as u8 },
+                    { Layout::Rgb as u8 },
+                    LINEAR_CAP,
+                    GAMMA_LUT,
+                    BIT_DEPTH,
+                    PRECISION,
+                > {
+                    profile: q1_30_profile,
+                }));
+            }
+            Err(CmsError::UnsupportedProfileConnection)
+        }
+    };
+}
+
 #[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
-use crate::conversions::neon::{TransformProfileRgbQ2_13Neon, TransformProfileRgbQ2_13NeonOpt};
+use crate::conversions::neon::{
+    TransformProfileRgbQ1_30NeonOpt, TransformProfileRgbQ2_13Neon, TransformProfileRgbQ2_13NeonOpt,
+};
 
 #[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
 create_rgb_xyz_dependant_q2_13_executor!(
@@ -344,6 +419,14 @@ create_rgb_xyz_dependant_q2_13_executor!(
     make_rgb_xyz_q2_13_opt,
     TransformProfileRgbQ2_13NeonOpt,
     i16,
+    TransformMatrixShaperOptimized
+);
+
+#[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
+create_rgb_xyz_dependant_q1_30_executor!(
+    make_rgb_xyz_q1_30_opt,
+    TransformProfileRgbQ1_30NeonOpt,
+    i32,
     TransformMatrixShaperOptimized
 );
 

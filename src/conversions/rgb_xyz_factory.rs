@@ -231,6 +231,17 @@ impl RgbXyzFactoryOpt<u16> for u16 {
         profile: TransformMatrixShaperOptimized<u16, LINEAR_CAP>,
         transform_options: TransformOptions,
     ) -> Result<Box<dyn TransformExecutor<u16> + Send + Sync>, CmsError> {
+        if BIT_DEPTH >= 12 && transform_options.prefer_fixed_point {
+            #[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
+            {
+                if std::arch::is_aarch64_feature_detected!("rdm") {
+                    use crate::conversions::rgbxyz_fixed::make_rgb_xyz_q1_30_opt;
+                    return make_rgb_xyz_q1_30_opt::<u16, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH, 30>(
+                        src_layout, dst_layout, profile,
+                    );
+                }
+            }
+        }
         if BIT_DEPTH < 16 && transform_options.prefer_fixed_point {
             #[cfg(all(target_arch = "x86_64", feature = "avx"))]
             {
@@ -315,13 +326,16 @@ impl RgbXyzFactoryOpt<f32> for f32 {
             }
             #[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
             {
-                return make_rgb_xyz_q2_13_opt::<
-                    f32,
-                    LINEAR_CAP,
-                    GAMMA_LUT,
-                    BIT_DEPTH,
-                    FIXED_POINT_SCALE,
-                >(src_layout, dst_layout, profile);
+                return if std::arch::is_aarch64_feature_detected!("rdm") {
+                    use crate::conversions::rgbxyz_fixed::make_rgb_xyz_q1_30_opt;
+                    make_rgb_xyz_q1_30_opt::<f32, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH, 30>(
+                        src_layout, dst_layout, profile,
+                    )
+                } else {
+                    make_rgb_xyz_q2_13_opt::<f32, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH, FIXED_POINT_SCALE>(
+                        src_layout, dst_layout, profile,
+                    )
+                };
             }
         }
         make_rgb_xyz_rgb_transform_opt::<f32, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>(
@@ -339,8 +353,19 @@ impl RgbXyzFactoryOpt<f64> for f64 {
         src_layout: Layout,
         dst_layout: Layout,
         profile: TransformMatrixShaperOptimized<f64, LINEAR_CAP>,
-        _: TransformOptions,
+        transform_options: TransformOptions,
     ) -> Result<Box<dyn TransformExecutor<f64> + Send + Sync>, CmsError> {
+        if transform_options.prefer_fixed_point {
+            #[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
+            {
+                if std::arch::is_aarch64_feature_detected!("rdm") {
+                    use crate::conversions::rgbxyz_fixed::make_rgb_xyz_q1_30_opt;
+                    return make_rgb_xyz_q1_30_opt::<f64, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH, 30>(
+                        src_layout, dst_layout, profile,
+                    );
+                }
+            }
+        }
         make_rgb_xyz_rgb_transform_opt::<f64, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>(
             src_layout, dst_layout, profile,
         )

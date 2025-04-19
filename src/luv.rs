@@ -53,7 +53,6 @@ pub struct LCh {
     pub h: f32,
 }
 
-use crate::math::cbrtf;
 use crate::{
     Chromaticity, Lab, Xyz, atan2f, const_hypotf, f_atan2f, f_cbrtf, f_cosf, f_sinf, hypotf, powf,
 };

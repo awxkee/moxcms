@@ -33,7 +33,7 @@ use crate::{CmsError, Layout, TransformExecutor};
 use num_traits::AsPrimitive;
 use std::arch::aarch64::*;
 
-pub(crate) struct TransformProfileRgbQ2_13NeonOpt<
+pub(crate) struct TransformProfileRgbQ1_30NeonOpt<
     T: Copy,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
@@ -42,7 +42,7 @@ pub(crate) struct TransformProfileRgbQ2_13NeonOpt<
     const BIT_DEPTH: usize,
     const PRECISION: i32,
 > {
-    pub(crate) profile: TransformMatrixShaperFixedPointOpt<i16, T, LINEAR_CAP>,
+    pub(crate) profile: TransformMatrixShaperFixedPointOpt<i32, T, LINEAR_CAP>,
 }
 
 impl<
@@ -53,8 +53,8 @@ impl<
     const GAMMA_LUT: usize,
     const BIT_DEPTH: usize,
     const PRECISION: i32,
-> TransformExecutor<T>
-    for TransformProfileRgbQ2_13NeonOpt<
+>
+    TransformProfileRgbQ1_30NeonOpt<
         T,
         SRC_LAYOUT,
         DST_LAYOUT,
@@ -66,7 +66,8 @@ impl<
 where
     u32: AsPrimitive<T>,
 {
-    fn transform(&self, src: &[T], dst: &mut [T]) -> Result<(), CmsError> {
+    #[target_feature(enable = "rdm")]
+    unsafe fn transform_impl(&self, src: &[T], dst: &mut [T]) -> Result<(), CmsError> {
         let src_cn = Layout::from(SRC_LAYOUT);
         let dst_cn = Layout::from(DST_LAYOUT);
         let src_channels = src_cn.channels();
@@ -89,13 +90,11 @@ where
         let (dst_chunks, dst_remainder) = split_by_twos_mut(dst, dst_channels);
 
         unsafe {
-            let m0 = vld1_s16([t.v[0][0], t.v[0][1], t.v[0][2], 0].as_ptr());
-            let m1 = vld1_s16([t.v[1][0], t.v[1][1], t.v[1][2], 0].as_ptr());
-            let m2 = vld1_s16([t.v[2][0], t.v[2][1], t.v[2][2], 0].as_ptr());
+            let m0 = vld1q_s32([t.v[0][0], t.v[0][1], t.v[0][2], 0].as_ptr());
+            let m1 = vld1q_s32([t.v[1][0], t.v[1][1], t.v[1][2], 0].as_ptr());
+            let m2 = vld1q_s32([t.v[2][0], t.v[2][1], t.v[2][2], 0].as_ptr());
 
             let v_max_value = vdup_n_u16((GAMMA_LUT - 1) as u16);
-
-            let rnd = vdupq_n_s32((1 << (PRECISION - 1)) - 1);
 
             if !src_chunks.is_empty() {
                 let (src0, src1) = src_chunks.split_at(src_chunks.len() / 2);
@@ -125,21 +124,21 @@ where
                     let g3p = &self.profile.linear[src1[src_cn.g_i() + src_channels]._as_usize()];
                     let b3p = &self.profile.linear[src1[src_cn.b_i() + src_channels]._as_usize()];
 
-                    r0 = vld1_dup_s16(r0p);
-                    g0 = vld1_dup_s16(g0p);
-                    b0 = vld1_dup_s16(b0p);
+                    r0 = vld1q_dup_s32(r0p);
+                    g0 = vld1q_dup_s32(g0p);
+                    b0 = vld1q_dup_s32(b0p);
 
-                    r1 = vld1_dup_s16(r1p);
-                    g1 = vld1_dup_s16(g1p);
-                    b1 = vld1_dup_s16(b1p);
+                    r1 = vld1q_dup_s32(r1p);
+                    g1 = vld1q_dup_s32(g1p);
+                    b1 = vld1q_dup_s32(b1p);
 
-                    r2 = vld1_dup_s16(r2p);
-                    g2 = vld1_dup_s16(g2p);
-                    b2 = vld1_dup_s16(b2p);
+                    r2 = vld1q_dup_s32(r2p);
+                    g2 = vld1q_dup_s32(g2p);
+                    b2 = vld1q_dup_s32(b2p);
 
-                    r3 = vld1_dup_s16(r3p);
-                    g3 = vld1_dup_s16(g3p);
-                    b3 = vld1_dup_s16(b3p);
+                    r3 = vld1q_dup_s32(r3p);
+                    g3 = vld1q_dup_s32(g3p);
+                    b3 = vld1q_dup_s32(b3p);
 
                     a0 = if src_channels == 4 {
                         src0[src_cn.a_i()]
@@ -165,18 +164,18 @@ where
                         max_colors
                     };
                 } else {
-                    r0 = vdup_n_s16(0);
-                    g0 = vdup_n_s16(0);
-                    b0 = vdup_n_s16(0);
-                    r1 = vdup_n_s16(0);
-                    g1 = vdup_n_s16(0);
-                    b1 = vdup_n_s16(0);
-                    r2 = vdup_n_s16(0);
-                    g2 = vdup_n_s16(0);
-                    b2 = vdup_n_s16(0);
-                    r3 = vdup_n_s16(0);
-                    g3 = vdup_n_s16(0);
-                    b3 = vdup_n_s16(0);
+                    r0 = vdupq_n_s32(0);
+                    g0 = vdupq_n_s32(0);
+                    b0 = vdupq_n_s32(0);
+                    r1 = vdupq_n_s32(0);
+                    g1 = vdupq_n_s32(0);
+                    b1 = vdupq_n_s32(0);
+                    r2 = vdupq_n_s32(0);
+                    g2 = vdupq_n_s32(0);
+                    b2 = vdupq_n_s32(0);
+                    r3 = vdupq_n_s32(0);
+                    g3 = vdupq_n_s32(0);
+                    b3 = vdupq_n_s32(0);
                     a0 = max_colors;
                     a1 = max_colors;
                     a2 = max_colors;
@@ -188,30 +187,32 @@ where
                     .zip(dst0.chunks_exact_mut(dst_channels * 2))
                     .zip(dst1.chunks_exact_mut(dst_channels * 2))
                 {
-                    let v0_0 = vmlal_s16(rnd, r0, m0);
-                    let v0_1 = vmlal_s16(rnd, r1, m0);
-                    let v0_2 = vmlal_s16(rnd, r2, m0);
-                    let v0_3 = vmlal_s16(rnd, r3, m0);
+                    let v0_0 = vqrdmulhq_s32(r0, m0);
+                    let v0_1 = vqrdmulhq_s32(r1, m0);
+                    let v0_2 = vqrdmulhq_s32(r2, m0);
+                    let v0_3 = vqrdmulhq_s32(r3, m0);
 
-                    let v1_0 = vmlal_s16(v0_0, g0, m1);
-                    let v1_1 = vmlal_s16(v0_1, g1, m1);
-                    let v1_2 = vmlal_s16(v0_2, g2, m1);
-                    let v1_3 = vmlal_s16(v0_3, g3, m1);
+                    let v1_0 = vqrdmlahq_s32(v0_0, g0, m1);
+                    let v1_1 = vqrdmlahq_s32(v0_1, g1, m1);
+                    let v1_2 = vqrdmlahq_s32(v0_2, g2, m1);
+                    let v1_3 = vqrdmlahq_s32(v0_3, g3, m1);
 
-                    let vr0 = vmlal_s16(v1_0, b0, m2);
-                    let vr1 = vmlal_s16(v1_1, b1, m2);
-                    let vr2 = vmlal_s16(v1_2, b2, m2);
-                    let vr3 = vmlal_s16(v1_3, b3, m2);
+                    let vr0 = vqrdmlahq_s32(v1_0, b0, m2);
+                    let vr1 = vqrdmlahq_s32(v1_1, b1, m2);
+                    let vr2 = vqrdmlahq_s32(v1_2, b2, m2);
+                    let vr3 = vqrdmlahq_s32(v1_3, b3, m2);
 
-                    let mut vr0 = vqshrun_n_s32::<PRECISION>(vr0);
-                    let mut vr1 = vqshrun_n_s32::<PRECISION>(vr1);
-                    let mut vr2 = vqshrun_n_s32::<PRECISION>(vr2);
-                    let mut vr3 = vqshrun_n_s32::<PRECISION>(vr3);
+                    let mut vr0 = vqmovun_s32(vr0);
+                    let mut vr1 = vqmovun_s32(vr1);
+                    let mut vr2 = vqmovun_s32(vr2);
+                    let mut vr3 = vqmovun_s32(vr3);
 
-                    vr0 = vmin_u16(vr0, v_max_value);
-                    vr1 = vmin_u16(vr1, v_max_value);
-                    vr2 = vmin_u16(vr2, v_max_value);
-                    vr3 = vmin_u16(vr3, v_max_value);
+                    if BIT_DEPTH != 16 {
+                        vr0 = vmin_u16(vr0, v_max_value);
+                        vr1 = vmin_u16(vr1, v_max_value);
+                        vr2 = vmin_u16(vr2, v_max_value);
+                        vr3 = vmin_u16(vr3, v_max_value);
+                    }
 
                     let r0p = &self.profile.linear[src0[src_cn.r_i()]._as_usize()];
                     let g0p = &self.profile.linear[src0[src_cn.g_i()]._as_usize()];
@@ -229,21 +230,21 @@ where
                     let g3p = &self.profile.linear[src1[src_cn.g_i() + src_channels]._as_usize()];
                     let b3p = &self.profile.linear[src1[src_cn.b_i() + src_channels]._as_usize()];
 
-                    r0 = vld1_dup_s16(r0p);
-                    g0 = vld1_dup_s16(g0p);
-                    b0 = vld1_dup_s16(b0p);
+                    r0 = vld1q_dup_s32(r0p);
+                    g0 = vld1q_dup_s32(g0p);
+                    b0 = vld1q_dup_s32(b0p);
 
-                    r1 = vld1_dup_s16(r1p);
-                    g1 = vld1_dup_s16(g1p);
-                    b1 = vld1_dup_s16(b1p);
+                    r1 = vld1q_dup_s32(r1p);
+                    g1 = vld1q_dup_s32(g1p);
+                    b1 = vld1q_dup_s32(b1p);
 
-                    r2 = vld1_dup_s16(r2p);
-                    g2 = vld1_dup_s16(g2p);
-                    b2 = vld1_dup_s16(b2p);
+                    r2 = vld1q_dup_s32(r2p);
+                    g2 = vld1q_dup_s32(g2p);
+                    b2 = vld1q_dup_s32(b2p);
 
-                    r3 = vld1_dup_s16(r3p);
-                    g3 = vld1_dup_s16(g3p);
-                    b3 = vld1_dup_s16(b3p);
+                    r3 = vld1q_dup_s32(r3p);
+                    g3 = vld1q_dup_s32(g3p);
+                    b3 = vld1q_dup_s32(b3p);
 
                     dst0[dst_cn.r_i()] = self.profile.gamma[vget_lane_u16::<0>(vr0) as usize];
                     dst0[dst_cn.g_i()] = self.profile.gamma[vget_lane_u16::<1>(vr0) as usize];
@@ -308,30 +309,32 @@ where
                     dst0.chunks_exact_mut(dst_channels * 2).last(),
                     dst1.chunks_exact_mut(dst_channels * 2).last(),
                 ) {
-                    let v0_0 = vmlal_s16(rnd, r0, m0);
-                    let v0_1 = vmlal_s16(rnd, r1, m0);
-                    let v0_2 = vmlal_s16(rnd, r2, m0);
-                    let v0_3 = vmlal_s16(rnd, r3, m0);
+                    let v0_0 = vqrdmulhq_s32(r0, m0);
+                    let v0_1 = vqrdmulhq_s32(r1, m0);
+                    let v0_2 = vqrdmulhq_s32(r2, m0);
+                    let v0_3 = vqrdmulhq_s32(r3, m0);
 
-                    let v1_0 = vmlal_s16(v0_0, g0, m1);
-                    let v1_1 = vmlal_s16(v0_1, g1, m1);
-                    let v1_2 = vmlal_s16(v0_2, g2, m1);
-                    let v1_3 = vmlal_s16(v0_3, g3, m1);
+                    let v1_0 = vqrdmlahq_s32(v0_0, g0, m1);
+                    let v1_1 = vqrdmlahq_s32(v0_1, g1, m1);
+                    let v1_2 = vqrdmlahq_s32(v0_2, g2, m1);
+                    let v1_3 = vqrdmlahq_s32(v0_3, g3, m1);
 
-                    let vr0 = vmlal_s16(v1_0, b0, m2);
-                    let vr1 = vmlal_s16(v1_1, b1, m2);
-                    let vr2 = vmlal_s16(v1_2, b2, m2);
-                    let vr3 = vmlal_s16(v1_3, b3, m2);
+                    let vr0 = vqrdmlahq_s32(v1_0, b0, m2);
+                    let vr1 = vqrdmlahq_s32(v1_1, b1, m2);
+                    let vr2 = vqrdmlahq_s32(v1_2, b2, m2);
+                    let vr3 = vqrdmlahq_s32(v1_3, b3, m2);
 
-                    let mut vr0 = vqshrun_n_s32::<PRECISION>(vr0);
-                    let mut vr1 = vqshrun_n_s32::<PRECISION>(vr1);
-                    let mut vr2 = vqshrun_n_s32::<PRECISION>(vr2);
-                    let mut vr3 = vqshrun_n_s32::<PRECISION>(vr3);
+                    let mut vr0 = vqmovun_s32(vr0);
+                    let mut vr1 = vqmovun_s32(vr1);
+                    let mut vr2 = vqmovun_s32(vr2);
+                    let mut vr3 = vqmovun_s32(vr3);
 
-                    vr0 = vmin_u16(vr0, v_max_value);
-                    vr1 = vmin_u16(vr1, v_max_value);
-                    vr2 = vmin_u16(vr2, v_max_value);
-                    vr3 = vmin_u16(vr3, v_max_value);
+                    if BIT_DEPTH != 16 {
+                        vr0 = vmin_u16(vr0, v_max_value);
+                        vr1 = vmin_u16(vr1, v_max_value);
+                        vr2 = vmin_u16(vr2, v_max_value);
+                        vr3 = vmin_u16(vr3, v_max_value);
+                    }
 
                     dst0[dst_cn.r_i()] = self.profile.gamma[vget_lane_u16::<0>(vr0) as usize];
                     dst0[dst_cn.g_i()] = self.profile.gamma[vget_lane_u16::<1>(vr0) as usize];
@@ -376,21 +379,23 @@ where
                 let rp = &self.profile.linear[src[src_cn.r_i()]._as_usize()];
                 let gp = &self.profile.linear[src[src_cn.g_i()]._as_usize()];
                 let bp = &self.profile.linear[src[src_cn.b_i()]._as_usize()];
-                let r = vld1_dup_s16(rp);
-                let g = vld1_dup_s16(gp);
-                let b = vld1_dup_s16(bp);
+                let r = vld1q_dup_s32(rp);
+                let g = vld1q_dup_s32(gp);
+                let b = vld1q_dup_s32(bp);
                 let a = if src_channels == 4 {
                     src[src_cn.a_i()]
                 } else {
                     max_colors
                 };
 
-                let v0 = vmlal_s16(rnd, r, m0);
-                let v1 = vmlal_s16(v0, g, m1);
-                let v = vmlal_s16(v1, b, m2);
+                let v0 = vqrdmulhq_s32(r, m0);
+                let v1 = vqrdmlahq_s32(v0, g, m1);
+                let v = vqrdmlahq_s32(v1, b, m2);
 
-                let mut vr0 = vqshrun_n_s32::<PRECISION>(v);
-                vr0 = vmin_u16(vr0, v_max_value);
+                let mut vr0 = vqmovun_s32(v);
+                if BIT_DEPTH != 16 {
+                    vr0 = vmin_u16(vr0, v_max_value);
+                }
 
                 dst[dst_cn.r_i()] = self.profile.gamma[vget_lane_u16::<0>(vr0) as usize];
                 dst[dst_cn.g_i()] = self.profile.gamma[vget_lane_u16::<1>(vr0) as usize];
@@ -402,5 +407,31 @@ where
         }
 
         Ok(())
+    }
+}
+
+impl<
+    T: Copy + PointeeSizeExpressible + 'static + Default,
+    const SRC_LAYOUT: u8,
+    const DST_LAYOUT: u8,
+    const LINEAR_CAP: usize,
+    const GAMMA_LUT: usize,
+    const BIT_DEPTH: usize,
+    const PRECISION: i32,
+> TransformExecutor<T>
+    for TransformProfileRgbQ1_30NeonOpt<
+        T,
+        SRC_LAYOUT,
+        DST_LAYOUT,
+        LINEAR_CAP,
+        GAMMA_LUT,
+        BIT_DEPTH,
+        PRECISION,
+    >
+where
+    u32: AsPrimitive<T>,
+{
+    fn transform(&self, src: &[T], dst: &mut [T]) -> Result<(), CmsError> {
+        unsafe { self.transform_impl(src, dst) }
     }
 }

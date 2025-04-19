@@ -108,7 +108,7 @@ where
             let m1 = vld1_s16([t.v[1][0], t.v[1][1], t.v[1][2], 0].as_ptr());
             let m2 = vld1_s16([t.v[2][0], t.v[2][1], t.v[2][2], 0].as_ptr());
 
-            let v_max_value = vdup_n_u16(GAMMA_LUT as u16 - 1);
+            let v_max_value = vdup_n_u16((GAMMA_LUT - 1) as u16);
 
             let rnd = vdupq_n_s32((1 << (PRECISION - 1)) - 1);
 
