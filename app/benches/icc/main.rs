@@ -41,54 +41,6 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     .unwrap();
     t.transform_pixels(&rgba, &mut cmyk);
 
-    c.bench_function("moxcms: RGB16 -> RGB16", |b| {
-        let rgb = rgb
-            .iter()
-            .map(|&x| u16::from_ne_bytes([x, x]))
-            .collect::<Vec<_>>();
-        let color_profile = ColorProfile::new_from_slice(&src_icc_profile).unwrap();
-        let dest_profile = ColorProfile::new_srgb();
-        let mut dst = vec![0u16; rgb.len()];
-        let transform = color_profile
-            .create_transform_16bit(
-                Layout::Rgb,
-                &dest_profile,
-                Layout::Rgb,
-                TransformOptions {
-                    prefer_fixed_point: false,
-                    ..Default::default()
-                },
-            )
-            .unwrap();
-        b.iter(|| {
-            transform.transform(&rgb, &mut dst).unwrap();
-        })
-    });
-
-    c.bench_function("moxcms: Fixed RGB16 -> RGB16", |b| {
-        let rgb = rgb
-            .iter()
-            .map(|&x| u16::from_ne_bytes([x, x]))
-            .collect::<Vec<_>>();
-        let color_profile = ColorProfile::new_from_slice(&src_icc_profile).unwrap();
-        let dest_profile = ColorProfile::new_srgb();
-        let mut dst = vec![0u16; rgb.len()];
-        let transform = color_profile
-            .create_transform_16bit(
-                Layout::Rgb,
-                &dest_profile,
-                Layout::Rgb,
-                TransformOptions {
-                    prefer_fixed_point: true,
-                    ..Default::default()
-                },
-            )
-            .unwrap();
-        b.iter(|| {
-            transform.transform(&rgb, &mut dst).unwrap();
-        })
-    });
-
     c.bench_function("moxcms: RGB -> RGB", |b| {
         let color_profile = ColorProfile::new_from_slice(&src_icc_profile).unwrap();
         let dest_profile = ColorProfile::new_srgb();
@@ -347,6 +299,54 @@ pub fn criterion_benchmark(c: &mut Criterion) {
 
         b.iter(|| {
             t.transform_pixels(&rgba, &mut dst);
+        })
+    });
+
+    c.bench_function("moxcms: RGB16 -> RGB16", |b| {
+        let rgb = rgb
+            .iter()
+            .map(|&x| u16::from_ne_bytes([x, x]))
+            .collect::<Vec<_>>();
+        let color_profile = ColorProfile::new_from_slice(&src_icc_profile).unwrap();
+        let dest_profile = ColorProfile::new_srgb();
+        let mut dst = vec![0u16; rgb.len()];
+        let transform = color_profile
+            .create_transform_16bit(
+                Layout::Rgb,
+                &dest_profile,
+                Layout::Rgb,
+                TransformOptions {
+                    prefer_fixed_point: false,
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        b.iter(|| {
+            transform.transform(&rgb, &mut dst).unwrap();
+        })
+    });
+
+    c.bench_function("moxcms: Fixed RGB16 -> RGB16", |b| {
+        let rgb = rgb
+            .iter()
+            .map(|&x| u16::from_ne_bytes([x, x]))
+            .collect::<Vec<_>>();
+        let color_profile = ColorProfile::new_from_slice(&src_icc_profile).unwrap();
+        let dest_profile = ColorProfile::new_srgb();
+        let mut dst = vec![0u16; rgb.len()];
+        let transform = color_profile
+            .create_transform_16bit(
+                Layout::Rgb,
+                &dest_profile,
+                Layout::Rgb,
+                TransformOptions {
+                    prefer_fixed_point: true,
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        b.iter(|| {
+            transform.transform(&rgb, &mut dst).unwrap();
         })
     });
 

@@ -46,10 +46,10 @@ pub(crate) struct TransformMatrixShaperFixedPoint<R, T, const LINEAR_CAP: usize>
 /// Fixed point conversion Q2.13
 ///
 /// Optimized routine for *all same curves* matrix shaper.
-pub(crate) struct TransformMatrixShaperFixedPointOpt<R, T, const LINEAR_CAP: usize> {
+pub(crate) struct TransformMatrixShaperFixedPointOpt<R, W, T, const LINEAR_CAP: usize> {
     pub(crate) linear: Box<[R; LINEAR_CAP]>,
     pub(crate) gamma: Box<[T; 65536]>,
-    pub(crate) adaptation_matrix: Matrix3<R>,
+    pub(crate) adaptation_matrix: Matrix3<W>,
 }
 
 #[allow(unused)]
@@ -75,7 +75,7 @@ struct TransformMatrixShaperQ2_13Optimized<
     const BIT_DEPTH: usize,
     const PRECISION: i32,
 > {
-    pub(crate) profile: TransformMatrixShaperFixedPointOpt<i16, T, LINEAR_CAP>,
+    pub(crate) profile: TransformMatrixShaperFixedPointOpt<i16, i16, T, LINEAR_CAP>,
 }
 
 #[allow(unused)]

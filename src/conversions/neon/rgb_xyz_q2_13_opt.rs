@@ -42,7 +42,7 @@ pub(crate) struct TransformProfileRgbQ2_13NeonOpt<
     const BIT_DEPTH: usize,
     const PRECISION: i32,
 > {
-    pub(crate) profile: TransformMatrixShaperFixedPointOpt<i16, T, LINEAR_CAP>,
+    pub(crate) profile: TransformMatrixShaperFixedPointOpt<i16, i16, T, LINEAR_CAP>,
 }
 
 impl<

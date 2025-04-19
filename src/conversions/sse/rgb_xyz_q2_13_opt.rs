@@ -46,7 +46,7 @@ pub(crate) struct TransformProfileRgbQ2_13OptSse<
     const BIT_DEPTH: usize,
     const PRECISION: i32,
 > {
-    pub(crate) profile: TransformMatrixShaperFixedPointOpt<i32, T, LINEAR_CAP>,
+    pub(crate) profile: TransformMatrixShaperFixedPointOpt<i32, i16, T, LINEAR_CAP>,
 }
 
 impl<

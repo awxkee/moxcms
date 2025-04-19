@@ -110,7 +110,7 @@ impl<T: Clone + PointeeSizeExpressible, const BUCKET: usize>
         const BIT_DEPTH: usize,
     >(
         &self,
-    ) -> TransformMatrixShaperFixedPointOpt<R, T, BUCKET>
+    ) -> TransformMatrixShaperFixedPointOpt<R, i16, T, BUCKET>
     where
         f32: AsPrimitive<R>,
     {
@@ -127,12 +127,12 @@ impl<T: Clone + PointeeSizeExpressible, const BUCKET: usize>
         }
         let scale: f32 = ((1 << PRECISION) - 1) as f32;
         let source_matrix = self.adaptation_matrix;
-        let mut dst_matrix = Matrix3::<R> {
-            v: [[R::default(); 3]; 3],
+        let mut dst_matrix = Matrix3::<i16> {
+            v: [[i16::default(); 3]; 3],
         };
         for i in 0..3 {
             for j in 0..3 {
-                dst_matrix.v[i][j] = (source_matrix.v[i][j] * scale).round().min(scale).as_();
+                dst_matrix.v[i][j] = (source_matrix.v[i][j] * scale).round().min(scale) as i16;
             }
         }
         TransformMatrixShaperFixedPointOpt {
@@ -151,7 +151,7 @@ impl<T: Clone + PointeeSizeExpressible, const BUCKET: usize>
         const BIT_DEPTH: usize,
     >(
         &self,
-    ) -> TransformMatrixShaperFixedPointOpt<R, T, BUCKET>
+    ) -> TransformMatrixShaperFixedPointOpt<R, i32, T, BUCKET>
     where
         f32: AsPrimitive<R>,
         f64: AsPrimitive<R>,
@@ -178,15 +178,13 @@ impl<T: Clone + PointeeSizeExpressible, const BUCKET: usize>
         }
         let scale: f64 = ((1i32 << PRECISION) - 1) as f64;
         let source_matrix = self.adaptation_matrix;
-        let mut dst_matrix = Matrix3::<R> {
-            v: [[R::default(); 3]; 3],
+        let mut dst_matrix = Matrix3::<i32> {
+            v: [[i32::default(); 3]; 3],
         };
         for i in 0..3 {
             for j in 0..3 {
-                dst_matrix.v[i][j] = (source_matrix.v[i][j] as f64 * scale)
-                    .round()
-                    .min(scale)
-                    .as_();
+                dst_matrix.v[i][j] =
+                    (source_matrix.v[i][j] as f64 * scale).round().min(scale) as i32;
             }
         }
         TransformMatrixShaperFixedPointOpt {
