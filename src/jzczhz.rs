@@ -28,7 +28,7 @@
  */
 use crate::jzazbz::Jzazbz;
 use crate::math::hypot3f;
-use crate::{Xyz, atan2f, f_cosf, f_sinf, hypotf};
+use crate::{Xyz, atan2f, f_cbrtf, f_cosf, f_sinf, hypotf};
 use num_traits::Pow;
 use std::ops::{
     Add, AddAssign, Div, DivAssign, Index, IndexMut, Mul, MulAssign, Neg, Sub, SubAssign,
@@ -298,16 +298,12 @@ impl DivAssign<f32> for Jzczhz {
 impl Jzczhz {
     #[inline]
     pub fn sqrt(&self) -> Jzczhz {
-        Jzczhz::new(
-            if self.jz < 0. { 0. } else { self.jz.sqrt() },
-            if self.cz < 0. { 0. } else { self.cz.sqrt() },
-            if self.hz < 0. { 0. } else { self.hz.sqrt() },
-        )
+        Jzczhz::new(self.jz.sqrt(), self.cz.sqrt(), self.hz.sqrt())
     }
 
     #[inline]
     pub fn cbrt(&self) -> Jzczhz {
-        Jzczhz::new(self.jz.cbrt(), self.cz.cbrt(), self.hz.cbrt())
+        Jzczhz::new(f_cbrtf(self.jz), f_cbrtf(self.cz), f_cbrtf(self.hz))
     }
 }
 

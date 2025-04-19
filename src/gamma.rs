@@ -26,6 +26,7 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+use crate::math::dirty_powf;
 use crate::transform::PointeeSizeExpressible;
 use crate::{
     Rgb, TransferCharacteristics, f_exp, f_expf, f_log, f_log10, f_logf, f_pow, f_powf, log10f,
@@ -55,7 +56,7 @@ fn srgb_to_linear_extended(gamma: f32) -> f32 {
     if gamma < 12.92 * 0.0030412825601275209 {
         gamma * (1. / 12.92f32)
     } else {
-        f_powf((gamma + 0.0550107189475866) / 1.0550107189475866, 2.4)
+        dirty_powf((gamma + 0.0550107189475866) / 1.0550107189475866, 2.4)
     }
 }
 
@@ -79,7 +80,7 @@ pub(crate) fn srgb_from_linear_extended(linear: f32) -> f32 {
     if linear < 0.0030412825601275209f32 {
         linear * 12.92f32
     } else {
-        1.0550107189475866f32 * f_powf(linear, 1.0f32 / 2.4f32) - 0.0550107189475866f32
+        1.0550107189475866f32 * dirty_powf(linear, 1.0f32 / 2.4f32) - 0.0550107189475866f32
     }
 }
 
@@ -130,7 +131,7 @@ fn rec709_from_linear_extended(linear: f32) -> f32 {
     if linear < 0.018053968510807 {
         linear * 4.5
     } else {
-        1.09929682680944 * f_powf(linear, 0.45) - 0.09929682680944
+        1.09929682680944 * dirty_powf(linear, 0.45) - 0.09929682680944
     }
 }
 
@@ -145,7 +146,7 @@ pub(crate) fn smpte428_to_linear(gamma: f64) -> f64 {
 /// Linear transfer function for Smpte 428
 pub(crate) fn smpte428_to_linearf_extended(gamma: f32) -> f32 {
     const SCALE: f32 = 1. / 0.91655527974030934;
-    f_powf(gamma.max(0.), 2.6) * SCALE
+    dirty_powf(gamma.max(0.), 2.6) * SCALE
 }
 
 #[inline]
@@ -159,7 +160,7 @@ fn smpte428_from_linear(linear: f64) -> f64 {
 /// Gamma transfer function for Smpte 428
 fn smpte428_from_linearf(linear: f32) -> f32 {
     const POWER_VALUE: f32 = 1.0 / 2.6;
-    f_powf(0.91655527974030934 * linear.max(0.), POWER_VALUE)
+    dirty_powf(0.91655527974030934 * linear.max(0.), POWER_VALUE)
 }
 
 #[inline]
@@ -182,7 +183,7 @@ pub(crate) fn smpte240_to_linearf_extended(gamma: f32) -> f32 {
     if gamma < 4.0 * 0.022821585529445 {
         gamma / 4.0
     } else {
-        f_powf((gamma + 0.111572195921731) / 1.111572195921731, 1.0 / 0.45)
+        dirty_powf((gamma + 0.111572195921731) / 1.111572195921731, 1.0 / 0.45)
     }
 }
 
@@ -315,6 +316,22 @@ fn bt1361_from_linear(linear: f64) -> f64 {
 }
 
 #[inline]
+/// Gamma transfer function for Bt.1361
+fn bt1361_from_linearf(linear: f32) -> f32 {
+    if linear < -0.25 {
+        -0.25
+    } else if linear < 0.0 {
+        -0.27482420670236 * dirty_powf(-4.0 * linear, 0.45) + 0.02482420670236
+    } else if linear < 0.018053968510807 {
+        linear * 4.5
+    } else if linear < 1.0 {
+        1.09929682680944 * dirty_powf(linear, 0.45) - 0.09929682680944
+    } else {
+        1.0
+    }
+}
+
+#[inline]
 /// Linear transfer function for Bt.1361
 pub(crate) fn bt1361_to_linear(gamma: f64) -> f64 {
     if gamma < -0.25f64 {
@@ -333,6 +350,22 @@ pub(crate) fn bt1361_to_linear(gamma: f64) -> f64 {
     }
 }
 
+#[inline]
+/// Linear transfer function for Bt.1361
+fn bt1361_to_linearf(gamma: f32) -> f32 {
+    if gamma < -0.25 {
+        -0.25
+    } else if gamma < 0.0 {
+        dirty_powf((gamma - 0.02482420670236) / -0.27482420670236, 1.0 / 0.45) / -4.0
+    } else if gamma < 4.5 * 0.018053968510807 {
+        gamma / 4.5
+    } else if gamma < 1.0 {
+        dirty_powf((gamma + 0.09929682680944) / 1.09929682680944, 1.0 / 0.45)
+    } else {
+        1.0
+    }
+}
+
 #[inline(always)]
 /// Pure gamma transfer function for gamma 2.2
 fn pure_gamma_function(x: f64, gamma: f64) -> f64 {
@@ -348,7 +381,7 @@ fn pure_gamma_function(x: f64, gamma: f64) -> f64 {
 #[inline(always)]
 /// Pure gamma transfer function for gamma 2.2
 fn pure_gamma_function_f(x: f32, gamma: f32) -> f32 {
-    if x <= 0. { 0. } else { f_powf(x, gamma) }
+    if x <= 0. { 0. } else { dirty_powf(x, gamma) }
 }
 
 #[inline]
@@ -369,6 +402,17 @@ pub(crate) fn iec61966_to_linear(gamma: f64) -> f64 {
 }
 
 #[inline]
+fn iec61966_to_linearf(gamma: f32) -> f32 {
+    if gamma < -4.5 * 0.018053968510807 {
+        dirty_powf((-gamma + 0.09929682680944) / -1.09929682680944, 1.0 / 0.45)
+    } else if gamma < 4.5 * 0.018053968510807 {
+        gamma / 4.5
+    } else {
+        dirty_powf((gamma + 0.09929682680944) / 1.09929682680944, 1.0 / 0.45)
+    }
+}
+
+#[inline]
 fn iec61966_from_linear(v: f64) -> f64 {
     if v < -0.018053968510807f64 {
         -1.09929682680944f64 * f_pow(-v, 0.45f64) + 0.09929682680944f64
@@ -376,6 +420,17 @@ fn iec61966_from_linear(v: f64) -> f64 {
         v * 4.5f64
     } else {
         1.09929682680944f64 * f_pow(v, 0.45f64) - 0.09929682680944f64
+    }
+}
+
+#[inline]
+fn iec61966_from_linearf(v: f32) -> f32 {
+    if v < -0.018053968510807 {
+        -1.09929682680944 * dirty_powf(-v, 0.45) + 0.09929682680944
+    } else if v < 0.018053968510807 {
+        v * 4.5
+    } else {
+        1.09929682680944 * dirty_powf(v, 0.45) - 0.09929682680944
     }
 }
 
@@ -651,16 +706,16 @@ impl TransferCharacteristics {
             },
             TransferCharacteristics::Iec61966 => |x| {
                 Rgb::new(
-                    iec61966_from_linear(x.r as f64) as f32,
-                    iec61966_from_linear(x.g as f64) as f32,
-                    iec61966_from_linear(x.b as f64) as f32,
+                    iec61966_from_linearf(x.r),
+                    iec61966_from_linearf(x.g),
+                    iec61966_from_linearf(x.b),
                 )
             },
             TransferCharacteristics::Bt1361 => |x| {
                 Rgb::new(
-                    bt1361_from_linear(x.r as f64) as f32,
-                    bt1361_from_linear(x.g as f64) as f32,
-                    bt1361_from_linear(x.b as f64) as f32,
+                    bt1361_from_linearf(x.r),
+                    bt1361_from_linearf(x.g),
+                    bt1361_from_linearf(x.b),
                 )
             },
             TransferCharacteristics::Srgb => |x| {
@@ -746,16 +801,16 @@ impl TransferCharacteristics {
             },
             TransferCharacteristics::Iec61966 => |x| {
                 Rgb::new(
-                    iec61966_to_linear(x.r as f64) as f32,
-                    iec61966_to_linear(x.g as f64) as f32,
-                    iec61966_to_linear(x.b as f64) as f32,
+                    iec61966_to_linearf(x.r),
+                    iec61966_to_linearf(x.g),
+                    iec61966_to_linearf(x.b),
                 )
             },
             TransferCharacteristics::Bt1361 => |x| {
                 Rgb::new(
-                    bt1361_to_linear(x.r as f64) as f32,
-                    bt1361_to_linear(x.g as f64) as f32,
-                    bt1361_to_linear(x.b as f64) as f32,
+                    bt1361_to_linearf(x.r),
+                    bt1361_to_linearf(x.g),
+                    bt1361_to_linearf(x.b),
                 )
             },
             TransferCharacteristics::Srgb => |x| {

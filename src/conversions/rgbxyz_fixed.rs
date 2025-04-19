@@ -46,10 +46,10 @@ pub(crate) struct TransformMatrixShaperFixedPoint<R, T, const LINEAR_CAP: usize>
 /// Fixed point conversion Q2.13
 ///
 /// Optimized routine for *all same curves* matrix shaper.
-pub(crate) struct TransformMatrixShaperFixedPointOpt<R, T, const LINEAR_CAP: usize> {
+pub(crate) struct TransformMatrixShaperFixedPointOpt<R, W, T, const LINEAR_CAP: usize> {
     pub(crate) linear: Box<[R; LINEAR_CAP]>,
     pub(crate) gamma: Box<[T; 65536]>,
-    pub(crate) adaptation_matrix: Matrix3<i16>,
+    pub(crate) adaptation_matrix: Matrix3<W>,
 }
 
 #[allow(unused)]
@@ -75,7 +75,7 @@ struct TransformMatrixShaperQ2_13Optimized<
     const BIT_DEPTH: usize,
     const PRECISION: i32,
 > {
-    pub(crate) profile: TransformMatrixShaperFixedPointOpt<i16, T, LINEAR_CAP>,
+    pub(crate) profile: TransformMatrixShaperFixedPointOpt<i16, i16, T, LINEAR_CAP>,
 }
 
 #[allow(unused)]
@@ -140,25 +140,25 @@ where
                 + b as i32 * transform.v[0][2] as i32
                 + rnd;
 
-            let r_q4_12 = (new_r >> PRECISION).min(v_gamma_max).max(0) as u16;
+            let r_q2_13 = (new_r >> PRECISION).min(v_gamma_max).max(0) as u16;
 
             let new_g = r as i32 * transform.v[1][0] as i32
                 + g as i32 * transform.v[1][1] as i32
                 + b as i32 * transform.v[1][2] as i32
                 + rnd;
 
-            let g_q4_12 = (new_g >> PRECISION).min(v_gamma_max).max(0) as u16;
+            let g_q2_13 = (new_g >> PRECISION).min(v_gamma_max).max(0) as u16;
 
             let new_b = r as i32 * transform.v[2][0] as i32
                 + g as i32 * transform.v[2][1] as i32
                 + b as i32 * transform.v[2][2] as i32
                 + rnd;
 
-            let b_q4_12 = (new_b >> PRECISION).min(v_gamma_max).max(0) as u16;
+            let b_q2_13 = (new_b >> PRECISION).min(v_gamma_max).max(0) as u16;
 
-            dst[dst_cn.r_i()] = self.profile.r_gamma[r_q4_12 as usize];
-            dst[dst_cn.g_i()] = self.profile.g_gamma[g_q4_12 as usize];
-            dst[dst_cn.b_i()] = self.profile.b_gamma[b_q4_12 as usize];
+            dst[dst_cn.r_i()] = self.profile.r_gamma[r_q2_13 as usize];
+            dst[dst_cn.g_i()] = self.profile.g_gamma[g_q2_13 as usize];
+            dst[dst_cn.b_i()] = self.profile.b_gamma[b_q2_13 as usize];
             if dst_channels == 4 {
                 dst[dst_cn.a_i()] = a;
             }
@@ -229,25 +229,25 @@ where
                 + b as i32 * transform.v[0][2] as i32
                 + rnd;
 
-            let r_q4_12 = (new_r >> PRECISION).min(v_gamma_max).max(0) as u16;
+            let r_q2_13 = (new_r >> PRECISION).min(v_gamma_max).max(0) as u16;
 
             let new_g = r as i32 * transform.v[1][0] as i32
                 + g as i32 * transform.v[1][1] as i32
                 + b as i32 * transform.v[1][2] as i32
                 + rnd;
 
-            let g_q4_12 = (new_g >> PRECISION).min(v_gamma_max).max(0) as u16;
+            let g_q2_13 = (new_g >> PRECISION).min(v_gamma_max).max(0) as u16;
 
             let new_b = r as i32 * transform.v[2][0] as i32
                 + g as i32 * transform.v[2][1] as i32
                 + b as i32 * transform.v[2][2] as i32
                 + rnd;
 
-            let b_q4_12 = (new_b >> PRECISION).min(v_gamma_max).max(0) as u16;
+            let b_q2_13 = (new_b >> PRECISION).min(v_gamma_max).max(0) as u16;
 
-            dst[dst_cn.r_i()] = self.profile.gamma[r_q4_12 as usize];
-            dst[dst_cn.g_i()] = self.profile.gamma[g_q4_12 as usize];
-            dst[dst_cn.b_i()] = self.profile.gamma[b_q4_12 as usize];
+            dst[dst_cn.r_i()] = self.profile.gamma[r_q2_13 as usize];
+            dst[dst_cn.g_i()] = self.profile.gamma[g_q2_13 as usize];
+            dst[dst_cn.b_i()] = self.profile.gamma[b_q2_13 as usize];
             if dst_channels == 4 {
                 dst[dst_cn.a_i()] = a;
             }
@@ -328,8 +328,83 @@ macro_rules! create_rgb_xyz_dependant_q2_13_executor {
     };
 }
 
+#[cfg(all(target_arch = "aarch64", feature = "neon"))]
+macro_rules! create_rgb_xyz_dependant_q1_30_executor {
+    ($dep_name: ident, $dependant: ident, $resolution: ident, $shaper: ident) => {
+        pub(crate) fn $dep_name<
+            T: Clone + Send + Sync + AsPrimitive<usize> + Default + PointeeSizeExpressible,
+            const LINEAR_CAP: usize,
+            const GAMMA_LUT: usize,
+            const BIT_DEPTH: usize,
+            const PRECISION: i32,
+        >(
+            src_layout: Layout,
+            dst_layout: Layout,
+            profile: $shaper<T, LINEAR_CAP>,
+        ) -> Result<Box<dyn TransformExecutor<T> + Send + Sync>, CmsError>
+        where
+            u32: AsPrimitive<T>,
+        {
+            let q1_30_profile =
+                profile.to_q1_30_n::<$resolution, PRECISION, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>();
+            if (src_layout == Layout::Rgba) && (dst_layout == Layout::Rgba) {
+                return Ok(Box::new($dependant::<
+                    T,
+                    { Layout::Rgba as u8 },
+                    { Layout::Rgba as u8 },
+                    LINEAR_CAP,
+                    GAMMA_LUT,
+                    BIT_DEPTH,
+                    PRECISION,
+                > {
+                    profile: q1_30_profile,
+                }));
+            } else if (src_layout == Layout::Rgb) && (dst_layout == Layout::Rgba) {
+                return Ok(Box::new($dependant::<
+                    T,
+                    { Layout::Rgb as u8 },
+                    { Layout::Rgba as u8 },
+                    LINEAR_CAP,
+                    GAMMA_LUT,
+                    BIT_DEPTH,
+                    PRECISION,
+                > {
+                    profile: q1_30_profile,
+                }));
+            } else if (src_layout == Layout::Rgba) && (dst_layout == Layout::Rgb) {
+                return Ok(Box::new($dependant::<
+                    T,
+                    { Layout::Rgba as u8 },
+                    { Layout::Rgb as u8 },
+                    LINEAR_CAP,
+                    GAMMA_LUT,
+                    BIT_DEPTH,
+                    PRECISION,
+                > {
+                    profile: q1_30_profile,
+                }));
+            } else if (src_layout == Layout::Rgb) && (dst_layout == Layout::Rgb) {
+                return Ok(Box::new($dependant::<
+                    T,
+                    { Layout::Rgb as u8 },
+                    { Layout::Rgb as u8 },
+                    LINEAR_CAP,
+                    GAMMA_LUT,
+                    BIT_DEPTH,
+                    PRECISION,
+                > {
+                    profile: q1_30_profile,
+                }));
+            }
+            Err(CmsError::UnsupportedProfileConnection)
+        }
+    };
+}
+
 #[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
-use crate::conversions::neon::{TransformProfileRgbQ2_13Neon, TransformProfileRgbQ2_13NeonOpt};
+use crate::conversions::neon::{
+    TransformProfileRgbQ1_30NeonOpt, TransformProfileRgbQ2_13Neon, TransformProfileRgbQ2_13NeonOpt,
+};
 
 #[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
 create_rgb_xyz_dependant_q2_13_executor!(
@@ -344,6 +419,14 @@ create_rgb_xyz_dependant_q2_13_executor!(
     make_rgb_xyz_q2_13_opt,
     TransformProfileRgbQ2_13NeonOpt,
     i16,
+    TransformMatrixShaperOptimized
+);
+
+#[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
+create_rgb_xyz_dependant_q1_30_executor!(
+    make_rgb_xyz_q1_30_opt,
+    TransformProfileRgbQ1_30NeonOpt,
+    i32,
     TransformMatrixShaperOptimized
 );
 

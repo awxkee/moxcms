@@ -113,7 +113,7 @@ fn main() {
 
     let srgb_perceptual_icc = fs::read("./assets/srgb_perceptual.icc").unwrap();
 
-    let funny_profile = ColorProfile::new_from_slice(&funny_icc).unwrap();
+    let funny_profile = ColorProfile::new_srgb(); // ColorProfile::new_from_slice(&funny_icc).unwrap();
 
     let srgb_perceptual_profile = ColorProfile::new_from_slice(&srgb_perceptual_icc).unwrap();
     let out_profile = ColorProfile::new_srgb();
@@ -139,6 +139,7 @@ fn main() {
         .as_bytes()
         .chunks_exact(3)
         .flat_map(|x| [x[0], x[1], x[2], 255u8])
+        .map(|x| u16::from_ne_bytes([x, x]) >> 4)
         .collect::<Vec<_>>();
 
     // let real_dst = img
@@ -154,7 +155,7 @@ fn main() {
     //     })
     //     .collect::<Vec<_>>();
 
-    let mut cmyk = vec![0u8; (img.as_bytes().len() / 3) * 4];
+    let mut cmyk = vec![0u16; (img.as_bytes().len() / 3) * 4];
 
     let color_profile = ColorProfile::new_from_slice(&srgb_perceptual_icc).unwrap();
     // let color_profile = ColorProfile::new_gray_with_gamma(2.2);
@@ -165,7 +166,7 @@ fn main() {
     let time = Instant::now();
 
     let transform = dest_profile
-        .create_transform_8bit(
+        .create_transform_12bit(
             Layout::Rgba,
             &funny_profile,
             Layout::Rgba,
@@ -185,7 +186,7 @@ fn main() {
     transform.transform(&real_dst, &mut cmyk).unwrap();
 
     let transform = funny_profile
-        .create_transform_8bit(
+        .create_transform_12bit(
             Layout::Rgba,
             &out_profile,
             Layout::Rgba,
@@ -200,7 +201,7 @@ fn main() {
         )
         .unwrap();
     println!("Creating time 2 took {:?}", time.elapsed());
-    let mut dst = vec![0u8; real_dst.len()];
+    let mut dst = vec![0; real_dst.len()];
 
     let time = Instant::now();
     for (src, dst) in cmyk
@@ -219,6 +220,7 @@ fn main() {
     let dst = dst
         .chunks_exact(4)
         .flat_map(|x| [x[0], x[1], x[2]])
+        .map(|x| (x >> 4) as u8)
         .collect::<Vec<_>>();
 
     // let dst = dst
@@ -318,7 +320,7 @@ fn main() {
     //     .map(|&x| (x * 255f32).round() as u8)
     //     .collect::<Vec<_>>();
     image::save_buffer(
-        "v_new_dst3_12.jpg",
+        "v_new_dst3_12.png",
         &dst,
         img.width(),
         img.height(),

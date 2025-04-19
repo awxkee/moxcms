@@ -27,6 +27,7 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::conversions::mab::{BCurves3, MCurves3};
+use crate::safe_math::SafeMul;
 use crate::{
     CmsError, DataColorSpace, Hypercube, InPlaceStage, InterpolationMethod,
     LutMultidimensionalType, MalformedSize, Matrix3d, Stage, TransformOptions, Vector3d, Vector3f,
@@ -184,11 +185,11 @@ pub(crate) fn prepare_mab_4x3(
     if mab.a_curves.len() == 4 && mab.clut.is_some() {
         let clut = &mab.clut.as_ref().map(|x| x.to_clut_f32()).unwrap();
 
-        let lut_grid = mab.grid_points[0] as usize
-            * mab.grid_points[1] as usize
-            * mab.grid_points[2] as usize
-            * mab.grid_points[3] as usize
-            * mab.num_output_channels as usize;
+        let lut_grid = (mab.grid_points[0] as usize)
+            .safe_mul(mab.grid_points[1] as usize)?
+            .safe_mul(mab.grid_points[2] as usize)?
+            .safe_mul(mab.grid_points[3] as usize)?
+            .safe_mul(mab.num_output_channels as usize)?;
         if clut.len() != lut_grid {
             return Err(CmsError::MalformedClut(MalformedSize {
                 size: clut.len(),

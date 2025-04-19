@@ -27,6 +27,7 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::conversions::mab::{BCurves3, MCurves3};
+use crate::safe_math::SafeMul;
 use crate::{
     CmsError, Cube, DataColorSpace, InPlaceStage, InterpolationMethod, LutMultidimensionalType,
     MalformedSize, Matrix3d, Stage, TransformOptions, Vector3d, Vector4f,
@@ -179,19 +180,20 @@ pub(crate) fn prepare_mba_3x4(
     const DEPTH: usize = 8192;
 
     if mab.b_curves.len() == 3 {
-        if !mab.b_curves[0].is_linear()
-            || !mab.b_curves[1].is_linear()
-            || !mab.b_curves[2].is_linear()
-        {
-            let curve0 = mab.b_curves[0]
-                .build_linearize_table::<u16, LERP_DEPTH, BP>()
-                .ok_or(CmsError::InvalidTrcCurve)?;
-            let curve1 = mab.b_curves[1]
-                .build_linearize_table::<u16, LERP_DEPTH, BP>()
-                .ok_or(CmsError::InvalidTrcCurve)?;
-            let curve2 = mab.b_curves[2]
-                .build_linearize_table::<u16, LERP_DEPTH, BP>()
-                .ok_or(CmsError::InvalidTrcCurve)?;
+        let all_curves_linear = mab.b_curves.iter().all(|curve| curve.is_linear());
+
+        if !all_curves_linear {
+            let curves: Result<Vec<_>, _> = mab
+                .b_curves
+                .iter()
+                .map(|c| {
+                    c.build_linearize_table::<u16, LERP_DEPTH, BP>()
+                        .ok_or(CmsError::InvalidTrcCurve)
+                })
+                .collect();
+
+            let [curve0, curve1, curve2] =
+                curves?.try_into().map_err(|_| CmsError::InvalidTrcCurve)?;
             let b_curves = BCurves3::<DEPTH> {
                 curve0,
                 curve1,
@@ -209,15 +211,18 @@ pub(crate) fn prepare_mba_3x4(
             || !mab.matrix.test_equality(Matrix3d::IDENTITY)
             || mab.bias.ne(&Vector3d::default())
         {
-            let curve0 = mab.m_curves[0]
-                .build_linearize_table::<u16, LERP_DEPTH, BP>()
-                .ok_or(CmsError::InvalidTrcCurve)?;
-            let curve1 = mab.m_curves[1]
-                .build_linearize_table::<u16, LERP_DEPTH, BP>()
-                .ok_or(CmsError::InvalidTrcCurve)?;
-            let curve2 = mab.m_curves[2]
-                .build_linearize_table::<u16, LERP_DEPTH, BP>()
-                .ok_or(CmsError::InvalidTrcCurve)?;
+            let curves: Result<Vec<_>, _> = mab
+                .m_curves
+                .iter()
+                .map(|c| {
+                    c.build_linearize_table::<u16, LERP_DEPTH, BP>()
+                        .ok_or(CmsError::InvalidTrcCurve)
+                })
+                .collect();
+
+            let [curve0, curve1, curve2] =
+                curves?.try_into().map_err(|_| CmsError::InvalidTrcCurve)?;
+
             let matrix = mab.matrix.to_f32();
             let bias = mab.bias.cast();
             let m_curves = MCurves3::<DEPTH> {
@@ -237,10 +242,10 @@ pub(crate) fn prepare_mba_3x4(
     if mab.a_curves.len() == 4 && mab.clut.is_some() {
         let clut = &mab.clut.as_ref().map(|x| x.to_clut_f32()).unwrap();
 
-        let lut_grid = mab.grid_points[0] as usize
-            * mab.grid_points[1] as usize
-            * mab.grid_points[2] as usize
-            * mab.num_output_channels as usize;
+        let lut_grid = (mab.grid_points[0] as usize)
+            .safe_mul(mab.grid_points[1] as usize)?
+            .safe_mul(mab.grid_points[2] as usize)?
+            .safe_mul(mab.num_output_channels as usize)?;
         if clut.len() != lut_grid {
             return Err(CmsError::MalformedClut(MalformedSize {
                 size: clut.len(),

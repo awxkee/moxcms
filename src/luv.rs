@@ -53,7 +53,6 @@ pub struct LCh {
     pub h: f32,
 }
 
-use crate::math::cbrtf;
 use crate::{
     Chromaticity, Lab, Xyz, atan2f, const_hypotf, f_atan2f, f_cbrtf, f_cosf, f_sinf, hypotf, powf,
 };
@@ -640,16 +639,12 @@ impl Pow<LCh> for LCh {
 impl Luv {
     #[inline]
     pub fn sqrt(&self) -> Luv {
-        Luv::new(
-            if self.l < 0. { 0. } else { self.l.sqrt() },
-            if self.u < 0. { 0. } else { self.u.sqrt() },
-            if self.v < 0. { 0. } else { self.v.sqrt() },
-        )
+        Luv::new(self.l.sqrt(), self.u.sqrt(), self.v.sqrt())
     }
 
     #[inline]
-    pub const fn cbrt(&self) -> Luv {
-        Luv::new(cbrtf(self.l), cbrtf(self.u), cbrtf(self.v))
+    pub fn cbrt(&self) -> Luv {
+        Luv::new(f_cbrtf(self.l), f_cbrtf(self.u), f_cbrtf(self.v))
     }
 }
 
@@ -664,8 +659,8 @@ impl LCh {
     }
 
     #[inline]
-    pub const fn cbrt(&self) -> LCh {
-        LCh::new(cbrtf(self.l), cbrtf(self.c), cbrtf(self.h))
+    pub fn cbrt(&self) -> LCh {
+        LCh::new(f_cbrtf(self.l), f_cbrtf(self.c), f_cbrtf(self.h))
     }
 }
 
