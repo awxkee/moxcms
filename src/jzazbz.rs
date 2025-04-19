@@ -26,10 +26,10 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-use crate::Xyz;
 use crate::jzczhz::Jzczhz;
 use crate::math::dirty_powf;
 use crate::mlaf::mlaf;
+use crate::{Xyz, f_cbrtf};
 use num_traits::Pow;
 use std::ops::{
     Add, AddAssign, Div, DivAssign, Index, IndexMut, Mul, MulAssign, Neg, Sub, SubAssign,
@@ -373,7 +373,7 @@ impl Jzazbz {
 
     #[inline]
     pub fn cbrt(&self) -> Jzazbz {
-        Jzazbz::new(self.jz.cbrt(), self.az.cbrt(), self.bz.cbrt())
+        Jzazbz::new(f_cbrtf(self.jz), f_cbrtf(self.az), f_cbrtf(self.bz))
     }
 }
 

@@ -27,7 +27,7 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::cicp::create_rec709_parametric;
-use crate::math::m_clamp;
+use crate::math::{dirty_powf, m_clamp};
 use crate::mlaf::{mlaf, neg_mlaf};
 use crate::transform::PointeeSizeExpressible;
 use crate::writer::FloatToFixedU8Fixed8;
@@ -1389,9 +1389,9 @@ impl ExtendedGammaEvaluator for ExtendedParametricEvaluator {
 impl ExtendedGammaEvaluator for ExtendedGammaEvaluatorPureGamma {
     fn evaluate(&self, rgb: Rgb<f32>) -> Rgb<f32> {
         Rgb::new(
-            f_powf(rgb.r, self.gamma),
-            f_powf(rgb.g, self.gamma),
-            f_powf(rgb.b, self.gamma),
+            dirty_powf(rgb.r, self.gamma),
+            dirty_powf(rgb.g, self.gamma),
+            dirty_powf(rgb.b, self.gamma),
         )
     }
 }

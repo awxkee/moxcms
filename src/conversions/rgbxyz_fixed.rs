@@ -140,25 +140,25 @@ where
                 + b as i32 * transform.v[0][2] as i32
                 + rnd;
 
-            let r_q4_12 = (new_r >> PRECISION).min(v_gamma_max).max(0) as u16;
+            let r_q2_13 = (new_r >> PRECISION).min(v_gamma_max).max(0) as u16;
 
             let new_g = r as i32 * transform.v[1][0] as i32
                 + g as i32 * transform.v[1][1] as i32
                 + b as i32 * transform.v[1][2] as i32
                 + rnd;
 
-            let g_q4_12 = (new_g >> PRECISION).min(v_gamma_max).max(0) as u16;
+            let g_q2_13 = (new_g >> PRECISION).min(v_gamma_max).max(0) as u16;
 
             let new_b = r as i32 * transform.v[2][0] as i32
                 + g as i32 * transform.v[2][1] as i32
                 + b as i32 * transform.v[2][2] as i32
                 + rnd;
 
-            let b_q4_12 = (new_b >> PRECISION).min(v_gamma_max).max(0) as u16;
+            let b_q2_13 = (new_b >> PRECISION).min(v_gamma_max).max(0) as u16;
 
-            dst[dst_cn.r_i()] = self.profile.r_gamma[r_q4_12 as usize];
-            dst[dst_cn.g_i()] = self.profile.g_gamma[g_q4_12 as usize];
-            dst[dst_cn.b_i()] = self.profile.b_gamma[b_q4_12 as usize];
+            dst[dst_cn.r_i()] = self.profile.r_gamma[r_q2_13 as usize];
+            dst[dst_cn.g_i()] = self.profile.g_gamma[g_q2_13 as usize];
+            dst[dst_cn.b_i()] = self.profile.b_gamma[b_q2_13 as usize];
             if dst_channels == 4 {
                 dst[dst_cn.a_i()] = a;
             }
@@ -229,25 +229,25 @@ where
                 + b as i32 * transform.v[0][2] as i32
                 + rnd;
 
-            let r_q4_12 = (new_r >> PRECISION).min(v_gamma_max).max(0) as u16;
+            let r_q2_13 = (new_r >> PRECISION).min(v_gamma_max).max(0) as u16;
 
             let new_g = r as i32 * transform.v[1][0] as i32
                 + g as i32 * transform.v[1][1] as i32
                 + b as i32 * transform.v[1][2] as i32
                 + rnd;
 
-            let g_q4_12 = (new_g >> PRECISION).min(v_gamma_max).max(0) as u16;
+            let g_q2_13 = (new_g >> PRECISION).min(v_gamma_max).max(0) as u16;
 
             let new_b = r as i32 * transform.v[2][0] as i32
                 + g as i32 * transform.v[2][1] as i32
                 + b as i32 * transform.v[2][2] as i32
                 + rnd;
 
-            let b_q4_12 = (new_b >> PRECISION).min(v_gamma_max).max(0) as u16;
+            let b_q2_13 = (new_b >> PRECISION).min(v_gamma_max).max(0) as u16;
 
-            dst[dst_cn.r_i()] = self.profile.gamma[r_q4_12 as usize];
-            dst[dst_cn.g_i()] = self.profile.gamma[g_q4_12 as usize];
-            dst[dst_cn.b_i()] = self.profile.gamma[b_q4_12 as usize];
+            dst[dst_cn.r_i()] = self.profile.gamma[r_q2_13 as usize];
+            dst[dst_cn.g_i()] = self.profile.gamma[g_q2_13 as usize];
+            dst[dst_cn.b_i()] = self.profile.gamma[b_q2_13 as usize];
             if dst_channels == 4 {
                 dst[dst_cn.a_i()] = a;
             }
