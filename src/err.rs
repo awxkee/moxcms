@@ -82,24 +82,21 @@ impl Display for CmsError {
             CmsError::InvalidRenderingIntent => f.write_str("Invalid rendering intent"),
             CmsError::DivisionByZero => f.write_str("Division by zero"),
             CmsError::UnsupportedColorPrimaries(value) => {
-                f.write_fmt(format_args!("Unsupported color primaries, {}", value))
+                f.write_fmt(format_args!("Unsupported color primaries, {value}"))
             }
-            CmsError::UnsupportedTrc(value) => {
-                f.write_fmt(format_args!("Unsupported TRC {}", value))
-            }
+            CmsError::UnsupportedTrc(value) => f.write_fmt(format_args!("Unsupported TRC {value}")),
             CmsError::InvalidLayout => f.write_str("Invalid layout"),
             CmsError::UnsupportedProfileConnection => f.write_str("Unsupported profile connection"),
             CmsError::BuildTransferFunction => f.write_str("Can't reconstruct transfer function"),
             CmsError::UnsupportedChannelConfiguration => {
                 f.write_str("Can't reconstruct channel configuration")
             }
-            CmsError::UnknownTag(t) => f.write_fmt(format_args!("Unknown tag: {}", t)),
+            CmsError::UnknownTag(t) => f.write_fmt(format_args!("Unknown tag: {t}")),
             CmsError::UnknownTagTypeDefinition(t) => {
-                f.write_fmt(format_args!("Unknown tag type definition: {}", t))
+                f.write_fmt(format_args!("Unknown tag type definition: {t}"))
             }
             CmsError::UnsupportedLutRenderingIntent(intent) => f.write_fmt(format_args!(
-                "Can't find LUT for rendering intent: {:?}",
-                intent
+                "Can't find LUT for rendering intent: {intent:?}"
             )),
             CmsError::InvalidAtoBLut => f.write_str("Invalid A to B Lut"),
             CmsError::OverflowingError => {
@@ -107,10 +104,10 @@ impl Display for CmsError {
             }
             CmsError::LUTTablesInvalidKind => f.write_str("All LUT curves must have same kind"),
             CmsError::MalformedClut(size) => {
-                f.write_fmt(format_args!("Invalid CLUT size: {:?}", size))
+                f.write_fmt(format_args!("Invalid CLUT size: {size:?}"))
             }
             CmsError::MalformedCurveLutTable(size) => {
-                f.write_fmt(format_args!("Malformed curve LUT size: {:?}", size))
+                f.write_fmt(format_args!("Malformed curve LUT size: {size:?}"))
             }
         }
     }
