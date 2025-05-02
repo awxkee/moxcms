@@ -31,7 +31,7 @@ use crate::cicp::{
 };
 use crate::dat::ColorDateTime;
 use crate::err::CmsError;
-use crate::matrix::{BT2020_MATRIX, DISPLAY_P3_MATRIX, Matrix3f, SRGB_MATRIX, XyY, Xyz};
+use crate::matrix::{Matrix3f, XyY, Xyz};
 use crate::reader::{
     s15_fixed16_number_to_float, uint8_number_to_float_fast, uint16_number_to_float_fast,
 };
@@ -1095,16 +1095,6 @@ impl ColorProfile {
 impl ColorProfile {
     #[inline]
     pub fn colorant_matrix(&self) -> Matrix3d {
-        if let Some(cicp) = self.cicp {
-            if CicpColorPrimaries::Bt709 == cicp.color_primaries {
-                return SRGB_MATRIX;
-            } else if CicpColorPrimaries::Bt2020 == cicp.color_primaries {
-                return BT2020_MATRIX;
-            } else if CicpColorPrimaries::Smpte240 == cicp.color_primaries {
-                return DISPLAY_P3_MATRIX;
-            }
-        }
-
         Matrix3d {
             v: [
                 [
