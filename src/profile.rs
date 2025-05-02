@@ -992,7 +992,7 @@ impl ColorProfile {
                         }
                     }
                     Tag::GreyToneReproduction => {
-                        if color_space == DataColorSpace::Rgb {
+                        if color_space == DataColorSpace::Gray {
                             profile.gray_trc =
                                 Self::read_trc_tag_s(slice, tag_entry as usize, tag_size)?;
                         }
