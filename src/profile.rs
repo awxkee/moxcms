@@ -31,7 +31,7 @@ use crate::cicp::{
 };
 use crate::dat::ColorDateTime;
 use crate::err::CmsError;
-use crate::matrix::{BT2020_MATRIX, DISPLAY_P3_MATRIX, Matrix3f, SRGB_MATRIX, XyY, Xyz};
+use crate::matrix::{Matrix3f, XyY, Xyz};
 use crate::reader::{
     s15_fixed16_number_to_float, uint8_number_to_float_fast, uint16_number_to_float_fast,
 };
@@ -915,7 +915,7 @@ pub struct ColorProfile {
     pub technology: Option<TechnologySignatures>,
     pub calibration_date: Option<ColorDateTime>,
     /// Version for internal and viewing purposes only.
-    /// When encoding will be added profile will always be encoded as V4.
+    /// On encoding added value to profile will always be V4.
     pub(crate) version_internal: ProfileVersion,
 }
 
@@ -998,16 +998,12 @@ impl ColorProfile {
                         }
                     }
                     Tag::MediaWhitePoint => {
-                        match Self::read_xyz_tag(slice, tag_entry as usize, tag_size) {
-                            Ok(wt) => profile.media_white_point = Some(wt),
-                            Err(err) => return Err(err),
-                        }
+                        profile.media_white_point =
+                            Self::read_xyz_tag(slice, tag_entry as usize, tag_size).map(Some)?;
                     }
                     Tag::Luminance => {
-                        match Self::read_xyz_tag(slice, tag_entry as usize, tag_size) {
-                            Ok(wt) => profile.luminance = Some(wt),
-                            Err(err) => return Err(err),
-                        }
+                        profile.luminance =
+                            Self::read_xyz_tag(slice, tag_entry as usize, tag_size).map(Some)?;
                     }
                     Tag::Measurement => {
                         profile.measurement =
@@ -1021,10 +1017,8 @@ impl ColorProfile {
                             Self::read_chad_tag(slice, tag_entry as usize, tag_size)?;
                     }
                     Tag::BlackPoint => {
-                        match Self::read_xyz_tag(slice, tag_entry as usize, tag_size) {
-                            Ok(wt) => profile.black_point = Some(wt),
-                            Err(err) => return Err(err),
-                        }
+                        profile.black_point =
+                            Self::read_xyz_tag(slice, tag_entry as usize, tag_size).map(Some)?
                     }
                     Tag::DeviceToPcsLutPerceptual => {
                         profile.lut_a_to_b_perceptual =
@@ -1101,16 +1095,6 @@ impl ColorProfile {
 impl ColorProfile {
     #[inline]
     pub fn colorant_matrix(&self) -> Matrix3d {
-        if let Some(cicp) = self.cicp {
-            if CicpColorPrimaries::Bt709 == cicp.color_primaries {
-                return SRGB_MATRIX;
-            } else if CicpColorPrimaries::Bt2020 == cicp.color_primaries {
-                return BT2020_MATRIX;
-            } else if CicpColorPrimaries::Smpte240 == cicp.color_primaries {
-                return DISPLAY_P3_MATRIX;
-            }
-        }
-
         Matrix3d {
             v: [
                 [
@@ -1285,5 +1269,73 @@ impl ColorProfile {
         self.lut_b_to_a_perceptual.is_some()
             || self.lut_b_to_a_saturation.is_some()
             || self.lut_b_to_a_colorimetric.is_some()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+
+    #[test]
+    fn test_gray() {
+        let gray_icc = fs::read("./assets/Generic Gray Gamma 2.2 Profile.icc").unwrap();
+
+        let f_p = ColorProfile::new_from_slice(&gray_icc).unwrap();
+        assert!(f_p.gray_trc.is_some());
+    }
+
+    #[test]
+    fn test_perceptual() {
+        let srgb_perceptual_icc = fs::read("./assets/srgb_perceptual.icc").unwrap();
+
+        let f_p = ColorProfile::new_from_slice(&srgb_perceptual_icc).unwrap();
+        assert_eq!(f_p.pcs, DataColorSpace::Lab);
+        assert_eq!(f_p.color_space, DataColorSpace::Rgb);
+        assert_eq!(f_p.version(), ProfileVersion::V4_2);
+        assert!(f_p.lut_a_to_b_perceptual.is_some());
+        assert!(f_p.lut_b_to_a_perceptual.is_some());
+    }
+
+    #[test]
+    fn test_us_swop_coated() {
+        let us_swop_coated = fs::read("./assets/us_swop_coated.icc").unwrap();
+
+        let f_p = ColorProfile::new_from_slice(&us_swop_coated).unwrap();
+        assert_eq!(f_p.pcs, DataColorSpace::Lab);
+        assert_eq!(f_p.color_space, DataColorSpace::Cmyk);
+        assert_eq!(f_p.version(), ProfileVersion::V2_0);
+
+        assert!(f_p.lut_a_to_b_perceptual.is_some());
+        assert!(f_p.lut_b_to_a_perceptual.is_some());
+
+        assert!(f_p.lut_a_to_b_colorimetric.is_some());
+        assert!(f_p.lut_b_to_a_colorimetric.is_some());
+
+        assert!(f_p.gamut.is_some());
+
+        assert!(f_p.copyright.is_some());
+        assert!(f_p.description.is_some());
+    }
+
+    #[test]
+    fn test_matrix_shaper() {
+        let matrix_shaper = fs::read("./assets/Display P3.icc").unwrap();
+
+        let f_p = ColorProfile::new_from_slice(&matrix_shaper).unwrap();
+        assert_eq!(f_p.pcs, DataColorSpace::Xyz);
+        assert_eq!(f_p.color_space, DataColorSpace::Rgb);
+        assert_eq!(f_p.version(), ProfileVersion::V4_0);
+
+        assert!(f_p.red_trc.is_some());
+        assert!(f_p.blue_trc.is_some());
+        assert!(f_p.green_trc.is_some());
+
+        assert_ne!(f_p.red_colorant, Xyzd::default());
+        assert_ne!(f_p.blue_colorant, Xyzd::default());
+        assert_ne!(f_p.green_colorant, Xyzd::default());
+
+        assert!(f_p.copyright.is_some());
+        assert!(f_p.description.is_some());
     }
 }
