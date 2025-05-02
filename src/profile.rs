@@ -999,12 +999,11 @@ impl ColorProfile {
                     }
                     Tag::MediaWhitePoint => {
                         profile.media_white_point =
-                            Self::read_xyz_tag(slice, tag_entry as usize, tag_size)
-                                .map(|x| Some(x))?;
+                            Self::read_xyz_tag(slice, tag_entry as usize, tag_size).map(Some)?;
                     }
                     Tag::Luminance => {
-                        profile.luminance = Self::read_xyz_tag(slice, tag_entry as usize, tag_size)
-                            .map(|x| Some(x))?;
+                        profile.luminance =
+                            Self::read_xyz_tag(slice, tag_entry as usize, tag_size).map(Some)?;
                     }
                     Tag::Measurement => {
                         profile.measurement =
@@ -1019,8 +1018,7 @@ impl ColorProfile {
                     }
                     Tag::BlackPoint => {
                         profile.black_point =
-                            Self::read_xyz_tag(slice, tag_entry as usize, tag_size)
-                                .map(|x| Some(x))?
+                            Self::read_xyz_tag(slice, tag_entry as usize, tag_size).map(Some)?
                     }
                     Tag::DeviceToPcsLutPerceptual => {
                         profile.lut_a_to_b_perceptual =
@@ -1302,6 +1300,9 @@ mod tests {
         let srgb_perceptual_icc = fs::read("./assets/srgb_perceptual.icc").unwrap();
 
         let f_p = ColorProfile::new_from_slice(&srgb_perceptual_icc).unwrap();
+        assert_eq!(f_p.pcs, DataColorSpace::Lab);
+        assert_eq!(f_p.color_space, DataColorSpace::Rgb);
+        assert_eq!(f_p.version(), ProfileVersion::V4_2);
         assert!(f_p.lut_a_to_b_perceptual.is_some());
         assert!(f_p.lut_b_to_a_perceptual.is_some());
     }
@@ -1311,11 +1312,20 @@ mod tests {
         let us_swop_coated = fs::read("./assets/us_swop_coated.icc").unwrap();
 
         let f_p = ColorProfile::new_from_slice(&us_swop_coated).unwrap();
+        assert_eq!(f_p.pcs, DataColorSpace::Lab);
+        assert_eq!(f_p.color_space, DataColorSpace::Cmyk);
+        assert_eq!(f_p.version(), ProfileVersion::V2_0);
+
         assert!(f_p.lut_a_to_b_perceptual.is_some());
         assert!(f_p.lut_b_to_a_perceptual.is_some());
 
         assert!(f_p.lut_a_to_b_colorimetric.is_some());
         assert!(f_p.lut_b_to_a_colorimetric.is_some());
+
+        assert!(f_p.gamut.is_some());
+
+        assert!(f_p.copyright.is_some());
+        assert!(f_p.description.is_some());
     }
 
     #[test]
@@ -1323,6 +1333,10 @@ mod tests {
         let matrix_shaper = fs::read("./assets/Display P3.icc").unwrap();
 
         let f_p = ColorProfile::new_from_slice(&matrix_shaper).unwrap();
+        assert_eq!(f_p.pcs, DataColorSpace::Xyz);
+        assert_eq!(f_p.color_space, DataColorSpace::Rgb);
+        assert_eq!(f_p.version(), ProfileVersion::V4_0);
+
         assert!(f_p.red_trc.is_some());
         assert!(f_p.blue_trc.is_some());
         assert!(f_p.green_trc.is_some());
@@ -1330,5 +1344,8 @@ mod tests {
         assert_ne!(f_p.red_colorant, Xyzd::default());
         assert_ne!(f_p.blue_colorant, Xyzd::default());
         assert_ne!(f_p.green_colorant, Xyzd::default());
+
+        assert!(f_p.copyright.is_some());
+        assert!(f_p.description.is_some());
     }
 }
