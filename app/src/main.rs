@@ -106,7 +106,49 @@ fn compute_abs_diff42(src: &[f32], dst: &[f32]) {
     println!("Abs A {}", abs_a);
 }
 
+fn check_gray() {
+    let gray_icc = fs::read("./assets/Generic Gray Gamma 2.2 Profile.icc").unwrap();
+    let gray_target = ColorProfile::new_from_slice(&gray_icc).unwrap();
+    let srgb_source = ColorProfile::new_srgb();
+
+    let f_str = "./assets/bench.jpg";
+    let img = image::ImageReader::open(f_str).unwrap().decode().unwrap();
+    let rgb_img = img.to_rgb8();
+
+    let transform = srgb_source
+        .create_transform_8bit(
+            Layout::Rgb,
+            &gray_target,
+            Layout::Gray,
+            TransformOptions {
+                rendering_intent: RenderingIntent::Perceptual,
+                allow_use_cicp_transfer: false,
+                prefer_fixed_point: true,
+                interpolation_method: InterpolationMethod::Tetrahedral,
+                barycentric_weight_scale: BarycentricWeightScale::Low,
+                allow_extended_range_rgb_xyz: false,
+            },
+        )
+        .unwrap();
+
+    let mut gray_target = vec![0u8; rgb_img.width() as usize * rgb_img.height() as usize];
+    transform.transform(&rgb_img, &mut gray_target).unwrap();
+    image::save_buffer(
+        "gray.png",
+        &gray_target,
+        img.width(),
+        img.height(),
+        image::ExtendedColorType::L8,
+    )
+    .unwrap();
+}
+
 fn main() {
+    check_gray();
+    let gray_icc = fs::read("./assets/Generic Gray Gamma 2.2 Profile.icc").unwrap();
+
+    let f_p = ColorProfile::new_from_slice(&gray_icc).unwrap();
+
     let funny_icc = fs::read("./assets/us_swop_coated.icc").unwrap();
 
     // println!("{:?}", decoded);
