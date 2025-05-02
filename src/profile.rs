@@ -998,16 +998,13 @@ impl ColorProfile {
                         }
                     }
                     Tag::MediaWhitePoint => {
-                        match Self::read_xyz_tag(slice, tag_entry as usize, tag_size) {
-                            Ok(wt) => profile.media_white_point = Some(wt),
-                            Err(err) => return Err(err),
-                        }
+                        profile.media_white_point =
+                            Self::read_xyz_tag(slice, tag_entry as usize, tag_size)
+                                .map(|x| Some(x))?;
                     }
                     Tag::Luminance => {
-                        match Self::read_xyz_tag(slice, tag_entry as usize, tag_size) {
-                            Ok(wt) => profile.luminance = Some(wt),
-                            Err(err) => return Err(err),
-                        }
+                        profile.luminance = Self::read_xyz_tag(slice, tag_entry as usize, tag_size)
+                            .map(|x| Some(x))?;
                     }
                     Tag::Measurement => {
                         profile.measurement =
@@ -1021,10 +1018,9 @@ impl ColorProfile {
                             Self::read_chad_tag(slice, tag_entry as usize, tag_size)?;
                     }
                     Tag::BlackPoint => {
-                        match Self::read_xyz_tag(slice, tag_entry as usize, tag_size) {
-                            Ok(wt) => profile.black_point = Some(wt),
-                            Err(err) => return Err(err),
-                        }
+                        profile.black_point =
+                            Self::read_xyz_tag(slice, tag_entry as usize, tag_size)
+                                .map(|x| Some(x))?
                     }
                     Tag::DeviceToPcsLutPerceptual => {
                         profile.lut_a_to_b_perceptual =
