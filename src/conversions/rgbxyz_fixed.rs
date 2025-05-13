@@ -118,7 +118,7 @@ where
 
         let transform = self.profile.adaptation_matrix;
         let max_colors: T = ((1 << BIT_DEPTH as u32) - 1u32).as_();
-        let rnd: i32 = (1 << (PRECISION - 1)) - 1;
+        let rnd: i32 = (1i32 << (PRECISION - 1));
 
         let v_gamma_max = GAMMA_LUT as i32 - 1;
 
@@ -207,7 +207,7 @@ where
 
         let transform = self.profile.adaptation_matrix;
         let max_colors: T = ((1 << BIT_DEPTH as u32) - 1u32).as_();
-        let rnd: i32 = (1 << (PRECISION - 1)) - 1;
+        let rnd: i32 = (1i32 << (PRECISION - 1));
 
         let v_gamma_max = GAMMA_LUT as i32 - 1;
 

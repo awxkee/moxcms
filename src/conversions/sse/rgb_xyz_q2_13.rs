@@ -104,7 +104,7 @@ where
             );
             let m2 = _mm_setr_epi16(t.v[2][0], 1, t.v[2][1], 1, t.v[2][2], 1, 0, 0);
 
-            let rnd_val = (((1i32 << (PRECISION - 1)) - 1) as i16).to_ne_bytes();
+            let rnd_val = ((1i32 << (PRECISION - 1)) as i16).to_ne_bytes();
             let rnd = _mm_set1_epi32(i32::from_ne_bytes([0, 0, rnd_val[0], rnd_val[1]]));
 
             let v_max_value = _mm_set1_epi32(GAMMA_LUT as i32 - 1);

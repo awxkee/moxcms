@@ -95,7 +95,7 @@ where
 
             let v_max_value = vdup_n_u16((GAMMA_LUT - 1) as u16);
 
-            let rnd = vdupq_n_s32((1 << (PRECISION - 1)) - 1);
+            let rnd = vdupq_n_s32(1 << (PRECISION - 1));
 
             if !src_chunks.is_empty() {
                 let (src0, src1) = src_chunks.split_at(src_chunks.len() / 2);
