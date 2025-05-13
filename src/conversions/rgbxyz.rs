@@ -79,12 +79,12 @@ impl<T: Clone + PointeeSizeExpressible, const BUCKET: usize> TransformMatrixShap
         for (dst, &src) in new_box_b.iter_mut().zip(self.b_linear.iter()) {
             *dst = (src * linear_scale).round().as_();
         }
-        let scale: f32 = ((1 << PRECISION as i16) - 1) as f32;
+        let scale: f32 = (1i32 << PRECISION) as f32;
         let source_matrix = self.adaptation_matrix;
         let mut dst_matrix = Matrix3::<i16> { v: [[0i16; 3]; 3] };
         for i in 0..3 {
             for j in 0..3 {
-                dst_matrix.v[i][j] = (source_matrix.v[i][j] * scale).round().min(scale) as i16;
+                dst_matrix.v[i][j] = (source_matrix.v[i][j] * scale) as i16;
             }
         }
         TransformMatrixShaperFixedPoint {
@@ -125,14 +125,14 @@ impl<T: Clone + PointeeSizeExpressible, const BUCKET: usize>
         for (dst, src) in new_box_linear.iter_mut().zip(self.linear.iter()) {
             *dst = (*src * linear_scale).round().as_();
         }
-        let scale: f32 = ((1 << PRECISION) - 1) as f32;
+        let scale: f32 = (1i32 << PRECISION) as f32;
         let source_matrix = self.adaptation_matrix;
         let mut dst_matrix = Matrix3::<i16> {
             v: [[i16::default(); 3]; 3],
         };
         for i in 0..3 {
             for j in 0..3 {
-                dst_matrix.v[i][j] = (source_matrix.v[i][j] * scale).round().min(scale) as i16;
+                dst_matrix.v[i][j] = (source_matrix.v[i][j] * scale) as i16;
             }
         }
         TransformMatrixShaperFixedPointOpt {
@@ -176,15 +176,14 @@ impl<T: Clone + PointeeSizeExpressible, const BUCKET: usize>
         for (dst, &src) in new_box_linear.iter_mut().zip(self.linear.iter()) {
             *dst = (src as f64 * linear_scale).round().as_();
         }
-        let scale: f64 = ((1i32 << PRECISION) - 1) as f64;
+        let scale: f64 = (1i64 << PRECISION) as f64;
         let source_matrix = self.adaptation_matrix;
         let mut dst_matrix = Matrix3::<i32> {
             v: [[i32::default(); 3]; 3],
         };
         for i in 0..3 {
             for j in 0..3 {
-                dst_matrix.v[i][j] =
-                    (source_matrix.v[i][j] as f64 * scale).round().min(scale) as i32;
+                dst_matrix.v[i][j] = (source_matrix.v[i][j] as f64 * scale) as i32;
             }
         }
         TransformMatrixShaperFixedPointOpt {
