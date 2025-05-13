@@ -2,7 +2,7 @@
 
 Fast and safe conversion between ICC profiles; in pure Rust.
 
-Supports CMYK⬌RGBX, RGBX⬌RGBX, RGBX⬌GRAY, LAB⬌RGBX and CMYK⬌LAB.
+Supports CMYK⬌RGBX, RGBX⬌RGBX, RGBX⬌GRAY, LAB⬌RGBX and CMYK⬌LAB, GRAY⬌RGB, any 3/4 color profiles to RGB and vice versa.
 
 ## Example
 

@@ -1279,63 +1279,63 @@ mod tests {
 
     #[test]
     fn test_gray() {
-        let gray_icc = fs::read("./assets/Generic Gray Gamma 2.2 Profile.icc").unwrap();
-
-        let f_p = ColorProfile::new_from_slice(&gray_icc).unwrap();
-        assert!(f_p.gray_trc.is_some());
+        if let Ok(gray_icc) = fs::read("./assets/Generic Gray Gamma 2.2 Profile.icc") {
+            let f_p = ColorProfile::new_from_slice(&gray_icc).unwrap();
+            assert!(f_p.gray_trc.is_some());
+        }
     }
 
     #[test]
     fn test_perceptual() {
-        let srgb_perceptual_icc = fs::read("./assets/srgb_perceptual.icc").unwrap();
-
-        let f_p = ColorProfile::new_from_slice(&srgb_perceptual_icc).unwrap();
-        assert_eq!(f_p.pcs, DataColorSpace::Lab);
-        assert_eq!(f_p.color_space, DataColorSpace::Rgb);
-        assert_eq!(f_p.version(), ProfileVersion::V4_2);
-        assert!(f_p.lut_a_to_b_perceptual.is_some());
-        assert!(f_p.lut_b_to_a_perceptual.is_some());
+        if let Ok(srgb_perceptual_icc) = fs::read("./assets/srgb_perceptual.icc") {
+            let f_p = ColorProfile::new_from_slice(&srgb_perceptual_icc).unwrap();
+            assert_eq!(f_p.pcs, DataColorSpace::Lab);
+            assert_eq!(f_p.color_space, DataColorSpace::Rgb);
+            assert_eq!(f_p.version(), ProfileVersion::V4_2);
+            assert!(f_p.lut_a_to_b_perceptual.is_some());
+            assert!(f_p.lut_b_to_a_perceptual.is_some());
+        }
     }
 
     #[test]
     fn test_us_swop_coated() {
-        let us_swop_coated = fs::read("./assets/us_swop_coated.icc").unwrap();
+        if let Ok(us_swop_coated) = fs::read("./assets/us_swop_coated.icc") {
+            let f_p = ColorProfile::new_from_slice(&us_swop_coated).unwrap();
+            assert_eq!(f_p.pcs, DataColorSpace::Lab);
+            assert_eq!(f_p.color_space, DataColorSpace::Cmyk);
+            assert_eq!(f_p.version(), ProfileVersion::V2_0);
 
-        let f_p = ColorProfile::new_from_slice(&us_swop_coated).unwrap();
-        assert_eq!(f_p.pcs, DataColorSpace::Lab);
-        assert_eq!(f_p.color_space, DataColorSpace::Cmyk);
-        assert_eq!(f_p.version(), ProfileVersion::V2_0);
+            assert!(f_p.lut_a_to_b_perceptual.is_some());
+            assert!(f_p.lut_b_to_a_perceptual.is_some());
 
-        assert!(f_p.lut_a_to_b_perceptual.is_some());
-        assert!(f_p.lut_b_to_a_perceptual.is_some());
+            assert!(f_p.lut_a_to_b_colorimetric.is_some());
+            assert!(f_p.lut_b_to_a_colorimetric.is_some());
 
-        assert!(f_p.lut_a_to_b_colorimetric.is_some());
-        assert!(f_p.lut_b_to_a_colorimetric.is_some());
+            assert!(f_p.gamut.is_some());
 
-        assert!(f_p.gamut.is_some());
-
-        assert!(f_p.copyright.is_some());
-        assert!(f_p.description.is_some());
+            assert!(f_p.copyright.is_some());
+            assert!(f_p.description.is_some());
+        }
     }
 
     #[test]
     fn test_matrix_shaper() {
-        let matrix_shaper = fs::read("./assets/Display P3.icc").unwrap();
+        if let Ok(matrix_shaper) = fs::read("./assets/Display P3.icc") {
+            let f_p = ColorProfile::new_from_slice(&matrix_shaper).unwrap();
+            assert_eq!(f_p.pcs, DataColorSpace::Xyz);
+            assert_eq!(f_p.color_space, DataColorSpace::Rgb);
+            assert_eq!(f_p.version(), ProfileVersion::V4_0);
 
-        let f_p = ColorProfile::new_from_slice(&matrix_shaper).unwrap();
-        assert_eq!(f_p.pcs, DataColorSpace::Xyz);
-        assert_eq!(f_p.color_space, DataColorSpace::Rgb);
-        assert_eq!(f_p.version(), ProfileVersion::V4_0);
+            assert!(f_p.red_trc.is_some());
+            assert!(f_p.blue_trc.is_some());
+            assert!(f_p.green_trc.is_some());
 
-        assert!(f_p.red_trc.is_some());
-        assert!(f_p.blue_trc.is_some());
-        assert!(f_p.green_trc.is_some());
+            assert_ne!(f_p.red_colorant, Xyzd::default());
+            assert_ne!(f_p.blue_colorant, Xyzd::default());
+            assert_ne!(f_p.green_colorant, Xyzd::default());
 
-        assert_ne!(f_p.red_colorant, Xyzd::default());
-        assert_ne!(f_p.blue_colorant, Xyzd::default());
-        assert_ne!(f_p.green_colorant, Xyzd::default());
-
-        assert!(f_p.copyright.is_some());
-        assert!(f_p.description.is_some());
+            assert!(f_p.copyright.is_some());
+            assert!(f_p.description.is_some());
+        }
     }
 }

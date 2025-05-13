@@ -851,4 +851,208 @@ mod tests {
         let mut dst = vec![random_point_x; 256 * 256 * 3];
         transform.transform(&src, &mut dst).unwrap();
     }
+
+    #[test]
+    fn test_transform_round_trip_rgb8() {
+        let srgb_profile = ColorProfile::new_srgb();
+        let bt2020_profile = ColorProfile::new_bt2020();
+        let transform = srgb_profile
+            .create_transform_8bit(
+                Layout::Rgb,
+                &bt2020_profile,
+                Layout::Rgb,
+                TransformOptions::default(),
+            )
+            .unwrap();
+        let mut src = vec![0u8; 256 * 256 * 3];
+        for dst in src.chunks_exact_mut(3) {
+            dst[0] = 175;
+            dst[1] = 75;
+            dst[2] = 13;
+        }
+        let mut dst = vec![0u8; 256 * 256 * 3];
+        transform.transform(&src, &mut dst).unwrap();
+
+        let transform_inverse = bt2020_profile
+            .create_transform_8bit(
+                Layout::Rgb,
+                &srgb_profile,
+                Layout::Rgb,
+                TransformOptions::default(),
+            )
+            .unwrap();
+
+        transform_inverse.transform(&dst, &mut src).unwrap();
+
+        for src in src.chunks_exact_mut(3) {
+            let diff0 = (src[0] as i32 - 175).abs();
+            let diff1 = (src[1] as i32 - 75).abs();
+            let diff2 = (src[2] as i32 - 13).abs();
+            assert!(
+                diff0 < 3,
+                "On channel 0 difference should be less than 3, but it was {diff0}"
+            );
+            assert!(
+                diff1 < 3,
+                "On channel 1 difference should be less than 3, but it was {diff1}"
+            );
+            assert!(
+                diff2 < 3,
+                "On channel 2 difference should be less than 3, but it was {diff2}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_transform_round_trip_rgb10() {
+        let srgb_profile = ColorProfile::new_srgb();
+        let bt2020_profile = ColorProfile::new_bt2020();
+        let transform = srgb_profile
+            .create_transform_10bit(
+                Layout::Rgb,
+                &bt2020_profile,
+                Layout::Rgb,
+                TransformOptions::default(),
+            )
+            .unwrap();
+        let mut src = vec![0u16; 256 * 256 * 3];
+        for dst in src.chunks_exact_mut(3) {
+            dst[0] = 175;
+            dst[1] = 256;
+            dst[2] = 512;
+        }
+        let mut dst = vec![0u16; 256 * 256 * 3];
+        transform.transform(&src, &mut dst).unwrap();
+
+        let transform_inverse = bt2020_profile
+            .create_transform_10bit(
+                Layout::Rgb,
+                &srgb_profile,
+                Layout::Rgb,
+                TransformOptions::default(),
+            )
+            .unwrap();
+
+        transform_inverse.transform(&dst, &mut src).unwrap();
+
+        for src in src.chunks_exact_mut(3) {
+            let diff0 = (src[0] as i32 - 175).abs();
+            let diff1 = (src[1] as i32 - 256).abs();
+            let diff2 = (src[2] as i32 - 512).abs();
+            assert!(
+                diff0 < 15,
+                "On channel 0 difference should be less than 15, but it was {diff0}"
+            );
+            assert!(
+                diff1 < 15,
+                "On channel 1 difference should be less than 15, but it was {diff1}"
+            );
+            assert!(
+                diff2 < 15,
+                "On channel 2 difference should be less than 15, but it was {diff2}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_transform_round_trip_rgb12() {
+        let srgb_profile = ColorProfile::new_srgb();
+        let bt2020_profile = ColorProfile::new_bt2020();
+        let transform = srgb_profile
+            .create_transform_12bit(
+                Layout::Rgb,
+                &bt2020_profile,
+                Layout::Rgb,
+                TransformOptions::default(),
+            )
+            .unwrap();
+        let mut src = vec![0u16; 256 * 256 * 3];
+        for dst in src.chunks_exact_mut(3) {
+            dst[0] = 1750;
+            dst[1] = 2560;
+            dst[2] = 3143;
+        }
+        let mut dst = vec![0u16; 256 * 256 * 3];
+        transform.transform(&src, &mut dst).unwrap();
+
+        let transform_inverse = bt2020_profile
+            .create_transform_12bit(
+                Layout::Rgb,
+                &srgb_profile,
+                Layout::Rgb,
+                TransformOptions::default(),
+            )
+            .unwrap();
+
+        transform_inverse.transform(&dst, &mut src).unwrap();
+
+        for src in src.chunks_exact_mut(3) {
+            let diff0 = (src[0] as i32 - 1750).abs();
+            let diff1 = (src[1] as i32 - 2560).abs();
+            let diff2 = (src[2] as i32 - 3143).abs();
+            assert!(
+                diff0 < 25,
+                "On channel 0 difference should be less than 25, but it was {diff0}"
+            );
+            assert!(
+                diff1 < 25,
+                "On channel 1 difference should be less than 25, but it was {diff1}"
+            );
+            assert!(
+                diff2 < 25,
+                "On channel 2 difference should be less than 25, but it was {diff2}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_transform_round_trip_rgb16() {
+        let srgb_profile = ColorProfile::new_srgb();
+        let bt2020_profile = ColorProfile::new_bt2020();
+        let transform = srgb_profile
+            .create_transform_16bit(
+                Layout::Rgb,
+                &bt2020_profile,
+                Layout::Rgb,
+                TransformOptions::default(),
+            )
+            .unwrap();
+        let mut src = vec![0u16; 256 * 256 * 3];
+        for dst in src.chunks_exact_mut(3) {
+            dst[0] = 1760;
+            dst[1] = 2560;
+            dst[2] = 5120;
+        }
+        let mut dst = vec![0u16; 256 * 256 * 3];
+        transform.transform(&src, &mut dst).unwrap();
+
+        let transform_inverse = bt2020_profile
+            .create_transform_16bit(
+                Layout::Rgb,
+                &srgb_profile,
+                Layout::Rgb,
+                TransformOptions::default(),
+            )
+            .unwrap();
+
+        transform_inverse.transform(&dst, &mut src).unwrap();
+
+        for src in src.chunks_exact_mut(3) {
+            let diff0 = (src[0] as i32 - 1760).abs();
+            let diff1 = (src[1] as i32 - 2560).abs();
+            let diff2 = (src[2] as i32 - 5120).abs();
+            assert!(
+                diff0 < 35,
+                "On channel 0 difference should be less than 35, but it was {diff0}"
+            );
+            assert!(
+                diff1 < 35,
+                "On channel 1 difference should be less than 35, but it was {diff1}"
+            );
+            assert!(
+                diff2 < 35,
+                "On channel 2 difference should be less than 35, but it was {diff2}"
+            );
+        }
+    }
 }
