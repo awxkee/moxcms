@@ -41,10 +41,6 @@
     all(feature = "avx512", target_arch = "x86_64"),
     feature(stdarch_x86_avx512)
 )]
-#![cfg_attr(
-    all(feature = "avx512", target_arch = "x86_64"),
-    feature(stdarch_x86_avx512_f16)
-)]
 mod chad;
 mod cicp;
 mod conversions;
