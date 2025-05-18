@@ -289,36 +289,46 @@ macro_rules! create_rgb_xyz_dependant_executor {
 }
 
 #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"))]
-use crate::conversions::sse::{TransformProfilePcsXYZRgbOptSse, TransformProfilePcsXYZRgbSse};
+use crate::conversions::sse::{TransformShaperRgbOptSse, TransformShaperRgbSse};
 
 #[cfg(all(target_arch = "x86_64", feature = "avx"))]
-use crate::conversions::avx::{TransformProfilePcsXYZRgbAvx, TransformProfilePcsXYZRgbOptAvx};
+use crate::conversions::avx::{TransformShaperRgbAvx, TransformShaperRgbOptAvx};
 
 #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"))]
 create_rgb_xyz_dependant_executor!(
     make_rgb_xyz_rgb_transform_sse_41,
-    TransformProfilePcsXYZRgbSse,
+    TransformShaperRgbSse,
     TransformMatrixShaper
 );
 
 #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"))]
 create_rgb_xyz_dependant_executor!(
     make_rgb_xyz_rgb_transform_sse_41_opt,
-    TransformProfilePcsXYZRgbOptSse,
+    TransformShaperRgbOptSse,
     TransformMatrixShaperOptimized
 );
 
 #[cfg(all(target_arch = "x86_64", feature = "avx"))]
 create_rgb_xyz_dependant_executor!(
     make_rgb_xyz_rgb_transform_avx2,
-    TransformProfilePcsXYZRgbAvx,
+    TransformShaperRgbAvx,
     TransformMatrixShaper
 );
 
 #[cfg(all(target_arch = "x86_64", feature = "avx"))]
 create_rgb_xyz_dependant_executor!(
     make_rgb_xyz_rgb_transform_avx2_opt,
-    TransformProfilePcsXYZRgbOptAvx,
+    TransformShaperRgbOptAvx,
+    TransformMatrixShaperOptimized
+);
+
+#[cfg(all(target_arch = "x86_64", feature = "avx512"))]
+use crate::conversions::avx512::TransformShaperRgbOptAvx512;
+
+#[cfg(all(target_arch = "x86_64", feature = "avx512"))]
+create_rgb_xyz_dependant_executor!(
+    make_rgb_xyz_rgb_transform_avx512_opt,
+    TransformShaperRgbOptAvx512,
     TransformMatrixShaperOptimized
 );
 
@@ -410,6 +420,15 @@ pub(crate) fn make_rgb_xyz_rgb_transform_opt<
 where
     u32: AsPrimitive<T>,
 {
+    #[cfg(all(feature = "avx512", target_arch = "x86_64"))]
+    if std::arch::is_x86_feature_detected!("avx512bw")
+        && std::arch::is_x86_feature_detected!("avx512vl")
+        && std::arch::is_x86_feature_detected!("fma")
+    {
+        return make_rgb_xyz_rgb_transform_avx512_opt::<T, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>(
+            src_layout, dst_layout, profile,
+        );
+    }
     #[cfg(all(feature = "avx", target_arch = "x86_64"))]
     if std::arch::is_x86_feature_detected!("avx2") {
         return make_rgb_xyz_rgb_transform_avx2_opt::<T, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>(
@@ -471,7 +490,7 @@ where
 }
 
 #[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
-use crate::conversions::neon::{TransformProfilePcsXYZRgbNeon, TransformProfilePcsXYZRgbOptNeon};
+use crate::conversions::neon::{TransformShaperRgbNeon, TransformShaperRgbOptNeon};
 use crate::conversions::rgbxyz_fixed::{
     TransformMatrixShaperFixedPoint, TransformMatrixShaperFixedPointOpt,
 };
@@ -480,14 +499,14 @@ use crate::transform::PointeeSizeExpressible;
 #[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
 create_rgb_xyz_dependant_executor!(
     make_rgb_xyz_rgb_transform,
-    TransformProfilePcsXYZRgbNeon,
+    TransformShaperRgbNeon,
     TransformMatrixShaper
 );
 
 #[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
 create_rgb_xyz_dependant_executor!(
     make_rgb_xyz_rgb_transform_opt,
-    TransformProfilePcsXYZRgbOptNeon,
+    TransformShaperRgbOptNeon,
     TransformMatrixShaperOptimized
 );
 

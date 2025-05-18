@@ -37,7 +37,7 @@ use std::arch::x86::*;
 #[cfg(target_arch = "x86_64")]
 use std::arch::x86_64::*;
 
-pub(crate) struct TransformProfileRgbQ2_13OptSse<
+pub(crate) struct TransformShaperQ2_13OptSse<
     T: Copy,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
@@ -57,16 +57,7 @@ impl<
     const GAMMA_LUT: usize,
     const BIT_DEPTH: usize,
     const PRECISION: i32,
->
-    TransformProfileRgbQ2_13OptSse<
-        T,
-        SRC_LAYOUT,
-        DST_LAYOUT,
-        LINEAR_CAP,
-        GAMMA_LUT,
-        BIT_DEPTH,
-        PRECISION,
-    >
+> TransformShaperQ2_13OptSse<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH, PRECISION>
 where
     u32: AsPrimitive<T>,
 {
@@ -163,7 +154,7 @@ impl<
     const BIT_DEPTH: usize,
     const PRECISION: i32,
 > TransformExecutor<T>
-    for TransformProfileRgbQ2_13OptSse<
+    for TransformShaperQ2_13OptSse<
         T,
         SRC_LAYOUT,
         DST_LAYOUT,

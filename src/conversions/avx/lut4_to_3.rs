@@ -29,7 +29,7 @@
 use crate::conversions::LutBarycentricReduction;
 use crate::conversions::avx::interpolator::*;
 use crate::conversions::avx::interpolator_q0_15::AvxAlignedI16;
-use crate::conversions::avx::lut4_to_3_q0_15::TransformLut4XyzToRgbAvxQ0_15;
+use crate::conversions::avx::lut4_to_3_q0_15::TransformLut4To3AvxQ0_15;
 use crate::conversions::interpolator::BarycentricWeight;
 use crate::conversions::lut_transforms::Lut4x3Factory;
 use crate::transform::PointeeSizeExpressible;
@@ -41,7 +41,7 @@ use num_traits::AsPrimitive;
 use std::arch::x86_64::*;
 use std::marker::PhantomData;
 
-struct TransformLut4XyzToRgbAvx<
+struct TransformLut4To3Avx<
     T,
     U,
     const LAYOUT: u8,
@@ -67,7 +67,7 @@ impl<
     const BIT_DEPTH: usize,
     const BINS: usize,
     const BARYCENTRIC_BINS: usize,
-> TransformLut4XyzToRgbAvx<T, U, LAYOUT, GRID_SIZE, BIT_DEPTH, BINS, BARYCENTRIC_BINS>
+> TransformLut4To3Avx<T, U, LAYOUT, GRID_SIZE, BIT_DEPTH, BINS, BARYCENTRIC_BINS>
 where
     f32: AsPrimitive<T>,
     u32: AsPrimitive<T>,
@@ -159,7 +159,7 @@ impl<
     const BINS: usize,
     const BARYCENTRIC_BINS: usize,
 > TransformExecutor<T>
-    for TransformLut4XyzToRgbAvx<T, U, LAYOUT, GRID_SIZE, BIT_DEPTH, BINS, BARYCENTRIC_BINS>
+    for TransformLut4To3Avx<T, U, LAYOUT, GRID_SIZE, BIT_DEPTH, BINS, BARYCENTRIC_BINS>
 where
     f32: AsPrimitive<T>,
     u32: AsPrimitive<T>,
@@ -249,7 +249,7 @@ impl Lut4x3Factory for AvxLut4x3Factory {
                 })
                 .collect::<Vec<_>>();
             return match options.barycentric_weight_scale {
-                BarycentricWeightScale::Low => Box::new(TransformLut4XyzToRgbAvxQ0_15::<
+                BarycentricWeightScale::Low => Box::new(TransformLut4To3AvxQ0_15::<
                     T,
                     u8,
                     LAYOUT,
@@ -267,7 +267,7 @@ impl Lut4x3Factory for AvxLut4x3Factory {
                     is_linear,
                 }),
                 #[cfg(feature = "options")]
-                BarycentricWeightScale::High => Box::new(TransformLut4XyzToRgbAvxQ0_15::<
+                BarycentricWeightScale::High => Box::new(TransformLut4To3AvxQ0_15::<
                     T,
                     u16,
                     LAYOUT,
@@ -297,7 +297,7 @@ impl Lut4x3Factory for AvxLut4x3Factory {
         match options.barycentric_weight_scale {
             BarycentricWeightScale::Low => {
                 Box::new(
-                    TransformLut4XyzToRgbAvx::<T, u8, LAYOUT, GRID_SIZE, BIT_DEPTH, 256, 256> {
+                    TransformLut4To3Avx::<T, u8, LAYOUT, GRID_SIZE, BIT_DEPTH, 256, 256> {
                         lut,
                         interpolation_method: options.interpolation_method,
                         weights: BarycentricWeight::<f32>::create_ranged_256::<GRID_SIZE>(),
@@ -309,23 +309,19 @@ impl Lut4x3Factory for AvxLut4x3Factory {
                 )
             }
             #[cfg(feature = "options")]
-            BarycentricWeightScale::High => Box::new(TransformLut4XyzToRgbAvx::<
-                T,
-                u16,
-                LAYOUT,
-                GRID_SIZE,
-                BIT_DEPTH,
-                65536,
-                65536,
-            > {
-                lut,
-                interpolation_method: options.interpolation_method,
-                weights: BarycentricWeight::<f32>::create_binned::<GRID_SIZE, 65536>(),
-                _phantom: PhantomData,
-                _phantom1: PhantomData,
-                color_space,
-                is_linear,
-            }),
+            BarycentricWeightScale::High => {
+                Box::new(
+                    TransformLut4To3Avx::<T, u16, LAYOUT, GRID_SIZE, BIT_DEPTH, 65536, 65536> {
+                        lut,
+                        interpolation_method: options.interpolation_method,
+                        weights: BarycentricWeight::<f32>::create_binned::<GRID_SIZE, 65536>(),
+                        _phantom: PhantomData,
+                        _phantom1: PhantomData,
+                        color_space,
+                        is_linear,
+                    },
+                )
+            }
         }
     }
 }

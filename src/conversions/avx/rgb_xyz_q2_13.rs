@@ -33,7 +33,7 @@ use crate::{CmsError, Layout, TransformExecutor};
 use num_traits::AsPrimitive;
 use std::arch::x86_64::*;
 
-pub(crate) struct TransformProfilePcsXYZRgbQ2_13Avx<
+pub(crate) struct TransformShaperRgbQ2_13Avx<
     T: Copy,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
@@ -59,16 +59,7 @@ impl<
     const GAMMA_LUT: usize,
     const BIT_DEPTH: usize,
     const PRECISION: i32,
->
-    TransformProfilePcsXYZRgbQ2_13Avx<
-        T,
-        SRC_LAYOUT,
-        DST_LAYOUT,
-        LINEAR_CAP,
-        GAMMA_LUT,
-        BIT_DEPTH,
-        PRECISION,
-    >
+> TransformShaperRgbQ2_13Avx<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH, PRECISION>
 where
     u32: AsPrimitive<T>,
 {
@@ -305,7 +296,7 @@ impl<
     const BIT_DEPTH: usize,
     const PRECISION: i32,
 > TransformExecutor<T>
-    for TransformProfilePcsXYZRgbQ2_13Avx<
+    for TransformShaperRgbQ2_13Avx<
         T,
         SRC_LAYOUT,
         DST_LAYOUT,

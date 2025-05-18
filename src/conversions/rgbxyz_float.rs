@@ -31,7 +31,7 @@ use crate::{CmsError, Layout, Matrix3f, PointeeSizeExpressible, Rgb, TransformEx
 use num_traits::AsPrimitive;
 use std::marker::PhantomData;
 
-pub(crate) struct TransformProfileRgbFloat<T: Clone, const BUCKET: usize> {
+pub(crate) struct TransformShaperRgbFloat<T: Clone, const BUCKET: usize> {
     pub(crate) r_linear: Box<[f32; BUCKET]>,
     pub(crate) g_linear: Box<[f32; BUCKET]>,
     pub(crate) b_linear: Box<[f32; BUCKET]>,
@@ -40,7 +40,7 @@ pub(crate) struct TransformProfileRgbFloat<T: Clone, const BUCKET: usize> {
     pub(crate) phantom_data: PhantomData<T>,
 }
 
-pub(crate) struct TransformProfileRgbFloatInOut<T: Clone> {
+pub(crate) struct TransformShaperFloatInOut<T: Clone> {
     pub(crate) linear_evaluator: Box<dyn ExtendedGammaEvaluator + Send + Sync>,
     pub(crate) gamma_evaluator: Box<dyn ExtendedGammaEvaluator + Send + Sync>,
     pub(crate) adaptation_matrix: Matrix3f,
@@ -54,7 +54,7 @@ struct TransformProfilePcsXYZRgbFloat<
     const LINEAR_CAP: usize,
     const BIT_DEPTH: usize,
 > {
-    pub(crate) profile: TransformProfileRgbFloat<T, LINEAR_CAP>,
+    pub(crate) profile: TransformShaperRgbFloat<T, LINEAR_CAP>,
 }
 
 struct TransformProfilePcsXYZRgbFloatInOut<
@@ -63,7 +63,7 @@ struct TransformProfilePcsXYZRgbFloatInOut<
     const DST_LAYOUT: u8,
     const BIT_DEPTH: usize,
 > {
-    pub(crate) profile: TransformProfileRgbFloatInOut<T>,
+    pub(crate) profile: TransformShaperFloatInOut<T>,
 }
 
 pub(crate) fn make_rgb_xyz_rgb_transform_float<
@@ -73,7 +73,7 @@ pub(crate) fn make_rgb_xyz_rgb_transform_float<
 >(
     src_layout: Layout,
     dst_layout: Layout,
-    profile: TransformProfileRgbFloat<T, LINEAR_CAP>,
+    profile: TransformShaperRgbFloat<T, LINEAR_CAP>,
 ) -> Result<Box<dyn TransformExecutor<T> + Send + Sync>, CmsError>
 where
     u32: AsPrimitive<T>,
@@ -129,7 +129,7 @@ pub(crate) fn make_rgb_xyz_rgb_transform_float_in_out<
 >(
     src_layout: Layout,
     dst_layout: Layout,
-    profile: TransformProfileRgbFloatInOut<T>,
+    profile: TransformShaperFloatInOut<T>,
 ) -> Result<Box<dyn TransformExecutor<T> + Send + Sync>, CmsError>
 where
     u32: AsPrimitive<T>,

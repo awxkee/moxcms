@@ -40,7 +40,7 @@ pub(crate) struct ToneReproductionRgbToGray<T, const BUCKET: usize> {
 }
 
 #[derive(Clone)]
-struct TransformProfileRgbToGray<
+struct TransformRgbToGrayExecutor<
     T,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
@@ -70,7 +70,7 @@ where
         Layout::Rgb => match dst_layout {
             Layout::Rgb => unreachable!(),
             Layout::Rgba => unreachable!(),
-            Layout::Gray => Box::new(TransformProfileRgbToGray::<
+            Layout::Gray => Box::new(TransformRgbToGrayExecutor::<
                 T,
                 { Layout::Rgb as u8 },
                 { Layout::Gray as u8 },
@@ -81,7 +81,7 @@ where
                 trc_box: trc,
                 weights,
             }),
-            Layout::GrayAlpha => Box::new(TransformProfileRgbToGray::<
+            Layout::GrayAlpha => Box::new(TransformRgbToGrayExecutor::<
                 T,
                 { Layout::Rgb as u8 },
                 { Layout::GrayAlpha as u8 },
@@ -96,7 +96,7 @@ where
         Layout::Rgba => match dst_layout {
             Layout::Rgb => unreachable!(),
             Layout::Rgba => unreachable!(),
-            Layout::Gray => Box::new(TransformProfileRgbToGray::<
+            Layout::Gray => Box::new(TransformRgbToGrayExecutor::<
                 T,
                 { Layout::Rgba as u8 },
                 { Layout::Gray as u8 },
@@ -107,7 +107,7 @@ where
                 trc_box: trc,
                 weights,
             }),
-            Layout::GrayAlpha => Box::new(TransformProfileRgbToGray::<
+            Layout::GrayAlpha => Box::new(TransformRgbToGrayExecutor::<
                 T,
                 { Layout::Rgba as u8 },
                 { Layout::GrayAlpha as u8 },
@@ -132,7 +132,7 @@ impl<
     const BIT_DEPTH: usize,
     const GAMMA_LUT: usize,
 > TransformExecutor<T>
-    for TransformProfileRgbToGray<T, SRC_LAYOUT, DST_LAYOUT, BUCKET, BIT_DEPTH, GAMMA_LUT>
+    for TransformRgbToGrayExecutor<T, SRC_LAYOUT, DST_LAYOUT, BUCKET, BIT_DEPTH, GAMMA_LUT>
 where
     u32: AsPrimitive<T>,
 {
@@ -168,14 +168,14 @@ where
                 max_value
             };
             let grey = mlaf(
-                0.5f32,
+                0.5,
                 mlaf(
                     mlaf(self.weights.v[0] * r, self.weights.v[1], g),
                     self.weights.v[2],
                     b,
                 )
-                .min(1f32)
-                .max(0f32),
+                .min(1.)
+                .max(0.),
                 scale_value,
             );
             dst[0] = self.trc_box.gray_gamma[(grey as u16) as usize];

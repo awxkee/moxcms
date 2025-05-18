@@ -33,7 +33,7 @@ use crate::{CmsError, Layout, TransformExecutor};
 use num_traits::AsPrimitive;
 use std::arch::aarch64::*;
 
-pub(crate) struct TransformProfileRgbQ2_13NeonOpt<
+pub(crate) struct TransformShaperQ2_13NeonOpt<
     T: Copy,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
@@ -54,7 +54,7 @@ impl<
     const BIT_DEPTH: usize,
     const PRECISION: i32,
 > TransformExecutor<T>
-    for TransformProfileRgbQ2_13NeonOpt<
+    for TransformShaperQ2_13NeonOpt<
         T,
         SRC_LAYOUT,
         DST_LAYOUT,

@@ -148,7 +148,7 @@ fn check_gray() {
 fn main() {
     let d3 = ColorProfile::new_display_p3();
     println!("{:?}", d3.red_colorant);
-    let reader = image::ImageReader::open("./assets/bench_p3.jpg").unwrap();
+    let reader = image::ImageReader::open("./assets/bench.jpg").unwrap();
     let mut decoder = reader.into_decoder().unwrap();
     let icc_profile =
         moxcms::ColorProfile::new_from_slice(&decoder.icc_profile().unwrap().unwrap()).unwrap();
@@ -161,7 +161,7 @@ fn main() {
             &moxcms::ColorProfile::new_srgb(),
             moxcms::Layout::Rgb,
             TransformOptions {
-                prefer_fixed_point: true,
+                prefer_fixed_point: false,
                 ..Default::default()
             },
         )

@@ -48,7 +48,7 @@ pub(crate) fn split_by_twos_mut<T: Copy>(data: &mut [T], channels: usize) -> (&m
     data.split_at_mut(split_point * channels)
 }
 
-pub(crate) struct TransformProfileRgbQ2_13Neon<
+pub(crate) struct TransformShaperQ2_13Neon<
     T: Copy,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
@@ -69,7 +69,7 @@ impl<
     const BIT_DEPTH: usize,
     const PRECISION: i32,
 > TransformExecutor<T>
-    for TransformProfileRgbQ2_13Neon<
+    for TransformShaperQ2_13Neon<
         T,
         SRC_LAYOUT,
         DST_LAYOUT,
