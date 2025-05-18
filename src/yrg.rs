@@ -82,8 +82,8 @@ impl Yrg {
         let y = mlaf(0.68990272 * lms.v[0], 0.34832189, lms.v[1]);
 
         let a = lms.v[0] + lms.v[1] + lms.v[2];
-        let l = if a == 0f32 { 0f32 } else { lms.v[0] / a };
-        let m = if a == 0f32 { 0f32 } else { lms.v[1] / a };
+        let l = if a == 0. { 0. } else { lms.v[0] / a };
+        let m = if a == 0. { 0. } else { lms.v[1] / a };
         let r = mlaf(mlaf(0.02062, -0.6873, m), 1.0671, l);
         let g = mlaf(mlaf(-0.05155, -0.0362, l), 1.7182, m);
         Yrg { y, r, g }
@@ -120,8 +120,8 @@ impl Ych {
         // sRGB (D50 adapted) (1, 1, 1) taken through
         // XYZ D50 -> CAT16 D50->D65 adaptation -> LMS 2006
         // -> grading RGB conversion.
-        let r = yrg.r - 0.21902143f32;
-        let g = yrg.g - 0.54371398f32;
+        let r = yrg.r - 0.21902143;
+        let g = yrg.g - 0.54371398;
         let c = hypotf(g, r);
         let h = f_atan2f(g, r);
         Self { y, c, h }
@@ -132,8 +132,8 @@ impl Ych {
         let y = self.y;
         let c = self.c;
         let h = self.h;
-        let r = mlaf(0.21902143f32, c, f_cosf(h));
-        let g = mlaf(0.54371398f32, c, f_sinf(h));
+        let r = mlaf(0.21902143, c, f_cosf(h));
+        let g = mlaf(0.54371398, c, f_sinf(h));
         Yrg { y, r, g }
     }
 }
@@ -145,7 +145,7 @@ impl Ych {
 // to go from RGB to CIE LMS 2006.
 // Warning: only applies to achromatic pixels.
 pub const fn cie_y_1931_to_cie_y_2006(x: f32) -> f32 {
-    1.05785528f32 * (x)
+    1.05785528 * (x)
 }
 
 #[cfg(test)]

@@ -36,7 +36,7 @@ use std::arch::x86::*;
 #[cfg(target_arch = "x86_64")]
 use std::arch::x86_64::*;
 
-pub(crate) struct TransformProfilePcsXYZRgbOptSse<
+pub(crate) struct TransformShaperRgbOptSse<
     T: Clone + Copy + 'static + PointeeSizeExpressible + Default,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
@@ -54,7 +54,7 @@ impl<
     const LINEAR_CAP: usize,
     const GAMMA_LUT: usize,
     const BIT_DEPTH: usize,
-> TransformProfilePcsXYZRgbOptSse<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>
+> TransformShaperRgbOptSse<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>
 where
     u32: AsPrimitive<T>,
 {
@@ -145,7 +145,7 @@ impl<
     const GAMMA_LUT: usize,
     const BIT_DEPTH: usize,
 > TransformExecutor<T>
-    for TransformProfilePcsXYZRgbOptSse<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>
+    for TransformShaperRgbOptSse<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>
 where
     u32: AsPrimitive<T>,
 {

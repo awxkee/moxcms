@@ -28,6 +28,8 @@
  */
 #[cfg(all(target_arch = "x86_64", feature = "avx"))]
 mod avx;
+#[cfg(all(target_arch = "x86_64", feature = "avx512"))]
+mod avx512;
 mod bpc;
 mod gray2rgb;
 mod interpolator;
@@ -59,6 +61,6 @@ pub(crate) use rgb_xyz_factory::{RgbXyzFactory, RgbXyzFactoryOpt};
 pub(crate) use rgb2gray::{ToneReproductionRgbToGray, make_rgb_to_gray};
 pub(crate) use rgbxyz::{TransformMatrixShaper, TransformMatrixShaperOptimized};
 pub(crate) use rgbxyz_float::{
-    TransformProfileRgbFloat, TransformProfileRgbFloatInOut, make_rgb_xyz_rgb_transform_float,
+    TransformShaperFloatInOut, TransformShaperRgbFloat, make_rgb_xyz_rgb_transform_float,
     make_rgb_xyz_rgb_transform_float_in_out,
 };

@@ -447,9 +447,9 @@ impl ColorProfile {
                 if let Some(gamma_evaluator) = dst_pr.try_extended_gamma_evaluator() {
                     if let Some(linear_evaluator) = dst_pr.try_extended_linearizing_evaluator() {
                         use crate::conversions::{
-                            TransformProfileRgbFloatInOut, make_rgb_xyz_rgb_transform_float_in_out,
+                            TransformShaperFloatInOut, make_rgb_xyz_rgb_transform_float_in_out,
                         };
-                        let p = TransformProfileRgbFloatInOut {
+                        let p = TransformShaperFloatInOut {
                             linear_evaluator,
                             gamma_evaluator,
                             adaptation_matrix: transform.to_f32(),
@@ -471,9 +471,9 @@ impl ColorProfile {
                     )?;
 
                     use crate::conversions::{
-                        TransformProfileRgbFloat, make_rgb_xyz_rgb_transform_float,
+                        TransformShaperRgbFloat, make_rgb_xyz_rgb_transform_float,
                     };
-                    let p = TransformProfileRgbFloat {
+                    let p = TransformShaperRgbFloat {
                         r_linear: lin_r,
                         g_linear: lin_g,
                         b_linear: lin_b,

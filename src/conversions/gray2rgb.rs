@@ -31,7 +31,7 @@ use crate::{CmsError, Layout, TransformExecutor};
 use num_traits::AsPrimitive;
 
 #[derive(Clone)]
-struct TransformProfileGrayToRgb<
+struct TransformGrayToRgbExecutor<
     T,
     const SRC_LAYOUT: u8,
     const DEST_LAYOUT: u8,
@@ -64,7 +64,7 @@ where
         Layout::Rgb => unreachable!(),
         Layout::Rgba => unreachable!(),
         Layout::Gray => match dst_layout {
-            Layout::Rgb => Ok(Box::new(TransformProfileGrayToRgb::<
+            Layout::Rgb => Ok(Box::new(TransformGrayToRgbExecutor::<
                 T,
                 { Layout::Gray as u8 },
                 { Layout::Rgb as u8 },
@@ -75,7 +75,7 @@ where
                 gray_linear,
                 gray_gamma,
             })),
-            Layout::Rgba => Ok(Box::new(TransformProfileGrayToRgb::<
+            Layout::Rgba => Ok(Box::new(TransformGrayToRgbExecutor::<
                 T,
                 { Layout::Gray as u8 },
                 { Layout::Rgba as u8 },
@@ -86,7 +86,7 @@ where
                 gray_linear,
                 gray_gamma,
             })),
-            Layout::Gray => Ok(Box::new(TransformProfileGrayToRgb::<
+            Layout::Gray => Ok(Box::new(TransformGrayToRgbExecutor::<
                 T,
                 { Layout::Gray as u8 },
                 { Layout::Gray as u8 },
@@ -97,7 +97,7 @@ where
                 gray_linear,
                 gray_gamma,
             })),
-            Layout::GrayAlpha => Ok(Box::new(TransformProfileGrayToRgb::<
+            Layout::GrayAlpha => Ok(Box::new(TransformGrayToRgbExecutor::<
                 T,
                 { Layout::Gray as u8 },
                 { Layout::GrayAlpha as u8 },
@@ -110,7 +110,7 @@ where
             })),
         },
         Layout::GrayAlpha => match dst_layout {
-            Layout::Rgb => Ok(Box::new(TransformProfileGrayToRgb::<
+            Layout::Rgb => Ok(Box::new(TransformGrayToRgbExecutor::<
                 T,
                 { Layout::Gray as u8 },
                 { Layout::GrayAlpha as u8 },
@@ -121,7 +121,7 @@ where
                 gray_linear,
                 gray_gamma,
             })),
-            Layout::Rgba => Ok(Box::new(TransformProfileGrayToRgb::<
+            Layout::Rgba => Ok(Box::new(TransformGrayToRgbExecutor::<
                 T,
                 { Layout::Gray as u8 },
                 { Layout::Rgba as u8 },
@@ -132,7 +132,7 @@ where
                 gray_linear,
                 gray_gamma,
             })),
-            Layout::Gray => Ok(Box::new(TransformProfileGrayToRgb::<
+            Layout::Gray => Ok(Box::new(TransformGrayToRgbExecutor::<
                 T,
                 { Layout::Gray as u8 },
                 { Layout::Gray as u8 },
@@ -143,7 +143,7 @@ where
                 gray_linear,
                 gray_gamma,
             })),
-            Layout::GrayAlpha => Ok(Box::new(TransformProfileGrayToRgb::<
+            Layout::GrayAlpha => Ok(Box::new(TransformGrayToRgbExecutor::<
                 T,
                 { Layout::GrayAlpha as u8 },
                 { Layout::GrayAlpha as u8 },
@@ -166,7 +166,7 @@ impl<
     const BIT_DEPTH: usize,
     const GAMMA_LUT: usize,
 > TransformExecutor<T>
-    for TransformProfileGrayToRgb<T, SRC_LAYOUT, DST_LAYOUT, BUCKET, BIT_DEPTH, GAMMA_LUT>
+    for TransformGrayToRgbExecutor<T, SRC_LAYOUT, DST_LAYOUT, BUCKET, BIT_DEPTH, GAMMA_LUT>
 where
     u32: AsPrimitive<T>,
 {

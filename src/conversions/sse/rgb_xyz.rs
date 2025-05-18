@@ -38,7 +38,7 @@ use std::arch::x86_64::*;
 #[repr(align(16), C)]
 pub(crate) struct SseAlignedU16(pub(crate) [u16; 8]);
 
-pub(crate) struct TransformProfilePcsXYZRgbSse<
+pub(crate) struct TransformShaperRgbSse<
     T: Clone + Copy + 'static + PointeeSizeExpressible + Default,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
@@ -56,7 +56,7 @@ impl<
     const LINEAR_CAP: usize,
     const GAMMA_LUT: usize,
     const BIT_DEPTH: usize,
-> TransformProfilePcsXYZRgbSse<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>
+> TransformShaperRgbSse<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>
 where
     u32: AsPrimitive<T>,
 {
@@ -147,7 +147,7 @@ impl<
     const GAMMA_LUT: usize,
     const BIT_DEPTH: usize,
 > TransformExecutor<T>
-    for TransformProfilePcsXYZRgbSse<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>
+    for TransformShaperRgbSse<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>
 where
     u32: AsPrimitive<T>,
 {

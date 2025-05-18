@@ -92,7 +92,7 @@ impl Jzazbz {
     /// JzAzBz is defined in D65 white point, adapt XYZ if needed first.
     #[inline]
     pub fn from_xyz(xyz: Xyz) -> Jzazbz {
-        Self::from_xyz_with_display_luminance(xyz, 200f32)
+        Self::from_xyz_with_display_luminance(xyz, 200.)
     }
 
     /// Creates new [Jzazbz] from CIE [Xyz].
@@ -128,7 +128,7 @@ impl Jzazbz {
     pub fn to_xyz(&self, display_luminance: f32) -> Xyz {
         let jz = self.jz + 1.6295499532821566e-11;
 
-        let iz = jz / mlaf(0.44f32, 0.56f32, jz);
+        let iz = jz / mlaf(0.44f32, 0.56, jz);
         let l = perceptual_quantizer_inverse(mlaf(
             mlaf(iz, 1.386050432715393e-1, self.az),
             5.804731615611869e-2,

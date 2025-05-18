@@ -31,7 +31,7 @@ use crate::conversions::interpolator::BarycentricWeight;
 use crate::conversions::lut_transforms::Lut4x3Factory;
 use crate::conversions::neon::interpolator::*;
 use crate::conversions::neon::interpolator_q0_15::NeonAlignedI16x4;
-use crate::conversions::neon::lut4_to_3_q0_15::TransformLut4XyzToRgbNeonQ0_15;
+use crate::conversions::neon::lut4_to_3_q0_15::TransformLut4To3NeonQ0_15;
 use crate::conversions::neon::rgb_xyz::NeonAlignedF32;
 use crate::transform::PointeeSizeExpressible;
 use crate::{
@@ -42,7 +42,7 @@ use num_traits::AsPrimitive;
 use std::arch::aarch64::*;
 use std::marker::PhantomData;
 
-struct TransformLut4XyzToRgbNeon<
+struct TransformLut4To3Neon<
     T,
     U,
     const LAYOUT: u8,
@@ -68,7 +68,7 @@ impl<
     const BIT_DEPTH: usize,
     const BINS: usize,
     const BARYCENTRIC_BINS: usize,
-> TransformLut4XyzToRgbNeon<T, U, LAYOUT, GRID_SIZE, BIT_DEPTH, BINS, BARYCENTRIC_BINS>
+> TransformLut4To3Neon<T, U, LAYOUT, GRID_SIZE, BIT_DEPTH, BINS, BARYCENTRIC_BINS>
 where
     f32: AsPrimitive<T>,
     u32: AsPrimitive<T>,
@@ -156,7 +156,7 @@ impl<
     const BINS: usize,
     const BARYCENTRIC_BINS: usize,
 > TransformExecutor<T>
-    for TransformLut4XyzToRgbNeon<T, U, LAYOUT, GRID_SIZE, BIT_DEPTH, BINS, BARYCENTRIC_BINS>
+    for TransformLut4To3Neon<T, U, LAYOUT, GRID_SIZE, BIT_DEPTH, BINS, BARYCENTRIC_BINS>
 where
     f32: AsPrimitive<T>,
     u32: AsPrimitive<T>,
@@ -247,7 +247,7 @@ impl Lut4x3Factory for NeonLut4x3Factory {
                 })
                 .collect::<Vec<_>>();
             return match options.barycentric_weight_scale {
-                BarycentricWeightScale::Low => Box::new(TransformLut4XyzToRgbNeonQ0_15::<
+                BarycentricWeightScale::Low => Box::new(TransformLut4To3NeonQ0_15::<
                     T,
                     u8,
                     LAYOUT,
@@ -265,7 +265,7 @@ impl Lut4x3Factory for NeonLut4x3Factory {
                     is_linear,
                 }),
                 #[cfg(feature = "options")]
-                BarycentricWeightScale::High => Box::new(TransformLut4XyzToRgbNeonQ0_15::<
+                BarycentricWeightScale::High => Box::new(TransformLut4To3NeonQ0_15::<
                     T,
                     u16,
                     LAYOUT,
@@ -291,7 +291,7 @@ impl Lut4x3Factory for NeonLut4x3Factory {
         match options.barycentric_weight_scale {
             BarycentricWeightScale::Low => {
                 Box::new(
-                    TransformLut4XyzToRgbNeon::<T, u8, LAYOUT, GRID_SIZE, BIT_DEPTH, 256, 256> {
+                    TransformLut4To3Neon::<T, u8, LAYOUT, GRID_SIZE, BIT_DEPTH, 256, 256> {
                         lut,
                         _phantom: PhantomData,
                         _phantom1: PhantomData,
@@ -303,23 +303,19 @@ impl Lut4x3Factory for NeonLut4x3Factory {
                 )
             }
             #[cfg(feature = "options")]
-            BarycentricWeightScale::High => Box::new(TransformLut4XyzToRgbNeon::<
-                T,
-                u16,
-                LAYOUT,
-                GRID_SIZE,
-                BIT_DEPTH,
-                65536,
-                65536,
-            > {
-                lut,
-                _phantom: PhantomData,
-                _phantom1: PhantomData,
-                interpolation_method: options.interpolation_method,
-                weights: BarycentricWeight::<f32>::create_binned::<GRID_SIZE, 65536>(),
-                color_space,
-                is_linear,
-            }),
+            BarycentricWeightScale::High => {
+                Box::new(
+                    TransformLut4To3Neon::<T, u16, LAYOUT, GRID_SIZE, BIT_DEPTH, 65536, 65536> {
+                        lut,
+                        _phantom: PhantomData,
+                        _phantom1: PhantomData,
+                        interpolation_method: options.interpolation_method,
+                        weights: BarycentricWeight::<f32>::create_binned::<GRID_SIZE, 65536>(),
+                        color_space,
+                        is_linear,
+                    },
+                )
+            }
         }
     }
 }

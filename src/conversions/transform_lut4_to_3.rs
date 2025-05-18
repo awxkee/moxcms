@@ -49,7 +49,7 @@ impl Vector3fCmykLerp for DefaultVector3fLerp {
     fn interpolate(a: Vector3f, b: Vector3f, t: f32, scale: f32) -> Vector3f {
         let t = Vector3f::from(t);
         let inter = a.neg_mla(a, t).mla(b, t);
-        let mut new_vec = Vector3f::from(0.5f32).mla(inter, Vector3f::from(scale));
+        let mut new_vec = Vector3f::from(0.5).mla(inter, Vector3f::from(scale));
         new_vec.v[0] = m_clamp(new_vec.v[0], 0.0, scale);
         new_vec.v[1] = m_clamp(new_vec.v[1], 0.0, scale);
         new_vec.v[2] = m_clamp(new_vec.v[2], 0.0, scale);
@@ -82,7 +82,7 @@ impl Vector3fCmykLerp for NonFiniteVector3fLerpUnbound {
 }
 
 #[allow(unused)]
-struct TransformLut4XyzToRgb<
+struct TransformLut4To3<
     T,
     U,
     const LAYOUT: u8,
@@ -109,7 +109,7 @@ impl<
     const BIT_DEPTH: usize,
     const BINS: usize,
     const BARYCENTRIC_BINS: usize,
-> TransformLut4XyzToRgb<T, U, LAYOUT, GRID_SIZE, BIT_DEPTH, BINS, BARYCENTRIC_BINS>
+> TransformLut4To3<T, U, LAYOUT, GRID_SIZE, BIT_DEPTH, BINS, BARYCENTRIC_BINS>
 where
     f32: AsPrimitive<T>,
     u32: AsPrimitive<T>,
@@ -181,7 +181,7 @@ impl<
     const BINS: usize,
     const BARYCENTRIC_BINS: usize,
 > TransformExecutor<T>
-    for TransformLut4XyzToRgb<T, U, LAYOUT, GRID_SIZE, BIT_DEPTH, BINS, BARYCENTRIC_BINS>
+    for TransformLut4To3<T, U, LAYOUT, GRID_SIZE, BIT_DEPTH, BINS, BARYCENTRIC_BINS>
 where
     f32: AsPrimitive<T>,
     u32: AsPrimitive<T>,
@@ -286,7 +286,7 @@ impl Lut4x3Factory for DefaultLut4x3Factory {
         match options.barycentric_weight_scale {
             BarycentricWeightScale::Low => {
                 Box::new(
-                    TransformLut4XyzToRgb::<T, u8, LAYOUT, GRID_SIZE, BIT_DEPTH, 256, 256> {
+                    TransformLut4To3::<T, u8, LAYOUT, GRID_SIZE, BIT_DEPTH, 256, 256> {
                         lut,
                         _phantom: PhantomData,
                         _phantom1: PhantomData,
@@ -298,23 +298,19 @@ impl Lut4x3Factory for DefaultLut4x3Factory {
                 )
             }
             #[cfg(feature = "options")]
-            BarycentricWeightScale::High => Box::new(TransformLut4XyzToRgb::<
-                T,
-                u16,
-                LAYOUT,
-                GRID_SIZE,
-                BIT_DEPTH,
-                65536,
-                65536,
-            > {
-                lut,
-                _phantom: PhantomData,
-                _phantom1: PhantomData,
-                interpolation_method: options.interpolation_method,
-                weights: BarycentricWeight::<f32>::create_binned::<GRID_SIZE, 65536>(),
-                color_space,
-                is_linear,
-            }),
+            BarycentricWeightScale::High => {
+                Box::new(
+                    TransformLut4To3::<T, u16, LAYOUT, GRID_SIZE, BIT_DEPTH, 65536, 65536> {
+                        lut,
+                        _phantom: PhantomData,
+                        _phantom1: PhantomData,
+                        interpolation_method: options.interpolation_method,
+                        weights: BarycentricWeight::<f32>::create_binned::<GRID_SIZE, 65536>(),
+                        color_space,
+                        is_linear,
+                    },
+                )
+            }
         }
     }
 }

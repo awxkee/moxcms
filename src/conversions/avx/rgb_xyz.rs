@@ -36,7 +36,7 @@ use std::arch::x86_64::*;
 #[derive(Debug)]
 pub(crate) struct AvxAlignedU16(pub(crate) [u16; 16]);
 
-pub(crate) struct TransformProfilePcsXYZRgbAvx<
+pub(crate) struct TransformShaperRgbAvx<
     T: Clone + Copy + 'static + PointeeSizeExpressible + Default,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
@@ -54,7 +54,7 @@ impl<
     const LINEAR_CAP: usize,
     const GAMMA_LUT: usize,
     const BIT_DEPTH: usize,
-> TransformProfilePcsXYZRgbAvx<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>
+> TransformShaperRgbAvx<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>
 where
     u32: AsPrimitive<T>,
 {
@@ -88,13 +88,13 @@ where
 
         unsafe {
             let m0 = _mm256_setr_ps(
-                t.v[0][0], t.v[0][1], t.v[0][2], 0f32, t.v[0][0], t.v[0][1], t.v[0][2], 0f32,
+                t.v[0][0], t.v[0][1], t.v[0][2], 0., t.v[0][0], t.v[0][1], t.v[0][2], 0.,
             );
             let m1 = _mm256_setr_ps(
-                t.v[1][0], t.v[1][1], t.v[1][2], 0f32, t.v[1][0], t.v[1][1], t.v[1][2], 0f32,
+                t.v[1][0], t.v[1][1], t.v[1][2], 0., t.v[1][0], t.v[1][1], t.v[1][2], 0.,
             );
             let m2 = _mm256_setr_ps(
-                t.v[2][0], t.v[2][1], t.v[2][2], 0f32, t.v[2][0], t.v[2][1], t.v[2][2], 0f32,
+                t.v[2][0], t.v[2][1], t.v[2][2], 0., t.v[2][0], t.v[2][1], t.v[2][2], 0.,
             );
 
             let zeros = _mm_setzero_ps();
@@ -312,7 +312,7 @@ impl<
     const GAMMA_LUT: usize,
     const BIT_DEPTH: usize,
 > TransformExecutor<T>
-    for TransformProfilePcsXYZRgbAvx<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>
+    for TransformShaperRgbAvx<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>
 where
     u32: AsPrimitive<T>,
 {

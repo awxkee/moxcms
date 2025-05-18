@@ -1,5 +1,5 @@
 /*
- * // Copyright (c) Radzivon Bartoshyk 3/2025. All rights reserved.
+ * // Copyright (c) Radzivon Bartoshyk 5/2025. All rights reserved.
  * //
  * // Redistribution and use in source and binary forms, with or without modification,
  * // are permitted provided that the following conditions are met:
@@ -26,20 +26,8 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-mod interpolator;
-mod interpolator_q0_15;
-mod lut4_to_3;
-mod lut4_to_3_q0_15;
-mod rgb_xyz;
 mod rgb_xyz_opt;
-mod rgb_xyz_q2_13;
 mod rgb_xyz_q2_13_opt;
-mod t_lut3_to_3;
-mod t_lut3_to_3_q0_15;
 
-pub(crate) use lut4_to_3::SseLut4x3Factory;
-pub(crate) use rgb_xyz::TransformShaperRgbSse;
-pub(crate) use rgb_xyz_opt::TransformShaperRgbOptSse;
-pub(crate) use rgb_xyz_q2_13::TransformShaperQ2_13Sse;
-pub(crate) use rgb_xyz_q2_13_opt::TransformShaperQ2_13OptSse;
-pub(crate) use t_lut3_to_3::SseLut3x3Factory;
+pub(crate) use rgb_xyz_opt::TransformShaperRgbOptAvx512;
+pub(crate) use rgb_xyz_q2_13_opt::TransformShaperRgbQ2_13OptAvx512;

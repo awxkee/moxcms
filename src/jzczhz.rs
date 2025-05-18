@@ -104,7 +104,7 @@ impl Jzczhz {
         let djz = self.jz - other.jz;
         let dcz = self.cz - other.cz;
         let dhz = self.hz - other.hz;
-        let dh = 2f32 * (self.cz * other.cz).sqrt() * f_sinf(dhz * 0.5f32);
+        let dh = 2. * (self.cz * other.cz).sqrt() * f_sinf(dhz * 0.5);
         hypot3f(djz, dcz, dh)
     }
 
@@ -345,7 +345,7 @@ mod tests {
     #[test]
     fn jzczhz_round() {
         let xyz = Xyz::new(0.5, 0.4, 0.3);
-        let jzczhz = Jzczhz::from_xyz_with_display_luminance(xyz, 253f32);
+        let jzczhz = Jzczhz::from_xyz_with_display_luminance(xyz, 253.);
         let old_xyz = jzczhz.to_xyz(253f32);
         assert!(
             (xyz.x - old_xyz.x).abs() <= 1e-3,

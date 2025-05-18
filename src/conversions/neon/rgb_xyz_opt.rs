@@ -34,7 +34,7 @@ use crate::{CmsError, Layout, TransformExecutor};
 use num_traits::AsPrimitive;
 use std::arch::aarch64::*;
 
-pub(crate) struct TransformProfilePcsXYZRgbOptNeon<
+pub(crate) struct TransformShaperRgbOptNeon<
     T: Clone + PointeeSizeExpressible + Copy + Default + 'static,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
@@ -53,14 +53,7 @@ impl<
     const GAMMA_LUT: usize,
     const BIT_DEPTH: usize,
 > TransformExecutor<T>
-    for TransformProfilePcsXYZRgbOptNeon<
-        T,
-        SRC_LAYOUT,
-        DST_LAYOUT,
-        LINEAR_CAP,
-        GAMMA_LUT,
-        BIT_DEPTH,
-    >
+    for TransformShaperRgbOptNeon<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>
 where
     u32: AsPrimitive<T>,
 {
@@ -93,13 +86,13 @@ where
         let (dst_chunks, dst_remainder) = split_by_twos_mut(dst, dst_channels);
 
         unsafe {
-            let m0 = vld1q_f32([t.v[0][0], t.v[0][1], t.v[0][2], 0f32].as_ptr());
-            let m1 = vld1q_f32([t.v[1][0], t.v[1][1], t.v[1][2], 0f32].as_ptr());
-            let m2 = vld1q_f32([t.v[2][0], t.v[2][1], t.v[2][2], 0f32].as_ptr());
+            let m0 = vld1q_f32([t.v[0][0], t.v[0][1], t.v[0][2], 0.].as_ptr());
+            let m1 = vld1q_f32([t.v[1][0], t.v[1][1], t.v[1][2], 0.].as_ptr());
+            let m2 = vld1q_f32([t.v[2][0], t.v[2][1], t.v[2][2], 0.].as_ptr());
 
             let v_scale = vdupq_n_f32(scale);
 
-            let rnd = vdupq_n_f32(0.5f32);
+            let rnd = vdupq_n_f32(0.5);
 
             if !src_chunks.is_empty() {
                 let (src0, src1) = src_chunks.split_at(src_chunks.len() / 2);
@@ -169,18 +162,18 @@ where
                         max_colors
                     };
                 } else {
-                    r0 = vdupq_n_f32(0f32);
-                    g0 = vdupq_n_f32(0f32);
-                    b0 = vdupq_n_f32(0f32);
-                    r1 = vdupq_n_f32(0f32);
-                    g1 = vdupq_n_f32(0f32);
-                    b1 = vdupq_n_f32(0f32);
-                    r2 = vdupq_n_f32(0f32);
-                    g2 = vdupq_n_f32(0f32);
-                    b2 = vdupq_n_f32(0f32);
-                    r3 = vdupq_n_f32(0f32);
-                    g3 = vdupq_n_f32(0f32);
-                    b3 = vdupq_n_f32(0f32);
+                    r0 = vdupq_n_f32(0.);
+                    g0 = vdupq_n_f32(0.);
+                    b0 = vdupq_n_f32(0.);
+                    r1 = vdupq_n_f32(0.);
+                    g1 = vdupq_n_f32(0.);
+                    b1 = vdupq_n_f32(0.);
+                    r2 = vdupq_n_f32(0.);
+                    g2 = vdupq_n_f32(0.);
+                    b2 = vdupq_n_f32(0.);
+                    r3 = vdupq_n_f32(0.);
+                    g3 = vdupq_n_f32(0.);
+                    b3 = vdupq_n_f32(0.);
                     a0 = max_colors;
                     a1 = max_colors;
                     a2 = max_colors;

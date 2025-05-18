@@ -66,7 +66,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - run: cargo clippy --all-features -- -D warnings
+      - run: cargo clippy --features avx,sse,neon,options -- -D warnings
 
   clippy_x86_nightly:
     name: Clippy x86 Nightly

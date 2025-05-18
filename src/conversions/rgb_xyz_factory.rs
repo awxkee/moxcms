@@ -384,6 +384,21 @@ impl RgbXyzFactoryOpt<u8> for u8 {
         transform_options: TransformOptions,
     ) -> Result<Box<dyn TransformExecutor<u8> + Send + Sync>, CmsError> {
         if transform_options.prefer_fixed_point {
+            #[cfg(all(target_arch = "x86_64", feature = "avx512"))]
+            {
+                use crate::conversions::rgbxyz_fixed::make_rgb_xyz_q2_13_transform_avx512_opt;
+                if std::arch::is_x86_feature_detected!("avx512bw")
+                    && std::arch::is_x86_feature_detected!("avx512vl")
+                {
+                    return make_rgb_xyz_q2_13_transform_avx512_opt::<
+                        u8,
+                        LINEAR_CAP,
+                        GAMMA_LUT,
+                        8,
+                        FIXED_POINT_SCALE,
+                    >(src_layout, dst_layout, profile);
+                }
+            }
             #[cfg(all(target_arch = "x86_64", feature = "avx"))]
             {
                 use crate::conversions::rgbxyz_fixed::make_rgb_xyz_q2_13_transform_avx2_opt;
