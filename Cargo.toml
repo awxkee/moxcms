@@ -32,7 +32,7 @@ avx = []
 sse = []
 # Enables NEON intrinsics where possible
 neon = []
-# Enables AVX-512 acceleration where possible. This requires nightly on Rust version before 1.89.
+# Enables AVX-512 acceleration where possible. This will work only from 1.89 on stable.
 avx512 = []
 # Allows configuring interpolation methods and LUT weights precision.
 # Disabled by default to prevent binary bloat.
