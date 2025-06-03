@@ -809,9 +809,9 @@ impl ColorProfile {
                 }
             }
             *read_size = 12 + COUNT_TO_LENGTH[entry_count] * 4;
-            return Ok(Some(ToneReprCurve::Parametric(params)));
+            Ok(Some(ToneReprCurve::Parametric(params)))
         } else {
-            return Err(CmsError::InvalidProfile);
+            Err(CmsError::InvalidProfile)
         }
     }
 

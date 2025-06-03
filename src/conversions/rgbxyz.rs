@@ -195,7 +195,7 @@ impl<T: Clone + PointeeSizeExpressible, const BUCKET: usize>
 }
 
 #[allow(unused)]
-struct TransformProfilePcsXYZRgb<
+struct TransformMatrixShaperScalar<
     T: Clone,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
@@ -207,7 +207,7 @@ struct TransformProfilePcsXYZRgb<
 }
 
 #[allow(unused)]
-struct TransformProfileMatrixShaperOpt<
+struct TransformMatrixShaperOptScalar<
     T: Clone,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
@@ -359,7 +359,7 @@ where
         );
     }
     if (src_layout == Layout::Rgba) && (dst_layout == Layout::Rgba) {
-        return Ok(Box::new(TransformProfilePcsXYZRgb::<
+        return Ok(Box::new(TransformMatrixShaperScalar::<
             T,
             { Layout::Rgba as u8 },
             { Layout::Rgba as u8 },
@@ -370,7 +370,7 @@ where
             profile,
         }));
     } else if (src_layout == Layout::Rgb) && (dst_layout == Layout::Rgba) {
-        return Ok(Box::new(TransformProfilePcsXYZRgb::<
+        return Ok(Box::new(TransformMatrixShaperScalar::<
             T,
             { Layout::Rgb as u8 },
             { Layout::Rgba as u8 },
@@ -381,7 +381,7 @@ where
             profile,
         }));
     } else if (src_layout == Layout::Rgba) && (dst_layout == Layout::Rgb) {
-        return Ok(Box::new(TransformProfilePcsXYZRgb::<
+        return Ok(Box::new(TransformMatrixShaperScalar::<
             T,
             { Layout::Rgba as u8 },
             { Layout::Rgb as u8 },
@@ -392,7 +392,7 @@ where
             profile,
         }));
     } else if (src_layout == Layout::Rgb) && (dst_layout == Layout::Rgb) {
-        return Ok(Box::new(TransformProfilePcsXYZRgb::<
+        return Ok(Box::new(TransformMatrixShaperScalar::<
             T,
             { Layout::Rgb as u8 },
             { Layout::Rgb as u8 },
@@ -442,7 +442,7 @@ where
         );
     }
     if (src_layout == Layout::Rgba) && (dst_layout == Layout::Rgba) {
-        return Ok(Box::new(TransformProfileMatrixShaperOpt::<
+        return Ok(Box::new(TransformMatrixShaperOptScalar::<
             T,
             { Layout::Rgba as u8 },
             { Layout::Rgba as u8 },
@@ -453,7 +453,7 @@ where
             profile,
         }));
     } else if (src_layout == Layout::Rgb) && (dst_layout == Layout::Rgba) {
-        return Ok(Box::new(TransformProfileMatrixShaperOpt::<
+        return Ok(Box::new(TransformMatrixShaperOptScalar::<
             T,
             { Layout::Rgb as u8 },
             { Layout::Rgba as u8 },
@@ -464,7 +464,7 @@ where
             profile,
         }));
     } else if (src_layout == Layout::Rgba) && (dst_layout == Layout::Rgb) {
-        return Ok(Box::new(TransformProfileMatrixShaperOpt::<
+        return Ok(Box::new(TransformMatrixShaperOptScalar::<
             T,
             { Layout::Rgba as u8 },
             { Layout::Rgb as u8 },
@@ -475,7 +475,7 @@ where
             profile,
         }));
     } else if (src_layout == Layout::Rgb) && (dst_layout == Layout::Rgb) {
-        return Ok(Box::new(TransformProfileMatrixShaperOpt::<
+        return Ok(Box::new(TransformMatrixShaperOptScalar::<
             T,
             { Layout::Rgb as u8 },
             { Layout::Rgb as u8 },
@@ -519,7 +519,7 @@ impl<
     const GAMMA_LUT: usize,
     const BIT_DEPTH: usize,
 > TransformExecutor<T>
-    for TransformProfilePcsXYZRgb<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>
+    for TransformMatrixShaperScalar<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>
 where
     u32: AsPrimitive<T>,
 {
@@ -614,7 +614,7 @@ impl<
     const GAMMA_LUT: usize,
     const BIT_DEPTH: usize,
 > TransformExecutor<T>
-    for TransformProfileMatrixShaperOpt<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>
+    for TransformMatrixShaperOptScalar<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>
 where
     u32: AsPrimitive<T>,
 {

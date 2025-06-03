@@ -47,7 +47,7 @@ pub(crate) struct TransformShaperFloatInOut<T: Clone> {
     pub(crate) phantom_data: PhantomData<T>,
 }
 
-struct TransformProfilePcsXYZRgbFloat<
+struct TransformShaperFloatScalar<
     T: Clone,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
@@ -57,7 +57,7 @@ struct TransformProfilePcsXYZRgbFloat<
     pub(crate) profile: TransformShaperRgbFloat<T, LINEAR_CAP>,
 }
 
-struct TransformProfilePcsXYZRgbFloatInOut<
+struct TransformShaperRgbFloatInOut<
     T: Clone,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
@@ -80,7 +80,7 @@ where
     f32: AsPrimitive<T>,
 {
     if (src_layout == Layout::Rgba) && (dst_layout == Layout::Rgba) {
-        return Ok(Box::new(TransformProfilePcsXYZRgbFloat::<
+        return Ok(Box::new(TransformShaperFloatScalar::<
             T,
             { Layout::Rgba as u8 },
             { Layout::Rgba as u8 },
@@ -90,7 +90,7 @@ where
             profile,
         }));
     } else if (src_layout == Layout::Rgb) && (dst_layout == Layout::Rgba) {
-        return Ok(Box::new(TransformProfilePcsXYZRgbFloat::<
+        return Ok(Box::new(TransformShaperFloatScalar::<
             T,
             { Layout::Rgb as u8 },
             { Layout::Rgba as u8 },
@@ -100,7 +100,7 @@ where
             profile,
         }));
     } else if (src_layout == Layout::Rgba) && (dst_layout == Layout::Rgb) {
-        return Ok(Box::new(TransformProfilePcsXYZRgbFloat::<
+        return Ok(Box::new(TransformShaperFloatScalar::<
             T,
             { Layout::Rgba as u8 },
             { Layout::Rgb as u8 },
@@ -110,7 +110,7 @@ where
             profile,
         }));
     } else if (src_layout == Layout::Rgb) && (dst_layout == Layout::Rgb) {
-        return Ok(Box::new(TransformProfilePcsXYZRgbFloat::<
+        return Ok(Box::new(TransformShaperFloatScalar::<
             T,
             { Layout::Rgb as u8 },
             { Layout::Rgb as u8 },
@@ -136,7 +136,7 @@ where
     f32: AsPrimitive<T>,
 {
     if (src_layout == Layout::Rgba) && (dst_layout == Layout::Rgba) {
-        return Ok(Box::new(TransformProfilePcsXYZRgbFloatInOut::<
+        return Ok(Box::new(TransformShaperRgbFloatInOut::<
             T,
             { Layout::Rgba as u8 },
             { Layout::Rgba as u8 },
@@ -145,7 +145,7 @@ where
             profile,
         }));
     } else if (src_layout == Layout::Rgb) && (dst_layout == Layout::Rgba) {
-        return Ok(Box::new(TransformProfilePcsXYZRgbFloatInOut::<
+        return Ok(Box::new(TransformShaperRgbFloatInOut::<
             T,
             { Layout::Rgb as u8 },
             { Layout::Rgba as u8 },
@@ -154,7 +154,7 @@ where
             profile,
         }));
     } else if (src_layout == Layout::Rgba) && (dst_layout == Layout::Rgb) {
-        return Ok(Box::new(TransformProfilePcsXYZRgbFloatInOut::<
+        return Ok(Box::new(TransformShaperRgbFloatInOut::<
             T,
             { Layout::Rgba as u8 },
             { Layout::Rgb as u8 },
@@ -163,7 +163,7 @@ where
             profile,
         }));
     } else if (src_layout == Layout::Rgb) && (dst_layout == Layout::Rgb) {
-        return Ok(Box::new(TransformProfilePcsXYZRgbFloatInOut::<
+        return Ok(Box::new(TransformShaperRgbFloatInOut::<
             T,
             { Layout::Rgb as u8 },
             { Layout::Rgb as u8 },
@@ -182,7 +182,7 @@ impl<
     const LINEAR_CAP: usize,
     const BIT_DEPTH: usize,
 > TransformExecutor<T>
-    for TransformProfilePcsXYZRgbFloat<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP, BIT_DEPTH>
+    for TransformShaperFloatScalar<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP, BIT_DEPTH>
 where
     u32: AsPrimitive<T>,
     f32: AsPrimitive<T>,
@@ -258,7 +258,7 @@ impl<
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
     const BIT_DEPTH: usize,
-> TransformExecutor<T> for TransformProfilePcsXYZRgbFloatInOut<T, SRC_LAYOUT, DST_LAYOUT, BIT_DEPTH>
+> TransformExecutor<T> for TransformShaperRgbFloatInOut<T, SRC_LAYOUT, DST_LAYOUT, BIT_DEPTH>
 where
     u32: AsPrimitive<T>,
     f32: AsPrimitive<T>,

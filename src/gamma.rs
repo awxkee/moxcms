@@ -372,9 +372,9 @@ fn pure_gamma_function(x: f64, gamma: f64) -> f64 {
     if x <= 0f64 {
         0f64
     } else if x >= 1f64 {
-        return 1f64;
+        1f64
     } else {
-        return f_pow(x, gamma);
+        f_pow(x, gamma)
     }
 }
 
