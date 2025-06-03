@@ -28,8 +28,9 @@
  */
 #![allow(clippy::manual_clamp, clippy::excessive_precision)]
 #![deny(unreachable_pub)]
+#![allow(stable_features)]
 #![cfg_attr(
-    not(any(feature = "avx", feature = "sse", feature = "neon")),
+    not(any(feature = "avx", feature = "sse", feature = "avx512", feature = "neon")),
     forbid(unsafe_code)
 )]
 #![cfg_attr(all(feature = "avx512", target_arch = "x86_64"), feature(cfg_version))]

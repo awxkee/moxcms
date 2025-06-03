@@ -146,18 +146,19 @@ fn check_gray() {
 }
 
 fn main() {
-    let d3 = ColorProfile::new_display_p3();
-    println!("{:?}", d3.red_colorant);
     let reader = image::ImageReader::open("./assets/bench.jpg").unwrap();
     let mut decoder = reader.into_decoder().unwrap();
     let icc_profile =
         moxcms::ColorProfile::new_from_slice(&decoder.icc_profile().unwrap().unwrap()).unwrap();
     let custom_profile = Profile::new_icc(&decoder.icc_profile().unwrap().unwrap()).unwrap();
 
+    let gray_profile = ColorProfile::new_gray_with_gamma(2.2);
+
     let img = DynamicImage::from_decoder(decoder).unwrap();
-    let transform = icc_profile
+    let img = DynamicImage::ImageLuma8(img.to_luma8());
+    let transform = gray_profile
         .create_transform_8bit(
-            moxcms::Layout::Rgb,
+            moxcms::Layout::Gray,
             &moxcms::ColorProfile::new_srgb(),
             moxcms::Layout::Rgb,
             TransformOptions {
@@ -167,7 +168,7 @@ fn main() {
         )
         .unwrap();
 
-    let mut new_img_bytes = vec![0u8; img.as_bytes().len()];
+    let mut new_img_bytes = vec![0u8; img.as_bytes().len() * 3];
     transform
         .transform(img.as_bytes(), &mut new_img_bytes)
         .unwrap();
@@ -175,7 +176,7 @@ fn main() {
     let new_img = DynamicImage::ImageRgb8(
         image::RgbImage::from_raw(img.width(), img.height(), new_img_bytes).unwrap(),
     );
-    new_img.save("converted.jpg").unwrap();
+    new_img.save("convertedz.png").unwrap();
 }
 
 // fn main() {

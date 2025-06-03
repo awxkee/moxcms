@@ -568,8 +568,8 @@ impl ColorProfile {
             return make_gray_to_x::<T, LINEAR_CAP, BIT_DEPTH, GAMMA_CAP>(
                 src_layout,
                 dst_layout,
-                gray_linear,
-                gray_gamma,
+                &gray_linear,
+                &gray_gamma,
             );
         } else if self.color_space == DataColorSpace::Rgb
             && dst_pr.color_space == DataColorSpace::Gray

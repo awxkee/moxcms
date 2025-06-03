@@ -31,7 +31,7 @@ use crate::{CmsError, Layout, TransformExecutor};
 use num_traits::AsPrimitive;
 
 #[derive(Clone)]
-struct TransformGrayToRgbExecutor<
+struct TransformGray2RgbFusedExecutor<
     T,
     const SRC_LAYOUT: u8,
     const DEST_LAYOUT: u8,
@@ -39,8 +39,7 @@ struct TransformGrayToRgbExecutor<
     const BIT_DEPTH: usize,
     const GAMMA_LUT: usize,
 > {
-    gray_linear: Box<[f32; BUCKET]>,
-    gray_gamma: Box<[T; 65536]>,
+    fuzed_gamma: Box<[T; BUCKET]>,
 }
 
 pub(crate) fn make_gray_to_x<
@@ -51,8 +50,8 @@ pub(crate) fn make_gray_to_x<
 >(
     src_layout: Layout,
     dst_layout: Layout,
-    gray_linear: Box<[f32; BUCKET]>,
-    gray_gamma: Box<[T; 65536]>,
+    gray_linear: &[f32; BUCKET],
+    gray_gamma: &[T; 65536],
 ) -> Result<Box<dyn TransformExecutor<T> + Sync + Send>, CmsError>
 where
     u32: AsPrimitive<T>,
@@ -60,11 +59,19 @@ where
     if src_layout != Layout::Gray && src_layout != Layout::GrayAlpha {
         return Err(CmsError::UnsupportedProfileConnection);
     }
+
+    let mut fuzed_gamma = Box::new([T::default(); BUCKET]);
+    let max_lut_size = (GAMMA_LUT - 1) as f32;
+    for (&src, dst) in gray_linear.iter().zip(fuzed_gamma.iter_mut()) {
+        let possible_value = ((src * max_lut_size).round() as u32).min(max_lut_size as u32) as u16;
+        *dst = gray_gamma[possible_value as usize];
+    }
+
     match src_layout {
         Layout::Rgb => unreachable!(),
         Layout::Rgba => unreachable!(),
         Layout::Gray => match dst_layout {
-            Layout::Rgb => Ok(Box::new(TransformGrayToRgbExecutor::<
+            Layout::Rgb => Ok(Box::new(TransformGray2RgbFusedExecutor::<
                 T,
                 { Layout::Gray as u8 },
                 { Layout::Rgb as u8 },
@@ -72,10 +79,9 @@ where
                 BIT_DEPTH,
                 GAMMA_LUT,
             > {
-                gray_linear,
-                gray_gamma,
+                fuzed_gamma,
             })),
-            Layout::Rgba => Ok(Box::new(TransformGrayToRgbExecutor::<
+            Layout::Rgba => Ok(Box::new(TransformGray2RgbFusedExecutor::<
                 T,
                 { Layout::Gray as u8 },
                 { Layout::Rgba as u8 },
@@ -83,10 +89,9 @@ where
                 BIT_DEPTH,
                 GAMMA_LUT,
             > {
-                gray_linear,
-                gray_gamma,
+                fuzed_gamma,
             })),
-            Layout::Gray => Ok(Box::new(TransformGrayToRgbExecutor::<
+            Layout::Gray => Ok(Box::new(TransformGray2RgbFusedExecutor::<
                 T,
                 { Layout::Gray as u8 },
                 { Layout::Gray as u8 },
@@ -94,10 +99,9 @@ where
                 BIT_DEPTH,
                 GAMMA_LUT,
             > {
-                gray_linear,
-                gray_gamma,
+                fuzed_gamma,
             })),
-            Layout::GrayAlpha => Ok(Box::new(TransformGrayToRgbExecutor::<
+            Layout::GrayAlpha => Ok(Box::new(TransformGray2RgbFusedExecutor::<
                 T,
                 { Layout::Gray as u8 },
                 { Layout::GrayAlpha as u8 },
@@ -105,12 +109,11 @@ where
                 BIT_DEPTH,
                 GAMMA_LUT,
             > {
-                gray_linear,
-                gray_gamma,
+                fuzed_gamma,
             })),
         },
         Layout::GrayAlpha => match dst_layout {
-            Layout::Rgb => Ok(Box::new(TransformGrayToRgbExecutor::<
+            Layout::Rgb => Ok(Box::new(TransformGray2RgbFusedExecutor::<
                 T,
                 { Layout::Gray as u8 },
                 { Layout::GrayAlpha as u8 },
@@ -118,10 +121,9 @@ where
                 BIT_DEPTH,
                 GAMMA_LUT,
             > {
-                gray_linear,
-                gray_gamma,
+                fuzed_gamma,
             })),
-            Layout::Rgba => Ok(Box::new(TransformGrayToRgbExecutor::<
+            Layout::Rgba => Ok(Box::new(TransformGray2RgbFusedExecutor::<
                 T,
                 { Layout::Gray as u8 },
                 { Layout::Rgba as u8 },
@@ -129,10 +131,9 @@ where
                 BIT_DEPTH,
                 GAMMA_LUT,
             > {
-                gray_linear,
-                gray_gamma,
+                fuzed_gamma,
             })),
-            Layout::Gray => Ok(Box::new(TransformGrayToRgbExecutor::<
+            Layout::Gray => Ok(Box::new(TransformGray2RgbFusedExecutor::<
                 T,
                 { Layout::Gray as u8 },
                 { Layout::Gray as u8 },
@@ -140,10 +141,9 @@ where
                 BIT_DEPTH,
                 GAMMA_LUT,
             > {
-                gray_linear,
-                gray_gamma,
+                fuzed_gamma,
             })),
-            Layout::GrayAlpha => Ok(Box::new(TransformGrayToRgbExecutor::<
+            Layout::GrayAlpha => Ok(Box::new(TransformGray2RgbFusedExecutor::<
                 T,
                 { Layout::GrayAlpha as u8 },
                 { Layout::GrayAlpha as u8 },
@@ -151,8 +151,7 @@ where
                 BIT_DEPTH,
                 GAMMA_LUT,
             > {
-                gray_linear,
-                gray_gamma,
+                fuzed_gamma,
             })),
         },
     }
@@ -166,7 +165,7 @@ impl<
     const BIT_DEPTH: usize,
     const GAMMA_LUT: usize,
 > TransformExecutor<T>
-    for TransformGrayToRgbExecutor<T, SRC_LAYOUT, DST_LAYOUT, BUCKET, BIT_DEPTH, GAMMA_LUT>
+    for TransformGray2RgbFusedExecutor<T, SRC_LAYOUT, DST_LAYOUT, BUCKET, BIT_DEPTH, GAMMA_LUT>
 where
     u32: AsPrimitive<T>,
 {
@@ -189,27 +188,23 @@ where
         let is_gray_alpha = src_cn == Layout::GrayAlpha;
 
         let max_value: T = ((1u32 << BIT_DEPTH as u32) - 1u32).as_();
-        let max_lut_size = (GAMMA_LUT - 1) as f32;
 
         for (src, dst) in src
             .chunks_exact(src_channels)
             .zip(dst.chunks_exact_mut(dst_channels))
         {
-            let g = self.gray_linear[src[0]._as_usize()];
+            let g = self.fuzed_gamma[src[0]._as_usize()];
             let a = if is_gray_alpha { src[1] } else { max_value };
 
-            let possible_value = ((g * max_lut_size).round() as u16) as usize;
-            let gamma_value = self.gray_gamma[possible_value];
-
-            dst[0] = gamma_value;
+            dst[0] = g;
             if dst_cn == Layout::GrayAlpha {
                 dst[1] = a;
             } else if dst_cn == Layout::Rgb {
-                dst[1] = gamma_value;
-                dst[2] = gamma_value;
+                dst[1] = g;
+                dst[2] = g;
             } else if dst_cn == Layout::Rgba {
-                dst[1] = gamma_value;
-                dst[2] = gamma_value;
+                dst[1] = g;
+                dst[2] = g;
                 dst[3] = a;
             }
         }
