@@ -53,19 +53,19 @@ pub const fn cbrtf(x: f32) -> f32 {
     if x == 0. {
         return x;
     }
-    // if x == f32::INFINITY {
-    //     return f32::INFINITY;
-    // }
-    // if x == f32::NEG_INFINITY {
-    //     return f32::NEG_INFINITY;
-    // }
+    if x == f32::INFINITY {
+        return f32::INFINITY;
+    }
+    if x == f32::NEG_INFINITY {
+        return f32::NEG_INFINITY;
+    }
 
     const B1: u32 = 709958130;
     let mut t: f32;
     let mut ui: u32 = x.to_bits();
     let mut hx: u32 = ui & 0x7fffffff;
 
-    hx = hx / 3 + B1;
+    hx = (hx / 3).wrapping_add(B1);
     ui &= 0x80000000;
     ui |= hx;
 
@@ -93,7 +93,7 @@ pub fn f_cbrtf(x: f32) -> f32 {
     let mut ui: u32 = x.to_bits();
     let mut hx: u32 = ui & 0x7fffffff;
 
-    hx = (hx / 3).overflowing_add(B1).0;
+    hx = (hx / 3).wrapping_add(B1);
     ui &= 0x80000000;
     ui |= hx;
 

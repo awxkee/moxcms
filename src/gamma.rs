@@ -29,7 +29,8 @@
 use crate::math::dirty_powf;
 use crate::transform::PointeeSizeExpressible;
 use crate::{
-    Rgb, TransferCharacteristics, f_exp, f_expf, f_log, f_log10, f_logf, f_pow, f_powf, log10f,
+    Rgb, TransferCharacteristics, f_exp, f_exp10, f_exp10f, f_expf, f_log, f_log10, f_logf, f_pow,
+    f_powf, log10f,
 };
 use num_traits::AsPrimitive;
 
@@ -239,7 +240,7 @@ pub(crate) fn log100_to_linear(gamma: f64) -> f64 {
     if gamma <= 0. {
         MID_INTERVAL
     } else {
-        f_pow(10f64, 2. * (gamma.min(1.) - 1.))
+        f_exp10(2. * (gamma.min(1.) - 1.))
     }
 }
 
@@ -251,7 +252,7 @@ pub(crate) fn log100_to_linearf(gamma: f32) -> f32 {
     if gamma <= 0. {
         MID_INTERVAL
     } else {
-        f_powf(10., 2. * (gamma.min(1.) - 1.))
+        f_exp10f(2. * (gamma.min(1.) - 1.))
     }
 }
 
@@ -263,7 +264,7 @@ pub(crate) fn log100_sqrt10_to_linear(gamma: f64) -> f64 {
     if gamma <= 0. {
         MID_INTERVAL
     } else {
-        f_pow(10f64, 2.5 * (gamma.min(1.) - 1.))
+        f_exp10(2.5 * (gamma.min(1.) - 1.))
     }
 }
 
@@ -275,7 +276,7 @@ pub(crate) fn log100_sqrt10_to_linearf(gamma: f32) -> f32 {
     if gamma <= 0. {
         MID_INTERVAL
     } else {
-        f_powf(10., 2.5 * (gamma.min(1.) - 1.))
+        f_exp10f(2.5 * (gamma.min(1.) - 1.))
     }
 }
 

@@ -40,3 +40,10 @@ path = "lut/lut.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "math"
+path = "math/math.rs"
+test = false
+doc = false
+bench = false

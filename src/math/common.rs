@@ -91,7 +91,7 @@ pub(crate) const fn copysign(x: f64, y: f64) -> f64 {
 
 #[inline]
 pub(crate) const fn pow2if(q: i32) -> f32 {
-    f32::from_bits(((q + 0x7f) as u32) << 23)
+    f32::from_bits((q.wrapping_add(0x7f) as u32) << 23)
 }
 
 /// Round towards whole integral number
@@ -103,7 +103,7 @@ pub(crate) const fn rintk(x: f64) -> f64 {
 /// Computes 2^n
 #[inline(always)]
 pub(crate) const fn pow2i(q: i32) -> f64 {
-    f64::from_bits(((q + 0x3ff) as u64) << 52)
+    f64::from_bits((q.wrapping_add(0x3ff) as u64) << 52)
 }
 
 // #[inline]

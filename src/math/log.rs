@@ -80,6 +80,8 @@ pub const fn log(d: f64) -> f64 {
 }
 
 /// Natural logarithm using FMA
+///
+/// Max found ULP 0.7329542544937127
 #[inline]
 pub fn f_log(d: f64) -> f64 {
     const LN_POLY_2_D: f64 = 0.6666666666666762678e+0;

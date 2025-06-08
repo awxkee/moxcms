@@ -27,7 +27,7 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::mlaf::mlaf;
-use crate::{Matrix3f, Vector3f, Xyz, f_atan2f, f_cosf, f_sinf, hypotf};
+use crate::{Matrix3f, Vector3f, Xyz, f_atan2f, f_sincosf, hypotf};
 
 /// Structure for Yrg colorspace
 ///
@@ -132,8 +132,9 @@ impl Ych {
         let y = self.y;
         let c = self.c;
         let h = self.h;
-        let r = mlaf(0.21902143, c, f_cosf(h));
-        let g = mlaf(0.54371398, c, f_sinf(h));
+        let sincos = f_sincosf(h);
+        let r = mlaf(0.21902143, c, sincos.1);
+        let g = mlaf(0.54371398, c, sincos.0);
         Yrg { y, r, g }
     }
 }

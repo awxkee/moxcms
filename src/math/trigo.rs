@@ -63,60 +63,6 @@ pub const fn cosf(d: f32) -> f32 {
     u
 }
 
-/// Computes cosine for given value
-#[inline]
-pub fn f_cosf(d: f32) -> f32 {
-    let q = 1 + 2 * f_fmla(std::f64::consts::FRAC_1_PI, d as f64, -0.5).round() as i32;
-    let qf = q as f64;
-    let mut r = f_fmla(qf, -PI_A2 * 0.5, d as f64);
-    r = f_fmla(qf, -PI_B2 * 0.5, r);
-    r = f_fmla(qf, -PI_C2 * 0.5, r);
-
-    let x2 = r * r;
-
-    if q & 2 == 0 {
-        r = -r;
-    }
-
-    let mut u;
-    #[cfg(any(
-        all(
-            any(target_arch = "x86", target_arch = "x86_64"),
-            target_feature = "fma"
-        ),
-        all(target_arch = "aarch64", target_feature = "neon")
-    ))]
-    {
-        u = 2.6083159809786593541503e-06;
-        u = f_fmla(u, x2, -0.0001981069071916863322258);
-        u = f_fmla(u, x2, 0.00833307858556509017944336);
-        u = f_fmla(u, x2, -0.166666597127914428710938);
-    }
-    #[cfg(not(any(
-        all(
-            any(target_arch = "x86", target_arch = "x86_64"),
-            target_feature = "fma"
-        ),
-        all(target_arch = "aarch64", target_feature = "neon")
-    )))]
-    {
-        use crate::math::estrin::*;
-        u = poly4!(
-            x2,
-            x2 * x2,
-            2.6083159809786593541503e-06,
-            -0.0001981069071916863322258,
-            0.00833307858556509017944336,
-            -0.166666597127914428710938
-        );
-    }
-    u = f_fmla(u, x2 * r, r);
-    if isnegzerof(d) {
-        return -0.;
-    }
-    u as f32
-}
-
 /// Sine function
 #[inline]
 pub const fn sinf(d: f32) -> f32 {
@@ -143,58 +89,6 @@ pub const fn sinf(d: f32) -> f32 {
     u
 }
 
-/// Sine function using FMA
-#[inline]
-pub fn f_sinf(d: f32) -> f32 {
-    let qf = (std::f64::consts::FRAC_1_PI * d as f64).round();
-    let q = qf as i32;
-    let mut r = f_fmla(qf, -PI_A2, d as f64);
-    r = f_fmla(qf, -PI_B2, r);
-    r = f_fmla(qf, -PI_C2, r);
-
-    if (q & 1) != 0 {
-        r = -r;
-    }
-    let x2 = r * r;
-    let mut u: f64;
-    #[cfg(any(
-        all(
-            any(target_arch = "x86", target_arch = "x86_64"),
-            target_feature = "fma"
-        ),
-        all(target_arch = "aarch64", target_feature = "neon")
-    ))]
-    {
-        u = 2.6083159809786593541503e-06;
-        u = f_fmla(u, x2, -0.0001981069071916863322258);
-        u = f_fmla(u, x2, 0.00833307858556509017944336);
-        u = f_fmla(u, x2, -0.166666597127914428710938);
-    }
-    #[cfg(not(any(
-        all(
-            any(target_arch = "x86", target_arch = "x86_64"),
-            target_feature = "fma"
-        ),
-        all(target_arch = "aarch64", target_feature = "neon")
-    )))]
-    {
-        use crate::math::estrin::*;
-        u = poly4!(
-            x2,
-            x2 * x2,
-            2.6083159809786593541503e-06,
-            -0.0001981069071916863322258,
-            0.00833307858556509017944336,
-            -0.166666597127914428710938
-        );
-    }
-    u = f_fmla(u, x2 * r, r);
-    if isnegzerof(d) {
-        return -0f32;
-    }
-    u as f32
-}
-
 #[cfg(test)]
 mod test {
     use super::*;
@@ -206,22 +100,9 @@ mod test {
     }
 
     #[test]
-    fn f_cosf_test() {
-        assert_eq!(f_cosf(0.0), 1.0);
-        assert_eq!(f_cosf(std::f32::consts::PI), -1f32);
-    }
-
-    #[test]
     fn sinf_test() {
         assert_eq!(sinf(0.0), 0.0);
         assert!((sinf(std::f32::consts::PI) - 0f32).abs() < 1e-6);
         assert!((sinf(std::f32::consts::FRAC_PI_2) - 1f32).abs() < 1e-6);
-    }
-
-    #[test]
-    fn f_sinf_test() {
-        assert_eq!(f_sinf(0.0), 0.0);
-        assert!((f_sinf(std::f32::consts::PI) - 0f32).abs() < 1e-6);
-        assert!((f_sinf(std::f32::consts::FRAC_PI_2) - 1f32).abs() < 1e-6);
     }
 }

@@ -91,10 +91,11 @@ pub use jzczhz::Jzczhz;
 pub use lab::Lab;
 pub use luv::{LCh, Luv};
 pub use math::{
-    Float48, Float106, atan2f, atanf, cbrtf, const_hypotf, cosf, exp, expf, f_atan2f, f_atanf,
-    f_cbrtf, f_cosf, f_exp, f_exp2, f_exp2f, f_expf, f_log, f_log2, f_log2f, f_log10, f_logf,
-    f_pow, f_powf, f_sinf, floor, floorf, hypotf, log, log10f, logf, pow, powf, rounding_div_ceil,
-    sinf, sqrtf,
+    Float48, Float106, atan2f, atanf, cbrtf, const_hypotf, cosf, exp, expf, f_acosf, f_asinf,
+    f_atan2f, f_atanf, f_cbrt, f_cbrtf, f_cosf, f_coshf, f_exp, f_exp2, f_exp2f, f_exp10, f_exp10f,
+    f_expf, f_log, f_log2, f_log2f, f_log10, f_logf, f_pow, f_powf, f_sincosf, f_sinf, f_sinhf,
+    f_tanf, f_tanhf, floor, floorf, hypotf, log, log10f, logf, pow, powf, rounding_div_ceil, sinf,
+    sqrtf,
 };
 pub use matrix::{
     BT2020_MATRIX, Chromaticity, DISPLAY_P3_MATRIX, Matrix3, Matrix3d, Matrix3f, Matrix4f,

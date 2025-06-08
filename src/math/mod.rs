@@ -26,12 +26,19 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-#![allow(clippy::approx_constant)]
+#![allow(clippy::approx_constant, clippy::manual_range_contains)]
+mod acosf;
+mod asinf;
 mod atan;
+mod cbrt;
 mod cbrtf;
 mod common;
+mod cosf;
+mod coshf;
 mod estrin;
 mod exp;
+mod exp10;
+mod exp10f;
 mod exp2;
 mod exp2f;
 mod expf;
@@ -47,15 +54,27 @@ mod log2f;
 mod logf;
 mod pow;
 mod powf;
+mod sincosf;
+mod sinf;
+mod sinhf;
 mod sqrtf;
+mod tan;
+mod tanhf;
 mod trigo;
 
+pub use acosf::f_acosf;
+pub use asinf::f_asinf;
 pub use atan::{atan2f, atanf, f_atan2f, f_atanf};
+pub use cbrt::f_cbrt;
 pub use cbrtf::{cbrtf, f_cbrtf};
 pub(crate) use common::{copysign, copysignfk};
+pub use cosf::f_cosf;
+pub use coshf::f_coshf;
 pub use exp::{exp, f_exp};
 pub use exp2::f_exp2;
 pub use exp2f::f_exp2f;
+pub use exp10::f_exp10;
+pub use exp10f::f_exp10f;
 pub use expf::{expf, f_expf};
 pub use float48::Float48;
 pub use float106::Float106;
@@ -72,8 +91,13 @@ use num_traits::Num;
 pub use pow::{f_pow, pow};
 pub(crate) use powf::dirty_powf;
 pub use powf::{f_powf, powf};
+pub use sincosf::f_sincosf;
+pub use sinf::f_sinf;
+pub use sinhf::f_sinhf;
 pub use sqrtf::sqrtf;
-pub use trigo::{cosf, f_cosf, f_sinf, sinf};
+pub use tan::f_tanf;
+pub use tanhf::f_tanhf;
+pub use trigo::{cosf, sinf};
 
 #[inline(always)]
 pub const fn rounding_div_ceil(value: i32, div: i32) -> i32 {

@@ -4,13 +4,87 @@
  * // Use of this source code is governed by a BSD-style
  * // license that can be found in the LICENSE file.
  */
-use criterion::{Criterion, black_box, criterion_group, criterion_main};
+use criterion::{Criterion, criterion_group, criterion_main};
 use moxcms::{
-    atanf, cbrtf, cosf, exp, expf, f_atanf, f_cbrtf, f_cosf, f_exp, f_exp2, f_exp2f, f_log, f_log2,
-    f_log2f, f_log10, f_logf, f_pow, f_powf, f_sinf, log, logf, pow, powf, sinf,
+    cbrtf, cosf, exp, expf, f_acosf, f_asinf, f_atanf, f_cbrt, f_cbrtf, f_cosf, f_coshf, f_exp,
+    f_exp2, f_exp2f, f_expf, f_log, f_log2, f_log2f, f_log10, f_logf, f_pow, f_powf, f_sincosf,
+    f_sinf, f_sinhf, f_tanf, f_tanhf, log, log10f, logf, pow, powf, sinf,
 };
+use std::hint::black_box;
 
 pub fn criterion_benchmark(c: &mut Criterion) {
+    c.bench_function("libm::sincosf", |b| {
+        b.iter(|| {
+            for i in 1..1000 {
+                black_box(libm::sincosf(i as f32));
+            }
+        })
+    });
+
+    c.bench_function("system: sincosf", |b| {
+        b.iter(|| {
+            for i in 1..1000 {
+                black_box(f32::sin_cos(i as f32));
+            }
+        })
+    });
+
+    c.bench_function("moxcms: FMA sincosf", |b| {
+        b.iter(|| {
+            for i in 1..1000 {
+                black_box(f_sincosf(i as f32));
+            }
+        })
+    });
+
+    c.bench_function("libm::tanf", |b| {
+        b.iter(|| {
+            for i in 1..1000 {
+                black_box(libm::tanf(i as f32 / 10000.0 - 1.));
+            }
+        })
+    });
+
+    c.bench_function("system::tanf", |b| {
+        b.iter(|| {
+            for i in 1..1000 {
+                black_box(f32::tan(i as f32 / 10000.0 - 1.));
+            }
+        })
+    });
+
+    c.bench_function("moxcms::tanf", |b| {
+        b.iter(|| {
+            for i in 1..1000 {
+                black_box(f_tanf(i as f32 / 10000.0 - 1.));
+            }
+        })
+    });
+
+    c.bench_function("libm::cbrt", |b| {
+        b.iter(|| {
+            for i in 1..1000 {
+                black_box(libm::cbrt(i as f64));
+            }
+        })
+    });
+
+    c.bench_function("system: cbrt", |b| {
+        b.iter(|| {
+            for i in 1..1000 {
+                black_box(f64::cbrt(i as f64));
+            }
+        })
+    });
+
+    c.bench_function("moxcms: FMA cbrt", |b| {
+        b.iter(|| {
+            for i in 1..1000 {
+                black_box(f_cbrt(i as f64));
+            }
+        })
+    });
+
     c.bench_function("libm::log10", |b| {
         b.iter(|| {
             for i in 1..1000 {
@@ -35,6 +109,30 @@ pub fn criterion_benchmark(c: &mut Criterion) {
         })
     });
 
+    c.bench_function("libm::log10f", |b| {
+        b.iter(|| {
+            for i in 1..1000 {
+                black_box(libm::log10f(i as f32));
+            }
+        })
+    });
+
+    c.bench_function("system: log10f", |b| {
+        b.iter(|| {
+            for i in 1..1000 {
+                black_box(f32::log10(i as f32));
+            }
+        })
+    });
+
+    c.bench_function("moxcms: FMA log10f", |b| {
+        b.iter(|| {
+            for i in 1..1000 {
+                black_box(log10f(i as f32));
+            }
+        })
+    });
+
     c.bench_function("libm::exp2f", |b| {
         b.iter(|| {
             for i in 1..10000 {
@@ -45,7 +143,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
 
     c.bench_function("system::exp2f", |b| {
         b.iter(|| {
-            for i in 1..10000 {
+            for i in 1..1000 {
                 black_box(f32::exp2(i as f32 / 10000.0 - 1.));
             }
         })
@@ -53,7 +151,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
 
     c.bench_function("moxcms::exp2f", |b| {
         b.iter(|| {
-            for i in 1..10000 {
+            for i in 1..1000 {
                 black_box(f_exp2f(i as f32 / 10000.0 - 1.));
             }
         })
@@ -61,7 +159,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
 
     c.bench_function("libm::exp2", |b| {
         b.iter(|| {
-            for i in 1..10000 {
+            for i in 1..1000 {
                 black_box(libm::exp2(i as f64 / 10000.0 - 1.));
             }
         })
@@ -69,7 +167,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
 
     c.bench_function("system::exp2", |b| {
         b.iter(|| {
-            for i in 1..10000 {
+            for i in 1..1000 {
                 black_box(f64::exp2(i as f64 / 10000.0 - 1.));
             }
         })
@@ -77,7 +175,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
 
     c.bench_function("moxcms::exp2", |b| {
         b.iter(|| {
-            for i in 1..10000 {
+            for i in 1..1000 {
                 black_box(f_exp2(i as f64 / 10000.0 - 1.));
             }
         })
@@ -85,7 +183,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
 
     c.bench_function("moxcms::exp", |b| {
         b.iter(|| {
-            for i in 1..10000 {
+            for i in 1..1000 {
                 black_box(f_exp(i as f64 / 10000.0 - 1.));
             }
         })
@@ -95,6 +193,14 @@ pub fn criterion_benchmark(c: &mut Criterion) {
         b.iter(|| {
             for i in 1..1000 {
                 black_box(libm::cbrtf(i as f32));
+            }
+        })
+    });
+
+    c.bench_function("system: cbrtf", |b| {
+        b.iter(|| {
+            for i in 1..1000 {
+                black_box(f32::cbrt(i as f32));
             }
         })
     });
@@ -123,6 +229,14 @@ pub fn criterion_benchmark(c: &mut Criterion) {
         })
     });
 
+    c.bench_function("system: cosf", |b| {
+        b.iter(|| {
+            for i in 1..1000 {
+                black_box(f32::cos(i as f32));
+            }
+        })
+    });
+
     c.bench_function("moxcms: cosf", |b| {
         b.iter(|| {
             for i in 1..1000 {
@@ -143,6 +257,14 @@ pub fn criterion_benchmark(c: &mut Criterion) {
         b.iter(|| {
             for i in 1..1000 {
                 black_box(libm::sinf(i as f32));
+            }
+        })
+    });
+
+    c.bench_function("system: sinf", |b| {
+        b.iter(|| {
+            for i in 1..1000 {
+                black_box(f32::sin(i as f32));
             }
         })
     });
@@ -187,6 +309,14 @@ pub fn criterion_benchmark(c: &mut Criterion) {
         })
     });
 
+    c.bench_function("moxcms: FMA expf", |b| {
+        b.iter(|| {
+            for i in 1..1000 {
+                black_box(f_expf(i as f32));
+            }
+        })
+    });
+
     c.bench_function("libm::exp", |b| {
         b.iter(|| {
             for i in 1..1000 {
@@ -207,6 +337,126 @@ pub fn criterion_benchmark(c: &mut Criterion) {
         b.iter(|| {
             for i in 1..1000 {
                 black_box(exp(i as f64));
+            }
+        })
+    });
+
+    c.bench_function("libm::asinf", |b| {
+        b.iter(|| {
+            for i in 1..1000 {
+                black_box(libm::asinf(i as f32 / 1000.0));
+            }
+        })
+    });
+
+    c.bench_function("system::asinf", |b| {
+        b.iter(|| {
+            for i in 1..1000 {
+                black_box(f32::asin(i as f32 / 1000.0));
+            }
+        })
+    });
+
+    c.bench_function("moxcms: FMA asinf", |b| {
+        b.iter(|| {
+            for i in 1..1000 {
+                black_box(f_asinf(i as f32 / 1000.0));
+            }
+        })
+    });
+
+    c.bench_function("libm::acosf", |b| {
+        b.iter(|| {
+            for i in 1..1000 {
+                black_box(libm::acosf(i as f32 / 1000.0));
+            }
+        })
+    });
+
+    c.bench_function("system::acosf", |b| {
+        b.iter(|| {
+            for i in 1..1000 {
+                black_box(f32::acos(i as f32 / 1000.0));
+            }
+        })
+    });
+
+    c.bench_function("moxcms: FMA acosf", |b| {
+        b.iter(|| {
+            for i in 1..1000 {
+                black_box(f_acosf(i as f32 / 1000.0));
+            }
+        })
+    });
+
+    c.bench_function("libm::tanhf", |b| {
+        b.iter(|| {
+            for i in 1..1000 {
+                black_box(libm::tanhf(i as f32));
+            }
+        })
+    });
+
+    c.bench_function("system::tanhf", |b| {
+        b.iter(|| {
+            for i in 1..1000 {
+                black_box(f32::tanh(i as f32));
+            }
+        })
+    });
+
+    c.bench_function("moxcms: FMA tanhf", |b| {
+        b.iter(|| {
+            for i in 1..1000 {
+                black_box(f_tanhf(i as f32));
+            }
+        })
+    });
+
+    c.bench_function("libm::sinhf", |b| {
+        b.iter(|| {
+            for i in 1..1000 {
+                black_box(libm::sinhf(i as f32));
+            }
+        })
+    });
+
+    c.bench_function("system::sinhf", |b| {
+        b.iter(|| {
+            for i in 1..1000 {
+                black_box(f32::sinh(i as f32));
+            }
+        })
+    });
+
+    c.bench_function("moxcms: FMA sinhf", |b| {
+        b.iter(|| {
+            for i in 1..1000 {
+                black_box(f_sinhf(i as f32));
+            }
+        })
+    });
+
+    c.bench_function("libm::coshf", |b| {
+        b.iter(|| {
+            for i in 1..1000 {
+                black_box(libm::coshf(i as f32));
+            }
+        })
+    });
+
+    c.bench_function("system::coshf", |b| {
+        b.iter(|| {
+            for i in 1..1000 {
+                black_box(f32::cosh(i as f32));
+            }
+        })
+    });
+
+    c.bench_function("moxcms: FMA coshf", |b| {
+        b.iter(|| {
+            for i in 1..1000 {
+                black_box(f_coshf(i as f32));
             }
         })
     });
@@ -387,10 +637,10 @@ pub fn criterion_benchmark(c: &mut Criterion) {
         })
     });
 
-    c.bench_function("moxcms: atanf", |b| {
+    c.bench_function("system: atanf", |b| {
         b.iter(|| {
             for i in 1..1000 {
-                black_box(atanf(i as f32));
+                black_box(f32::atan(i as f32));
             }
         })
     });

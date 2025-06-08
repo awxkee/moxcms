@@ -29,6 +29,8 @@
 use crate::math::common::*;
 
 /// Natural logarithm using FMA
+///
+/// Max found ULP 0.7263569920658313
 #[inline]
 pub fn f_log2(d: f64) -> f64 {
     const IVLN2HI: f64 = 1.44269504072144627571e+00;

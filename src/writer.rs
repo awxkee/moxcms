@@ -94,13 +94,6 @@ pub(crate) fn write_u16_be(into: &mut Vec<u8>, value: u16) {
 }
 
 #[inline]
-pub(crate) fn write_fixed_array<const N: usize>(into: &mut Vec<u8>, value: &[u8; N]) {
-    for &i in value.iter() {
-        into.push(i);
-    }
-}
-
-#[inline]
 fn write_i32_be(into: &mut Vec<u8>, value: i32) {
     let bytes = value.to_be_bytes();
     into.push(bytes[0]);
@@ -134,9 +127,9 @@ fn write_mluc(into: &mut Vec<u8>, strings: &[LocalizableString]) -> usize {
     write_u32_be(into, number_of_records as u32);
     write_u32_be(into, 12); // Record size, must be 12
     let lang = first_two_ascii_bytes(&strings[0].language);
-    write_fixed_array(into, &lang);
+    into.extend_from_slice(&lang);
     let country = first_two_ascii_bytes(&strings[0].country);
-    write_fixed_array(into, &country);
+    into.extend_from_slice(&country);
     let first_string_len = strings[0].value.len() * 2;
     write_u32_be(into, first_string_len as u32);
     let mut first_string_offset = 16 + 12 * strings.len();
@@ -144,9 +137,9 @@ fn write_mluc(into: &mut Vec<u8>, strings: &[LocalizableString]) -> usize {
     first_string_offset += first_string_len;
     for record in strings.iter().skip(1) {
         let lang = first_two_ascii_bytes(&record.language);
-        write_fixed_array(into, &lang);
+        into.extend_from_slice(&lang);
         let country = first_two_ascii_bytes(&record.country);
-        write_fixed_array(into, &country);
+        into.extend_from_slice(&country);
         let first_string_len = record.value.len() * 2;
         write_u32_be(into, first_string_len as u32);
         write_u32_be(into, first_string_offset as u32);

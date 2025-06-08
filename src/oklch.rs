@@ -5,7 +5,7 @@
  * // license that can be found in the LICENSE file.
  */
 use crate::math::atan2f;
-use crate::{Oklab, Rgb, const_hypotf, f_cbrtf, f_cosf, f_powf, f_sinf, hypotf};
+use crate::{Oklab, Rgb, const_hypotf, f_cbrtf, f_powf, f_sincosf, hypotf};
 use num_traits::Pow;
 use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 
@@ -65,8 +65,9 @@ impl Oklch {
     #[inline]
     pub fn to_oklab(&self) -> Oklab {
         let l = self.l;
-        let a = self.c * f_cosf(self.h);
-        let b = self.c * f_sinf(self.h);
+        let sincos = f_sincosf(self.h);
+        let a = self.c * sincos.1;
+        let b = self.c * sincos.0;
         Oklab::new(l, a, b)
     }
 }

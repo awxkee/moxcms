@@ -54,7 +54,7 @@ pub struct LCh {
 }
 
 use crate::{
-    Chromaticity, Lab, Xyz, atan2f, const_hypotf, f_atan2f, f_cbrtf, f_cosf, f_sinf, hypotf, powf,
+    Chromaticity, Lab, Xyz, atan2f, const_hypotf, f_atan2f, f_cbrtf, f_sincosf, hypotf, powf,
 };
 use num_traits::Pow;
 use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
@@ -195,19 +195,21 @@ impl LCh {
 
     #[inline]
     pub fn to_luv(&self) -> Luv {
+        let sincos = f_sincosf(self.h);
         Luv {
             l: self.l,
-            u: self.c * f_cosf(self.h),
-            v: self.c * f_sinf(self.h),
+            u: self.c * sincos.1,
+            v: self.c * sincos.0,
         }
     }
 
     #[inline]
     pub fn to_lab(&self) -> Lab {
+        let sincos = f_sincosf(self.h);
         Lab {
             l: self.l,
-            a: self.c * f_cosf(self.h),
-            b: self.c * f_sinf(self.h),
+            a: self.c * sincos.1,
+            b: self.c * sincos.0,
         }
     }
 }

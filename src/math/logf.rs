@@ -57,6 +57,8 @@ pub const fn logf(d: f32) -> f32 {
 }
 
 /// Natural logarithm using FMA
+///
+/// Max found ULP 0.52157193
 #[inline]
 pub fn f_logf(d: f32) -> f32 {
     let mut ix = d.to_bits();
