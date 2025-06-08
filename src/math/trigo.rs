@@ -64,6 +64,9 @@ pub const fn cosf(d: f32) -> f32 {
 }
 
 /// Computes cosine for given value
+///
+/// Working argument range [-15000; 15000]
+/// Max found ULP on working range 0.6174288
 #[inline]
 pub fn f_cosf(d: f32) -> f32 {
     let q = 1 + 2 * f_fmla(std::f64::consts::FRAC_1_PI, d as f64, -0.5).round() as i32;
@@ -144,6 +147,9 @@ pub const fn sinf(d: f32) -> f32 {
 }
 
 /// Sine function using FMA
+///
+/// Working argument range [-15000; 15000]
+/// Max found ULP on working range 0.6161094
 #[inline]
 pub fn f_sinf(d: f32) -> f32 {
     let qf = (std::f64::consts::FRAC_1_PI * d as f64).round();

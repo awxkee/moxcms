@@ -533,6 +533,7 @@ where
     {
         source.color_space.check_layout(src_layout)?;
         dest.color_space.check_layout(dst_layout)?;
+
         if source.pcs != DataColorSpace::Xyz && source.pcs != DataColorSpace::Lab {
             return Err(CmsError::UnsupportedProfileConnection);
         }

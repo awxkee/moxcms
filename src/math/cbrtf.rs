@@ -65,7 +65,7 @@ pub const fn cbrtf(x: f32) -> f32 {
     let mut ui: u32 = x.to_bits();
     let mut hx: u32 = ui & 0x7fffffff;
 
-    hx = hx / 3 + B1;
+    hx = (hx / 3).wrapping_add(B1);
     ui &= 0x80000000;
     ui |= hx;
 
@@ -93,7 +93,7 @@ pub fn f_cbrtf(x: f32) -> f32 {
     let mut ui: u32 = x.to_bits();
     let mut hx: u32 = ui & 0x7fffffff;
 
-    hx = (hx / 3).overflowing_add(B1).0;
+    hx = (hx / 3).wrapping_add(B1);
     ui &= 0x80000000;
     ui |= hx;
 

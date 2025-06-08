@@ -30,7 +30,9 @@
 use crate::math::common::*;
 
 /// Natural logarithm using FMA
-#[inline(always)]
+///
+/// Max found ULP 0.5075699
+#[inline]
 pub fn log10f(d: f32) -> f32 {
     let mut ix = d.to_bits();
     /* reduce x into [sqrt(2)/2, sqrt(2)] */
@@ -88,6 +90,7 @@ mod tests {
     #[test]
     fn test_log10f() {
         println!("{}", log10f(10.));
+
         assert!((log10f(0.35) - 0.35f32.log10()).abs() < 1e-8);
         assert!((log10f(0.9) - 0.9f32.log10()).abs() < 1e-8);
         assert!((log10f(10.) - 10f32.log10()).abs() < 1e-8);

@@ -69,6 +69,8 @@ pub const fn exp(d: f64) -> f64 {
 }
 
 /// Exp using FMA
+///
+/// Max found ULP 4.430699912953415
 #[inline]
 pub fn f_exp(d: f64) -> f64 {
     const EXP_POLY_1_D: f64 = 2f64;

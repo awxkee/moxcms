@@ -29,6 +29,8 @@
 use crate::math::common::*;
 
 /// Natural logarithm using FMA
+///
+/// Max found ULP 0.5055166
 #[inline]
 pub fn f_log2f(d: f32) -> f32 {
     f_log2fx(d) as f32

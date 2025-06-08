@@ -28,10 +28,13 @@
  */
 #![allow(clippy::approx_constant)]
 mod atan;
+mod cbrt;
 mod cbrtf;
 mod common;
 mod estrin;
 mod exp;
+mod exp10;
+mod exp10f;
 mod exp2;
 mod exp2f;
 mod expf;
@@ -51,11 +54,14 @@ mod sqrtf;
 mod trigo;
 
 pub use atan::{atan2f, atanf, f_atan2f, f_atanf};
+pub use cbrt::f_cbrt;
 pub use cbrtf::{cbrtf, f_cbrtf};
 pub(crate) use common::{copysign, copysignfk};
 pub use exp::{exp, f_exp};
 pub use exp2::f_exp2;
 pub use exp2f::f_exp2f;
+pub use exp10::f_exp10;
+pub use exp10f::f_exp10f;
 pub use expf::{expf, f_expf};
 pub use float48::Float48;
 pub use float106::Float106;

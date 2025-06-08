@@ -78,7 +78,7 @@ trait Fetcher4<T> {
 }
 
 impl Hypercube<'_> {
-    pub fn new(array: &[f32], grid_size: usize) -> Hypercube {
+    pub fn new(array: &[f32], grid_size: usize) -> Hypercube<'_> {
         let z_stride = grid_size as u32;
         let y_stride = z_stride * z_stride;
         let x_stride = z_stride * z_stride * z_stride;
@@ -96,7 +96,7 @@ impl Hypercube<'_> {
         }
     }
 
-    pub fn new_hypercube(array: &[f32], grid_size: [u8; 4]) -> Hypercube {
+    pub fn new_hypercube(array: &[f32], grid_size: [u8; 4]) -> Hypercube<'_> {
         let z_stride = grid_size[2] as u32;
         let y_stride = z_stride * grid_size[1] as u32;
         let x_stride = y_stride * grid_size[0] as u32;
@@ -247,6 +247,7 @@ impl Hypercube<'_> {
     }
 
     #[cfg(feature = "options")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "options")))]
     #[inline(always)]
     fn pyramid<
         T: From<f32>
@@ -390,6 +391,7 @@ impl Hypercube<'_> {
     }
 
     #[cfg(feature = "options")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "options")))]
     #[inline]
     pub fn pyramid_vec3(&self, lin_x: f32, lin_y: f32, lin_z: f32, lin_w: f32) -> Vector3f {
         self.pyramid(
@@ -407,6 +409,7 @@ impl Hypercube<'_> {
     }
 
     #[cfg(feature = "options")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "options")))]
     #[inline]
     pub fn pyramid_vec4(&self, lin_x: f32, lin_y: f32, lin_z: f32, lin_w: f32) -> Vector4f {
         self.pyramid(
@@ -424,6 +427,7 @@ impl Hypercube<'_> {
     }
 
     #[cfg(feature = "options")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "options")))]
     #[inline(always)]
     fn prism<
         T: From<f32>
@@ -549,6 +553,7 @@ impl Hypercube<'_> {
     }
 
     #[cfg(feature = "options")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "options")))]
     #[inline]
     pub fn prism_vec3(&self, lin_x: f32, lin_y: f32, lin_z: f32, lin_w: f32) -> Vector3f {
         self.prism(
@@ -566,6 +571,7 @@ impl Hypercube<'_> {
     }
 
     #[cfg(feature = "options")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "options")))]
     #[inline]
     pub fn prism_vec4(&self, lin_x: f32, lin_y: f32, lin_z: f32, lin_w: f32) -> Vector4f {
         self.prism(
@@ -583,6 +589,7 @@ impl Hypercube<'_> {
     }
 
     #[cfg(feature = "options")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "options")))]
     #[inline(always)]
     fn tetra<
         T: From<f32>
@@ -710,6 +717,7 @@ impl Hypercube<'_> {
     }
 
     #[cfg(feature = "options")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "options")))]
     #[inline]
     pub fn tetra_vec3(&self, lin_x: f32, lin_y: f32, lin_z: f32, lin_w: f32) -> Vector3f {
         self.tetra(
@@ -727,6 +735,7 @@ impl Hypercube<'_> {
     }
 
     #[cfg(feature = "options")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "options")))]
     #[inline]
     pub fn tetra_vec4(&self, lin_x: f32, lin_y: f32, lin_z: f32, lin_w: f32) -> Vector4f {
         self.tetra(
@@ -793,7 +802,7 @@ impl ArrayFetch<Vector4f> for ArrayFetchVector4f<'_> {
 }
 
 impl Cube<'_> {
-    pub fn new(array: &[f32], grid_size: usize) -> Cube {
+    pub fn new(array: &[f32], grid_size: usize) -> Cube<'_> {
         let y_stride = grid_size;
         let x_stride = y_stride * y_stride;
         Cube {
@@ -804,7 +813,7 @@ impl Cube<'_> {
         }
     }
 
-    pub fn new_cube(array: &[f32], grid_size: [u8; 3]) -> Cube {
+    pub fn new_cube(array: &[f32], grid_size: [u8; 3]) -> Cube<'_> {
         let y_stride = grid_size[1] as u32;
         let x_stride = y_stride * grid_size[0] as u32;
         Cube {
@@ -1127,6 +1136,7 @@ impl Cube<'_> {
     }
 
     #[cfg(feature = "options")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "options")))]
     #[inline]
     pub fn prism_vec3(&self, lin_x: f32, lin_y: f32, lin_z: f32) -> Vector3f {
         self.prism(
@@ -1142,6 +1152,7 @@ impl Cube<'_> {
     }
 
     #[cfg(feature = "options")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "options")))]
     #[inline]
     pub fn pyramid_vec3(&self, lin_x: f32, lin_y: f32, lin_z: f32) -> Vector3f {
         self.pyramid(
@@ -1157,6 +1168,7 @@ impl Cube<'_> {
     }
 
     #[cfg(feature = "options")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "options")))]
     #[inline]
     pub fn tetra_vec3(&self, lin_x: f32, lin_y: f32, lin_z: f32) -> Vector3f {
         self.tetra(
@@ -1201,6 +1213,7 @@ impl Cube<'_> {
     }
 
     #[cfg(feature = "options")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "options")))]
     #[inline]
     pub fn pyramid_vec4(&self, lin_x: f32, lin_y: f32, lin_z: f32) -> Vector4f {
         self.pyramid(
@@ -1216,6 +1229,7 @@ impl Cube<'_> {
     }
 
     #[cfg(feature = "options")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "options")))]
     #[inline]
     pub fn prism_vec4(&self, lin_x: f32, lin_y: f32, lin_z: f32) -> Vector4f {
         self.prism(

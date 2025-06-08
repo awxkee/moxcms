@@ -30,7 +30,7 @@ use crate::math::common::*;
 
 /// Natural logarithm using FMA
 ///
-/// ULP under 1.0
+/// Max found ULP 0.5776147005340349
 #[inline(always)]
 pub fn f_log10(d: f64) -> f64 {
     const IVLN10HI: f64 = 4.34294481878168880939e-01;
