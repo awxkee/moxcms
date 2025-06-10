@@ -114,7 +114,7 @@ fn as_sincosf_big(x: f32) -> (f32, f32) {
     let ax = t.wrapping_shl(1);
     if ax >= 0xffu32 << 24 {
         // nan or +-inf
-        if (ax << 8) != 0 {
+        if ax.wrapping_shl(8) != 0 {
             return (x + x, x + x);
         }; // nan
         return (f32::NAN, f32::NAN);
@@ -160,7 +160,7 @@ pub fn f_sincosf(x: f32) -> (f32, f32) {
                 let res = f_fmlaf(-x, x.abs(), x);
                 (res, 1.0 - f64::from_bits(0x3e60000000000000) as f32)
             } else {
-                let z_sin = (-f64::from_bits(0x3fc5555560000000) as f32 * x) * (x * x) + x;
+                let z_sin = f_fmlaf(-f64::from_bits(0x3fc5555560000000) as f32 * x, x * x, x);
                 let z_cos = f_fmlaf(-f64::from_bits(0x3fe0000000000000) as f32 * x, x, 1.0);
                 (z_sin, z_cos)
             };

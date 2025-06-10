@@ -57,7 +57,7 @@ pub fn f_tanhf(x: f32) -> f32 {
         let x2 = x * x;
         return f_fmlaf(x, -f64::from_bits(0x3fd5555560000000) as f32 * x2, x);
     }
-    if (ux << 1) > (0x41102cb3u32 << 1) {
+    if ux.wrapping_shl(1) > (0x41102cb3u32 << 1) {
         return f32::copysign(1.0, x) - f32::copysign(f64::from_bits(0x3e60000000000000) as f32, x);
     }
     let z2 = z * z;

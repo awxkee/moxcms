@@ -29,19 +29,12 @@
 // use jxl_oxide::{JxlImage, JxlThreadPool, Lcms2, Moxcms};
 use image::DynamicImage;
 use image::ImageDecoder;
-use lcms2::{Intent, PixelFormat, Profile, Transform};
+use lcms2::Profile;
 use moxcms::{
     BarycentricWeightScale, ColorProfile, InterpolationMethod, Layout, RenderingIntent,
     TransformOptions,
 };
-use rand::Rng;
 use std::fs;
-use std::fs::File;
-use std::io::BufReader;
-use std::time::Instant;
-use zune_jpeg::JpegDecoder;
-use zune_jpeg::zune_core::colorspace::ColorSpace;
-use zune_jpeg::zune_core::options::DecoderOptions;
 
 fn compute_abs_diff4(src: &[f32], dst: &[[f32; 4]], highlights: &mut [f32]) {
     let mut abs_r = f32::MIN;

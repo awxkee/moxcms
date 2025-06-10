@@ -35,6 +35,7 @@ macro_rules! poly2 {
         c_mlaf($x, $c1, $c0)
     };
 }
+
 pub(crate) use poly2;
 
 #[allow(unused_macros)]
@@ -140,4 +141,5 @@ macro_rules! poly11 {
     };
 }
 
+use crate::math::common::{f_fmla, f_fmlaf};
 pub(crate) use poly11;

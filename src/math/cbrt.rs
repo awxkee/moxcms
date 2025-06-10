@@ -106,7 +106,7 @@ pub fn f_cbrt(x: f64) -> f64 {
     let y2l = f_fmla(y, y, -y2);
     /* y2 + y2l = y^2 exactly */
     let y3 = y2 * y;
-    let y3l = f_fmla(y, y2, -y3) + y * y2l;
+    let y3l = f_fmla(y, y2l, f_fmla(y, y2, -y3));
     /* y3 + y3l approximates y^3 with about 106 bits of accuracy */
     h = ((y3 - f64::from_bits(zz)) + y3l) * rr;
     /* the approximation of zz^(1/3) is y - dy */
@@ -123,13 +123,28 @@ pub fn f_cbrt(x: f64) -> f64 {
 
 #[cfg(test)]
 mod tests {
+
+    use super::*;
+
     #[test]
     fn test_cbrt() {
-        assert_eq!(super::f_cbrt(64.0), 4.0);
-        assert_eq!(super::f_cbrt(27.0), 3.0);
-        assert_eq!(super::f_cbrt(125.0), 5.0);
-        assert_eq!(super::f_cbrt(216.0), 6.0);
-        assert_eq!(super::f_cbrt(343.0), 7.0);
-        assert_eq!(super::f_cbrt(512.0), 8.0);
+        assert_eq!(f_cbrt(27.0), 3.0);
+        assert_eq!(f_cbrt(64.0), 4.0);
+        assert_eq!(f_cbrt(125.0), 5.0);
+        assert_eq!(f_cbrt(216.0), 6.0);
+        assert_eq!(f_cbrt(343.0), 7.0);
+        assert_eq!(f_cbrt(512.0), 8.0);
+        assert_eq!(f_cbrt(729.0), 9.0);
+        assert_eq!(f_cbrt(-729.0), -9.0);
+        assert_eq!(f_cbrt(-512.0), -8.0);
+        assert_eq!(f_cbrt(-343.0), -7.0);
+        assert_eq!(f_cbrt(-216.0), -6.0);
+        assert_eq!(f_cbrt(-125.0), -5.0);
+        assert_eq!(f_cbrt(-64.0), -4.0);
+        assert_eq!(f_cbrt(-27.0), -3.0);
+        assert_eq!(f_cbrt(0.0), 0.0);
+        assert_eq!(f_cbrt(f64::INFINITY), f64::INFINITY);
+        assert_eq!(f_cbrt(f64::NEG_INFINITY), f64::NEG_INFINITY);
+        assert!(f_cbrt(f64::NAN).is_nan());
     }
 }

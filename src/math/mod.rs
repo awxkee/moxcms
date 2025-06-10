@@ -27,14 +27,20 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 #![allow(clippy::approx_constant, clippy::manual_range_contains)]
+mod acos;
 mod acosf;
+mod asin;
 mod asinf;
 mod atan;
+mod atan2;
+mod atan2f;
+mod atanf;
 mod cbrt;
 mod cbrtf;
 mod common;
 mod cosf;
 mod coshf;
+mod dekker;
 mod estrin;
 mod exp;
 mod exp10;
@@ -54,17 +60,25 @@ mod log2f;
 mod logf;
 mod pow;
 mod powf;
+mod sin;
+mod sincos;
 mod sincosf;
 mod sinf;
 mod sinhf;
 mod sqrtf;
 mod tan;
+mod tanf;
 mod tanhf;
 mod trigo;
 
+pub use acos::f_acos;
 pub use acosf::f_acosf;
+pub use asin::f_asin;
 pub use asinf::f_asinf;
-pub use atan::{atan2f, atanf, f_atan2f, f_atanf};
+pub use atan::f_atan;
+pub use atan2::f_atan2;
+pub use atan2f::f_atan2f;
+pub use atanf::{atan2f, atanf, f_atanf};
 pub use cbrt::f_cbrt;
 pub use cbrtf::{cbrtf, f_cbrtf};
 pub(crate) use common::{copysign, copysignfk};
@@ -91,11 +105,14 @@ use num_traits::Num;
 pub use pow::{f_pow, pow};
 pub(crate) use powf::dirty_powf;
 pub use powf::{f_powf, powf};
+pub use sin::{f_cos, f_sin};
+pub use sincos::f_sincos;
 pub use sincosf::f_sincosf;
 pub use sinf::f_sinf;
 pub use sinhf::f_sinhf;
 pub use sqrtf::sqrtf;
-pub use tan::f_tanf;
+pub use tan::f_tan;
+pub use tanf::f_tanf;
 pub use tanhf::f_tanhf;
 pub use trigo::{cosf, sinf};
 

@@ -90,7 +90,7 @@ pub fn f_coshf(x: f32) -> f32 {
     if ax > 0x8565a9f8u32 {
         // |x| >~ 89.4
         if ax >= 0xff000000u32 {
-            if (ax << 8) != 0 {
+            if ax.wrapping_shl(8) != 0 {
                 return x + x;
             } // nan
             return f32::INFINITY; // +-inf
@@ -136,6 +136,7 @@ pub fn f_coshf(x: f32) -> f32 {
     let mut r = rp + rm;
     let mut ub = r;
     let lb = r - f64::from_bits(0x3de3edbbe4560327) * r;
+    // Ziv's accuracy test
     if ub != lb {
         const ILN2H: f64 = f64::from_bits(0x4047154765000000);
         const ILN2L: f64 = f64::from_bits(0x3e55c17f0bbbe880);

@@ -93,7 +93,7 @@ pub fn f_sinhf(x: f32) -> f32 {
         // |x| > 89.416
         let sgn = f32::copysign(2.0, x);
         if ux >= 0xff000000u32 {
-            if (ux << 8) != 0 {
+            if ux.wrapping_shl(8) != 0 {
                 return x + x;
             } // nan
             return sgn * f32::INFINITY; // +-inf
@@ -105,16 +105,16 @@ pub fn f_sinhf(x: f32) -> f32 {
     if ux < 0x7c000000u32 {
         // |x| < 0.125
         if ux <= 0x74250bfeu32 {
-            // |x| <= 0x1.250bfep-11
+            // |x| <= 0.000558942
             if ux < 0x66000000u32 {
-                // |x| < 0x1p-24
+                // |x| < 5.96046e-08
                 return f_fmlaf(x, x.abs(), x);
             }
             if ST[0].0 == ux {
                 let sgn = f32::copysign(1.0, x);
                 return f_fmlaf(sgn, f32::from_bits(ST[0].1), sgn * f32::from_bits(ST[0].2));
             }
-            return (x * f64::from_bits(0x3fc5555560000000) as f32) * (x * x) + x;
+            return f_fmlaf(x * f64::from_bits(0x3fc5555560000000) as f32, x * x, x);
         }
         const CP: [u64; 4] = [
             0x3fc5555555555555,
@@ -147,6 +147,7 @@ pub fn f_sinhf(x: f32) -> f32 {
     let mut r = rp - rm;
     let mut ub = r;
     let lb = r - f64::from_bits(0x3de4e406496685f4) * r;
+    // Ziv's accuracy test
     if ub != lb {
         const ILN2H: f64 = f64::from_bits(0x4047154765000000);
         const ILN2L: f64 = f64::from_bits(0x3e55c17f0bbbe880);

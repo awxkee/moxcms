@@ -36,7 +36,7 @@ fn as_special(x: f32) -> f32 {
     if ax > (0xffu32 << 24) {
         return x + x;
     } // nan
-    f32::NAN // to raise FE_INVALID
+    f32::NAN
 }
 
 /// Computes asin
@@ -96,6 +96,7 @@ pub fn f_asinf(x: f32) -> f32 {
                 + z16 * (f_fmla(z4, w5, w4) + z8 * f_fmla(z4, w7, w6)));
         let ub = r;
         let lb = r - z * f64::from_bits(0x3e0efa8eb0000000);
+        // Ziv's accuracy test
         if ub == lb {
             return ub as f32;
         }
