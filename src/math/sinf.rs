@@ -107,7 +107,7 @@ fn as_sinf_big(x: f32) -> f32 {
     let ax = t.wrapping_shl(1);
     if ax >= 0xffu32 << 24 {
         // nan or +-inf
-        if (ax << 8) != 0 {
+        if ax.wrapping_shl(8) != 0 {
             return x + x;
         }; // nan
         return f32::NAN; // to raise FE_INVALID
@@ -136,7 +136,7 @@ fn as_sinf_big(x: f32) -> f32 {
 
 /// Sine function using FMA
 ///
-/// Max found ULP on working range 0.4999996
+/// Max found ULP 0.4999996
 #[inline]
 pub fn f_sinf(x: f32) -> f32 {
     let t = x.to_bits();

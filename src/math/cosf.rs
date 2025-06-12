@@ -202,7 +202,6 @@ fn as_cosf_big(x: f32) -> f32 {
 ///
 /// Max found ULP 0.49999967
 ///
-/// Working argument range [-1000000..1000000]
 #[inline]
 pub fn f_cosf(x: f32) -> f32 {
     const B: [u64; 4] = [

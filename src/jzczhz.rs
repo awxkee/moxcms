@@ -28,7 +28,7 @@
  */
 use crate::jzazbz::Jzazbz;
 use crate::math::hypot3f;
-use crate::{Xyz, atan2f, f_cbrtf, f_cosf, f_sinf, hypotf};
+use crate::{Xyz, atan2f, f_cbrtf, f_sincosf, f_sinf, hypotf};
 use num_traits::Pow;
 use std::ops::{
     Add, AddAssign, Div, DivAssign, Index, IndexMut, Mul, MulAssign, Neg, Sub, SubAssign,
@@ -64,16 +64,18 @@ impl Jzczhz {
     /// Converts Jzczhz into Jzazbz
     #[inline]
     pub fn to_jzazbz(&self) -> Jzazbz {
-        let az = self.cz * f_cosf(self.hz);
-        let bz = self.cz * f_sinf(self.hz);
+        let sincos = f_sincosf(self.hz);
+        let az = self.cz * sincos.1;
+        let bz = self.cz * sincos.0;
         Jzazbz::new(self.jz, az, bz)
     }
 
     /// Converts Jzczhz into Jzazbz
     #[inline]
     pub fn to_jzazbz_with_luminance(&self) -> Jzazbz {
-        let az = self.cz * f_cosf(self.hz);
-        let bz = self.cz * f_sinf(self.hz);
+        let sincos = f_sincosf(self.hz);
+        let az = self.cz * sincos.1;
+        let bz = self.cz * sincos.0;
         Jzazbz::new(self.jz, az, bz)
     }
 

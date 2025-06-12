@@ -50,14 +50,15 @@ fn halley_refine_d(x: f64, a: f64) -> f64 {
 /// Computes Cube Root
 #[inline]
 pub const fn cbrtf(x: f32) -> f32 {
-    if x == 0. {
-        return x;
-    }
-    if x == f32::INFINITY {
-        return f32::INFINITY;
-    }
-    if x == f32::NEG_INFINITY {
-        return f32::NEG_INFINITY;
+    let u = x.to_bits();
+    let au = u.wrapping_shl(1);
+    if au < (1u32 << 24) || au >= (0xffu32 << 24) {
+        if au >= (0xffu32 << 24) {
+            return x + x; /* inf, nan */
+        }
+        if au == 0 {
+            return x; /* +-0 */
+        }
     }
 
     const B1: u32 = 709958130;
@@ -79,15 +80,16 @@ pub const fn cbrtf(x: f32) -> f32 {
 /// Peak ULP on 64 bit = 0.49999577
 #[inline]
 pub fn f_cbrtf(x: f32) -> f32 {
-    if x == 0. {
-        return x;
+    let u = x.to_bits();
+    let au = u.wrapping_shl(1);
+    if au < (1u32 << 24) || au >= (0xffu32 << 24) {
+        if au >= (0xffu32 << 24) {
+            return x + x; /* inf, nan */
+        }
+        if au == 0 {
+            return x; /* +-0 */
+        }
     }
-    // if x == f32::INFINITY {
-    //     return f32::INFINITY;
-    // }
-    // if x == f32::NEG_INFINITY {
-    //     return f32::NEG_INFINITY;
-    // }
 
     const B1: u32 = 709958130;
     let mut ui: u32 = x.to_bits();
@@ -111,6 +113,9 @@ mod tests {
         assert_eq!(f_cbrtf(0.0), 0.0);
         assert_eq!(f_cbrtf(-27.0), -3.0);
         assert_eq!(f_cbrtf(27.0), 3.0);
+        assert_eq!(f_cbrtf(f32::NEG_INFINITY), f32::NEG_INFINITY);
+        assert_eq!(f_cbrtf(f32::INFINITY), f32::INFINITY);
+        assert!(f_cbrtf(f32::NAN).is_nan());
     }
 
     #[test]
@@ -118,5 +123,8 @@ mod tests {
         assert_eq!(cbrtf(0.0), 0.0);
         assert_eq!(cbrtf(-27.0), -3.0);
         assert_eq!(cbrtf(27.0), 3.0);
+        assert_eq!(cbrtf(f32::NEG_INFINITY), f32::NEG_INFINITY);
+        assert_eq!(cbrtf(f32::INFINITY), f32::INFINITY);
+        assert!(cbrtf(f32::NAN).is_nan());
     }
 }

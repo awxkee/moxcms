@@ -123,6 +123,7 @@ pub fn f_acosf(x: f32) -> f32 {
 
         let ub = f64::from_bits(0x3ff921fb54574191) - r;
         let lb = f64::from_bits(0x3ff921fb543118a0) - r;
+        // Ziv's accuracy test
         if ub == lb {
             return ub as f32;
         }

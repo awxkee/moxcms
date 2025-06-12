@@ -59,7 +59,7 @@ pub const fn expf(d: f32) -> f32 {
     // }
 }
 
-static TB: [u64; 64] = [
+pub(crate) static EXP_TABLE: [u64; 64] = [
     0x3ff0000000000000,
     0x3ff02c9a3e778061,
     0x3ff059b0d3158574,
@@ -185,7 +185,7 @@ pub fn f_expf(x: f32) -> f32 {
     }
     let ia = BIG - f64::from_bits(u);
     let mut h = a + ia;
-    let sv = TB[(u & 0x3f) as usize].wrapping_add(u.wrapping_shr(6).wrapping_shl(52));
+    let sv = EXP_TABLE[(u & 0x3f) as usize].wrapping_add(u.wrapping_shr(6).wrapping_shl(52));
     let mut h2 = h * h;
 
     let q0 = f_fmla(h, f64::from_bits(B[3]), f64::from_bits(B[2]));
@@ -194,6 +194,7 @@ pub fn f_expf(x: f32) -> f32 {
     let mut r = f_fmla(h2, q0, q1) * f64::from_bits(sv);
     let mut ub = r;
     let lb = f_fmla(-r, f64::from_bits(0x3de3edbbe4560327), r);
+    // Ziv's accuracy test
     if ub != lb {
         const ILN2H: f64 = f64::from_bits(0x3ff7154765000000);
         const ILN2L: f64 = f64::from_bits(0x3e05c17f0bbbe880);

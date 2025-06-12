@@ -26,143 +26,116 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-use crate::math::common::{f_fmla, f_fmlaf};
+use crate::math::common::f_fmla;
+use crate::math::dekker::Dekker;
+use crate::math::sin::{LargeArgumentReduction, range_reduction_small};
 
 #[inline]
-pub(crate) fn tan_reduce1(z: f32) -> (f64, i64) {
-    let x = z;
-    let idl = -f64::from_bits(0x3dfb1bbead603d8b) * x as f64;
-    let idh = f64::from_bits(0x3fe45f306e000000) * x as f64;
-    let id = idh.round_ties_even();
-    ((idh - id) + idl, id as i64)
+fn tan_eval(u: Dekker) -> Dekker {
+    // Evaluate tan(y) = tan(x - k * (pi/128))
+    // We use the degree-9 Taylor approximation:
+    //   tan(y) ~ P(y) = y + y^3/3 + 2*y^5/15 + 17*y^7/315 + 62*y^9/2835
+    // Then the error is bounded by:
+    //   |tan(y) - P(y)| < 2^-6 * |y|^11 < 2^-6 * 2^-66 = 2^-72.
+    // For y ~ u_hi + u_lo, fully expanding the polynomial and drop any terms
+    // < ulp(u_hi^3) gives us:
+    //   P(y) = y + y^3/3 + 2*y^5/15 + 17*y^7/315 + 62*y^9/2835 = ...
+    // ~ u_hi + u_hi^3 * (1/3 + u_hi^2 * (2/15 + u_hi^2 * (17/315 +
+    //                                                     + u_hi^2 * 62/2835))) +
+    //        + u_lo (1 + u_hi^2 * (1 + u_hi^2 * 2/3))
+    let u_hi_sq = u.hi * u.hi; // Error < ulp(u_hi^2) < 2^(-6 - 52) = 2^-58.
+    // p1 ~ 17/315 + u_hi^2 62 / 2835.
+    let p1 = f_fmla(
+        u_hi_sq,
+        f64::from_bits(0x3f9664f4882c10fa),
+        f64::from_bits(0x3faba1ba1ba1ba1c),
+    );
+    // p2 ~ 1/3 + u_hi^2 2 / 15.
+    let p2 = f_fmla(
+        u_hi_sq,
+        f64::from_bits(0x3fc1111111111111),
+        f64::from_bits(0x3fd5555555555555),
+    );
+    // q1 ~ 1 + u_hi^2 * 2/3.
+    let q1 = f_fmla(u_hi_sq, f64::from_bits(0x3fe5555555555555), 1.0);
+    let u_hi_3 = u_hi_sq * u.hi;
+    let u_hi_4 = u_hi_sq * u_hi_sq;
+    // p3 ~ 1/3 + u_hi^2 * (2/15 + u_hi^2 * (17/315 + u_hi^2 * 62/2835))
+    let p3 = f_fmla(u_hi_4, p1, p2);
+    // q2 ~ 1 + u_hi^2 * (1 + u_hi^2 * 2/3)
+    let q2 = f_fmla(u_hi_sq, q1, 1.0);
+    let tan_lo = f_fmla(u_hi_3, p3, u.lo * q2);
+    // Overall, |tan(y) - (u_hi + tan_lo)| < ulp(u_hi^3) <= 2^-71.
+    // And the relative errors is:
+    // |(tan(y) - (u_hi + tan_lo)) / tan(y) | <= 2*ulp(u_hi^2) < 2^-64
+    Dekker::from_exact_add(u.hi, tan_lo)
 }
 
-#[inline]
-pub(crate) fn tan_reduce_big(u: u32) -> (f64, i64) {
-    const IPI: [u64; 4] = [
-        0xfe5163abdebbc562,
-        0xdb6295993c439041,
-        0xfc2757d1f534ddc0,
-        0xa2f9836e4e441529,
-    ];
-    let e = (u >> 23) & 0xff;
-    let m: u64 = ((u as u64) & 0x7fffff) | (1 << 23);
-    let p0 = m as u128 * IPI[0] as u128;
-    let mut p1 = m as u128 * IPI[1] as u128;
-    p1 = p1.wrapping_add(p0.wrapping_shr(64));
-    let mut p2 = m as u128 * IPI[2] as u128;
-    p2 = p2.wrapping_add(p1.wrapping_shr(64));
-    let mut p3 = m as u128 * IPI[3] as u128;
-    p3 = p3.wrapping_add(p2.wrapping_shr(64));
-    let p3h = p3.wrapping_shr(64) as u64;
-    let p3l = p3 as u64;
-    let p2l = p2 as u64;
-    let p1l = p1 as u64;
-    let a: i64;
-    let k = (e as i32).wrapping_sub(127);
-    let s = k.wrapping_sub(23);
-    /* in tan is called in the case 127+28 <= e < 0xff
-    thus 155 <= e <= 254, which yields 28 <= k <= 127 and 5 <= s <= 104 */
-    let mut i: i32;
-    if s < 64 {
-        i = (p3h << s | p3l >> (64 - s)) as i32;
-        a = (p3l << s | p2l >> (64 - s)) as i64;
-    } else if s == 64 {
-        i = p3l as i32;
-        a = p2l as i64;
-    } else {
-        /* s > 64 */
-        i = (p3l << (s - 64) | p2l >> (128 - s)) as i32;
-        a = (p2l << (s - 64) | p1l >> (128 - s)) as i64;
-    }
-    let sgn: i32 = (u as i32).wrapping_shr(31);
-    let sm: i64 = a.wrapping_shr(63);
-    i = i.wrapping_sub(sm as i32);
-    let z = (a ^ sgn as i64) as f64 * f64::from_bits(0x3bf0000000000000);
-    i = (i ^ sgn).wrapping_sub(sgn);
-    (z, i as i64)
-}
-
-/// Computes tan
+/// Tan in double precision
 ///
-/// Max found ULP 0.4999999
-#[inline]
-pub fn f_tanf(x: f32) -> f32 {
-    let t = x.to_bits();
-    let e = (t.wrapping_shr(23)) & 0xff;
-    let i;
-    let z;
-    if e < 127 + 28 {
-        // |x| < 2^28
-        if e < 115 {
-            // |x| < 2^-13
-            if e < 102 {
-                // |x| < 2^-26
-                return f_fmlaf(x, x.abs(), x);
+/// ULP 0.5
+pub fn f_tan(x: f64) -> f64 {
+    let x_e = (x.to_bits() >> 52) & 0x7ff;
+    const E_BIAS: u64 = (1u64 << (11 - 1u64)) - 1u64;
+
+    let y: Dekker;
+    let k;
+
+    // |x| < 2^16
+    if x_e < E_BIAS + 22 {
+        // |x| < 2^-7
+        if x_e < E_BIAS - 7 {
+            // |x| < 2^-27, |tan(x) - x| < ulp(x)/2.
+            if x_e < E_BIAS - 27 {
+                // Signed zeros.
+                if x == 0.0 {
+                    return x + x;
+                }
+                return f_fmla(x, f64::from_bits(0x3c90000000000000), x);
             }
-            let x2 = x * x;
-            return f_fmlaf(x, f64::from_bits(0x3fd5555560000000) as f32 * x2, x);
+            // No range reduction needed.
+            k = 0;
+            y = Dekker::new(0., x);
+        } else {
+            // Small range reduction.
+            (y, k) = range_reduction_small(x);
         }
-        (z, i) = tan_reduce1(x);
-    } else if e < 0xff {
-        (z, i) = tan_reduce_big(t);
     } else {
-        if (t.wrapping_shl(9)) != 0 {
-            return x + x;
-        } // nan
-        return f32::INFINITY; // inf
-    }
-    let z2 = z * z;
-    let z4 = z2 * z2;
-    const CN: [u64; 4] = [
-        0x3ff921fb54442d18,
-        0xbfdfd226e573289f,
-        0x3f9b7a60c8dac9f6,
-        0xbf2725beb40f33e5,
-    ];
-    const CD: [u64; 4] = [
-        0x3ff0000000000000,
-        0xbff2395347fb829d,
-        0x3fc2313660f29c36,
-        0xbf69a707ab98d1c1,
-    ];
-    const S: [f64; 2] = [0., 1.];
-    let mut n = f_fmla(z2, f64::from_bits(CN[1]), f64::from_bits(CN[0]));
-    let n2 = f_fmla(z2, f64::from_bits(CN[3]), f64::from_bits(CN[2]));
-    n = f_fmla(z4, n2, n);
-    let mut d = f_fmla(z2, f64::from_bits(CD[1]), f64::from_bits(CD[0]));
-    let d2 = f_fmla(z2, f64::from_bits(CD[3]), f64::from_bits(CD[2]));
-    d = f_fmla(z4, d2, d);
-    n *= z;
-    let s0 = S[(i & 1) as usize];
-    let s1 = S[(1 - (i & 1)) as usize];
-    let r1 = f_fmla(n, s1, -d * s0) / f_fmla(n, s0, d * s1);
-    let tr = r1.to_bits();
-    let tail = (tr.wrapping_add(7)) & 0x000000001fffffff;
-    if tail <= 14 {
-        static ST: [(u32, u32, u32); 8] = [
-            (0x3f8a1f62, 0x3feefcfb, 0xa5c48e92),
-            (0x4d56d355, 0x3e740182, 0x22a0cfa3),
-            (0x57d7b0ed, 0x3eb068e4, 0xa416b61d),
-            (0x5980445e, 0x3fe50f68, 0x257b0298),
-            (0x63fc86fe, 0x3f2cbfce, 0x25492cbc),
-            (0x6a662711, 0xc0799ac2, 0x266b92a5),
-            (0x6ad36709, 0xbf62b097, 0xa513619f),
-            (0x72b505bb, 0xbff2150f, 0xa58ee483),
-        ];
-        let ax: u32 = t & 0x000000007fffffff;
-        let sgn = t.wrapping_shr(31);
-        for i in ST.iter() {
-            if i.0 == ax {
-                return if sgn != 0 {
-                    -f32::from_bits(i.1) - f32::from_bits(i.2)
-                } else {
-                    f32::from_bits(i.1) + f32::from_bits(i.2)
-                };
+        // Inf or NaN
+        if x_e > 2 * E_BIAS {
+            if x.is_nan() {
+                return f64::NAN;
             }
+            // tan(+-Inf) = NaN
+            return x + f64::NAN;
         }
+
+        // Large range reduction.
+        let mut argument_reduction = LargeArgumentReduction::default();
+        k = argument_reduction.high_part(x);
+        y = argument_reduction.reduce();
     }
-    r1 as f32
+
+    let tan_y = tan_eval(y);
+
+    // Fast look up version, but needs 256-entry table.
+    // cos(k * pi/128) = sin(k * pi/128 + pi/2) = sin((k + 64) * pi/128).
+    let sk = crate::math::sin::SIN_K_PI_OVER_128[(k.wrapping_add(128) & 255) as usize];
+    let ck = crate::math::sin::SIN_K_PI_OVER_128[((k.wrapping_add(64)) & 255) as usize];
+    let msin_k = Dekker::new(f64::from_bits(sk.0), f64::from_bits(sk.1));
+    let cos_k = Dekker::new(f64::from_bits(ck.0), f64::from_bits(ck.1));
+
+    let cos_k_tan_y = Dekker::quick_mult(tan_y, cos_k);
+    let msin_k_tan_y = Dekker::quick_mult(tan_y, msin_k);
+
+    // num_dd = sin(k*pi/128) + tan(y) * cos(k*pi/128)
+    let mut num_dd = Dekker::from_full_exact_add(cos_k_tan_y.hi, -msin_k.hi);
+    // den_dd = cos(k*pi/128) - tan(y) * sin(k*pi/128)
+    let mut den_dd = Dekker::from_full_exact_add(msin_k_tan_y.hi, cos_k.hi);
+    num_dd.lo += cos_k_tan_y.lo - msin_k.lo;
+    den_dd.lo += msin_k_tan_y.lo + cos_k.lo;
+
+    Dekker::div(num_dd, den_dd).to_f64()
 }
 
 #[cfg(test)]
@@ -170,11 +143,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn f_tanf_test() {
-        assert_eq!(f_tanf(0.0), 0.0);
-        assert_eq!(f_tanf(1.0), 1.5574077);
-        assert_eq!(f_tanf(-1.0), -1.5574077);
-        assert_eq!(f_tanf(10.0), 0.64836085);
-        assert_eq!(f_tanf(-10.0), -0.64836085);
+    fn tan_test() {
+        assert_eq!(f_tan(0.0), 0.0);
+        assert_eq!(f_tan(1.0), 1.5574077246549023);
+        assert_eq!(f_tan(-0.5), -0.5463024898437905);
     }
 }
