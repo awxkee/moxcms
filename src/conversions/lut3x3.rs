@@ -26,14 +26,16 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-
+use crate::conversions::katana::{KatanaFinalStage, KatanaInitialStage};
 use crate::err::MalformedSize;
 use crate::profile::LutDataType;
 use crate::safe_math::{SafeMul, SafePowi};
 use crate::trc::lut_interp_linear_float;
 use crate::{
-    CmsError, Cube, DataColorSpace, InterpolationMethod, Stage, TransformOptions, Vector3f,
+    CmsError, Cube, DataColorSpace, InterpolationMethod, PointeeSizeExpressible, Stage,
+    TransformOptions, Vector3f,
 };
+use num_traits::AsPrimitive;
 
 #[derive(Default)]
 struct Lut3x3 {
@@ -45,11 +47,22 @@ struct Lut3x3 {
     pcs: DataColorSpace,
 }
 
-fn stage_lut_3x3(
+#[derive(Default)]
+struct KatanaLut3x3<T: Copy + Default, const BIT_DEPTH: usize> {
+    input: [Vec<f32>; 3],
+    clut: Vec<f32>,
+    grid_size: u8,
+    gamma: [Vec<f32>; 3],
+    interpolation_method: InterpolationMethod,
+    pcs: DataColorSpace,
+    _phantom: std::marker::PhantomData<T>,
+}
+
+fn make_lut_3x3(
     lut: &LutDataType,
     options: TransformOptions,
     pcs: DataColorSpace,
-) -> Result<Box<dyn Stage>, CmsError> {
+) -> Result<Lut3x3, CmsError> {
     let clut_length: usize = (lut.num_clut_grid_points as usize)
         .safe_powi(lut.num_input_channels as u32)?
         .safe_mul(lut.num_output_channels as usize)?;
@@ -103,6 +116,77 @@ fn stage_lut_3x3(
         clut: clut_table,
         grid_size: lut.num_clut_grid_points,
         pcs,
+    };
+
+    Ok(transform)
+}
+
+fn stage_lut_3x3(
+    lut: &LutDataType,
+    options: TransformOptions,
+    pcs: DataColorSpace,
+) -> Result<Box<dyn Stage>, CmsError> {
+    let lut = make_lut_3x3(lut, options, pcs)?;
+
+    let transform = Lut3x3 {
+        input: lut.input,
+        gamma: lut.gamma,
+        interpolation_method: lut.interpolation_method,
+        clut: lut.clut,
+        grid_size: lut.grid_size,
+        pcs: lut.pcs,
+    };
+
+    Ok(Box::new(transform))
+}
+
+pub(crate) fn katana_input_stage_lut_3x3<
+    T: Copy + Default + AsPrimitive<f32> + PointeeSizeExpressible + Send + Sync,
+    const BIT_DEPTH: usize,
+>(
+    lut: &LutDataType,
+    options: TransformOptions,
+    pcs: DataColorSpace,
+) -> Result<Box<dyn KatanaInitialStage<f32, T> + Send + Sync>, CmsError>
+where
+    f32: AsPrimitive<T>,
+{
+    let lut = make_lut_3x3(lut, options, pcs)?;
+
+    let transform = KatanaLut3x3::<T, BIT_DEPTH> {
+        input: lut.input,
+        gamma: lut.gamma,
+        interpolation_method: lut.interpolation_method,
+        clut: lut.clut,
+        grid_size: lut.grid_size,
+        pcs: lut.pcs,
+        _phantom: std::marker::PhantomData,
+    };
+
+    Ok(Box::new(transform))
+}
+
+pub(crate) fn katana_output_stage_lut_3x3<
+    T: Copy + Default + AsPrimitive<f32> + PointeeSizeExpressible + Send + Sync,
+    const BIT_DEPTH: usize,
+>(
+    lut: &LutDataType,
+    options: TransformOptions,
+    pcs: DataColorSpace,
+) -> Result<Box<dyn KatanaFinalStage<f32, T> + Send + Sync>, CmsError>
+where
+    f32: AsPrimitive<T>,
+{
+    let lut = make_lut_3x3(lut, options, pcs)?;
+
+    let transform = KatanaLut3x3::<T, BIT_DEPTH> {
+        input: lut.input,
+        gamma: lut.gamma,
+        interpolation_method: lut.interpolation_method,
+        clut: lut.clut,
+        grid_size: lut.grid_size,
+        pcs: lut.pcs,
+        _phantom: std::marker::PhantomData,
     };
 
     Ok(Box::new(transform))
@@ -164,6 +248,161 @@ impl Stage for Lut3x3 {
             }
         }
         Ok(())
+    }
+}
+
+impl<T: Copy + Default + PointeeSizeExpressible + AsPrimitive<f32>, const BIT_DEPTH: usize>
+    KatanaLut3x3<T, BIT_DEPTH>
+where
+    f32: AsPrimitive<T>,
+{
+    fn to_pcs_impl<Fetch: Fn(f32, f32, f32) -> Vector3f>(
+        &self,
+        input: &[T],
+        fetch: Fetch,
+    ) -> Result<Vec<f32>, CmsError> {
+        if input.len() % 3 != 0 {
+            return Err(CmsError::LaneMultipleOfChannels);
+        }
+        let normalizing_value = if T::FINITE {
+            1.0 / ((1u32 << BIT_DEPTH) - 1) as f32
+        } else {
+            1.0
+        };
+        let mut dst = vec![0.; input.len()];
+        let linearization_0 = &self.input[0];
+        let linearization_1 = &self.input[1];
+        let linearization_2 = &self.input[2];
+        for (dest, src) in dst.chunks_exact_mut(3).zip(input.chunks_exact(3)) {
+            let linear_x =
+                lut_interp_linear_float(src[0].as_() * normalizing_value, linearization_0);
+            let linear_y =
+                lut_interp_linear_float(src[1].as_() * normalizing_value, linearization_1);
+            let linear_z =
+                lut_interp_linear_float(src[2].as_() * normalizing_value, linearization_2);
+
+            let clut = fetch(linear_x, linear_y, linear_z);
+
+            let pcs_x = lut_interp_linear_float(clut.v[0], &self.gamma[0]);
+            let pcs_y = lut_interp_linear_float(clut.v[1], &self.gamma[1]);
+            let pcs_z = lut_interp_linear_float(clut.v[2], &self.gamma[2]);
+            dest[0] = pcs_x;
+            dest[1] = pcs_y;
+            dest[2] = pcs_z;
+        }
+        Ok(dst)
+    }
+
+    fn to_output<Fetch: Fn(f32, f32, f32) -> Vector3f>(
+        &self,
+        src: &[f32],
+        dst: &mut [T],
+        fetch: Fetch,
+    ) -> Result<(), CmsError> {
+        if src.len() % 3 != 0 {
+            return Err(CmsError::LaneMultipleOfChannels);
+        }
+        if dst.len() % 3 != 0 {
+            return Err(CmsError::LaneMultipleOfChannels);
+        }
+        if dst.len() != src.len() {
+            return Err(CmsError::LaneSizeMismatch);
+        }
+        let norm_value = if T::FINITE {
+            ((1u32 << BIT_DEPTH) - 1) as f32
+        } else {
+            1.0
+        };
+        let linearization_0 = &self.input[0];
+        let linearization_1 = &self.input[1];
+        let linearization_2 = &self.input[2];
+        for (dest, src) in dst.chunks_exact_mut(3).zip(src.chunks_exact(3)) {
+            let linear_x = lut_interp_linear_float(src[0], linearization_0);
+            let linear_y = lut_interp_linear_float(src[1], linearization_1);
+            let linear_z = lut_interp_linear_float(src[2], linearization_2);
+
+            let clut = fetch(linear_x, linear_y, linear_z);
+
+            let pcs_x = lut_interp_linear_float(clut.v[0], &self.gamma[0]);
+            let pcs_y = lut_interp_linear_float(clut.v[1], &self.gamma[1]);
+            let pcs_z = lut_interp_linear_float(clut.v[2], &self.gamma[2]);
+            if T::FINITE {
+                dest[0] = (pcs_x * norm_value).round().max(0.0).min(norm_value).as_();
+                dest[1] = (pcs_y * norm_value).round().max(0.0).min(norm_value).as_();
+                dest[2] = (pcs_z * norm_value).round().max(0.0).min(norm_value).as_();
+            } else {
+                dest[0] = pcs_x.as_();
+                dest[1] = pcs_y.as_();
+                dest[2] = pcs_z.as_();
+            }
+        }
+        Ok(())
+    }
+}
+
+impl<T: Copy + Default + PointeeSizeExpressible + AsPrimitive<f32>, const BIT_DEPTH: usize>
+    KatanaInitialStage<f32, T> for KatanaLut3x3<T, BIT_DEPTH>
+where
+    f32: AsPrimitive<T>,
+{
+    fn to_pcs(&self, input: &[T]) -> Result<Vec<f32>, CmsError> {
+        let l_tbl = Cube::new(&self.clut, self.grid_size as usize);
+
+        // If PCS is LAB then linear interpolation should be used
+        if self.pcs == DataColorSpace::Lab || self.pcs == DataColorSpace::Xyz {
+            return self.to_pcs_impl(input, |x, y, z| l_tbl.trilinear_vec3(x, y, z));
+        }
+
+        match self.interpolation_method {
+            #[cfg(feature = "options")]
+            InterpolationMethod::Tetrahedral => {
+                self.to_pcs_impl(input, |x, y, z| l_tbl.tetra_vec3(x, y, z))
+            }
+            #[cfg(feature = "options")]
+            InterpolationMethod::Pyramid => {
+                self.to_pcs_impl(input, |x, y, z| l_tbl.pyramid_vec3(x, y, z))
+            }
+            #[cfg(feature = "options")]
+            InterpolationMethod::Prism => {
+                self.to_pcs_impl(input, |x, y, z| l_tbl.prism_vec3(x, y, z))
+            }
+            InterpolationMethod::Linear => {
+                self.to_pcs_impl(input, |x, y, z| l_tbl.trilinear_vec3(x, y, z))
+            }
+        }
+    }
+}
+
+impl<T: Copy + Default + PointeeSizeExpressible + AsPrimitive<f32>, const BIT_DEPTH: usize>
+    KatanaFinalStage<f32, T> for KatanaLut3x3<T, BIT_DEPTH>
+where
+    f32: AsPrimitive<T>,
+{
+    fn to_output(&self, src: &[f32], dst: &mut [T]) -> Result<(), CmsError> {
+        let l_tbl = Cube::new(&self.clut, self.grid_size as usize);
+
+        // If PCS is LAB then linear interpolation should be used
+        if self.pcs == DataColorSpace::Lab || self.pcs == DataColorSpace::Xyz {
+            return self.to_output(src, dst, |x, y, z| l_tbl.trilinear_vec3(x, y, z));
+        }
+
+        match self.interpolation_method {
+            #[cfg(feature = "options")]
+            InterpolationMethod::Tetrahedral => {
+                self.to_output(src, dst, |x, y, z| l_tbl.tetra_vec3(x, y, z))
+            }
+            #[cfg(feature = "options")]
+            InterpolationMethod::Pyramid => {
+                self.to_output(src, dst, |x, y, z| l_tbl.pyramid_vec3(x, y, z))
+            }
+            #[cfg(feature = "options")]
+            InterpolationMethod::Prism => {
+                self.to_output(src, dst, |x, y, z| l_tbl.prism_vec3(x, y, z))
+            }
+            InterpolationMethod::Linear => {
+                self.to_output(src, dst, |x, y, z| l_tbl.trilinear_vec3(x, y, z))
+            }
+        }
     }
 }
 

@@ -145,14 +145,34 @@ fn main() {
         moxcms::ColorProfile::new_from_slice(&decoder.icc_profile().unwrap().unwrap()).unwrap();
     let custom_profile = Profile::new_icc(&decoder.icc_profile().unwrap().unwrap()).unwrap();
 
-    let gray_profile = ColorProfile::new_gray_with_gamma(2.2);
+    let gray_icc = fs::read("./assets/us_swop_coated.icc").unwrap();
+    let gray_target = ColorProfile::new_from_slice(&gray_icc).unwrap();
 
     let img = DynamicImage::from_decoder(decoder).unwrap();
-    let img = DynamicImage::ImageLuma8(img.to_luma8());
-    let transform = gray_profile
+
+    let srgb = moxcms::ColorProfile::new_srgb();
+
+    let transform = srgb
         .create_transform_8bit(
-            moxcms::Layout::Gray,
-            &moxcms::ColorProfile::new_srgb(),
+            moxcms::Layout::Rgb,
+            &gray_target,
+            moxcms::Layout::Rgba,
+            TransformOptions {
+                prefer_fixed_point: false,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+
+    let mut new_img_bytes = vec![0u8; (img.as_bytes().len() / 3) * 4];
+    transform
+        .transform(img.as_bytes(), &mut new_img_bytes)
+        .unwrap();
+
+    let inverse_transform = gray_target
+        .create_transform_8bit(
+            moxcms::Layout::Rgba,
+            &srgb,
             moxcms::Layout::Rgb,
             TransformOptions {
                 prefer_fixed_point: false,
@@ -161,15 +181,43 @@ fn main() {
         )
         .unwrap();
 
-    let mut new_img_bytes = vec![0u8; img.as_bytes().len() * 3];
-    transform
-        .transform(img.as_bytes(), &mut new_img_bytes)
+    let mut new_img_bytes2 = vec![0u8; img.as_bytes().len()];
+    inverse_transform
+        .transform(&new_img_bytes, &mut new_img_bytes2)
         .unwrap();
 
     let new_img = DynamicImage::ImageRgb8(
-        image::RgbImage::from_raw(img.width(), img.height(), new_img_bytes).unwrap(),
+        image::RgbImage::from_raw(img.width(), img.height(), new_img_bytes2).unwrap(),
     );
-    new_img.save("convertedz.png").unwrap();
+    new_img.save("converted.png").unwrap();
+
+    // let profile = lcms2::Profile::new_icc(&gray_icc).unwrap();
+    // let srgb = lcms2::Profile::new_srgb();
+    // let transform = lcms2::Transform::new(
+    //     &profile,
+    //     lcms2::PixelFormat::RGB_8,
+    //     &srgb,
+    //     lcms2::PixelFormat::RGB_8,
+    //     lcms2::Intent::Perceptual,
+    // )
+    // .unwrap();
+    // let inverse_transform = lcms2::Transform::new(
+    //     &srgb,
+    //     lcms2::PixelFormat::RGB_8,
+    //     &profile,
+    //     lcms2::PixelFormat::RGB_8,
+    //     lcms2::Intent::Perceptual,
+    // )
+    // .unwrap();
+    //
+    // let mut new_img = img.to_rgb8().to_vec();
+    // transform.transform_in_place(new_img.as_mut_slice());
+    // inverse_transform.transform_in_place(new_img.as_mut_slice());
+    //
+    // let new_img = DynamicImage::ImageRgb8(
+    //     image::RgbImage::from_raw(img.width(), img.height(), new_img).unwrap(),
+    // );
+    // new_img.save("converted_lcms2.png").unwrap();
 }
 
 // fn main() {

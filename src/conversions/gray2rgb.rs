@@ -39,7 +39,7 @@ struct TransformGray2RgbFusedExecutor<
     const BIT_DEPTH: usize,
     const GAMMA_LUT: usize,
 > {
-    fuzed_gamma: Box<[T; BUCKET]>,
+    fused_gamma: Box<[T; BUCKET]>,
 }
 
 pub(crate) fn make_gray_to_x<
@@ -60,9 +60,9 @@ where
         return Err(CmsError::UnsupportedProfileConnection);
     }
 
-    let mut fuzed_gamma = Box::new([T::default(); BUCKET]);
+    let mut fused_gamma = Box::new([T::default(); BUCKET]);
     let max_lut_size = (GAMMA_LUT - 1) as f32;
-    for (&src, dst) in gray_linear.iter().zip(fuzed_gamma.iter_mut()) {
+    for (&src, dst) in gray_linear.iter().zip(fused_gamma.iter_mut()) {
         let possible_value = ((src * max_lut_size).round() as u32).min(max_lut_size as u32) as u16;
         *dst = gray_gamma[possible_value as usize];
     }
@@ -79,7 +79,7 @@ where
                 BIT_DEPTH,
                 GAMMA_LUT,
             > {
-                fuzed_gamma,
+                fused_gamma,
             })),
             Layout::Rgba => Ok(Box::new(TransformGray2RgbFusedExecutor::<
                 T,
@@ -89,7 +89,7 @@ where
                 BIT_DEPTH,
                 GAMMA_LUT,
             > {
-                fuzed_gamma,
+                fused_gamma,
             })),
             Layout::Gray => Ok(Box::new(TransformGray2RgbFusedExecutor::<
                 T,
@@ -99,7 +99,7 @@ where
                 BIT_DEPTH,
                 GAMMA_LUT,
             > {
-                fuzed_gamma,
+                fused_gamma,
             })),
             Layout::GrayAlpha => Ok(Box::new(TransformGray2RgbFusedExecutor::<
                 T,
@@ -109,7 +109,7 @@ where
                 BIT_DEPTH,
                 GAMMA_LUT,
             > {
-                fuzed_gamma,
+                fused_gamma,
             })),
         },
         Layout::GrayAlpha => match dst_layout {
@@ -121,7 +121,7 @@ where
                 BIT_DEPTH,
                 GAMMA_LUT,
             > {
-                fuzed_gamma,
+                fused_gamma,
             })),
             Layout::Rgba => Ok(Box::new(TransformGray2RgbFusedExecutor::<
                 T,
@@ -131,7 +131,7 @@ where
                 BIT_DEPTH,
                 GAMMA_LUT,
             > {
-                fuzed_gamma,
+                fused_gamma,
             })),
             Layout::Gray => Ok(Box::new(TransformGray2RgbFusedExecutor::<
                 T,
@@ -141,7 +141,7 @@ where
                 BIT_DEPTH,
                 GAMMA_LUT,
             > {
-                fuzed_gamma,
+                fused_gamma,
             })),
             Layout::GrayAlpha => Ok(Box::new(TransformGray2RgbFusedExecutor::<
                 T,
@@ -151,7 +151,7 @@ where
                 BIT_DEPTH,
                 GAMMA_LUT,
             > {
-                fuzed_gamma,
+                fused_gamma,
             })),
         },
     }
@@ -193,7 +193,7 @@ where
             .chunks_exact(src_channels)
             .zip(dst.chunks_exact_mut(dst_channels))
         {
-            let g = self.fuzed_gamma[src[0]._as_usize()];
+            let g = self.fused_gamma[src[0]._as_usize()];
             let a = if is_gray_alpha { src[1] } else { max_value };
 
             dst[0] = g;

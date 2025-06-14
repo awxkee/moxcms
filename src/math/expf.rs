@@ -156,7 +156,7 @@ pub fn f_expf(x: f32) -> f32 {
         // |x| > 88.7228 or x=nan or |x| < 2.40508e-05
         if ux < 0x6f93813eu32 {
             // |x| < 2.40508e-05
-            return 1.0 + z * (1. + z * 0.5);
+            return f_fmlaf(z, f_fmlaf(z, 0.5, 1.), 1.0);
         }
         if ux >= 0xffu32 << 24 {
             // x is inf or nan

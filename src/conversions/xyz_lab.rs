@@ -1,5 +1,5 @@
 /*
- * // Copyright (c) Radzivon Bartoshyk 2/2025. All rights reserved.
+ * // Copyright (c) Radzivon Bartoshyk 6/2025. All rights reserved.
  * //
  * // Redistribution and use in source and binary forms, with or without modification,
  * // are permitted provided that the following conditions are met:
@@ -26,43 +26,36 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-#[cfg(all(target_arch = "x86_64", feature = "avx"))]
-mod avx;
-#[cfg(all(target_arch = "x86_64", feature = "avx512"))]
-mod avx512;
-mod bpc;
-mod gray2rgb;
-mod interpolator;
-mod katana;
-mod lut3x3;
-mod lut3x4;
-mod lut4;
-mod lut_transforms;
-mod mab;
-mod mab4x3;
-mod mba3x4;
-#[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
-mod neon;
-mod prelude_lut_xyz_rgb;
-mod rgb2gray;
-mod rgb_xyz_factory;
-mod rgbxyz;
-mod rgbxyz_fixed;
-mod rgbxyz_float;
-#[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"))]
-mod sse;
-mod transform_lut3_to_3;
-mod transform_lut3_to_4;
-mod transform_lut4_to_3;
-mod xyz_lab;
+use crate::{CmsError, InPlaceStage, Lab, Xyz};
 
-pub(crate) use gray2rgb::make_gray_to_x;
-pub(crate) use interpolator::LutBarycentricReduction;
-pub(crate) use lut_transforms::make_lut_transform;
-pub(crate) use rgb_xyz_factory::{RgbXyzFactory, RgbXyzFactoryOpt};
-pub(crate) use rgb2gray::{ToneReproductionRgbToGray, make_rgb_to_gray};
-pub(crate) use rgbxyz::{TransformMatrixShaper, TransformMatrixShaperOptimized};
-pub(crate) use rgbxyz_float::{
-    TransformShaperFloatInOut, TransformShaperRgbFloat, make_rgb_xyz_rgb_transform_float,
-    make_rgb_xyz_rgb_transform_float_in_out,
-};
+#[derive(Default)]
+pub(crate) struct StageLabToXyz {}
+
+impl InPlaceStage for StageLabToXyz {
+    fn transform(&self, dst: &mut [f32]) -> Result<(), CmsError> {
+        for dst in dst.chunks_exact_mut(3) {
+            let lab = Lab::new(dst[0], dst[1], dst[2]);
+            let xyz = lab.to_pcs_xyz();
+            dst[0] = xyz.x;
+            dst[1] = xyz.y;
+            dst[2] = xyz.z;
+        }
+        Ok(())
+    }
+}
+
+#[derive(Default)]
+pub(crate) struct StageXyzToLab {}
+
+impl InPlaceStage for StageXyzToLab {
+    fn transform(&self, dst: &mut [f32]) -> Result<(), CmsError> {
+        for dst in dst.chunks_exact_mut(3) {
+            let xyz = Xyz::new(dst[0], dst[1], dst[2]);
+            let lab = Lab::from_pcs_xyz(xyz);
+            dst[0] = lab.l;
+            dst[1] = lab.a;
+            dst[2] = lab.b;
+        }
+        Ok(())
+    }
+}

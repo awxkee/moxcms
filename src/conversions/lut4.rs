@@ -26,13 +26,16 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+use crate::conversions::katana::KatanaInitialStage;
 use crate::profile::LutDataType;
 use crate::safe_math::{SafeMul, SafePowi};
 use crate::trc::lut_interp_linear_float;
 use crate::{
-    CmsError, DataColorSpace, Hypercube, InterpolationMethod, MalformedSize, Stage,
-    TransformOptions, Vector3f,
+    CmsError, DataColorSpace, Hypercube, InterpolationMethod, MalformedSize,
+    PointeeSizeExpressible, Stage, TransformOptions, Vector3f,
 };
+use num_traits::AsPrimitive;
+use std::marker::PhantomData;
 
 #[allow(unused)]
 #[derive(Default)]
@@ -43,6 +46,18 @@ struct Lut4x3 {
     output: [Vec<f32>; 3],
     interpolation_method: InterpolationMethod,
     pcs: DataColorSpace,
+}
+
+#[allow(unused)]
+#[derive(Default)]
+struct KatanaLut4x3<T: Copy + PointeeSizeExpressible + AsPrimitive<f32>, const BIT_DEPTH: usize> {
+    linearization: [Vec<f32>; 4],
+    clut: Vec<f32>,
+    grid_size: u8,
+    output: [Vec<f32>; 3],
+    interpolation_method: InterpolationMethod,
+    pcs: DataColorSpace,
+    _phantom: std::marker::PhantomData<T>,
 }
 
 #[allow(unused)]
@@ -114,13 +129,87 @@ macro_rules! define_lut4_dispatch {
     };
 }
 
+impl<T: Copy + PointeeSizeExpressible + AsPrimitive<f32>, const BIT_DEPTH: usize>
+    KatanaLut4x3<T, BIT_DEPTH>
+{
+    fn to_pcs_impl<Fetch: Fn(f32, f32, f32, f32) -> Vector3f>(
+        &self,
+        input: &[T],
+        fetch: Fetch,
+    ) -> Result<Vec<f32>, CmsError> {
+        if input.len() % 4 != 0 {
+            return Err(CmsError::LaneMultipleOfChannels);
+        }
+        let norm_value = if T::FINITE {
+            1.0 / ((1u32 << BIT_DEPTH) - 1) as f32
+        } else {
+            1.0
+        };
+        let mut dst = vec![0.; (input.len() / 4) * 3];
+        let linearization_0 = &self.linearization[0];
+        let linearization_1 = &self.linearization[1];
+        let linearization_2 = &self.linearization[2];
+        let linearization_3 = &self.linearization[3];
+        for (dest, src) in dst.chunks_exact_mut(3).zip(input.chunks_exact(4)) {
+            let linear_x = lut_interp_linear_float(src[0].as_() * norm_value, linearization_0);
+            let linear_y = lut_interp_linear_float(src[1].as_() * norm_value, linearization_1);
+            let linear_z = lut_interp_linear_float(src[2].as_() * norm_value, linearization_2);
+            let linear_w = lut_interp_linear_float(src[3].as_() * norm_value, linearization_3);
+
+            let clut = fetch(linear_x, linear_y, linear_z, linear_w);
+
+            let pcs_x = lut_interp_linear_float(clut.v[0], &self.output[0]);
+            let pcs_y = lut_interp_linear_float(clut.v[1], &self.output[1]);
+            let pcs_z = lut_interp_linear_float(clut.v[2], &self.output[2]);
+            dest[0] = pcs_x;
+            dest[1] = pcs_y;
+            dest[2] = pcs_z;
+        }
+        Ok(dst)
+    }
+}
+
+impl<T: Copy + PointeeSizeExpressible + AsPrimitive<f32>, const BIT_DEPTH: usize>
+    KatanaInitialStage<f32, T> for KatanaLut4x3<T, BIT_DEPTH>
+{
+    fn to_pcs(&self, input: &[T]) -> Result<Vec<f32>, CmsError> {
+        if input.len() % 4 != 0 {
+            return Err(CmsError::LaneMultipleOfChannels);
+        }
+        let l_tbl = Hypercube::new(&self.clut, self.grid_size as usize);
+
+        // If Source PCS is LAB trilinear should be used
+        if self.pcs == DataColorSpace::Lab || self.pcs == DataColorSpace::Xyz {
+            return self.to_pcs_impl(input, |x, y, z, w| l_tbl.quadlinear_vec3(x, y, z, w));
+        }
+
+        match self.interpolation_method {
+            #[cfg(feature = "options")]
+            InterpolationMethod::Tetrahedral => {
+                self.to_pcs_impl(input, |x, y, z, w| l_tbl.tetra_vec3(x, y, z, w))
+            }
+            #[cfg(feature = "options")]
+            InterpolationMethod::Pyramid => {
+                self.to_pcs_impl(input, |x, y, z, w| l_tbl.pyramid_vec3(x, y, z, w))
+            }
+            #[cfg(feature = "options")]
+            InterpolationMethod::Prism => {
+                self.to_pcs_impl(input, |x, y, z, w| l_tbl.prism_vec3(x, y, z, w))
+            }
+            InterpolationMethod::Linear => {
+                self.to_pcs_impl(input, |x, y, z, w| l_tbl.quadlinear_vec3(x, y, z, w))
+            }
+        }
+    }
+}
+
 define_lut4_dispatch!(Lut4x3);
 
-fn stage_lut_4x3(
+fn make_lut_4x3(
     lut: &LutDataType,
     options: TransformOptions,
     pcs: DataColorSpace,
-) -> Result<Box<dyn Stage>, CmsError> {
+) -> Result<Lut4x3, CmsError> {
     // There is 4 possible cases:
     // - All curves are non-linear
     // - Linearization curves are non-linear, but gamma is linear
@@ -175,16 +264,33 @@ fn stage_lut_4x3(
         [lut.num_output_table_entries as usize * 2..lut.num_output_table_entries as usize * 3]
         .to_vec();
 
+    let transform = Lut4x3 {
+        linearization: [lin_curve0, lin_curve1, lin_curve2, lin_curve3],
+        interpolation_method: options.interpolation_method,
+        pcs,
+        clut: clut_table,
+        grid_size: lut.num_clut_grid_points,
+        output: [gamma_curve0, gamma_curve1, gamma_curve2],
+    };
+    Ok(transform)
+}
+
+fn stage_lut_4x3(
+    lut: &LutDataType,
+    options: TransformOptions,
+    pcs: DataColorSpace,
+) -> Result<Box<dyn Stage>, CmsError> {
+    let lut = make_lut_4x3(lut, options, pcs)?;
     #[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
     {
         use crate::conversions::neon::Lut4x3Neon;
         let transform = Lut4x3Neon {
-            linearization: [lin_curve0, lin_curve1, lin_curve2, lin_curve3],
-            interpolation_method: options.interpolation_method,
-            pcs,
-            clut: clut_table,
-            grid_size: lut.num_clut_grid_points,
-            output: [gamma_curve0, gamma_curve1, gamma_curve2],
+            linearization: lut.linearization,
+            interpolation_method: lut.interpolation_method,
+            pcs: lut.pcs,
+            clut: lut.clut,
+            grid_size: lut.grid_size,
+            output: lut.output,
         };
         Ok(Box::new(transform))
     }
@@ -197,26 +303,53 @@ fn stage_lut_4x3(
                 && std::arch::is_x86_feature_detected!("fma")
             {
                 let transform = Lut4x3AvxFma {
-                    linearization: [lin_curve0, lin_curve1, lin_curve2, lin_curve3],
-                    interpolation_method: options.interpolation_method,
-                    pcs,
-                    clut: clut_table,
-                    grid_size: lut.num_clut_grid_points,
-                    output: [gamma_curve0, gamma_curve1, gamma_curve2],
+                    linearization: lut.linearization,
+                    interpolation_method: lut.interpolation_method,
+                    pcs: lut.pcs,
+                    clut: lut.clut,
+                    grid_size: lut.grid_size,
+                    output: lut.output,
                 };
                 return Ok(Box::new(transform));
             }
         }
         let transform = Lut4x3 {
-            linearization: [lin_curve0, lin_curve1, lin_curve2, lin_curve3],
-            interpolation_method: options.interpolation_method,
-            pcs,
-            clut: clut_table,
-            grid_size: lut.num_clut_grid_points,
-            output: [gamma_curve0, gamma_curve1, gamma_curve2],
+            linearization: lut.linearization,
+            interpolation_method: lut.interpolation_method,
+            pcs: lut.pcs,
+            clut: lut.clut,
+            grid_size: lut.grid_size,
+            output: lut.output,
         };
         Ok(Box::new(transform))
     }
+}
+
+pub(crate) fn katana_input_stage_lut_4x3<
+    T: Copy + PointeeSizeExpressible + AsPrimitive<f32> + Send + Sync,
+    const BIT_DEPTH: usize,
+>(
+    lut: &LutDataType,
+    options: TransformOptions,
+    pcs: DataColorSpace,
+) -> Result<Box<dyn KatanaInitialStage<f32, T> + Send + Sync>, CmsError> {
+    // There is 4 possible cases:
+    // - All curves are non-linear
+    // - Linearization curves are non-linear, but gamma is linear
+    // - Gamma curves are non-linear, but linearization is linear
+    // - All curves linear
+    let lut = make_lut_4x3(lut, options, pcs)?;
+
+    let transform = KatanaLut4x3::<T, BIT_DEPTH> {
+        linearization: lut.linearization,
+        interpolation_method: lut.interpolation_method,
+        pcs: lut.pcs,
+        clut: lut.clut,
+        grid_size: lut.grid_size,
+        output: lut.output,
+        _phantom: PhantomData,
+    };
+    Ok(Box::new(transform))
 }
 
 pub(crate) fn create_lut4_norm_samples<const SAMPLES: usize>() -> Vec<f32> {

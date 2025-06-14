@@ -232,24 +232,30 @@ pub(crate) struct MCurves3<const DEPTH: usize> {
     pub(crate) inverse: bool,
 }
 
+impl<const DEPTH: usize> MCurves3<DEPTH> {
+    fn execute_matrix_stage(&self, dst: &mut [f32]) {
+        let m = self.matrix;
+        let b = self.bias;
+
+        if !m.test_equality(Matrix3f::IDENTITY) || !b.eq(&Vector3f::default()) {
+            for dst in dst.chunks_exact_mut(3) {
+                let x = dst[0];
+                let y = dst[1];
+                let z = dst[2];
+                dst[0] = mlaf(mlaf(mlaf(b.v[0], x, m.v[0][0]), y, m.v[0][1]), z, m.v[0][2]);
+                dst[1] = mlaf(mlaf(mlaf(b.v[1], x, m.v[1][0]), y, m.v[1][1]), z, m.v[1][2]);
+                dst[2] = mlaf(mlaf(mlaf(b.v[2], x, m.v[2][0]), y, m.v[2][1]), z, m.v[2][2]);
+            }
+        }
+    }
+}
+
 impl<const DEPTH: usize> InPlaceStage for MCurves3<DEPTH> {
     fn transform(&self, dst: &mut [f32]) -> Result<(), CmsError> {
         let scale_value = (DEPTH - 1) as f32;
 
         if self.inverse {
-            let m = self.matrix;
-            let b = self.bias;
-
-            if !m.test_equality(Matrix3f::IDENTITY) || !b.eq(&Vector3f::default()) {
-                for dst in dst.chunks_exact_mut(3) {
-                    let x = dst[0];
-                    let y = dst[1];
-                    let z = dst[2];
-                    dst[0] = mlaf(mlaf(mlaf(b.v[0], x, m.v[0][0]), y, m.v[0][1]), z, m.v[0][2]);
-                    dst[1] = mlaf(mlaf(mlaf(b.v[1], x, m.v[1][0]), y, m.v[1][1]), z, m.v[1][2]);
-                    dst[2] = mlaf(mlaf(mlaf(b.v[2], x, m.v[2][0]), y, m.v[2][1]), z, m.v[2][2]);
-                }
-            }
+            self.execute_matrix_stage(dst);
         }
 
         for dst in dst.chunks_exact_mut(3) {
@@ -265,19 +271,7 @@ impl<const DEPTH: usize> InPlaceStage for MCurves3<DEPTH> {
         }
 
         if !self.inverse {
-            let m = self.matrix;
-            let b = self.bias;
-
-            if !m.test_equality(Matrix3f::IDENTITY) || !b.eq(&Vector3f::default()) {
-                for dst in dst.chunks_exact_mut(3) {
-                    let x = dst[0];
-                    let y = dst[1];
-                    let z = dst[2];
-                    dst[0] = mlaf(mlaf(mlaf(b.v[0], x, m.v[0][0]), y, m.v[0][1]), z, m.v[0][2]);
-                    dst[1] = mlaf(mlaf(mlaf(b.v[1], x, m.v[1][0]), y, m.v[1][1]), z, m.v[1][2]);
-                    dst[2] = mlaf(mlaf(mlaf(b.v[2], x, m.v[2][0]), y, m.v[2][1]), z, m.v[2][2]);
-                }
-            }
+            self.execute_matrix_stage(dst);
         }
 
         Ok(())

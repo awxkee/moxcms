@@ -92,10 +92,10 @@ pub fn f_exp2f(x: f32) -> f32 {
             return 1.0 + x;
         } // |x| < 0x1p-26
         // if x < -149 or 128 <= x is special
-        if t >= 0xc3000000u32 && t < 0xc3150000u32 {
+        if !(t >= 0xc3000000u32 && t < 0xc3150000u32) {
             if ux >= 0xffu32 << 24 {
                 // x is inf or nan
-                if ux > 0xffu32 << 24 {
+                if ux > (0xffu32 << 24) {
                     return x + x;
                 } // x = nan
                 static IR: [f32; 2] = [f32::INFINITY, 0.];
@@ -104,8 +104,11 @@ pub fn f_exp2f(x: f32) -> f32 {
             if t >= 0xc3150000u32 {
                 // x < -149
                 let z = x;
-                let mut y = f64::from_bits(0x36a0000000000000)
-                    + (z as f64 + 149.) * f64::from_bits(0x3690000000000000);
+                let mut y = f_fmla(
+                    z as f64 + 149.,
+                    f64::from_bits(0x3690000000000000),
+                    f64::from_bits(0x36a0000000000000),
+                );
                 y = y.max(f64::from_bits(0x3680000000000000));
                 return y as f32;
             }
@@ -193,7 +196,8 @@ mod tests {
         assert!(f_exp2f(f32::NAN).is_nan());
         assert_eq!(f_exp2f(-0.35), 0.7845841);
         assert_eq!(f_exp2f(0.35), 1.2745606);
-        assert!(f_exp2f(f32::INFINITY).is_nan());
+        assert!(f_exp2f(f32::INFINITY).is_infinite());
+        assert_eq!(f_exp2f(f32::NEG_INFINITY), 0.0);
     }
 
     #[test]

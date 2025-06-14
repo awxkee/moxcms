@@ -203,7 +203,6 @@ mod tests {
 
     #[test]
     fn log_test() {
-        println!("{}", log(2.));
         assert!(
             (log(1f64) - 0f64).abs() < 1e-8,
             "Invalid result {}",
@@ -218,7 +217,6 @@ mod tests {
 
     #[test]
     fn f_log_test() {
-        println!("{}", f_log(2.));
         assert!(
             (f_log(1f64) - 0f64).abs() < 1e-8,
             "Invalid result {}",
