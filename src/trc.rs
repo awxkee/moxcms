@@ -27,6 +27,7 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::cicp::create_rec709_parametric;
+use crate::matan::is_curve_linear16;
 use crate::math::{dirty_powf, m_clamp};
 use crate::mlaf::{mlaf, neg_mlaf};
 use crate::transform::PointeeSizeExpressible;
@@ -38,34 +39,6 @@ use num_traits::AsPrimitive;
 pub enum ToneReprCurve {
     Lut(Vec<u16>),
     Parametric(Vec<f32>),
-}
-
-impl ToneReprCurve {
-    pub(crate) fn is_linear(&self) -> bool {
-        match &self {
-            ToneReprCurve::Lut(lut) => {
-                if lut.is_empty() {
-                    return true;
-                }
-                if lut.len() == 1 {
-                    let gamma = 1. / u8_fixed_8number_to_float(lut[0]);
-                    if (gamma - 1.).abs() < 1e-4 {
-                        return true;
-                    }
-                }
-                is_curve_linear16(lut)
-            }
-            ToneReprCurve::Parametric(parametric) => {
-                if parametric.is_empty() {
-                    return true;
-                }
-                if parametric.len() == 1 && parametric[0] == 1. {
-                    return true;
-                }
-                false
-            }
-        }
-    }
 }
 
 pub(crate) fn build_trc_table(num_entries: i32, eotf: impl Fn(f64) -> f64) -> Vec<u16> {
@@ -236,7 +209,7 @@ impl ParametricCurve {
 }
 
 #[inline]
-fn u8_fixed_8number_to_float(x: u16) -> f32 {
+pub(crate) fn u8_fixed_8number_to_float(x: u16) -> f32 {
     // 0x0000 = 0.
     // 0x0100 = 1.
     // 0xffff = 255  + 255/256
@@ -289,54 +262,6 @@ fn linear_forward_table<T: PointeeSizeExpressible, const N: usize, const BIT_DEP
     gamma_table
 }
 
-#[inline]
-pub(crate) fn is_curve_linear16(curve: &[u16]) -> bool {
-    let scale = 1. / (curve.len() - 1) as f32 * 65535.;
-    for (index, &value) in curve.iter().enumerate() {
-        let quantized = (index as f32 * scale).round() as u16;
-        let diff = (quantized as i32 - value as i32).abs();
-        if diff > 0x0f {
-            return false;
-        }
-    }
-    true
-}
-
-#[inline]
-pub(crate) fn is_curve_descending<T: PartialOrd>(v: &[T]) -> bool {
-    if v.is_empty() {
-        return false;
-    }
-    if v.len() == 1 {
-        return false;
-    }
-    v[0] > v[v.len() - 1]
-}
-
-#[inline]
-pub(crate) fn is_curve_ascending<T: PartialOrd>(v: &[T]) -> bool {
-    if v.is_empty() {
-        return false;
-    }
-    if v.len() == 1 {
-        return false;
-    }
-    v[0] < v[v.len() - 1]
-}
-
-#[inline]
-pub(crate) fn is_curve_linear8(curve: &[u8]) -> bool {
-    let scale = 1. / (curve.len() - 1) as f32 * 255.;
-    for (index, &value) in curve.iter().enumerate() {
-        let quantized = (index as f32 * scale).round() as u16;
-        let diff = (quantized as i32 - value as i32).abs();
-        if diff > 0x03 {
-            return false;
-        }
-    }
-    true
-}
-
 #[inline(always)]
 pub(crate) fn lut_interp_linear_float(x: f32, table: &[f32]) -> f32 {
     let value = x.min(1.).max(0.) * (table.len() - 1) as f32;
@@ -374,10 +299,11 @@ pub(crate) fn lut_interp_linear(input_value: f64, table: &[u16]) -> f32 {
 
     let upper: i32 = input_value.ceil() as i32;
     let lower: i32 = input_value.floor() as i32;
-    let value: f32 = ((table[(upper as usize).min(table.len() - 1)] as f64)
-        * (1. - (upper as f64 - input_value))
-        + (table[(lower as usize).min(table.len() - 1)] as f64 * (upper as f64 - input_value)))
-        as f32;
+    let w0 = table[(upper as usize).min(table.len() - 1)] as f64;
+    let w1 = 1. - (upper as f64 - input_value);
+    let w2 = table[(lower as usize).min(table.len() - 1)] as f64;
+    let w3 = upper as f64 - input_value;
+    let value: f32 = mlaf(w2 * w3, w0, w1) as f32;
     value * (1.0 / 65535.0)
 }
 
@@ -487,7 +413,11 @@ where
     let lw_value = table[lower as usize];
     let hw_value = table[upper as usize];
     // the table values range from 0..65535
-    value = hw_value as u32 * interp + lw_value as u32 * ((N - 1) as u32 - interp); // 0..(65535*GAMMA_CAP)
+    value = mlaf(
+        hw_value as u32 * interp,
+        lw_value as u32,
+        (N - 1) as u32 - interp,
+    ); // 0..(65535*GAMMA_CAP)
 
     // round and scale
     let max_colors = if T::FINITE { (1 << BIT_DEPTH) - 1 } else { 1 };
@@ -521,8 +451,11 @@ where
     let lw_value = table[lower as usize];
     let hw_value = table[upper as usize];
     // the table values range from 0..65535
-    let mut value =
-        hw_value as f32 * interp as f32 + lw_value as f32 * ((N - 1) as f32 - interp as f32); // 0..(65535*GAMMA_CAP)
+    let mut value = mlaf(
+        hw_value as f32 * interp as f32,
+        lw_value as f32,
+        (N - 1) as f32 - interp as f32,
+    ); // 0..(65535*GAMMA_CAP)
 
     // round and scale
     let max_colors = if T::FINITE { (1 << BIT_DEPTH) - 1 } else { 1 };
@@ -785,7 +718,7 @@ fn lut_inverse_interp16(value: u16, lut_table: &[u16]) -> u16 {
     let y1: f64 = lut_table[cell1 as usize] as f64;
     let x1: f64 = 65535.0 * cell1 as f64 / (length - 1) as f64;
     let a: f64 = (y1 - y0) / (x1 - x0);
-    let b: f64 = y0 - a * x0;
+    let b: f64 = mlaf(y0, -a, x0);
     if a.abs() < 0.01f64 {
         return x as u16;
     }
@@ -877,7 +810,7 @@ fn lut_inverse_interp16_boxed<const N: usize>(value: u16, lut_table: &[u16; N]) 
     let y1: f64 = lut_table[cell1 as usize] as f64;
     let x1: f64 = 65535.0 * cell1 as f64 / (length - 1) as f64;
     let a: f64 = (y1 - y0) / (x1 - x0);
-    let b: f64 = y0 - a * x0;
+    let b: f64 = mlaf(y0, -a, x0);
     if a.abs() < 0.01f64 {
         return x as u16;
     }
@@ -918,6 +851,30 @@ fn invert_lut_boxed<const N: usize>(table: &[u16; N], out_length: usize) -> Vec<
 }
 
 impl ToneReprCurve {
+    pub(crate) fn to_clut(&self) -> Result<Vec<f32>, CmsError> {
+        match self {
+            ToneReprCurve::Lut(lut) => {
+                if lut.is_empty() {
+                    let passthrough_table = passthrough_table::<f32, 65536, 1>();
+                    Ok(passthrough_table.to_vec())
+                } else {
+                    Ok(lut
+                        .iter()
+                        .map(|&x| x as f32 * (1. / 65535.))
+                        .collect::<Vec<_>>())
+                }
+            }
+            ToneReprCurve::Parametric(_) => {
+                let curve = self
+                    .build_linearize_table::<f32, 65535, 1>()
+                    .ok_or(CmsError::InvalidTrcCurve)?;
+                let max_value = f32::NOT_FINITE_LINEAR_TABLE_SIZE - 1;
+                let sliced = &curve[..max_value];
+                Ok(sliced.to_vec())
+            }
+        }
+    }
+
     #[inline(always)]
     pub(crate) fn build_linearize_table<
         T: PointeeSizeExpressible,

@@ -43,7 +43,9 @@ pub(crate) fn ldexp(d: f64, i: u64) -> f64 {
 
 /// Computes exp2
 ///
-/// Max found ULP 0.5009765625 with FMA, without FMA 0.50244140625
+/// Max found ULP 0.5009765625 with FMA, without FMA 0.50244140625.
+///
+/// This method based on Gal.
 #[inline]
 pub fn f_exp2(d: f64) -> f64 {
     const REDUX: f64 = f64::from_bits(0x4338000000000000) / TBLSIZE as f64;
@@ -113,6 +115,9 @@ mod tests {
 
     #[test]
     fn test_exp2d() {
+        assert_eq!(f_exp2(2.0), 4.0);
+        assert_eq!(f_exp2(3.0), 8.0);
+        assert_eq!(f_exp2(4.0), 16.0);
         assert!((f_exp2(0.35f64) - 0.35f64.exp2()).abs() < 1e-8);
         assert!((f_exp2(-0.6f64) - (-0.6f64).exp2()).abs() < 1e-8);
     }

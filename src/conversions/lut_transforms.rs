@@ -26,54 +26,22 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-use crate::conversions::lut3x3::create_lut3x3;
-use crate::conversions::lut3x4::{create_lut3_samples, create_lut3_samples_norm, create_lut3x4};
-use crate::conversions::lut4::{create_lut4, create_lut4_norm_samples};
+use crate::conversions::lut3x3::{
+    create_lut3x3, katana_input_stage_lut_3x3, katana_output_stage_lut_3x3,
+};
+use crate::conversions::lut3x4::{create_lut3_samples_norm, create_lut3x4};
+use crate::conversions::lut4::{create_lut4, create_lut4_norm_samples, katana_input_stage_lut_4x3};
 use crate::conversions::mab::{prepare_mab_3x3, prepare_mba_3x3};
 use crate::conversions::transform_lut3_to_4::make_transform_3x4;
-use crate::lab::Lab;
 use crate::mlaf::mlaf;
 use crate::{
     CmsError, ColorProfile, DataColorSpace, InPlaceStage, Layout, LutWarehouse, Matrix3f,
-    ProfileVersion, TransformExecutor, TransformOptions, Xyz,
+    ProfileVersion, TransformExecutor, TransformOptions,
 };
 use num_traits::AsPrimitive;
-use std::marker::PhantomData;
 
-#[derive(Default)]
-pub(crate) struct StageLabToXyz {}
-
-impl InPlaceStage for StageLabToXyz {
-    fn transform(&self, dst: &mut [f32]) -> Result<(), CmsError> {
-        for dst in dst.chunks_exact_mut(3) {
-            let lab = Lab::new(dst[0], dst[1], dst[2]);
-            let xyz = lab.to_pcs_xyz();
-            dst[0] = xyz.x;
-            dst[1] = xyz.y;
-            dst[2] = xyz.z;
-        }
-        Ok(())
-    }
-}
-
-#[derive(Default)]
-pub(crate) struct StageXyzToLab {}
-
-impl InPlaceStage for StageXyzToLab {
-    fn transform(&self, dst: &mut [f32]) -> Result<(), CmsError> {
-        for dst in dst.chunks_exact_mut(3) {
-            let xyz = Xyz::new(dst[0], dst[1], dst[2]);
-            let lab = Lab::from_pcs_xyz(xyz);
-            dst[0] = lab.l;
-            dst[1] = lab.a;
-            dst[2] = lab.b;
-        }
-        Ok(())
-    }
-}
-
-struct MatrixStage {
-    matrices: Vec<Matrix3f>,
+pub(crate) struct MatrixStage {
+    pub(crate) matrices: Vec<Matrix3f>,
 }
 
 impl InPlaceStage for MatrixStage {
@@ -144,51 +112,6 @@ pub(crate) trait Lut4x3Factory {
         u32: AsPrimitive<T>,
         (): LutBarycentricReduction<T, u8>,
         (): LutBarycentricReduction<T, u16>;
-}
-
-struct RgbLinearizationStage<
-    T: Clone,
-    const BIT_DEPTH: usize,
-    const LINEAR_CAP: usize,
-    const SAMPLES: usize,
-> {
-    r_lin: Box<[f32; LINEAR_CAP]>,
-    g_lin: Box<[f32; LINEAR_CAP]>,
-    b_lin: Box<[f32; LINEAR_CAP]>,
-    _phantom: PhantomData<T>,
-}
-
-impl<
-    T: Clone + AsPrimitive<usize> + PointeeSizeExpressible,
-    const BIT_DEPTH: usize,
-    const LINEAR_CAP: usize,
-    const SAMPLES: usize,
-> RgbLinearizationStage<T, BIT_DEPTH, LINEAR_CAP, SAMPLES>
-{
-    fn transform(&self, src: &[T], dst: &mut [f32]) -> Result<(), CmsError> {
-        if src.len() % 3 != 0 {
-            return Err(CmsError::LaneMultipleOfChannels);
-        }
-        if dst.len() % 3 != 0 {
-            return Err(CmsError::LaneMultipleOfChannels);
-        }
-
-        let scale = if T::FINITE {
-            ((1 << BIT_DEPTH) - 1) as f32 / (SAMPLES as f32 - 1f32)
-        } else {
-            (T::NOT_FINITE_LINEAR_TABLE_SIZE - 1) as f32 / (SAMPLES as f32 - 1f32)
-        };
-
-        for (src, dst) in src.chunks_exact(3).zip(dst.chunks_exact_mut(3)) {
-            let j_r = src[0].as_() as f32 * scale;
-            let j_g = src[1].as_() as f32 * scale;
-            let j_b = src[2].as_() as f32 * scale;
-            dst[0] = self.r_lin[(j_r.round() as u16) as usize];
-            dst[1] = self.g_lin[(j_g.round() as u16) as usize];
-            dst[2] = self.b_lin[(j_b.round() as u16) as usize];
-        }
-        Ok(())
-    }
 }
 
 fn pcs_lab_v4_to_v2(profile: &ColorProfile, lut: &mut [f32]) {
@@ -371,6 +294,12 @@ make_transform_3x3_fn!(make_transformer_3x3_sse41, SseLut3x3Factory);
 #[cfg(all(target_arch = "x86_64", feature = "avx"))]
 use crate::conversions::avx::AvxLut4x3Factory;
 use crate::conversions::interpolator::LutBarycentricReduction;
+use crate::conversions::katana::{
+    Katana, KatanaDefaultIntermediate, KatanaInitialStage, KatanaStageLabToXyz,
+    KatanaStageXyzToLab, katana_create_rgb_lin_lut, katana_pcs_lab_v2_to_v4,
+    katana_pcs_lab_v4_to_v2, katana_prepare_inverse_lut_rgb_xyz, multi_dimensional_3x3_to_device,
+    multi_dimensional_3x3_to_pcs, multi_dimensional_4x3_to_pcs,
+};
 use crate::conversions::mab4x3::prepare_mab_4x3;
 use crate::conversions::mba3x4::prepare_mba_3x4;
 // use crate::conversions::bpc::compensate_bpc_in_lut;
@@ -391,7 +320,8 @@ make_transform_4x3_fn!(make_transformer_4x3, DefaultLut4x3Factory);
 
 #[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
 use crate::conversions::neon::NeonLut4x3Factory;
-use crate::conversions::prelude_lut_xyz_rgb::{XyzToRgbStage, XyzToRgbStageExtended};
+use crate::conversions::prelude_lut_xyz_rgb::{create_rgb_lin_lut, prepare_inverse_lut_rgb_xyz};
+use crate::conversions::xyz_lab::{StageLabToXyz, StageXyzToLab};
 use crate::transform::PointeeSizeExpressible;
 use crate::trc::GammaLutInterpolate;
 
@@ -436,6 +366,77 @@ where
         }
 
         const GRID_SIZE: usize = 17;
+
+        let is_katana_required_for_source = source
+            .get_device_to_pcs(options.rendering_intent)
+            .ok_or(CmsError::UnsupportedLutRenderingIntent(
+                source.rendering_intent,
+            ))
+            .map(|x| x.is_katana_required())?;
+
+        let is_katana_required_for_destination =
+            if dest.is_matrix_shaper() || dest.pcs == DataColorSpace::Xyz {
+                false
+            } else if dest.pcs == DataColorSpace::Lab {
+                dest.get_pcs_to_device(options.rendering_intent)
+                    .ok_or(CmsError::UnsupportedProfileConnection)
+                    .map(|x| x.is_katana_required())?
+            } else {
+                return Err(CmsError::UnsupportedProfileConnection);
+            };
+
+        if is_katana_required_for_source || is_katana_required_for_destination {
+            let initial_stage: Box<dyn KatanaInitialStage<f32, T> + Send + Sync> =
+                match source.get_device_to_pcs(options.rendering_intent).ok_or(
+                    CmsError::UnsupportedLutRenderingIntent(source.rendering_intent),
+                )? {
+                    LutWarehouse::Lut(lut) => {
+                        katana_input_stage_lut_4x3::<T, BIT_DEPTH>(lut, options, source.pcs)?
+                    }
+                    LutWarehouse::Multidimensional(mab) => {
+                        multi_dimensional_4x3_to_pcs::<T, BIT_DEPTH>(mab, options, source.pcs)?
+                    }
+                };
+
+            let mut stages = Vec::new();
+
+            stages.push(katana_pcs_lab_v2_to_v4(source));
+            if source.pcs == DataColorSpace::Lab {
+                stages.push(Box::new(KatanaStageLabToXyz::default()));
+            }
+            if dest.pcs == DataColorSpace::Lab {
+                stages.push(Box::new(KatanaStageXyzToLab::default()));
+            }
+            stages.push(katana_pcs_lab_v4_to_v2(dest));
+
+            let final_stage = if dest.has_pcs_to_device_lut() {
+                let pcs_to_device = dest
+                    .get_pcs_to_device(options.rendering_intent)
+                    .ok_or(CmsError::UnsupportedProfileConnection)?;
+                match pcs_to_device {
+                    LutWarehouse::Lut(lut) => {
+                        katana_output_stage_lut_3x3::<T, BIT_DEPTH>(lut, options, dest.pcs)?
+                    }
+                    LutWarehouse::Multidimensional(mab) => {
+                        multi_dimensional_3x3_to_device::<T, BIT_DEPTH>(mab, options, dest.pcs)?
+                    }
+                }
+            } else if dest.is_matrix_shaper() {
+                let state = katana_prepare_inverse_lut_rgb_xyz::<T, BIT_DEPTH, GAMMA_LUT>(
+                    dest, dst_layout, options,
+                )?;
+                stages.extend(state.stages);
+                state.final_stage
+            } else {
+                return Err(CmsError::UnsupportedProfileConnection);
+            };
+
+            return Ok(Box::new(Katana::<f32, T> {
+                initial_stage,
+                final_stage,
+                stages,
+            }));
+        }
 
         let mut lut = match source.get_device_to_pcs(options.rendering_intent).ok_or(
             CmsError::UnsupportedLutRenderingIntent(source.rendering_intent),
@@ -601,6 +602,90 @@ where
 
         const GRID_SIZE: usize = 33;
 
+        let is_katana_required_for_source = if source.is_matrix_shaper() {
+            false
+        } else {
+            source
+                .get_device_to_pcs(options.rendering_intent)
+                .ok_or(CmsError::UnsupportedLutRenderingIntent(
+                    source.rendering_intent,
+                ))
+                .map(|x| x.is_katana_required())?
+        };
+
+        let is_katana_required_for_destination =
+            if source.is_matrix_shaper() || dest.pcs == DataColorSpace::Xyz {
+                false
+            } else if dest.pcs == DataColorSpace::Lab {
+                dest.get_pcs_to_device(options.rendering_intent)
+                    .ok_or(CmsError::UnsupportedProfileConnection)
+                    .map(|x| x.is_katana_required())?
+            } else {
+                return Err(CmsError::UnsupportedProfileConnection);
+            };
+
+        let mut stages: Vec<Box<KatanaDefaultIntermediate>> = Vec::new();
+
+        // Slow and accurate fallback if anything not acceptable is detected by curve analysis
+        if is_katana_required_for_source || is_katana_required_for_destination {
+            let source_stage: Box<dyn KatanaInitialStage<f32, T> + Send + Sync> =
+                if source.is_matrix_shaper() {
+                    let state = katana_create_rgb_lin_lut::<T, BIT_DEPTH, LINEAR_CAP>(
+                        src_layout, source, options,
+                    )?;
+                    stages.extend(state.stages);
+                    state.initial_stage
+                } else {
+                    match source.get_device_to_pcs(options.rendering_intent).ok_or(
+                        CmsError::UnsupportedLutRenderingIntent(source.rendering_intent),
+                    )? {
+                        LutWarehouse::Lut(lut) => {
+                            katana_input_stage_lut_3x3::<T, BIT_DEPTH>(lut, options, source.pcs)?
+                        }
+                        LutWarehouse::Multidimensional(mab) => {
+                            multi_dimensional_3x3_to_pcs::<T, BIT_DEPTH>(mab, options, source.pcs)?
+                        }
+                    }
+                };
+
+            stages.push(katana_pcs_lab_v2_to_v4(source));
+            if source.pcs == DataColorSpace::Lab {
+                stages.push(Box::new(KatanaStageLabToXyz::default()));
+            }
+            if dest.pcs == DataColorSpace::Lab {
+                stages.push(Box::new(KatanaStageXyzToLab::default()));
+            }
+            stages.push(katana_pcs_lab_v4_to_v2(dest));
+
+            let final_stage = if dest.has_pcs_to_device_lut() {
+                let pcs_to_device = dest
+                    .get_pcs_to_device(options.rendering_intent)
+                    .ok_or(CmsError::UnsupportedProfileConnection)?;
+                match pcs_to_device {
+                    LutWarehouse::Lut(lut) => {
+                        katana_output_stage_lut_3x3::<T, BIT_DEPTH>(lut, options, dest.pcs)?
+                    }
+                    LutWarehouse::Multidimensional(mab) => {
+                        multi_dimensional_3x3_to_device::<T, BIT_DEPTH>(mab, options, dest.pcs)?
+                    }
+                }
+            } else if dest.is_matrix_shaper() {
+                let state = katana_prepare_inverse_lut_rgb_xyz::<T, BIT_DEPTH, GAMMA_LUT>(
+                    dest, dst_layout, options,
+                )?;
+                stages.extend(state.stages);
+                state.final_stage
+            } else {
+                return Err(CmsError::UnsupportedProfileConnection);
+            };
+
+            return Ok(Box::new(Katana::<f32, T> {
+                initial_stage: source_stage,
+                final_stage,
+                stages,
+            }));
+        }
+
         let mut lut: Vec<f32>;
 
         if source.has_device_to_pcs_lut() {
@@ -691,131 +776,4 @@ where
     }
 
     Err(CmsError::UnsupportedProfileConnection)
-}
-
-fn create_rgb_lin_lut<
-    T: Copy + Default + AsPrimitive<f32> + Send + Sync + AsPrimitive<usize> + PointeeSizeExpressible,
-    const BIT_DEPTH: usize,
-    const LINEAR_CAP: usize,
-    const GRID_SIZE: usize,
->(
-    source: &ColorProfile,
-    opts: TransformOptions,
-) -> Result<Vec<f32>, CmsError>
-where
-    u32: AsPrimitive<T>,
-    f32: AsPrimitive<T>,
-{
-    let lut_origins = create_lut3_samples::<T, GRID_SIZE>();
-
-    let lin_r =
-        source.build_r_linearize_table::<T, LINEAR_CAP, BIT_DEPTH>(opts.allow_use_cicp_transfer)?;
-    let lin_g =
-        source.build_g_linearize_table::<T, LINEAR_CAP, BIT_DEPTH>(opts.allow_use_cicp_transfer)?;
-    let lin_b =
-        source.build_b_linearize_table::<T, LINEAR_CAP, BIT_DEPTH>(opts.allow_use_cicp_transfer)?;
-
-    let lin_stage = RgbLinearizationStage::<T, BIT_DEPTH, LINEAR_CAP, GRID_SIZE> {
-        r_lin: lin_r,
-        g_lin: lin_g,
-        b_lin: lin_b,
-        _phantom: PhantomData,
-    };
-
-    let mut lut = vec![0f32; lut_origins.len()];
-    lin_stage.transform(&lut_origins, &mut lut)?;
-
-    let xyz_to_rgb = source.rgb_to_xyz_matrix();
-
-    let matrices = vec![
-        xyz_to_rgb.to_f32(),
-        Matrix3f {
-            v: [
-                [32768.0 / 65535.0, 0.0, 0.0],
-                [0.0, 32768.0 / 65535.0, 0.0],
-                [0.0, 0.0, 32768.0 / 65535.0],
-            ],
-        },
-    ];
-
-    let matrix_stage = MatrixStage { matrices };
-    matrix_stage.transform(&mut lut)?;
-    Ok(lut)
-}
-
-fn prepare_inverse_lut_rgb_xyz<
-    T: Copy
-        + Default
-        + AsPrimitive<f32>
-        + Send
-        + Sync
-        + AsPrimitive<usize>
-        + PointeeSizeExpressible
-        + GammaLutInterpolate,
-    const BIT_DEPTH: usize,
-    const GAMMA_LUT: usize,
->(
-    dest: &ColorProfile,
-    lut: &mut [f32],
-    options: TransformOptions,
-) -> Result<(), CmsError>
-where
-    f32: AsPrimitive<T>,
-    u32: AsPrimitive<T>,
-{
-    if !T::FINITE {
-        if let Some(extended_gamma) = dest.try_extended_gamma_evaluator() {
-            let xyz_to_rgb = dest.rgb_to_xyz_matrix().inverse();
-
-            let mut matrices = vec![Matrix3f {
-                v: [
-                    [65535.0 / 32768.0, 0.0, 0.0],
-                    [0.0, 65535.0 / 32768.0, 0.0],
-                    [0.0, 0.0, 65535.0 / 32768.0],
-                ],
-            }];
-
-            matrices.push(xyz_to_rgb.to_f32());
-            let xyz_to_rgb_stage = XyzToRgbStageExtended::<T> {
-                gamma_evaluator: extended_gamma,
-                matrices,
-                phantom_data: PhantomData,
-            };
-            xyz_to_rgb_stage.transform(lut)?;
-            return Ok(());
-        }
-    }
-    let gamma_map_r = dest.build_gamma_table::<T, 65536, GAMMA_LUT, BIT_DEPTH>(
-        &dest.red_trc,
-        options.allow_use_cicp_transfer,
-    )?;
-    let gamma_map_g = dest.build_gamma_table::<T, 65536, GAMMA_LUT, BIT_DEPTH>(
-        &dest.green_trc,
-        options.allow_use_cicp_transfer,
-    )?;
-    let gamma_map_b = dest.build_gamma_table::<T, 65536, GAMMA_LUT, BIT_DEPTH>(
-        &dest.blue_trc,
-        options.allow_use_cicp_transfer,
-    )?;
-
-    let xyz_to_rgb = dest.rgb_to_xyz_matrix().inverse();
-
-    let mut matrices = vec![Matrix3f {
-        v: [
-            [65535.0 / 32768.0, 0.0, 0.0],
-            [0.0, 65535.0 / 32768.0, 0.0],
-            [0.0, 0.0, 65535.0 / 32768.0],
-        ],
-    }];
-
-    matrices.push(xyz_to_rgb.to_f32());
-    let xyz_to_rgb_stage = XyzToRgbStage::<T, BIT_DEPTH, GAMMA_LUT> {
-        r_gamma: gamma_map_r,
-        g_gamma: gamma_map_g,
-        b_gamma: gamma_map_b,
-        matrices,
-        intent: options.rendering_intent,
-    };
-    xyz_to_rgb_stage.transform(lut)?;
-    Ok(())
 }

@@ -45,11 +45,11 @@ struct Lut3x4 {
     pcs: DataColorSpace,
 }
 
-fn stage_lut_3x4(
+fn make_lut_3x4(
     lut: &LutDataType,
     options: TransformOptions,
     pcs: DataColorSpace,
-) -> Result<Box<dyn Stage>, CmsError> {
+) -> Result<Lut3x4, CmsError> {
     let clut_length: usize = (lut.num_clut_grid_points as usize)
         .safe_powi(lut.num_input_channels as u32)?
         .safe_mul(lut.num_output_channels as usize)?;
@@ -106,6 +106,24 @@ fn stage_lut_3x4(
         grid_size: lut.num_clut_grid_points,
         pcs,
         gamma: [gamma_curve0, gamma_curve1, gamma_curve2, gamma_curve3],
+    };
+    Ok(transform)
+}
+
+fn stage_lut_3x4(
+    lut: &LutDataType,
+    options: TransformOptions,
+    pcs: DataColorSpace,
+) -> Result<Box<dyn Stage>, CmsError> {
+    let lut = make_lut_3x4(lut, options, pcs)?;
+
+    let transform = Lut3x4 {
+        input: lut.input,
+        interpolation_method: lut.interpolation_method,
+        clut: lut.clut,
+        grid_size: lut.grid_size,
+        pcs: lut.pcs,
+        gamma: lut.gamma,
     };
     Ok(Box::new(transform))
 }

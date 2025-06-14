@@ -168,7 +168,9 @@ static EXP_TABLE: [(u64, u64); 128] = [
 
 /// Computes exp10
 ///
-/// Max found ULP 0.5042259578689041
+/// Max found ULP 0.5042259578689041.
+///
+/// This method based on Gal.
 #[inline]
 pub fn f_exp10(x: f64) -> f64 {
     let z = INV_LN2_N * x;

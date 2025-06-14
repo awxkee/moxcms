@@ -1,5 +1,5 @@
 /*
- * // Copyright (c) Radzivon Bartoshyk 2/2025. All rights reserved.
+ * // Copyright (c) Radzivon Bartoshyk 6/2025. All rights reserved.
  * //
  * // Redistribution and use in source and binary forms, with or without modification,
  * // are permitted provided that the following conditions are met:
@@ -26,43 +26,20 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-#[cfg(all(target_arch = "x86_64", feature = "avx"))]
-mod avx;
-#[cfg(all(target_arch = "x86_64", feature = "avx512"))]
-mod avx512;
-mod bpc;
-mod gray2rgb;
-mod interpolator;
-mod katana;
-mod lut3x3;
-mod lut3x4;
-mod lut4;
-mod lut_transforms;
-mod mab;
-mod mab4x3;
-mod mba3x4;
-#[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
-mod neon;
-mod prelude_lut_xyz_rgb;
-mod rgb2gray;
-mod rgb_xyz_factory;
-mod rgbxyz;
-mod rgbxyz_fixed;
-mod rgbxyz_float;
-#[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"))]
-mod sse;
-mod transform_lut3_to_3;
-mod transform_lut3_to_4;
-mod transform_lut4_to_3;
+mod md3x3;
+mod md4x3;
+mod pcs_stages;
+mod rgb_xyz;
+mod stages;
 mod xyz_lab;
+mod xyz_rgb;
 
-pub(crate) use gray2rgb::make_gray_to_x;
-pub(crate) use interpolator::LutBarycentricReduction;
-pub(crate) use lut_transforms::make_lut_transform;
-pub(crate) use rgb_xyz_factory::{RgbXyzFactory, RgbXyzFactoryOpt};
-pub(crate) use rgb2gray::{ToneReproductionRgbToGray, make_rgb_to_gray};
-pub(crate) use rgbxyz::{TransformMatrixShaper, TransformMatrixShaperOptimized};
-pub(crate) use rgbxyz_float::{
-    TransformShaperFloatInOut, TransformShaperRgbFloat, make_rgb_xyz_rgb_transform_float,
-    make_rgb_xyz_rgb_transform_float_in_out,
+pub(crate) use md3x3::{multi_dimensional_3x3_to_device, multi_dimensional_3x3_to_pcs};
+pub(crate) use md4x3::multi_dimensional_4x3_to_pcs;
+pub(crate) use pcs_stages::{
+    KatanaDefaultIntermediate, katana_pcs_lab_v2_to_v4, katana_pcs_lab_v4_to_v2,
 };
+pub(crate) use rgb_xyz::katana_create_rgb_lin_lut;
+pub(crate) use stages::{Katana, KatanaFinalStage, KatanaInitialStage, KatanaIntermediateStage};
+pub(crate) use xyz_lab::{KatanaStageLabToXyz, KatanaStageXyzToLab};
+pub(crate) use xyz_rgb::katana_prepare_inverse_lut_rgb_xyz;

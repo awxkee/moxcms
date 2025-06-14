@@ -1,5 +1,5 @@
 /*
- * // Copyright (c) Radzivon Bartoshyk 2/2025. All rights reserved.
+ * // Copyright (c) Radzivon Bartoshyk 6/2025. All rights reserved.
  * //
  * // Redistribution and use in source and binary forms, with or without modification,
  * // are permitted provided that the following conditions are met:
@@ -26,43 +26,35 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-#[cfg(all(target_arch = "x86_64", feature = "avx"))]
-mod avx;
-#[cfg(all(target_arch = "x86_64", feature = "avx512"))]
-mod avx512;
-mod bpc;
-mod gray2rgb;
-mod interpolator;
-mod katana;
-mod lut3x3;
-mod lut3x4;
-mod lut4;
-mod lut_transforms;
-mod mab;
-mod mab4x3;
-mod mba3x4;
-#[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
-mod neon;
-mod prelude_lut_xyz_rgb;
-mod rgb2gray;
-mod rgb_xyz_factory;
-mod rgbxyz;
-mod rgbxyz_fixed;
-mod rgbxyz_float;
-#[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"))]
-mod sse;
-mod transform_lut3_to_3;
-mod transform_lut3_to_4;
-mod transform_lut4_to_3;
-mod xyz_lab;
 
-pub(crate) use gray2rgb::make_gray_to_x;
-pub(crate) use interpolator::LutBarycentricReduction;
-pub(crate) use lut_transforms::make_lut_transform;
-pub(crate) use rgb_xyz_factory::{RgbXyzFactory, RgbXyzFactoryOpt};
-pub(crate) use rgb2gray::{ToneReproductionRgbToGray, make_rgb_to_gray};
-pub(crate) use rgbxyz::{TransformMatrixShaper, TransformMatrixShaperOptimized};
-pub(crate) use rgbxyz_float::{
-    TransformShaperFloatInOut, TransformShaperRgbFloat, make_rgb_xyz_rgb_transform_float,
-    make_rgb_xyz_rgb_transform_float_in_out,
-};
+#[derive(Copy, Clone, Default, Debug)]
+struct DegenerationAmount {
+    leading: usize,
+    trailing: usize,
+}
+
+/// Counts amount of duplicates on each side of curve
+fn count_leading_trailing_duplicated<T: PartialOrd>(lut: &[T]) -> DegenerationAmount {
+    if lut.is_empty() {
+        return DegenerationAmount::default();
+    }
+    let first = lut.first().unwrap();
+    let last = lut.last().unwrap();
+    let leading = lut.iter().take_while(|&v| v.eq(first)).count();
+    let trailing = lut.iter().rev().take_while(|&v| v.eq(last)).count();
+    DegenerationAmount { leading, trailing }
+}
+
+/// Finds out if curve is degenerated on the sides.
+pub(crate) fn is_curve_degenerated<T: PartialOrd>(v: &[T]) -> bool {
+    if v.is_empty() || v.len() < 2 {
+        return false;
+    }
+    let degeneration_amount = count_leading_trailing_duplicated(v);
+    if degeneration_amount.trailing <= 1 && degeneration_amount.leading <= 1 {
+        return false;
+    }
+    let leading_percentage = degeneration_amount.leading;
+    let trailing_percentage = degeneration_amount.trailing;
+    ((leading_percentage / 20) > 0) || ((trailing_percentage / 20) > 0)
+}

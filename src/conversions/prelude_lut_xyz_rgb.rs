@@ -26,9 +26,13 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+use crate::conversions::lut3x4::create_lut3_samples;
 use crate::mlaf::mlaf;
 use crate::trc::ExtendedGammaEvaluator;
-use crate::{CmsError, InPlaceStage, Matrix3f, RenderingIntent, Rgb, filmlike_clip};
+use crate::{
+    CmsError, ColorProfile, GammaLutInterpolate, InPlaceStage, Matrix3f, PointeeSizeExpressible,
+    RenderingIntent, Rgb, TransformOptions, filmlike_clip,
+};
 use num_traits::AsPrimitive;
 use std::marker::PhantomData;
 
@@ -144,4 +148,182 @@ impl<T: Clone + AsPrimitive<f32>> InPlaceStage for XyzToRgbStageExtended<T> {
 
         Ok(())
     }
+}
+
+struct RgbLinearizationStage<
+    T: Clone,
+    const BIT_DEPTH: usize,
+    const LINEAR_CAP: usize,
+    const SAMPLES: usize,
+> {
+    r_lin: Box<[f32; LINEAR_CAP]>,
+    g_lin: Box<[f32; LINEAR_CAP]>,
+    b_lin: Box<[f32; LINEAR_CAP]>,
+    _phantom: PhantomData<T>,
+}
+
+impl<
+    T: Clone + AsPrimitive<usize> + PointeeSizeExpressible,
+    const BIT_DEPTH: usize,
+    const LINEAR_CAP: usize,
+    const SAMPLES: usize,
+> RgbLinearizationStage<T, BIT_DEPTH, LINEAR_CAP, SAMPLES>
+{
+    fn transform(&self, src: &[T], dst: &mut [f32]) -> Result<(), CmsError> {
+        if src.len() % 3 != 0 {
+            return Err(CmsError::LaneMultipleOfChannels);
+        }
+        if dst.len() % 3 != 0 {
+            return Err(CmsError::LaneMultipleOfChannels);
+        }
+
+        let scale = if T::FINITE {
+            ((1 << BIT_DEPTH) - 1) as f32 / (SAMPLES as f32 - 1f32)
+        } else {
+            (T::NOT_FINITE_LINEAR_TABLE_SIZE - 1) as f32 / (SAMPLES as f32 - 1f32)
+        };
+
+        let capped_value = if T::FINITE {
+            (1 << BIT_DEPTH) - 1
+        } else {
+            T::NOT_FINITE_LINEAR_TABLE_SIZE - 1
+        };
+
+        for (src, dst) in src.chunks_exact(3).zip(dst.chunks_exact_mut(3)) {
+            let j_r = src[0].as_() as f32 * scale;
+            let j_g = src[1].as_() as f32 * scale;
+            let j_b = src[2].as_() as f32 * scale;
+            dst[0] = self.r_lin[(j_r.round().max(0.0).min(capped_value as f32) as u16) as usize];
+            dst[1] = self.g_lin[(j_g.round().max(0.0).min(capped_value as f32) as u16) as usize];
+            dst[2] = self.b_lin[(j_b.round().max(0.0).min(capped_value as f32) as u16) as usize];
+        }
+        Ok(())
+    }
+}
+
+pub(crate) fn create_rgb_lin_lut<
+    T: Copy + Default + AsPrimitive<f32> + Send + Sync + AsPrimitive<usize> + PointeeSizeExpressible,
+    const BIT_DEPTH: usize,
+    const LINEAR_CAP: usize,
+    const GRID_SIZE: usize,
+>(
+    source: &ColorProfile,
+    opts: TransformOptions,
+) -> Result<Vec<f32>, CmsError>
+where
+    u32: AsPrimitive<T>,
+    f32: AsPrimitive<T>,
+{
+    let lut_origins = create_lut3_samples::<T, GRID_SIZE>();
+
+    let lin_r =
+        source.build_r_linearize_table::<T, LINEAR_CAP, BIT_DEPTH>(opts.allow_use_cicp_transfer)?;
+    let lin_g =
+        source.build_g_linearize_table::<T, LINEAR_CAP, BIT_DEPTH>(opts.allow_use_cicp_transfer)?;
+    let lin_b =
+        source.build_b_linearize_table::<T, LINEAR_CAP, BIT_DEPTH>(opts.allow_use_cicp_transfer)?;
+
+    let lin_stage = RgbLinearizationStage::<T, BIT_DEPTH, LINEAR_CAP, GRID_SIZE> {
+        r_lin: lin_r,
+        g_lin: lin_g,
+        b_lin: lin_b,
+        _phantom: PhantomData,
+    };
+
+    let mut lut = vec![0f32; lut_origins.len()];
+    lin_stage.transform(&lut_origins, &mut lut)?;
+
+    let xyz_to_rgb = source.rgb_to_xyz_matrix();
+
+    let matrices = vec![
+        xyz_to_rgb.to_f32(),
+        Matrix3f {
+            v: [
+                [32768.0 / 65535.0, 0.0, 0.0],
+                [0.0, 32768.0 / 65535.0, 0.0],
+                [0.0, 0.0, 32768.0 / 65535.0],
+            ],
+        },
+    ];
+
+    let matrix_stage = crate::conversions::lut_transforms::MatrixStage { matrices };
+    matrix_stage.transform(&mut lut)?;
+    Ok(lut)
+}
+
+pub(crate) fn prepare_inverse_lut_rgb_xyz<
+    T: Copy
+        + Default
+        + AsPrimitive<f32>
+        + Send
+        + Sync
+        + AsPrimitive<usize>
+        + PointeeSizeExpressible
+        + GammaLutInterpolate,
+    const BIT_DEPTH: usize,
+    const GAMMA_LUT: usize,
+>(
+    dest: &ColorProfile,
+    lut: &mut [f32],
+    options: TransformOptions,
+) -> Result<(), CmsError>
+where
+    f32: AsPrimitive<T>,
+    u32: AsPrimitive<T>,
+{
+    if !T::FINITE {
+        if let Some(extended_gamma) = dest.try_extended_gamma_evaluator() {
+            let xyz_to_rgb = dest.rgb_to_xyz_matrix().inverse();
+
+            let mut matrices = vec![Matrix3f {
+                v: [
+                    [65535.0 / 32768.0, 0.0, 0.0],
+                    [0.0, 65535.0 / 32768.0, 0.0],
+                    [0.0, 0.0, 65535.0 / 32768.0],
+                ],
+            }];
+
+            matrices.push(xyz_to_rgb.to_f32());
+            let xyz_to_rgb_stage = XyzToRgbStageExtended::<T> {
+                gamma_evaluator: extended_gamma,
+                matrices,
+                phantom_data: PhantomData,
+            };
+            xyz_to_rgb_stage.transform(lut)?;
+            return Ok(());
+        }
+    }
+    let gamma_map_r = dest.build_gamma_table::<T, 65536, GAMMA_LUT, BIT_DEPTH>(
+        &dest.red_trc,
+        options.allow_use_cicp_transfer,
+    )?;
+    let gamma_map_g = dest.build_gamma_table::<T, 65536, GAMMA_LUT, BIT_DEPTH>(
+        &dest.green_trc,
+        options.allow_use_cicp_transfer,
+    )?;
+    let gamma_map_b = dest.build_gamma_table::<T, 65536, GAMMA_LUT, BIT_DEPTH>(
+        &dest.blue_trc,
+        options.allow_use_cicp_transfer,
+    )?;
+
+    let xyz_to_rgb = dest.rgb_to_xyz_matrix().inverse();
+
+    let mut matrices = vec![Matrix3f {
+        v: [
+            [65535.0 / 32768.0, 0.0, 0.0],
+            [0.0, 65535.0 / 32768.0, 0.0],
+            [0.0, 0.0, 65535.0 / 32768.0],
+        ],
+    }];
+
+    matrices.push(xyz_to_rgb.to_f32());
+    let xyz_to_rgb_stage = XyzToRgbStage::<T, BIT_DEPTH, GAMMA_LUT> {
+        r_gamma: gamma_map_r,
+        g_gamma: gamma_map_g,
+        b_gamma: gamma_map_b,
+        matrices,
+        intent: options.rendering_intent,
+    };
+    xyz_to_rgb_stage.transform(lut)?;
+    Ok(())
 }

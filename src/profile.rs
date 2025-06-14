@@ -32,14 +32,10 @@ use crate::cicp::{
 use crate::dat::ColorDateTime;
 use crate::err::CmsError;
 use crate::matrix::{Matrix3f, XyY, Xyz};
-use crate::reader::{
-    s15_fixed16_number_to_float, uint8_number_to_float_fast, uint16_number_to_float_fast,
-};
+use crate::reader::s15_fixed16_number_to_float;
 use crate::safe_math::{SafeAdd, SafeMul};
 use crate::tag::{TAG_SIZE, Tag};
-use crate::trc::{
-    ToneReprCurve, is_curve_ascending, is_curve_descending, is_curve_linear8, is_curve_linear16,
-};
+use crate::trc::ToneReprCurve;
 use crate::{Chromaticity, Layout, Matrix3d, Vector3d, Xyzd, adapt_to_d50_d};
 use std::io::Read;
 
@@ -253,54 +249,6 @@ impl From<ProfileClass> for u32 {
 pub enum LutStore {
     Store8(Vec<u8>),
     Store16(Vec<u16>),
-}
-
-impl LutStore {
-    pub fn to_clut_f32(&self) -> Vec<f32> {
-        match self {
-            LutStore::Store8(store) => store
-                .iter()
-                .map(|x| uint8_number_to_float_fast(*x))
-                .collect(),
-            LutStore::Store16(store) => store
-                .iter()
-                .map(|x| uint16_number_to_float_fast(*x as u32))
-                .collect(),
-        }
-    }
-
-    #[allow(dead_code)]
-    pub(crate) fn is_linear(&self, entries: usize, channel: usize) -> bool {
-        let start = entries * channel;
-        let end = start + entries;
-
-        match &self {
-            LutStore::Store8(v) => is_curve_linear8(&v[start..end]),
-            LutStore::Store16(v) => is_curve_linear16(&v[start..end]),
-        }
-    }
-
-    #[allow(dead_code)]
-    pub(crate) fn is_descending(&self, entries: usize, channel: usize) -> bool {
-        let start = entries * channel;
-        let end = start + entries;
-
-        match &self {
-            LutStore::Store8(v) => is_curve_descending(&v[start..end]),
-            LutStore::Store16(v) => is_curve_descending(&v[start..end]),
-        }
-    }
-
-    #[allow(dead_code)]
-    pub(crate) fn is_ascending(&self, entries: usize, channel: usize) -> bool {
-        let start = entries * channel;
-        let end = start + entries;
-
-        match &self {
-            LutStore::Store8(v) => is_curve_ascending(&v[start..end]),
-            LutStore::Store16(v) => is_curve_ascending(&v[start..end]),
-        }
-    }
 }
 
 #[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq)]

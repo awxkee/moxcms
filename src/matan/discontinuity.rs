@@ -1,5 +1,5 @@
 /*
- * // Copyright (c) Radzivon Bartoshyk 2/2025. All rights reserved.
+ * // Copyright (c) Radzivon Bartoshyk 6/2025. All rights reserved.
  * //
  * // Redistribution and use in source and binary forms, with or without modification,
  * // are permitted provided that the following conditions are met:
@@ -26,43 +26,49 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-#[cfg(all(target_arch = "x86_64", feature = "avx"))]
-mod avx;
-#[cfg(all(target_arch = "x86_64", feature = "avx512"))]
-mod avx512;
-mod bpc;
-mod gray2rgb;
-mod interpolator;
-mod katana;
-mod lut3x3;
-mod lut3x4;
-mod lut4;
-mod lut_transforms;
-mod mab;
-mod mab4x3;
-mod mba3x4;
-#[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
-mod neon;
-mod prelude_lut_xyz_rgb;
-mod rgb2gray;
-mod rgb_xyz_factory;
-mod rgbxyz;
-mod rgbxyz_fixed;
-mod rgbxyz_float;
-#[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"))]
-mod sse;
-mod transform_lut3_to_3;
-mod transform_lut3_to_4;
-mod transform_lut4_to_3;
-mod xyz_lab;
+use num_traits::AsPrimitive;
 
-pub(crate) use gray2rgb::make_gray_to_x;
-pub(crate) use interpolator::LutBarycentricReduction;
-pub(crate) use lut_transforms::make_lut_transform;
-pub(crate) use rgb_xyz_factory::{RgbXyzFactory, RgbXyzFactoryOpt};
-pub(crate) use rgb2gray::{ToneReproductionRgbToGray, make_rgb_to_gray};
-pub(crate) use rgbxyz::{TransformMatrixShaper, TransformMatrixShaperOptimized};
-pub(crate) use rgbxyz_float::{
-    TransformShaperFloatInOut, TransformShaperRgbFloat, make_rgb_xyz_rgb_transform_float,
-    make_rgb_xyz_rgb_transform_float_in_out,
-};
+pub(crate) trait DiscontinuitySpike {
+    const SPIKE: f64;
+}
+
+impl DiscontinuitySpike for u8 {
+    const SPIKE: f64 = 16.0;
+}
+
+impl DiscontinuitySpike for u16 {
+    const SPIKE: f64 = 2100.;
+}
+
+impl DiscontinuitySpike for f32 {
+    const SPIKE: f64 = 0.07;
+}
+
+/// Searches LUT curve for discontinuity
+pub(crate) fn does_curve_have_discontinuity<
+    T: Copy + PartialEq + DiscontinuitySpike + AsPrimitive<f64> + 'static,
+>(
+    curve: &[T],
+) -> bool {
+    if curve.len() < 2 {
+        return false;
+    }
+    let threshold: f64 = T::SPIKE;
+    let mut discontinuities = 0u64;
+    let mut previous_element: f64 = curve[0].as_();
+    let diff: f64 = (curve[1].as_() - previous_element).abs();
+    if diff > threshold {
+        discontinuities += 1;
+    }
+    for element in curve.iter().skip(1) {
+        let new_diff: f64 = (element.as_() - previous_element).abs();
+        if new_diff > threshold {
+            discontinuities += 1;
+            if discontinuities > 3 {
+                break;
+            }
+        }
+        previous_element = element.as_();
+    }
+    discontinuities > 3
+}

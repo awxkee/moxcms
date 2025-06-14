@@ -280,14 +280,14 @@ fn as_exp_accurate(x: f64, t: f64, tz: Dekker, ie: i64) -> f64 {
     f.hi
 }
 
-/// Exp using FMA
+/// Computes exponent
 ///
 /// Max found ULP 0.5
 #[inline]
 pub fn f_exp(x: f64) -> f64 {
     let mut ix = x.to_bits();
     let aix = ix & 0x7fffffffffffffff;
-    // exp(x) rounds to 1 to nearest for |x| <= 0x1p-54
+    // exp(x) rounds to 1 to nearest for |x| <= 5.55112e-17
     if aix <= 0x3c90000000000000u64 {
         // |x| <= 5.55112e-17
         return 1.0 + x;
