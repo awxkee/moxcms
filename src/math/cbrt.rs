@@ -95,7 +95,7 @@ pub fn f_cbrt(x: f64) -> f64 {
 
     let mut h = f_fmla(y2, y * r, -1.0);
     /* h determines the error between y and z^(1/3) */
-    y -= (h * y) * f_fmla(-U1, h, U0);
+    y = f_fmla(-(h * y), f_fmla(-U1, h, U0), y);
     /* The correction y -= (h*y)*(u0 - u1*h) corresponds to a cubic variant
     of Newton's method, with the function f(y) = 1-z/y^3. */
     y *= f64::from_bits(cvt2);

@@ -32,7 +32,7 @@ use image::ImageDecoder;
 use lcms2::Profile;
 use moxcms::{
     BarycentricWeightScale, ColorProfile, InterpolationMethod, Layout, RenderingIntent,
-    TransformOptions,
+    TransformOptions, Xyz,
 };
 use std::fs;
 
