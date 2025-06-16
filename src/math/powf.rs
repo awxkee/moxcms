@@ -33,6 +33,9 @@ use crate::{expf, logf};
 pub const fn powf(d: f32, n: f32) -> f32 {
     let value = d.abs();
     let c = expf(n * logf(value));
+    if n == 1. {
+        return d;
+    }
     if d < 0.0 {
         let y = n as i32;
         if y % 2 == 0 { c } else { -c }
@@ -47,6 +50,9 @@ pub fn f_powf(d: f32, n: f32) -> f32 {
     use crate::f_exp2;
     use crate::math::log2f::f_log2fx;
     let value = d.abs();
+    if n == 1. {
+        return d;
+    }
     let lg = f_log2fx(value);
     let c = f_exp2(n as f64 * lg) as f32;
     if d < 0.0 {

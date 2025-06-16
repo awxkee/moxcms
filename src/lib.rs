@@ -73,6 +73,7 @@ mod trc;
 mod writer;
 mod yrg;
 // Simple math analysis module
+mod dt_ucs;
 mod helpers;
 mod lut_hint;
 mod matan;
@@ -87,6 +88,7 @@ pub use defaults::{
     HLG_LUT_TABLE, PQ_LUT_TABLE, WHITE_POINT_D50, WHITE_POINT_D60, WHITE_POINT_D65,
     WHITE_POINT_DCI_P3,
 };
+pub use dt_ucs::{DtUchHcb, DtUchHsb, DtUchJch};
 pub use err::{CmsError, MalformedSize};
 pub use gamut::filmlike_clip;
 pub use ictcp::ICtCp;

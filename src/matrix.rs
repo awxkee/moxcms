@@ -1013,6 +1013,33 @@ pub struct Xyz {
     pub z: f32,
 }
 
+impl Xyz {
+    #[inline]
+    pub fn to_xyy(&self) -> [f32; 3] {
+        let sums = self.x + self.y + self.z;
+        if sums == 0. {
+            return [0., 0., self.y];
+        }
+        let x = self.x / sums;
+        let y = self.y / sums;
+        let yb = self.y;
+        [x, y, yb]
+    }
+
+    #[inline]
+    pub fn from_xyy(xyy: [f32; 3]) -> Xyz {
+        let reciprocal = if xyy[1] != 0. {
+            1. / xyy[1] * xyy[2]
+        } else {
+            0.
+        };
+        let x = xyy[0] * reciprocal;
+        let y = xyy[2];
+        let z = (1. - xyy[0] - xyy[1]) * reciprocal;
+        Xyz { x, y, z }
+    }
+}
+
 /// Holds CIE XYZ representation, in double precision
 #[repr(C)]
 #[derive(Clone, Debug, Copy, Default)]
@@ -1056,6 +1083,26 @@ macro_rules! define_xyz {
             }
 
             #[inline]
+            pub fn matrix_mul(&self, matrix: $matrix) -> Self {
+                let x = mlaf(
+                    mlaf(self.x * matrix.v[0][0], self.y, matrix.v[0][1]),
+                    self.z,
+                    matrix.v[0][2],
+                );
+                let y = mlaf(
+                    mlaf(self.x * matrix.v[1][0], self.y, matrix.v[1][1]),
+                    self.z,
+                    matrix.v[1][2],
+                );
+                let z = mlaf(
+                    mlaf(self.x * matrix.v[2][0], self.y, matrix.v[2][1]),
+                    self.z,
+                    matrix.v[2][2],
+                );
+                Self::new(x, y, z)
+            }
+
+            #[inline]
             pub fn from_linear_rgb(rgb: crate::Rgb<$im_type>, rgb_to_xyz: $matrix) -> Self {
                 let r = rgb.r;
                 let g = rgb.g;
@@ -1087,12 +1134,17 @@ macro_rules! define_xyz {
             #[inline]
             pub fn normalize(self) -> Self {
                 if self.y == 0. {
-                    return Self::default();
+                    return Self {
+                        x: 0.,
+                        y: 1.0,
+                        z: 0.0,
+                    };
                 }
+                let reciprocal = 1. / self.y;
                 Self {
-                    x: self.x / self.y,
+                    x: self.x * reciprocal,
                     y: 1.0,
-                    z: self.z / self.y,
+                    z: self.z * reciprocal,
                 }
             }
 
@@ -1136,6 +1188,15 @@ macro_rules! define_xyz {
                     y: self.y * rhs,
                     z: self.z * rhs,
                 }
+            }
+        }
+
+        impl Mul<$matrix> for $xyz_name {
+            type Output = $xyz_name;
+
+            #[inline]
+            fn mul(self, rhs: $matrix) -> Self::Output {
+                self.matrix_mul(rhs)
             }
         }
 
@@ -1198,6 +1259,14 @@ impl Xyzd {
             z: self.z as f32,
         }
     }
+
+    pub fn to_xyzd(self) -> Xyzd {
+        Xyzd {
+            x: self.x,
+            y: self.y,
+            z: self.z,
+        }
+    }
 }
 
 define_xyz!(Xyz, f32, Matrix3f);
@@ -1219,19 +1288,29 @@ impl XyY {
 
     #[inline]
     pub const fn to_xyz(self) -> Xyz {
+        let reciprocal = if self.y != 0. {
+            1. / self.y * self.yb
+        } else {
+            0.
+        };
         Xyz {
-            x: (self.x / self.y * self.yb) as f32,
+            x: (self.x * reciprocal) as f32,
             y: self.yb as f32,
-            z: ((1. - self.x - self.y) / self.y * self.yb) as f32,
+            z: ((1. - self.x - self.y) * reciprocal) as f32,
         }
     }
 
     #[inline]
     pub const fn to_xyzd(self) -> Xyzd {
+        let reciprocal = if self.y != 0. {
+            1. / self.y * self.yb
+        } else {
+            0.
+        };
         Xyzd {
-            x: self.x / self.y * self.yb,
+            x: self.x * reciprocal,
             y: self.yb,
-            z: (1. - self.x - self.y) / self.y * self.yb,
+            z: (1. - self.x - self.y) * reciprocal,
         }
     }
 }
@@ -1251,19 +1330,21 @@ impl Chromaticity {
 
     #[inline]
     pub const fn to_xyz(&self) -> Xyz {
+        let reciprocal = if self.y != 0. { 1. / self.y } else { 0. };
         Xyz {
-            x: self.x / self.y,
+            x: self.x * reciprocal,
             y: 1f32,
-            z: (1f32 - self.x - self.y) / self.y,
+            z: (1f32 - self.x - self.y) * reciprocal,
         }
     }
 
     #[inline]
     pub const fn to_xyzd(&self) -> Xyzd {
+        let reciprocal = if self.y != 0. { 1. / self.y } else { 0. };
         Xyzd {
-            x: self.x as f64 / self.y as f64,
+            x: self.x as f64 * reciprocal as f64,
             y: 1f64,
-            z: (1f64 - self.x as f64 - self.y as f64) / self.y as f64,
+            z: (1f64 - self.x as f64 - self.y as f64) * reciprocal as f64,
         }
     }
 
@@ -1298,7 +1379,7 @@ impl TryFrom<Xyz> for Chromaticity {
         if sum == 0.0 {
             return Err(CmsError::DivisionByZero);
         }
-        let rec = 1f32 / (xyz.x + xyz.y + xyz.z);
+        let rec = 1f32 / sum;
 
         let chromaticity_x = xyz.x * rec;
         let chromaticity_y = xyz.y * rec;
@@ -1307,5 +1388,20 @@ impl TryFrom<Xyz> for Chromaticity {
             x: chromaticity_x,
             y: chromaticity_y,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_xyzd_xyy() {
+        let xyy = XyY::new(0.2, 0.4, 0.5);
+        let xyy = xyy.to_xyzd();
+        let r_xyy = xyy.to_xyzd();
+        assert!((r_xyy.x - xyy.x).abs() < 1e-5);
+        assert!((r_xyy.y - xyy.y).abs() < 1e-5);
+        assert!((r_xyy.z - xyy.z).abs() < 1e-5);
     }
 }
