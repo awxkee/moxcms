@@ -4,10 +4,13 @@
  * // Use of this source code is governed by a BSD-style
  * // license that can be found in the LICENSE file.
  */
-use crate::math::{m_clamp, m_max, m_min};
+use crate::math::{FusedMultiplyAdd, m_clamp, m_max, m_min};
 use crate::mlaf::mlaf;
-use crate::{Matrix3f, Vector3, Xyz};
-use num_traits::{AsPrimitive, Bounded, Float, Num, Pow};
+use crate::{
+    Matrix3f, Vector3, Xyz, f_exp, f_exp2, f_exp2f, f_exp10, f_exp10f, f_expf, f_log, f_log2,
+    f_log2f, f_log10, f_logf, f_pow, f_powf, log10f,
+};
+use num_traits::{AsPrimitive, Bounded, Float, Num, Pow, Signed};
 use std::cmp::Ordering;
 use std::ops::{Add, AddAssign, Div, DivAssign, Index, IndexMut, Mul, MulAssign, Neg, Sub};
 
@@ -177,6 +180,138 @@ generated_integral_definition_rgb!(i16);
 generated_integral_definition_rgb!(i32);
 generated_integral_definition_rgb!(u32);
 
+pub trait FusedPow<T> {
+    fn f_pow(&self, power: T) -> Self;
+}
+
+pub trait FusedLog2<T> {
+    fn f_log2(&self) -> Self;
+}
+
+pub trait FusedLog10<T> {
+    fn f_log10(&self) -> Self;
+}
+
+pub trait FusedLog<T> {
+    fn f_log(&self) -> Self;
+}
+
+pub trait FusedExp<T> {
+    fn f_exp(&self) -> Self;
+}
+
+pub trait FusedExp2<T> {
+    fn f_exp2(&self) -> Self;
+}
+
+pub trait FusedExp10<T> {
+    fn f_exp10(&self) -> Self;
+}
+
+impl FusedPow<Rgb<f32>> for Rgb<f32> {
+    fn f_pow(&self, power: Rgb<f32>) -> Rgb<f32> {
+        Rgb::new(
+            f_powf(self.r, power.r),
+            f_powf(self.g, power.g),
+            f_powf(self.b, power.b),
+        )
+    }
+}
+
+impl FusedPow<Rgb<f64>> for Rgb<f64> {
+    fn f_pow(&self, power: Rgb<f64>) -> Rgb<f64> {
+        Rgb::new(
+            f_pow(self.r, power.r),
+            f_pow(self.g, power.g),
+            f_pow(self.b, power.b),
+        )
+    }
+}
+
+impl FusedLog2<Rgb<f32>> for Rgb<f32> {
+    #[inline]
+    fn f_log2(&self) -> Rgb<f32> {
+        Rgb::new(f_log2f(self.r), f_log2f(self.g), f_log2f(self.b))
+    }
+}
+
+impl FusedLog2<Rgb<f64>> for Rgb<f64> {
+    #[inline]
+    fn f_log2(&self) -> Rgb<f64> {
+        Rgb::new(f_log2(self.r), f_log2(self.g), f_log2(self.b))
+    }
+}
+
+impl FusedLog<Rgb<f32>> for Rgb<f32> {
+    #[inline]
+    fn f_log(&self) -> Rgb<f32> {
+        Rgb::new(f_logf(self.r), f_logf(self.g), f_logf(self.b))
+    }
+}
+
+impl FusedLog<Rgb<f64>> for Rgb<f64> {
+    #[inline]
+    fn f_log(&self) -> Rgb<f64> {
+        Rgb::new(f_log(self.r), f_log(self.g), f_log(self.b))
+    }
+}
+
+impl FusedLog10<Rgb<f32>> for Rgb<f32> {
+    #[inline]
+    fn f_log10(&self) -> Rgb<f32> {
+        Rgb::new(log10f(self.r), log10f(self.g), log10f(self.b))
+    }
+}
+
+impl FusedLog10<Rgb<f64>> for Rgb<f64> {
+    #[inline]
+    fn f_log10(&self) -> Rgb<f64> {
+        Rgb::new(f_log10(self.r), f_log10(self.g), f_log10(self.b))
+    }
+}
+
+impl FusedExp<Rgb<f32>> for Rgb<f32> {
+    #[inline]
+    fn f_exp(&self) -> Rgb<f32> {
+        Rgb::new(f_expf(self.r), f_expf(self.g), f_expf(self.b))
+    }
+}
+
+impl FusedExp<Rgb<f64>> for Rgb<f64> {
+    #[inline]
+    fn f_exp(&self) -> Rgb<f64> {
+        Rgb::new(f_exp(self.r), f_exp(self.g), f_exp(self.b))
+    }
+}
+
+impl FusedExp2<Rgb<f32>> for Rgb<f32> {
+    #[inline]
+    fn f_exp2(&self) -> Rgb<f32> {
+        Rgb::new(f_exp2f(self.r), f_exp2f(self.g), f_exp2f(self.b))
+    }
+}
+
+impl FusedExp2<Rgb<f64>> for Rgb<f64> {
+    #[inline]
+    fn f_exp2(&self) -> Rgb<f64> {
+        Rgb::new(f_exp2(self.r), f_exp2(self.g), f_exp2(self.b))
+    }
+}
+
+impl FusedExp10<Rgb<f32>> for Rgb<f32> {
+    #[inline]
+    fn f_exp10(&self) -> Rgb<f32> {
+        Rgb::new(f_exp10f(self.r), f_exp10f(self.g), f_exp10f(self.b))
+    }
+}
+
+impl FusedExp10<Rgb<f64>> for Rgb<f64> {
+    #[inline]
+    fn f_exp10(&self) -> Rgb<f64> {
+        Rgb::new(f_exp10(self.r), f_exp10(self.g), f_exp10(self.b))
+    }
+}
+
 impl<T> Rgb<T>
 where
     T: Copy + AsPrimitive<f32>,
@@ -234,6 +369,28 @@ where
     #[inline]
     fn sub(self, rhs: T) -> Self::Output {
         Rgb::new(self.r - rhs, self.g - rhs, self.b - rhs)
+    }
+}
+
+impl<T: Copy + Clone> Add<T> for Rgb<T>
+where
+    T: Add<Output = T>,
+{
+    type Output = Rgb<T>;
+
+    #[inline]
+    fn add(self, rhs: T) -> Self::Output {
+        Rgb::new(self.r + rhs, self.g + rhs, self.b + rhs)
+    }
+}
+
+impl<T: Copy + Clone> Rgb<T>
+where
+    T: Signed,
+{
+    #[inline]
+    pub fn abs(self) -> Self {
+        Rgb::new(self.r.abs(), self.g.abs(), self.b.abs())
     }
 }
 
@@ -405,6 +562,19 @@ where
     #[inline]
     fn neg(self) -> Self::Output {
         Rgb::new(-self.r, -self.g, -self.b)
+    }
+}
+
+impl<T> Rgb<T>
+where
+    T: FusedMultiplyAdd<T>,
+{
+    pub fn mla(&self, b: Rgb<T>, c: Rgb<T>) -> Rgb<T> {
+        Rgb::new(
+            self.r.mla(b.r, c.r),
+            self.g.mla(b.g, c.g),
+            self.b.mla(b.b, c.b),
+        )
     }
 }
 

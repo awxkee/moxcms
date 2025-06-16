@@ -117,7 +117,7 @@ pub use profile::{
     ProfileClass, ProfileSignature, ProfileText, ProfileVersion, RenderingIntent,
     StandardIlluminant, StandardObserver, TechnologySignatures, ViewingConditions,
 };
-pub use rgb::Rgb;
+pub use rgb::{FusedExp, FusedExp2, FusedExp10, FusedLog, FusedLog2, FusedLog10, FusedPow, Rgb};
 pub use transform::{
     BarycentricWeightScale, InPlaceStage, InterpolationMethod, Layout, PointeeSizeExpressible,
     Stage, Transform8BitExecutor, Transform16BitExecutor, TransformExecutor,

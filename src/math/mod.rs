@@ -145,7 +145,7 @@ pub(crate) fn m_clamp<T: Num + PartialOrd>(a: T, min: T, max: T) -> T {
     }
 }
 
-pub(crate) trait FusedMultiplyAdd<T> {
+pub trait FusedMultiplyAdd<T> {
     fn mla(&self, b: T, c: T) -> T;
 }
 
