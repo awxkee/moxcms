@@ -145,7 +145,7 @@ fn main() {
         moxcms::ColorProfile::new_from_slice(&decoder.icc_profile().unwrap().unwrap()).unwrap();
     let custom_profile = Profile::new_icc(&decoder.icc_profile().unwrap().unwrap()).unwrap();
 
-    let gray_icc = fs::read("./assets/us_swop_coated.icc").unwrap();
+    let gray_icc = fs::read("./assets/HDTV (HD-CIF).icc").unwrap();
     let gray_target = ColorProfile::new_from_slice(&gray_icc).unwrap();
 
     let img = DynamicImage::from_decoder(decoder).unwrap();

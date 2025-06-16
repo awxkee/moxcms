@@ -93,7 +93,8 @@ impl Yrg {
     pub fn to_xyz(&self) -> Xyz {
         let l = mlaf(0.95 * self.r, 0.38, self.g);
         let m = mlaf(mlaf(0.03, 0.59, self.g), 0.02, self.r);
-        let a = self.y / mlaf(0.68990272 * l, 0.34832189, m);
+        let den = mlaf(0.68990272 * l, 0.34832189, m);
+        let a = if den == 0. { 0. } else { self.y / den };
         let l0 = l * a;
         let m0 = m * a;
         let s0 = (1f32 - l - m) * a;
