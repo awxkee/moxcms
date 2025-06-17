@@ -30,8 +30,10 @@ use crate::matan::{
     does_curve_have_discontinuity, is_curve_ascending, is_curve_degenerated, is_curve_descending,
     is_curve_linear8, is_curve_linear16, is_curve_monotonic,
 };
-use crate::reader::{uint8_number_to_float_fast, uint16_number_to_float_fast};
-use crate::{LutStore, ToneReprCurve};
+use crate::reader::{
+    s15_fixed16_number_to_double, uint8_number_to_float_fast, uint16_number_to_float_fast,
+};
+use crate::{CmsError, LutStore, Matrix3d, ToneReprCurve, Vector3d};
 
 impl LutStore {
     pub fn to_clut_f32(&self) -> Vec<f32> {
@@ -158,4 +160,64 @@ impl ToneReprCurve {
             ToneReprCurve::Parametric(_) => false,
         }
     }
+}
+
+pub(crate) fn read_matrix_3d(arr: &[u8]) -> Result<Matrix3d, CmsError> {
+    if arr.len() < 36 {
+        return Err(CmsError::InvalidProfile);
+    }
+
+    let m_tag = &arr[..36];
+
+    let e00 = i32::from_be_bytes([m_tag[0], m_tag[1], m_tag[2], m_tag[3]]);
+    let e01 = i32::from_be_bytes([m_tag[4], m_tag[5], m_tag[6], m_tag[7]]);
+    let e02 = i32::from_be_bytes([m_tag[8], m_tag[9], m_tag[10], m_tag[11]]);
+
+    let e10 = i32::from_be_bytes([m_tag[12], m_tag[13], m_tag[14], m_tag[15]]);
+    let e11 = i32::from_be_bytes([m_tag[16], m_tag[17], m_tag[18], m_tag[19]]);
+    let e12 = i32::from_be_bytes([m_tag[20], m_tag[21], m_tag[22], m_tag[23]]);
+
+    let e20 = i32::from_be_bytes([m_tag[24], m_tag[25], m_tag[26], m_tag[27]]);
+    let e21 = i32::from_be_bytes([m_tag[28], m_tag[29], m_tag[30], m_tag[31]]);
+    let e22 = i32::from_be_bytes([m_tag[32], m_tag[33], m_tag[34], m_tag[35]]);
+
+    Ok(Matrix3d {
+        v: [
+            [
+                s15_fixed16_number_to_double(e00),
+                s15_fixed16_number_to_double(e01),
+                s15_fixed16_number_to_double(e02),
+            ],
+            [
+                s15_fixed16_number_to_double(e10),
+                s15_fixed16_number_to_double(e11),
+                s15_fixed16_number_to_double(e12),
+            ],
+            [
+                s15_fixed16_number_to_double(e20),
+                s15_fixed16_number_to_double(e21),
+                s15_fixed16_number_to_double(e22),
+            ],
+        ],
+    })
+}
+
+pub(crate) fn read_vector_3d(arr: &[u8]) -> Result<Vector3d, CmsError> {
+    if arr.len() < 12 {
+        return Err(CmsError::InvalidProfile);
+    }
+
+    let m_tag = &arr[..12];
+
+    let b0 = i32::from_be_bytes([m_tag[0], m_tag[1], m_tag[2], m_tag[3]]);
+    let b1 = i32::from_be_bytes([m_tag[4], m_tag[5], m_tag[6], m_tag[7]]);
+    let b2 = i32::from_be_bytes([m_tag[8], m_tag[9], m_tag[10], m_tag[11]]);
+
+    Ok(Vector3d {
+        v: [
+            s15_fixed16_number_to_double(b0),
+            s15_fixed16_number_to_double(b1),
+            s15_fixed16_number_to_double(b2),
+        ],
+    })
 }

@@ -26,6 +26,7 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+use crate::helpers::{read_matrix_3d, read_vector_3d};
 use crate::profile::LutDataType;
 use crate::safe_math::{SafeAdd, SafeMul, SafePowi};
 use crate::tag::{TAG_SIZE, TagTypeDefinition};
@@ -389,49 +390,8 @@ impl ColorProfile {
 
             let m_tag = &tag[matrix_offset..matrix_end];
 
-            let e00 = i32::from_be_bytes([m_tag[0], m_tag[1], m_tag[2], m_tag[3]]);
-            let e01 = i32::from_be_bytes([m_tag[4], m_tag[5], m_tag[6], m_tag[7]]);
-            let e02 = i32::from_be_bytes([m_tag[8], m_tag[9], m_tag[10], m_tag[11]]);
-
-            let e10 = i32::from_be_bytes([m_tag[12], m_tag[13], m_tag[14], m_tag[15]]);
-            let e11 = i32::from_be_bytes([m_tag[16], m_tag[17], m_tag[18], m_tag[19]]);
-            let e12 = i32::from_be_bytes([m_tag[20], m_tag[21], m_tag[22], m_tag[23]]);
-
-            let e20 = i32::from_be_bytes([m_tag[24], m_tag[25], m_tag[26], m_tag[27]]);
-            let e21 = i32::from_be_bytes([m_tag[28], m_tag[29], m_tag[30], m_tag[31]]);
-            let e22 = i32::from_be_bytes([m_tag[32], m_tag[33], m_tag[34], m_tag[35]]);
-
-            let b0 = i32::from_be_bytes([m_tag[36], m_tag[37], m_tag[38], m_tag[39]]);
-            let b1 = i32::from_be_bytes([m_tag[40], m_tag[41], m_tag[42], m_tag[43]]);
-            let b2 = i32::from_be_bytes([m_tag[44], m_tag[45], m_tag[46], m_tag[47]]);
-
-            transform = Matrix3d {
-                v: [
-                    [
-                        s15_fixed16_number_to_double(e00),
-                        s15_fixed16_number_to_double(e01),
-                        s15_fixed16_number_to_double(e02),
-                    ],
-                    [
-                        s15_fixed16_number_to_double(e10),
-                        s15_fixed16_number_to_double(e11),
-                        s15_fixed16_number_to_double(e12),
-                    ],
-                    [
-                        s15_fixed16_number_to_double(e20),
-                        s15_fixed16_number_to_double(e21),
-                        s15_fixed16_number_to_double(e22),
-                    ],
-                ],
-            };
-
-            bias = Vector3d {
-                v: [
-                    s15_fixed16_number_to_double(b0),
-                    s15_fixed16_number_to_double(b1),
-                    s15_fixed16_number_to_double(b2),
-                ],
-            };
+            bias = read_vector_3d(&m_tag[36..48])?;
+            transform = read_matrix_3d(m_tag)?;
         } else {
             transform = Matrix3d::IDENTITY;
             bias = Vector3d::default();
@@ -628,37 +588,9 @@ impl ColorProfile {
 
         assert!(tag.len() >= 48);
 
-        let e00 = i32::from_be_bytes([tag[12], tag[13], tag[14], tag[15]]);
-        let e01 = i32::from_be_bytes([tag[16], tag[17], tag[18], tag[19]]);
-        let e02 = i32::from_be_bytes([tag[20], tag[21], tag[22], tag[23]]);
-        let e10 = i32::from_be_bytes([tag[24], tag[25], tag[26], tag[27]]);
-        let e11 = i32::from_be_bytes([tag[28], tag[29], tag[30], tag[31]]);
-        let e12 = i32::from_be_bytes([tag[32], tag[33], tag[34], tag[35]]);
-        let e20 = i32::from_be_bytes([tag[36], tag[37], tag[38], tag[39]]);
-        let e21 = i32::from_be_bytes([tag[40], tag[41], tag[42], tag[43]]);
-        let e22 = i32::from_be_bytes([tag[44], tag[45], tag[46], tag[47]]);
+        let transform = read_matrix_3d(&tag[12..48])?;
 
-        let transform = Matrix3d {
-            v: [
-                [
-                    s15_fixed16_number_to_double(e00),
-                    s15_fixed16_number_to_double(e01),
-                    s15_fixed16_number_to_double(e02),
-                ],
-                [
-                    s15_fixed16_number_to_double(e10),
-                    s15_fixed16_number_to_double(e11),
-                    s15_fixed16_number_to_double(e12),
-                ],
-                [
-                    s15_fixed16_number_to_double(e20),
-                    s15_fixed16_number_to_double(e21),
-                    s15_fixed16_number_to_double(e22),
-                ],
-            ],
-        };
-
-        let lut_input_size = (num_input_table_entries * in_chan as u16) as usize;
+        let lut_input_size = num_input_table_entries.safe_mul(in_chan as u16)? as usize;
 
         let linearization_table_end = lut_input_size
             .safe_mul(entry_size)?
@@ -671,7 +603,9 @@ impl ColorProfile {
 
         let clut_offset = linearization_table_end;
 
-        let clut_data_size = (clut_size * out_chan as usize) * entry_size;
+        let clut_data_size = clut_size
+            .safe_mul(out_chan as usize)?
+            .safe_mul(entry_size)?;
 
         if tag.len() < clut_offset.safe_add(clut_data_size)? {
             return Err(CmsError::InvalidProfile);
@@ -682,7 +616,7 @@ impl ColorProfile {
 
         let output_offset = clut_offset.safe_add(clut_data_size)?;
 
-        let output_size = num_output_table_entries as usize * out_chan as usize;
+        let output_size = (num_output_table_entries as usize).safe_mul(out_chan as usize)?;
 
         let shaped_output_table =
             &tag[output_offset..output_offset.safe_add(output_size.safe_mul(entry_size)?)?];
@@ -847,11 +781,7 @@ impl ColorProfile {
         if tag.len() != size_of::<Matrix3f>() {
             return Err(CmsError::InvalidProfile);
         }
-        let mut matrix = Matrix3d::default();
-        for (i, chunk) in tag.chunks_exact(4).enumerate() {
-            let q15_16_x = i32::from_be_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
-            matrix.v[i / 3][i % 3] = s15_fixed16_number_to_double(q15_16_x);
-        }
+        let matrix = read_matrix_3d(tag)?;
         Ok(Some(matrix))
     }
 

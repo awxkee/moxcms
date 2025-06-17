@@ -55,6 +55,7 @@ macro_rules! safe_add_impl {
     };
 }
 
+safe_add_impl!(u16);
 safe_add_impl!(u32);
 safe_add_impl!(i32);
 safe_add_impl!(usize);
@@ -74,6 +75,7 @@ macro_rules! safe_mul_impl {
     };
 }
 
+safe_mul_impl!(u16);
 safe_mul_impl!(u32);
 safe_mul_impl!(i32);
 safe_mul_impl!(usize);
