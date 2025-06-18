@@ -112,9 +112,9 @@ pub use nd_array::{Cube, Hypercube};
 pub use oklab::Oklab;
 pub use oklch::Oklch;
 pub use profile::{
-    CicpProfile, ColorProfile, DataColorSpace, DescriptionString, LocalizableString,
+    CicpProfile, ColorProfile, DataColorSpace, DescriptionString, LocalizableString, LutDataType,
     LutMultidimensionalType, LutStore, LutType, LutWarehouse, Measurement, MeasurementGeometry,
-    ProfileClass, ProfileSignature, ProfileText, ProfileVersion, RenderingIntent,
+    ParsingOptions, ProfileClass, ProfileSignature, ProfileText, ProfileVersion, RenderingIntent,
     StandardIlluminant, StandardObserver, TechnologySignatures, ViewingConditions,
 };
 pub use rgb::{FusedExp, FusedExp2, FusedExp10, FusedLog, FusedLog2, FusedLog10, FusedPow, Rgb};

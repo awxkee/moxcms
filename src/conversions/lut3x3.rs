@@ -76,7 +76,7 @@ fn make_lut_3x3(
         }));
     }
 
-    let lin_curve0 = lin_table[0..lut.num_input_table_entries as usize].to_vec();
+    let lin_curve0 = lin_table[..lut.num_input_table_entries as usize].to_vec();
     let lin_curve1 = lin_table
         [lut.num_input_table_entries as usize..lut.num_input_table_entries as usize * 2]
         .to_vec();
@@ -101,7 +101,7 @@ fn make_lut_3x3(
         }));
     }
 
-    let gamma_curve0 = gamma_curves[0..lut.num_output_table_entries as usize].to_vec();
+    let gamma_curve0 = gamma_curves[..lut.num_output_table_entries as usize].to_vec();
     let gamma_curve1 = gamma_curves
         [lut.num_output_table_entries as usize..lut.num_output_table_entries as usize * 2]
         .to_vec();
@@ -313,6 +313,7 @@ where
         } else {
             1.0
         };
+
         let linearization_0 = &self.input[0];
         let linearization_1 = &self.input[1];
         let linearization_2 = &self.input[2];
@@ -326,6 +327,7 @@ where
             let pcs_x = lut_interp_linear_float(clut.v[0], &self.gamma[0]);
             let pcs_y = lut_interp_linear_float(clut.v[1], &self.gamma[1]);
             let pcs_z = lut_interp_linear_float(clut.v[2], &self.gamma[2]);
+
             if T::FINITE {
                 dest[0] = (pcs_x * norm_value).round().max(0.0).min(norm_value).as_();
                 dest[1] = (pcs_y * norm_value).round().max(0.0).min(norm_value).as_();
@@ -378,7 +380,7 @@ impl<T: Copy + Default + PointeeSizeExpressible + AsPrimitive<f32>, const BIT_DE
 where
     f32: AsPrimitive<T>,
 {
-    fn to_output(&self, src: &[f32], dst: &mut [T]) -> Result<(), CmsError> {
+    fn to_output(&self, src: &mut [f32], dst: &mut [T]) -> Result<(), CmsError> {
         let l_tbl = Cube::new(&self.clut, self.grid_size as usize);
 
         // If PCS is LAB then linear interpolation should be used

@@ -61,6 +61,7 @@ pub enum CmsError {
     LUTTablesInvalidKind,
     MalformedClut(MalformedSize),
     MalformedCurveLutTable(MalformedSize),
+    InvalidInksCountForProfile,
 }
 
 impl Display for CmsError {
@@ -108,6 +109,9 @@ impl Display for CmsError {
             }
             CmsError::MalformedCurveLutTable(size) => {
                 f.write_fmt(format_args!("Malformed curve LUT size: {size:?}"))
+            }
+            CmsError::InvalidInksCountForProfile => {
+                f.write_str("Invalid inks count for profile was provided")
             }
         }
     }

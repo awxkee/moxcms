@@ -71,7 +71,7 @@ fn make_lut_3x4(
         }));
     }
 
-    let linear_curve0 = linearization_table[0..lut.num_input_table_entries as usize].to_vec();
+    let linear_curve0 = linearization_table[..lut.num_input_table_entries as usize].to_vec();
     let linear_curve1 = linearization_table
         [lut.num_input_table_entries as usize..lut.num_input_table_entries as usize * 2]
         .to_vec();
@@ -88,7 +88,7 @@ fn make_lut_3x4(
         }));
     }
 
-    let gamma_curve0 = gamma_table[0..lut.num_output_table_entries as usize].to_vec();
+    let gamma_curve0 = gamma_table[..lut.num_output_table_entries as usize].to_vec();
     let gamma_curve1 = gamma_table
         [lut.num_output_table_entries as usize..lut.num_output_table_entries as usize * 2]
         .to_vec();

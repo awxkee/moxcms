@@ -215,7 +215,7 @@ where
 {
     fn to_output_impl<Fetch: Fn(f32, f32, f32) -> Vector3f>(
         &self,
-        src: &[f32],
+        src: &mut [f32],
         dst: &mut [T],
         fetch: Fetch,
     ) -> Result<(), CmsError> {
@@ -229,17 +229,16 @@ where
             MultidimensionalDirection::PcsToDevice,
             "Device to PCS cannot be used on `to output` stage"
         );
-        let mut working_src = src.to_vec();
 
         if let Some(b_curves) = &self.b_curves.as_ref() {
-            self.execute_simple_curves(&mut working_src, b_curves);
+            self.execute_simple_curves(src, b_curves);
         }
 
         // Matrix stage
 
         if let Some(m_curves) = self.m_curves.as_ref() {
-            self.execute_matrix_stage(&mut working_src);
-            self.execute_simple_curves(&mut working_src, m_curves);
+            self.execute_matrix_stage(src);
+            self.execute_simple_curves(src, m_curves);
         }
 
         if let (Some(a_curves), Some(clut)) = (self.a_curves.as_ref(), self.clut.as_ref()) {
@@ -247,7 +246,7 @@ where
                 let curve0 = &a_curves[0];
                 let curve1 = &a_curves[1];
                 let curve2 = &a_curves[2];
-                for (src, dst) in working_src.chunks_exact(3).zip(dst.chunks_exact_mut(3)) {
+                for (src, dst) in src.chunks_exact(3).zip(dst.chunks_exact_mut(3)) {
                     let b0 = lut_interp_linear_float(src[0], curve0);
                     let b1 = lut_interp_linear_float(src[1], curve1);
                     let b2 = lut_interp_linear_float(src[2], curve2);
@@ -275,7 +274,7 @@ where
                     }
                 }
             } else {
-                for (src, dst) in working_src.chunks_exact(3).zip(dst.chunks_exact_mut(3)) {
+                for (src, dst) in src.chunks_exact(3).zip(dst.chunks_exact_mut(3)) {
                     if T::FINITE {
                         dst[0] = (src[0] * norm_value).round().max(0.0).min(norm_value).as_();
                         dst[1] = (src[1] * norm_value).round().max(0.0).min(norm_value).as_();
@@ -288,7 +287,7 @@ where
                 }
             }
         } else {
-            for (src, dst) in working_src.chunks_exact(3).zip(dst.chunks_exact_mut(3)) {
+            for (src, dst) in src.chunks_exact(3).zip(dst.chunks_exact_mut(3)) {
                 if T::FINITE {
                     dst[0] = (src[0] * norm_value).round().max(0.0).min(norm_value).as_();
                     dst[1] = (src[1] * norm_value).round().max(0.0).min(norm_value).as_();
@@ -312,7 +311,7 @@ impl<
 where
     f32: AsPrimitive<T>,
 {
-    fn to_output(&self, src: &[f32], dst: &mut [T]) -> Result<(), CmsError> {
+    fn to_output(&self, src: &mut [f32], dst: &mut [T]) -> Result<(), CmsError> {
         if src.len() % 3 != 0 {
             return Err(CmsError::LaneMultipleOfChannels);
         }

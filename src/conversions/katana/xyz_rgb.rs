@@ -54,7 +54,7 @@ impl<T: Clone + AsPrimitive<f32>, const LAYOUT: u8, const BIT_DEPTH: usize, cons
 where
     u32: AsPrimitive<T>,
 {
-    fn to_output(&self, src: &[f32], dst: &mut [T]) -> Result<(), CmsError> {
+    fn to_output(&self, src: &mut [f32], dst: &mut [T]) -> Result<(), CmsError> {
         let dst_cn = Layout::from(LAYOUT);
         let dst_channels = dst_cn.channels();
         if src.len() % 3 != 0 {
@@ -78,9 +78,9 @@ where
                 if rgb.is_out_of_gamut() {
                     rgb = filmlike_clip(rgb);
                 }
-                let r = mlaf(0.5f32, rgb.r, lut_cap).min(lut_cap).max(0f32) as u16;
-                let g = mlaf(0.5f32, rgb.g, lut_cap).min(lut_cap).max(0f32) as u16;
-                let b = mlaf(0.5f32, rgb.b, lut_cap).min(lut_cap).max(0f32) as u16;
+                let r = mlaf(0.5, rgb.r, lut_cap).min(lut_cap).max(0.) as u16;
+                let g = mlaf(0.5, rgb.g, lut_cap).min(lut_cap).max(0.) as u16;
+                let b = mlaf(0.5, rgb.b, lut_cap).min(lut_cap).max(0.) as u16;
 
                 dst[0] = self.r_gamma[r as usize];
                 dst[1] = self.g_gamma[g as usize];
@@ -92,9 +92,9 @@ where
         } else {
             for (src, dst) in src.chunks_exact(3).zip(dst.chunks_exact_mut(dst_channels)) {
                 let rgb = Rgb::new(src[0], src[1], src[2]);
-                let r = mlaf(0.5f32, rgb.r, lut_cap).min(lut_cap).max(0f32) as u16;
-                let g = mlaf(0.5f32, rgb.g, lut_cap).min(lut_cap).max(0f32) as u16;
-                let b = mlaf(0.5f32, rgb.b, lut_cap).min(lut_cap).max(0f32) as u16;
+                let r = mlaf(0.5, rgb.r, lut_cap).min(lut_cap).max(0.) as u16;
+                let g = mlaf(0.5, rgb.g, lut_cap).min(lut_cap).max(0.) as u16;
+                let b = mlaf(0.5, rgb.b, lut_cap).min(lut_cap).max(0.) as u16;
 
                 dst[0] = self.r_gamma[r as usize];
                 dst[1] = self.g_gamma[g as usize];
@@ -210,5 +210,9 @@ where
         }
         Layout::Gray => unreachable!("Gray layout must not be called on Rgb/Rgba path"),
         Layout::GrayAlpha => unreachable!("Gray layout must not be called on Rgb/Rgba path"),
+        _ => unreachable!(
+            "layout {:?} should not be called on xyz->rgb path",
+            dest_layout
+        ),
     }
 }

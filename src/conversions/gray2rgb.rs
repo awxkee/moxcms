@@ -111,6 +111,7 @@ where
             > {
                 fused_gamma,
             })),
+            _ => unreachable!(),
         },
         Layout::GrayAlpha => match dst_layout {
             Layout::Rgb => Ok(Box::new(TransformGray2RgbFusedExecutor::<
@@ -153,7 +154,9 @@ where
             > {
                 fused_gamma,
             })),
+            _ => unreachable!(),
         },
+        _ => unreachable!(),
     }
 }
 

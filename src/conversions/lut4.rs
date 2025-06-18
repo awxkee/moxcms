@@ -57,7 +57,7 @@ struct KatanaLut4x3<T: Copy + PointeeSizeExpressible + AsPrimitive<f32>, const B
     output: [Vec<f32>; 3],
     interpolation_method: InterpolationMethod,
     pcs: DataColorSpace,
-    _phantom: std::marker::PhantomData<T>,
+    _phantom: PhantomData<T>,
 }
 
 #[allow(unused)]
@@ -256,7 +256,7 @@ fn make_lut_4x3(
         }));
     }
 
-    let gamma_curve0 = gamma_table[0..lut.num_output_table_entries as usize].to_vec();
+    let gamma_curve0 = gamma_table[..lut.num_output_table_entries as usize].to_vec();
     let gamma_curve1 = gamma_table
         [lut.num_output_table_entries as usize..lut.num_output_table_entries as usize * 2]
         .to_vec();

@@ -71,9 +71,9 @@ pub(crate) fn katana_pcs_lab_v4_to_v2(profile: &ColorProfile) -> Box<KatanaDefau
     if profile.pcs == DataColorSpace::Lab && profile.version_internal <= ProfileVersion::V4_0 {
         let v_mat = vec![Matrix3f {
             v: [
-                [65280.0 / 65535.0, 0f32, 0f32],
-                [0f32, 65280.0 / 65535.0, 0f32],
-                [0f32, 0f32, 65280.0 / 65535.0f32],
+                [65280.0 / 65535.0, 0., 0.],
+                [0., 65280.0 / 65535.0, 0.],
+                [0., 0., 65280.0 / 65535.0],
             ],
         }];
         return Box::new(KatanaMatrixStage { matrices: v_mat });
@@ -87,9 +87,9 @@ pub(crate) fn katana_pcs_lab_v2_to_v4(profile: &ColorProfile) -> Box<KatanaDefau
     if profile.pcs == DataColorSpace::Lab && profile.version_internal <= ProfileVersion::V4_0 {
         let v_mat = vec![Matrix3f {
             v: [
-                [65535.0 / 65280.0f32, 0f32, 0f32],
-                [0f32, 65535.0f32 / 65280.0f32, 0f32],
-                [0f32, 0f32, 65535.0f32 / 65280.0f32],
+                [65535.0 / 65280.0, 0., 0.],
+                [0., 65535.0 / 65280.0, 0.],
+                [0., 0., 65535.0 / 65280.0],
             ],
         }];
         return Box::new(KatanaMatrixStage { matrices: v_mat });
