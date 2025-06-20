@@ -28,12 +28,18 @@
  */
 mod md3x3;
 mod md4x3;
+mod md_3xn;
+mod md_nx3;
+mod md_pipeline;
 mod pcs_stages;
 mod rgb_xyz;
 mod stages;
 mod xyz_lab;
 mod xyz_rgb;
 
+pub(crate) use md_3xn::katana_multi_dimensional_3xn_to_device;
+pub(crate) use md_nx3::katana_multi_dimensional_nx3_to_pcs;
+pub(crate) use md_pipeline::{katana_input_make_lut_nx3, katana_output_make_lut_3xn};
 pub(crate) use md3x3::{multi_dimensional_3x3_to_device, multi_dimensional_3x3_to_pcs};
 pub(crate) use md4x3::multi_dimensional_4x3_to_pcs;
 pub(crate) use pcs_stages::{

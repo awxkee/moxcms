@@ -33,7 +33,7 @@ use crate::tag::{TAG_SIZE, TagTypeDefinition};
 use crate::{
     CicpColorPrimaries, CicpProfile, CmsError, ColorDateTime, ColorProfile, DescriptionString,
     LocalizableString, LutMultidimensionalType, LutStore, LutType, LutWarehouse, Matrix3d,
-    Matrix3f, MatrixCoefficients, Measurement, MeasurementGeometry, ProfileText,
+    Matrix3f, MatrixCoefficients, Measurement, MeasurementGeometry, ParsingOptions, ProfileText,
     StandardIlluminant, StandardObserver, TechnologySignatures, ToneReprCurve,
     TransferCharacteristics, Vector3d, ViewingConditions, Xyz, Xyzd,
 };
@@ -318,9 +318,8 @@ impl ColorProfile {
         slice: &[u8],
         offset: usize,
         length: usize,
-        total_offset: usize,
+        options: &ParsingOptions,
     ) -> Result<Option<Vec<ToneReprCurve>>, CmsError> {
-        let mut captured_offset = total_offset;
         let mut curve_offset: usize = offset;
         let mut curves = Vec::new();
         for _ in 0..length {
@@ -328,17 +327,15 @@ impl ColorProfile {
                 return Err(CmsError::InvalidProfile);
             }
             let mut tag_size = 0usize;
-            let new_curve = Self::read_trc_tag(slice, curve_offset, 0, &mut tag_size)?;
+            let new_curve = Self::read_trc_tag(slice, curve_offset, 0, &mut tag_size, options)?;
             match new_curve {
                 None => return Err(CmsError::InvalidProfile),
                 Some(curve) => curves.push(curve),
             }
             curve_offset += tag_size;
-            captured_offset += tag_size;
             // 4 byte aligned
-            if captured_offset % 4 != 0 {
-                curve_offset += 4 - captured_offset % 4;
-                captured_offset += 4 - captured_offset % 4;
+            if curve_offset % 4 != 0 {
+                curve_offset += 4 - curve_offset % 4;
             }
         }
         Ok(Some(curves))
@@ -350,6 +347,7 @@ impl ColorProfile {
         entry: usize,
         tag_size: usize,
         to_pcs: bool,
+        options: &ParsingOptions,
     ) -> Result<Option<LutWarehouse>, CmsError> {
         if tag_size < 48 {
             return Ok(None);
@@ -463,7 +461,7 @@ impl ColorProfile {
                 } else {
                     out_channels as usize
                 },
-                entry + a_curve_offset,
+                options,
             )?
             .ok_or(CmsError::InvalidProfile)?
         };
@@ -479,7 +477,7 @@ impl ColorProfile {
                 } else {
                     in_channels as usize
                 },
-                entry + m_curve_offset,
+                options,
             )?
             .ok_or(CmsError::InvalidProfile)?
         };
@@ -495,7 +493,7 @@ impl ColorProfile {
                 } else {
                     in_channels as usize
                 },
-                entry + b_curve_offset,
+                options,
             )?
             .ok_or(CmsError::InvalidProfile)?
         };
@@ -519,6 +517,7 @@ impl ColorProfile {
         slice: &[u8],
         entry: usize,
         tag_size: usize,
+        parsing_options: &ParsingOptions,
     ) -> Result<Option<LutWarehouse>, CmsError> {
         if tag_size < 48 {
             return Ok(None);
@@ -576,14 +575,9 @@ impl ColorProfile {
         }
         let grid_points = tag[10];
         let clut_size = (grid_points as u32).safe_powi(in_chan as u32)? as usize;
-        match clut_size {
-            1..=500_000 => {} // OK
-            0 => {
-                return Err(CmsError::InvalidProfile);
-            }
-            _ => {
-                return Err(CmsError::InvalidProfile);
-            }
+
+        if !(1..=parsing_options.max_allowed_clut_size).contains(&clut_size) {
+            return Err(CmsError::InvalidProfile);
         }
 
         assert!(tag.len() >= 48);
@@ -641,16 +635,18 @@ impl ColorProfile {
         slice: &[u8],
         tag_entry: u32,
         tag_size: usize,
+        parsing_options: &ParsingOptions,
     ) -> Result<Option<LutWarehouse>, CmsError> {
         let lut_type = Self::read_lut_type(slice, tag_entry as usize, tag_size)?;
         Ok(if lut_type == LutType::Lut8 || lut_type == LutType::Lut16 {
-            Self::read_lut_a_to_b_type(slice, tag_entry as usize, tag_size)?
+            Self::read_lut_a_to_b_type(slice, tag_entry as usize, tag_size, parsing_options)?
         } else if lut_type == LutType::LutMba || lut_type == LutType::LutMab {
             Self::read_lut_abm_type(
                 slice,
                 tag_entry as usize,
                 tag_size,
                 lut_type == LutType::LutMab,
+                parsing_options,
             )?
         } else {
             None
@@ -661,9 +657,10 @@ impl ColorProfile {
         slice: &[u8],
         entry: usize,
         tag_size: usize,
+        options: &ParsingOptions,
     ) -> Result<Option<ToneReprCurve>, CmsError> {
         let mut _empty = 0usize;
-        Self::read_trc_tag(slice, entry, tag_size, &mut _empty)
+        Self::read_trc_tag(slice, entry, tag_size, &mut _empty, options)
     }
 
     pub(crate) fn read_trc_tag(
@@ -671,6 +668,7 @@ impl ColorProfile {
         entry: usize,
         tag_size: usize,
         read_size: &mut usize,
+        options: &ParsingOptions,
     ) -> Result<Option<ToneReprCurve>, CmsError> {
         if slice.len() < entry.safe_add(4)? {
             return Ok(None);
@@ -703,7 +701,7 @@ impl ColorProfile {
             if entry_count == 0 {
                 return Ok(Some(ToneReprCurve::Lut(vec![])));
             }
-            if entry_count > 40000 {
+            if entry_count > options.max_allowed_trc_size {
                 return Err(CmsError::CurveLutIsTooLarge);
             }
             let curve_end = entry_count.safe_mul(size_of::<u16>())?.safe_add(12)?;

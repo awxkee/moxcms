@@ -38,7 +38,7 @@ pub(crate) trait KatanaInitialStage<W, I> {
 /// W storage working data type
 /// I input/output data type
 pub(crate) trait KatanaFinalStage<W, I> {
-    fn to_output(&self, src: &[W], dst: &mut [I]) -> Result<(), CmsError>;
+    fn to_output(&self, src: &mut [W], dst: &mut [I]) -> Result<(), CmsError>;
 }
 
 /// W storage working data type
@@ -70,6 +70,6 @@ impl<W, I: Copy + Default> TransformExecutor<I> for Katana<W, I> {
         for stage in self.stages.iter() {
             working_vec = stage.stage(&mut working_vec)?;
         }
-        self.final_stage.to_output(&working_vec, dst)
+        self.final_stage.to_output(&mut working_vec, dst)
     }
 }

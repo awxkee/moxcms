@@ -78,7 +78,7 @@ fn dt_ucs_luv_to_ucs_jch(
     u_star_prime: f32,
     v_star_prime: f32,
 ) -> DtUchJch {
-    let m2: f32 = u_star_prime * u_star_prime + v_star_prime * v_star_prime; // square of colorfulness M
+    let m2: f32 = mlaf(u_star_prime * u_star_prime, v_star_prime, v_star_prime); // square of colorfulness M
 
     // should be JCH[0] = powf(L_star / L_white), cz) but we treat only the case where cz = 1
     let j = l_star / l_white;

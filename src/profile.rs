@@ -170,7 +170,17 @@ impl DataColorSpace {
             DataColorSpace::Color2 => layout != Layout::GrayAlpha,
             DataColorSpace::Color3 => layout != Layout::Rgb,
             DataColorSpace::Color4 => layout != Layout::Rgba,
-            _ => false,
+            DataColorSpace::Color5 => layout != Layout::Inks5,
+            DataColorSpace::Color6 => layout != Layout::Inks6,
+            DataColorSpace::Color7 => layout != Layout::Inks7,
+            DataColorSpace::Color8 => layout != Layout::Inks8,
+            DataColorSpace::Color9 => layout != Layout::Inks9,
+            DataColorSpace::Color10 => layout != Layout::Inks10,
+            DataColorSpace::Color11 => layout != Layout::Inks11,
+            DataColorSpace::Color12 => layout != Layout::Inks12,
+            DataColorSpace::Color13 => layout != Layout::Inks13,
+            DataColorSpace::Color14 => layout != Layout::Inks14,
+            DataColorSpace::Color15 => layout != Layout::Inks15,
         };
         if unsupported {
             Err(CmsError::InvalidLayout)
@@ -867,6 +877,26 @@ pub struct ColorProfile {
     pub(crate) version_internal: ProfileVersion,
 }
 
+#[derive(Debug, Clone, Copy, PartialOrd, PartialEq, Hash)]
+pub struct ParsingOptions {
+    // Maximum allowed profile size in bytes
+    pub max_profile_size: usize,
+    // Maximum allowed CLUT size in bytes
+    pub max_allowed_clut_size: usize,
+    // Maximum allowed TRC size in elements count
+    pub max_allowed_trc_size: usize,
+}
+
+impl Default for ParsingOptions {
+    fn default() -> Self {
+        Self {
+            max_profile_size: MAX_PROFILE_SIZE,
+            max_allowed_clut_size: 10_000_000,
+            max_allowed_trc_size: 40_000,
+        }
+    }
+}
+
 impl ColorProfile {
     /// Returns profile version
     pub fn version(&self) -> ProfileVersion {
@@ -874,9 +904,16 @@ impl ColorProfile {
     }
 
     pub fn new_from_slice(slice: &[u8]) -> Result<Self, CmsError> {
+        Self::new_from_slice_with_options(slice, Default::default())
+    }
+
+    pub fn new_from_slice_with_options(
+        slice: &[u8],
+        options: ParsingOptions,
+    ) -> Result<Self, CmsError> {
         let header = ProfileHeader::new_from_slice(slice)?;
         let tags_count = header.tag_count as usize;
-        if slice.len() >= MAX_PROFILE_SIZE {
+        if slice.len() >= options.max_profile_size {
             return Err(CmsError::InvalidProfile);
         }
         let tags_end = tags_count
@@ -923,26 +960,42 @@ impl ColorProfile {
                     }
                     Tag::RedToneReproduction => {
                         if color_space == DataColorSpace::Rgb {
-                            profile.red_trc =
-                                Self::read_trc_tag_s(slice, tag_entry as usize, tag_size)?;
+                            profile.red_trc = Self::read_trc_tag_s(
+                                slice,
+                                tag_entry as usize,
+                                tag_size,
+                                &options,
+                            )?;
                         }
                     }
                     Tag::GreenToneReproduction => {
                         if color_space == DataColorSpace::Rgb {
-                            profile.green_trc =
-                                Self::read_trc_tag_s(slice, tag_entry as usize, tag_size)?;
+                            profile.green_trc = Self::read_trc_tag_s(
+                                slice,
+                                tag_entry as usize,
+                                tag_size,
+                                &options,
+                            )?;
                         }
                     }
                     Tag::BlueToneReproduction => {
                         if color_space == DataColorSpace::Rgb {
-                            profile.blue_trc =
-                                Self::read_trc_tag_s(slice, tag_entry as usize, tag_size)?;
+                            profile.blue_trc = Self::read_trc_tag_s(
+                                slice,
+                                tag_entry as usize,
+                                tag_size,
+                                &options,
+                            )?;
                         }
                     }
                     Tag::GreyToneReproduction => {
                         if color_space == DataColorSpace::Gray {
-                            profile.gray_trc =
-                                Self::read_trc_tag_s(slice, tag_entry as usize, tag_size)?;
+                            profile.gray_trc = Self::read_trc_tag_s(
+                                slice,
+                                tag_entry as usize,
+                                tag_size,
+                                &options,
+                            )?;
                         }
                     }
                     Tag::MediaWhitePoint => {
@@ -970,30 +1023,30 @@ impl ColorProfile {
                     }
                     Tag::DeviceToPcsLutPerceptual => {
                         profile.lut_a_to_b_perceptual =
-                            Self::read_lut_tag(slice, tag_entry, tag_size)?;
+                            Self::read_lut_tag(slice, tag_entry, tag_size, &options)?;
                     }
                     Tag::DeviceToPcsLutColorimetric => {
                         profile.lut_a_to_b_colorimetric =
-                            Self::read_lut_tag(slice, tag_entry, tag_size)?;
+                            Self::read_lut_tag(slice, tag_entry, tag_size, &options)?;
                     }
                     Tag::DeviceToPcsLutSaturation => {
                         profile.lut_a_to_b_saturation =
-                            Self::read_lut_tag(slice, tag_entry, tag_size)?;
+                            Self::read_lut_tag(slice, tag_entry, tag_size, &options)?;
                     }
                     Tag::PcsToDeviceLutPerceptual => {
                         profile.lut_b_to_a_perceptual =
-                            Self::read_lut_tag(slice, tag_entry, tag_size)?;
+                            Self::read_lut_tag(slice, tag_entry, tag_size, &options)?;
                     }
                     Tag::PcsToDeviceLutColorimetric => {
                         profile.lut_b_to_a_colorimetric =
-                            Self::read_lut_tag(slice, tag_entry, tag_size)?;
+                            Self::read_lut_tag(slice, tag_entry, tag_size, &options)?;
                     }
                     Tag::PcsToDeviceLutSaturation => {
                         profile.lut_b_to_a_saturation =
-                            Self::read_lut_tag(slice, tag_entry, tag_size)?;
+                            Self::read_lut_tag(slice, tag_entry, tag_size, &options)?;
                     }
                     Tag::Gamut => {
-                        profile.gamut = Self::read_lut_tag(slice, tag_entry, tag_size)?;
+                        profile.gamut = Self::read_lut_tag(slice, tag_entry, tag_size, &options)?;
                     }
                     Tag::Copyright => {
                         profile.copyright =

@@ -45,7 +45,7 @@ struct KatanaRgbLinearizationStage<
 }
 
 impl<
-    T: Clone + AsPrimitive<usize> + PointeeSizeExpressible,
+    T: Clone + AsPrimitive<f32> + PointeeSizeExpressible,
     const LAYOUT: u8,
     const BIT_DEPTH: usize,
     const LINEAR_CAP: usize,
@@ -61,19 +61,25 @@ impl<
         let scale = if T::FINITE {
             (LINEAR_CAP as f32 - 1.) / ((1 << BIT_DEPTH) - 1) as f32
         } else {
-            (LINEAR_CAP as f32 - 1.) / 1.0
+            (T::NOT_FINITE_LINEAR_TABLE_SIZE - 1) as f32
+        };
+
+        let cap_value = if T::FINITE {
+            ((1 << BIT_DEPTH) - 1) as f32
+        } else {
+            (T::NOT_FINITE_LINEAR_TABLE_SIZE - 1) as f32
         };
 
         for (src, dst) in input
             .chunks_exact(src_layout.channels())
             .zip(dst.chunks_exact_mut(3))
         {
-            let j_r = src[0].as_() as f32 * scale;
-            let j_g = src[1].as_() as f32 * scale;
-            let j_b = src[2].as_() as f32 * scale;
-            dst[0] = self.r_lin[(j_r.round().min(LINEAR_CAP as f32).max(0.) as u16) as usize];
-            dst[1] = self.g_lin[(j_g.round().min(LINEAR_CAP as f32).max(0.) as u16) as usize];
-            dst[2] = self.b_lin[(j_b.round().min(LINEAR_CAP as f32).max(0.) as u16) as usize];
+            let j_r = src[0].as_() * scale;
+            let j_g = src[1].as_() * scale;
+            let j_b = src[2].as_() * scale;
+            dst[0] = self.r_lin[(j_r.round().min(cap_value).max(0.) as u16) as usize];
+            dst[1] = self.g_lin[(j_g.round().min(cap_value).max(0.) as u16) as usize];
+            dst[2] = self.b_lin[(j_b.round().min(cap_value).max(0.) as u16) as usize];
         }
         Ok(dst)
     }
@@ -130,6 +136,7 @@ where
         Layout::GrayAlpha => {
             unimplemented!("GrayAlpha should not be called on Rgb/Rgba execution path")
         }
+        _ => unreachable!(),
     };
 
     let xyz_to_rgb = source.rgb_to_xyz_matrix();

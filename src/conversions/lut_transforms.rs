@@ -302,6 +302,7 @@ use crate::conversions::katana::{
 };
 use crate::conversions::mab4x3::prepare_mab_4x3;
 use crate::conversions::mba3x4::prepare_mba_3x4;
+use crate::conversions::md_luts_factory::do_any_to_any;
 // use crate::conversions::bpc::compensate_bpc_in_lut;
 
 #[cfg(all(target_arch = "x86_64", feature = "avx"))]
@@ -521,13 +522,13 @@ where
             ));
         }
 
-        return Ok(make_transformer_4x3::<T, GRID_SIZE, BIT_DEPTH>(
+        Ok(make_transformer_4x3::<T, GRID_SIZE, BIT_DEPTH>(
             dst_layout,
             lut,
             options,
             dest.color_space,
             is_dest_linear_profile,
-        ));
+        ))
     } else if (source.color_space == DataColorSpace::Rgb
         || source.color_space == DataColorSpace::Lab)
         && (dest.color_space == DataColorSpace::Cmyk || dest.color_space == DataColorSpace::Color4)
@@ -589,13 +590,13 @@ where
             && dest.is_matrix_shaper()
             && dest.is_linear_matrix_shaper();
 
-        return Ok(make_transform_3x4::<T, GRID_SIZE, BIT_DEPTH>(
+        Ok(make_transform_3x4::<T, GRID_SIZE, BIT_DEPTH>(
             src_layout,
             lut,
             options,
             dest.color_space,
             is_dest_linear_profile,
-        ));
+        ))
     } else if (source.color_space.is_three_channels()) && (dest.color_space.is_three_channels()) {
         source.color_space.check_layout(src_layout)?;
         dest.color_space.check_layout(dst_layout)?;
@@ -765,15 +766,17 @@ where
             ));
         }
 
-        return Ok(make_transformer_3x3::<T, GRID_SIZE, BIT_DEPTH>(
+        Ok(make_transformer_3x3::<T, GRID_SIZE, BIT_DEPTH>(
             src_layout,
             dst_layout,
             lut,
             options,
             dest.color_space,
             is_dest_linear_profile,
-        ));
+        ))
+    } else {
+        do_any_to_any::<T, BIT_DEPTH, LINEAR_CAP, GAMMA_LUT>(
+            src_layout, source, dst_layout, dest, options,
+        )
     }
-
-    Err(CmsError::UnsupportedProfileConnection)
 }

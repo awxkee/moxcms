@@ -161,6 +161,17 @@ pub enum Layout {
     Rgba = 1,
     Gray = 2,
     GrayAlpha = 3,
+    Inks5 = 4,
+    Inks6 = 5,
+    Inks7 = 6,
+    Inks8 = 7,
+    Inks9 = 8,
+    Inks10 = 9,
+    Inks11 = 10,
+    Inks12 = 11,
+    Inks13 = 12,
+    Inks14 = 13,
+    Inks15 = 14,
 }
 
 impl Layout {
@@ -172,6 +183,7 @@ impl Layout {
             Layout::Rgba => 0,
             Layout::Gray => unimplemented!(),
             Layout::GrayAlpha => unimplemented!(),
+            _ => unimplemented!(),
         }
     }
 
@@ -183,6 +195,7 @@ impl Layout {
             Layout::Rgba => 1,
             Layout::Gray => unimplemented!(),
             Layout::GrayAlpha => unimplemented!(),
+            _ => unimplemented!(),
         }
     }
 
@@ -194,6 +207,7 @@ impl Layout {
             Layout::Rgba => 2,
             Layout::Gray => unimplemented!(),
             Layout::GrayAlpha => unimplemented!(),
+            _ => unimplemented!(),
         }
     }
 
@@ -204,6 +218,7 @@ impl Layout {
             Layout::Rgba => 3,
             Layout::Gray => unimplemented!(),
             Layout::GrayAlpha => 1,
+            _ => unimplemented!(),
         }
     }
 
@@ -214,6 +229,7 @@ impl Layout {
             Layout::Rgba => true,
             Layout::Gray => false,
             Layout::GrayAlpha => true,
+            _ => false,
         }
     }
 
@@ -224,6 +240,38 @@ impl Layout {
             Layout::Rgba => 4,
             Layout::Gray => 1,
             Layout::GrayAlpha => 2,
+            Layout::Inks5 => 5,
+            Layout::Inks6 => 6,
+            Layout::Inks7 => 7,
+            Layout::Inks8 => 8,
+            Layout::Inks9 => 9,
+            Layout::Inks10 => 10,
+            Layout::Inks11 => 11,
+            Layout::Inks12 => 12,
+            Layout::Inks13 => 13,
+            Layout::Inks14 => 14,
+            Layout::Inks15 => 15,
+        }
+    }
+
+    pub(crate) fn from_inks(inks: usize) -> Self {
+        match inks {
+            1 => Layout::Gray,
+            2 => Layout::GrayAlpha,
+            3 => Layout::Rgb,
+            4 => Layout::Rgba,
+            5 => Layout::Inks5,
+            6 => Layout::Inks6,
+            7 => Layout::Inks7,
+            8 => Layout::Inks8,
+            9 => Layout::Inks9,
+            10 => Layout::Inks10,
+            11 => Layout::Inks11,
+            12 => Layout::Inks12,
+            13 => Layout::Inks13,
+            14 => Layout::Inks14,
+            15 => Layout::Inks15,
+            _ => unreachable!("Impossible amount of inks"),
         }
     }
 }
@@ -241,12 +289,24 @@ impl From<u8> for Layout {
 }
 
 impl Layout {
+    #[inline(always)]
     pub const fn resolve(value: u8) -> Self {
         match value {
             0 => Layout::Rgb,
             1 => Layout::Rgba,
             2 => Layout::Gray,
             3 => Layout::GrayAlpha,
+            4 => Layout::Inks5,
+            5 => Layout::Inks6,
+            6 => Layout::Inks7,
+            7 => Layout::Inks8,
+            8 => Layout::Inks9,
+            9 => Layout::Inks10,
+            10 => Layout::Inks11,
+            11 => Layout::Inks12,
+            12 => Layout::Inks13,
+            13 => Layout::Inks14,
+            14 => Layout::Inks15,
             _ => unimplemented!(),
         }
     }
@@ -544,12 +604,12 @@ impl ColorProfile {
                 adaptation_matrix: transform.to_f32(),
             };
 
-            return T::make_transform::<LINEAR_CAP, GAMMA_CAP, BIT_DEPTH>(
+            T::make_transform::<LINEAR_CAP, GAMMA_CAP, BIT_DEPTH>(
                 src_layout,
                 dst_layout,
                 profile_transform,
                 options,
-            );
+            )
         } else if self.color_space == DataColorSpace::Gray
             && (dst_pr.color_space == DataColorSpace::Rgb
                 || dst_pr.color_space == DataColorSpace::Gray)
@@ -565,12 +625,12 @@ impl ColorProfile {
                 options.allow_use_cicp_transfer,
             )?;
 
-            return make_gray_to_x::<T, LINEAR_CAP, BIT_DEPTH, GAMMA_CAP>(
+            make_gray_to_x::<T, LINEAR_CAP, BIT_DEPTH, GAMMA_CAP>(
                 src_layout,
                 dst_layout,
                 &gray_linear,
                 &gray_gamma,
-            );
+            )
         } else if self.color_space == DataColorSpace::Rgb
             && dst_pr.color_space == DataColorSpace::Gray
             && dst_pr.pcs == DataColorSpace::Xyz
@@ -610,9 +670,9 @@ impl ColorProfile {
                 gray_gamma: gray_linear,
             };
 
-            return Ok(make_rgb_to_gray::<T, LINEAR_CAP, BIT_DEPTH, GAMMA_CAP>(
+            Ok(make_rgb_to_gray::<T, LINEAR_CAP, BIT_DEPTH, GAMMA_CAP>(
                 src_layout, dst_layout, trc_box, vector,
-            ));
+            ))
         } else if (self.color_space.is_three_channels()
             || self.color_space == DataColorSpace::Cmyk
             || self.color_space == DataColorSpace::Color4)
@@ -628,12 +688,14 @@ impl ColorProfile {
             if dst_layout == Layout::Gray || dst_layout == Layout::GrayAlpha {
                 return Err(CmsError::InvalidLayout);
             }
-            return make_lut_transform::<T, BIT_DEPTH, LINEAR_CAP, GAMMA_CAP>(
+            make_lut_transform::<T, BIT_DEPTH, LINEAR_CAP, GAMMA_CAP>(
                 src_layout, self, dst_layout, dst_pr, options,
-            );
+            )
+        } else {
+            make_lut_transform::<T, BIT_DEPTH, LINEAR_CAP, GAMMA_CAP>(
+                src_layout, self, dst_layout, dst_pr, options,
+            )
         }
-
-        Err(CmsError::UnsupportedProfileConnection)
     }
 
     /// Creates transform between source and destination profile

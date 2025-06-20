@@ -92,6 +92,7 @@ where
                 trc_box: trc,
                 weights,
             }),
+            _ => unreachable!(),
         },
         Layout::Rgba => match dst_layout {
             Layout::Rgb => unreachable!(),
@@ -118,9 +119,11 @@ where
                 trc_box: trc,
                 weights,
             }),
+            _ => unreachable!(),
         },
         Layout::Gray => unreachable!(),
         Layout::GrayAlpha => unreachable!(),
+        _ => unreachable!(),
     }
 }
 

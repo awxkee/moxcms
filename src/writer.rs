@@ -362,53 +362,71 @@ fn write_mab_entry(
     into.push(lut.num_output_channels);
     write_u16_be(into, 0);
     let mut working_offset = 32usize;
+
+    let mut data = Vec::new();
+
     // Offset to "B curves"
     if !lut.b_curves.is_empty() {
+        while working_offset % 4 != 0 {
+            data.push(0);
+            working_offset += 1;
+        }
+
         write_u32_be(into, working_offset as u32);
-    } else {
-        write_u32_be(into, 0);
-    }
-    let mut data = Vec::new();
-    if !lut.b_curves.is_empty() {
+
         for trc in lut.b_curves.iter() {
-            let mut curve_size = write_trc_entry(&mut data, trc)?;
-            while curve_size % 4 != 0 {
-                data.push(0);
-                curve_size += 1;
-            }
+            let curve_size = write_trc_entry(&mut data, trc)?;
             working_offset += curve_size;
+            while working_offset % 4 != 0 {
+                data.push(0);
+                working_offset += 1;
+            }
         }
-    }
-    // Offset to matrix
-    write_u32_be(into, working_offset as u32);
-    write_matrix3d(&mut data, lut.matrix);
-    write_vector3d(&mut data, lut.bias);
-    working_offset += 9 * 4 + 3 * 4;
-    // Offset to "M curves"
-    if !lut.m_curves.is_empty() {
-        write_u32_be(into, working_offset as u32);
     } else {
         write_u32_be(into, 0);
-    }
-    if !lut.m_curves.is_empty() {
-        for trc in lut.m_curves.iter() {
-            let mut curve_size = write_trc_entry(&mut data, trc)?;
-            while curve_size % 4 != 0 {
-                data.push(0);
-                curve_size += 1;
-            }
-            working_offset += curve_size;
-        }
     }
 
-    // Offset to CLUT
-    if lut.clut.is_some() {
+    // Offset to matrix
+    if !lut.m_curves.is_empty() {
+        while working_offset % 4 != 0 {
+            data.push(0);
+            working_offset += 1;
+        }
+
         write_u32_be(into, working_offset as u32);
+        write_matrix3d(&mut data, lut.matrix);
+        write_vector3d(&mut data, lut.bias);
+        working_offset += 9 * 4 + 3 * 4;
+        // Offset to "M curves"
+        write_u32_be(into, working_offset as u32);
+        for trc in lut.m_curves.iter() {
+            let curve_size = write_trc_entry(&mut data, trc)?;
+            working_offset += curve_size;
+            while working_offset % 4 != 0 {
+                data.push(0);
+                working_offset += 1;
+            }
+        }
     } else {
+        // Offset to matrix
+        write_u32_be(into, 0);
+        // Offset to "M curves"
         write_u32_be(into, 0);
     }
-    let clut_start = data.len();
+
+    let mut clut_start = data.len();
+
+    // Offset to CLUT
     if let Some(clut) = &lut.clut {
+        while working_offset % 4 != 0 {
+            data.push(0);
+            working_offset += 1;
+        }
+
+        clut_start = data.len();
+
+        write_u32_be(into, working_offset as u32);
+
         // Writing CLUT
         for &pt in lut.grid_points.iter() {
             data.push(pt);
@@ -432,24 +450,32 @@ fn write_mab_entry(
                 }
             }
         }
-    }
-    let clut_size = data.len() - clut_start;
-    working_offset += clut_size;
-    // Offset to "A curves"
-    if !lut.a_curves.is_empty() {
-        write_u32_be(into, working_offset as u32);
     } else {
         write_u32_be(into, 0);
     }
+
+    let clut_size = data.len() - clut_start;
+    working_offset += clut_size;
+
+    // Offset to "A curves"
     if !lut.a_curves.is_empty() {
-        for trc in lut.a_curves.iter() {
-            let mut curve_size = write_trc_entry(&mut data, trc)?;
-            while curve_size % 4 != 0 {
-                data.push(0);
-                curve_size += 1;
-            }
-            working_offset += curve_size;
+        while working_offset % 4 != 0 {
+            data.push(0);
+            working_offset += 1;
         }
+
+        write_u32_be(into, working_offset as u32);
+
+        for trc in lut.a_curves.iter() {
+            let curve_size = write_trc_entry(&mut data, trc)?;
+            working_offset += curve_size;
+            while working_offset % 4 != 0 {
+                data.push(0);
+                working_offset += 1;
+            }
+        }
+    } else {
+        write_u32_be(into, 0);
     }
 
     into.extend(data);
