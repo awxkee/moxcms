@@ -28,6 +28,12 @@
  */
 #![allow(clippy::manual_clamp, clippy::excessive_precision)]
 #![deny(unreachable_pub)]
+#![deny(
+    clippy::print_stdout,
+    clippy::print_stderr,
+    clippy::print_literal,
+    clippy::print_in_format_impl
+)]
 #![allow(stable_features)]
 #![cfg_attr(
     not(any(feature = "avx", feature = "sse", feature = "avx512", feature = "neon")),
@@ -56,7 +62,7 @@ mod jzczhz;
 mod lab;
 mod luv;
 /// One of main intent is to provide fast math available in const context
-/// ULP most of the methods ~3.5
+/// ULP most of the methods <= 0.5
 mod math;
 mod matrix;
 mod mlaf;
