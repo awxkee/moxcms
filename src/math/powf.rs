@@ -56,6 +56,8 @@ const fn is_integer(x: f32) -> bool {
 }
 
 /// Power function for given value using FMA
+///
+/// Max found ULP 0.4999
 #[inline]
 pub fn f_powf(x: f32, y: f32) -> f32 {
     use crate::f_exp2;
