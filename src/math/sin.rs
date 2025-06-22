@@ -848,7 +848,7 @@ const fn mask_trailing_ones(len: u64) -> u64 {
     }
 }
 
-const EXP_MASK: u64 = mask_trailing_ones(11) << 52;
+pub(crate) const EXP_MASK: u64 = mask_trailing_ones(11) << 52;
 
 #[inline]
 fn set_exponent_f64(x: u64, new_exp: u64) -> u64 {
