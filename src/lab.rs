@@ -26,6 +26,7 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+use crate::mlaf::mlaf;
 use crate::{Chromaticity, LCh, Xyz};
 use pxfm::f_cbrtf;
 
@@ -86,7 +87,7 @@ impl Lab {
         let fy = f(device_y);
         let fz = f(device_z);
 
-        let lb = 116.0 * fy - 16.0;
+        let lb = mlaf(-16.0, 116.0, fy);
         let a = 500.0 * (fx - fy);
         let b = 200.0 * (fy - fz);
 
@@ -108,7 +109,7 @@ impl Lab {
         let fy = f(device_y);
         let fz = f(device_z);
 
-        let lb = 116.0 * fy - 16.0;
+        let lb = mlaf(-16.0, 116.0, fy);
         let a = 500.0 * (fx - fy);
         let b = 200.0 * (fy - fz);
 
@@ -126,9 +127,9 @@ impl Lab {
 
         const WP: Xyz = Chromaticity::D50.to_xyz();
 
-        let x = f_1(y + 0.002 * device_a) * WP.x;
+        let x = f_1(mlaf(y, 0.002, device_a)) * WP.x;
         let y1 = f_1(y) * WP.y;
-        let z = f_1(y - 0.005 * device_b) * WP.z;
+        let z = f_1(mlaf(y, -0.005, device_b)) * WP.z;
 
         let x = (x as f64 / (1.0f64 + 32767.0f64 / 32768.0f64)) as f32;
         let y = (y1 as f64 / (1.0f64 + 32767.0f64 / 32768.0f64)) as f32;
@@ -138,7 +139,7 @@ impl Lab {
 
     /// Converts CIE [Lab] into CIE [Xyz]
     #[inline]
-    pub const fn to_xyz(self) -> Xyz {
+    pub fn to_xyz(self) -> Xyz {
         let device_l = self.l;
         let device_a = self.a;
         let device_b = self.b;
@@ -147,9 +148,9 @@ impl Lab {
 
         const WP: Xyz = Chromaticity::D50.to_xyz();
 
-        let x = f_1(y + 0.002 * device_a) * WP.x;
+        let x = f_1(mlaf(y, 0.002, device_a)) * WP.x;
         let y1 = f_1(y) * WP.y;
-        let z = f_1(y - 0.005 * device_b) * WP.z;
+        let z = f_1(mlaf(y, -0.005, device_b)) * WP.z;
 
         let x = (x as f64 / (1.0f64 + 32767.0f64 / 32768.0f64)) as f32;
         let y = (y1 as f64 / (1.0f64 + 32767.0f64 / 32768.0f64)) as f32;

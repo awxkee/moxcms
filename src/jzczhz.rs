@@ -29,7 +29,7 @@
 use crate::Xyz;
 use crate::jzazbz::Jzazbz;
 use num_traits::Pow;
-use pxfm::{f_atan2f, f_cbrtf, f_hypot3f, f_hypotf, f_sincosf, f_sinf};
+use pxfm::{f_atan2f, f_cbrtf, f_hypot3f, f_hypotf, f_powf, f_sincosf, f_sinf};
 use std::ops::{
     Add, AddAssign, Div, DivAssign, Index, IndexMut, Mul, MulAssign, Neg, Sub, SubAssign,
 };
@@ -314,7 +314,11 @@ impl Pow<f32> for Jzczhz {
 
     #[inline]
     fn pow(self, rhs: f32) -> Self::Output {
-        Jzczhz::new(self.jz.powf(rhs), self.cz.powf(rhs), self.hz.powf(rhs))
+        Jzczhz::new(
+            f_powf(self.jz, rhs),
+            f_powf(self.cz, rhs),
+            f_powf(self.hz, rhs),
+        )
     }
 }
 
@@ -324,9 +328,9 @@ impl Pow<Jzczhz> for Jzczhz {
     #[inline]
     fn pow(self, rhs: Jzczhz) -> Self::Output {
         Jzczhz::new(
-            self.jz.powf(rhs.jz),
-            self.cz.powf(self.cz),
-            self.hz.powf(self.hz),
+            f_powf(self.jz, rhs.jz),
+            f_powf(self.cz, self.cz),
+            f_powf(self.hz, self.hz),
         )
     }
 }

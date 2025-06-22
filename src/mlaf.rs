@@ -71,3 +71,12 @@ pub(crate) fn neg_mlaf<
 ) -> T {
     mlaf(acc, a, -b)
 }
+
+#[inline(always)]
+pub(crate) fn fmla<T: Copy + Mul<T, Output = T> + Add<T, Output = T> + MulAdd<T, Output = T>>(
+    a: T,
+    b: T,
+    acc: T,
+) -> T {
+    mlaf(acc, a, b)
+}

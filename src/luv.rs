@@ -53,6 +53,7 @@ pub struct LCh {
     pub h: f32,
 }
 
+use crate::mlaf::mlaf;
 use crate::{Chromaticity, Lab, Xyz};
 use num_traits::Pow;
 use pxfm::{f_atan2f, f_cbrtf, f_hypotf, f_powf, f_sincosf};
@@ -76,24 +77,24 @@ impl Luv {
     #[allow(clippy::manual_clamp)]
     pub fn from_xyz(xyz: Xyz) -> Self {
         let [x, y, z] = [xyz.x, xyz.y, xyz.z];
-        let den = x + 15.0 * y + 3.0 * z;
+        let den = mlaf(mlaf(x, 15.0, y), 3.0, z);
 
         let l = (if y < LUV_CUTOFF_FORWARD_Y {
             LUV_MULTIPLIER_FORWARD_Y * y
         } else {
-            116f32 * f_cbrtf(y) - 16f32
+            116. * f_cbrtf(y) - 16.
         })
-        .min(100f32)
-        .max(0f32);
+        .min(100.)
+        .max(0.);
         let (u, v);
         if den != 0f32 {
-            let u_prime = 4f32 * x / den;
-            let v_prime = 9f32 * y / den;
-            u = 13f32 * l * (u_prime - LUV_WHITE_U_PRIME);
-            v = 13f32 * l * (v_prime - LUV_WHITE_V_PRIME);
+            let u_prime = 4. * x / den;
+            let v_prime = 9. * y / den;
+            u = 13. * l * (u_prime - LUV_WHITE_U_PRIME);
+            v = 13. * l * (v_prime - LUV_WHITE_V_PRIME);
         } else {
-            u = 0f32;
-            v = 0f32;
+            u = 0.;
+            v = 0.;
         }
 
         Luv { l, u, v }
@@ -101,27 +102,27 @@ impl Luv {
 
     /// To [Xyz] using D50 colorimetry
     #[inline]
-    pub const fn to_xyz(&self) -> Xyz {
-        if self.l <= 0f32 {
-            return Xyz::new(0f32, 0f32, 0f32);
+    pub fn to_xyz(&self) -> Xyz {
+        if self.l <= 0. {
+            return Xyz::new(0., 0., 0.);
         }
-        let l13 = 1f32 / (13f32 * self.l);
-        let u = self.u * l13 + LUV_WHITE_U_PRIME;
-        let v = self.v * l13 + LUV_WHITE_V_PRIME;
-        let y = if self.l > 8f32 {
-            let jx = (self.l + 16f32) / 116f32;
+        let l13 = 1. / (13. * self.l);
+        let u = mlaf(LUV_WHITE_U_PRIME, self.u, l13);
+        let v = mlaf(LUV_WHITE_V_PRIME, self.v, l13);
+        let y = if self.l > 8. {
+            let jx = (self.l + 16.) / 116.;
             jx * jx * jx
         } else {
             self.l * LUV_MULTIPLIER_INVERSE_Y
         };
         let (x, z);
-        if v != 0f32 {
-            let den = 1f32 / (4f32 * v);
-            x = y * 9f32 * u * den;
-            z = y * (12.0f32 - 3.0f32 * u - 20f32 * v) * den;
+        if v != 0. {
+            let den = 1. / (4. * v);
+            x = y * 9. * u * den;
+            z = y * mlaf(mlaf(12.0, -3.0, u), -20., v) * den;
         } else {
-            x = 0f32;
-            z = 0f32;
+            x = 0.;
+            z = 0.;
         }
 
         Xyz::new(x, y, z)

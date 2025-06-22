@@ -247,7 +247,7 @@ fn main() {
     // let custom_profile = Profile::new_icc(&decoder.icc_profile().unwrap().unwrap()).unwrap();
 
     let gray_icc = fs::read("./assets/FOGRA55.icc").unwrap();
-    let md_icc_v4 = fs::read("./assets/FOGRA55.icc").unwrap();
+    let md_icc_v4 = fs::read("./assets/us_swop_coated.icc").unwrap();
     let gray_target = ColorProfile::new_from_slice(&md_icc_v4).unwrap();
 
     // let mut profile_clone = gray_target.clone();
@@ -272,7 +272,7 @@ fn main() {
         .create_transform_16bit(
             moxcms::Layout::Rgb,
             &gray_target,
-            moxcms::Layout::Inks7,
+            moxcms::Layout::Rgba,
             TransformOptions {
                 prefer_fixed_point: false,
                 ..Default::default()
@@ -280,7 +280,7 @@ fn main() {
         )
         .unwrap();
 
-    let mut new_img_bytes = vec![0u16; (img.as_bytes().len() / 3) * 7];
+    let mut new_img_bytes = vec![0u16; (img.as_bytes().len() / 3) * 4];
     transform.transform(&rgb_f32, &mut new_img_bytes).unwrap();
 
     // let profile = lcms2::Profile::new_icc(&md_icc_v4).unwrap();
@@ -298,7 +298,7 @@ fn main() {
 
     let inverse_transform = gray_target
         .create_transform_16bit(
-            moxcms::Layout::Inks7,
+            moxcms::Layout::Rgba,
             &srgb,
             moxcms::Layout::Rgb,
             TransformOptions {

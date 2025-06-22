@@ -26,6 +26,7 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+use crate::mlaf::{fmla, mlaf};
 use crate::transform::PointeeSizeExpressible;
 use crate::{Rgb, TransferCharacteristics};
 use num_traits::AsPrimitive;
@@ -68,7 +69,11 @@ fn srgb_from_linear(linear: f64) -> f64 {
     } else if linear < 0.0030412825601275209f64 {
         linear * 12.92f64
     } else if linear < 1.0f64 {
-        1.0550107189475866f64 * f_pow(linear, 1.0f64 / 2.4f64) - 0.0550107189475866f64
+        fmla(
+            1.0550107189475866f64,
+            f_pow(linear, 1.0f64 / 2.4f64),
+            -0.0550107189475866f64,
+        )
     } else {
         1.0f64
     }
@@ -80,7 +85,11 @@ pub(crate) fn srgb_from_linear_extended(linear: f32) -> f32 {
     if linear < 0.0030412825601275209f32 {
         linear * 12.92f32
     } else {
-        1.0550107189475866f32 * dirty_powf(linear, 1.0f32 / 2.4f32) - 0.0550107189475866f32
+        fmla(
+            1.0550107189475866f32,
+            dirty_powf(linear, 1.0f32 / 2.4f32),
+            -0.0550107189475866f32,
+        )
     }
 }
 
@@ -119,7 +128,11 @@ fn rec709_from_linear(linear: f64) -> f64 {
     } else if linear < 0.018053968510807f64 {
         linear * 4.5f64
     } else if linear < 1.0f64 {
-        1.09929682680944f64 * f_pow(linear, 0.45f64) - 0.09929682680944f64
+        fmla(
+            1.09929682680944f64,
+            f_pow(linear, 0.45f64),
+            -0.09929682680944f64,
+        )
     } else {
         1.0f64
     }
@@ -131,7 +144,11 @@ fn rec709_from_linear_extended(linear: f32) -> f32 {
     if linear < 0.018053968510807 {
         linear * 4.5
     } else {
-        1.09929682680944 * dirty_powf(linear, 0.45) - 0.09929682680944
+        fmla(
+            1.09929682680944,
+            dirty_powf(linear, 0.45),
+            -0.09929682680944,
+        )
     }
 }
 
@@ -195,7 +212,7 @@ fn smpte240_from_linear(linear: f64) -> f64 {
     } else if linear < 0.022821585529445 {
         linear * 4.0
     } else if linear < 1.0 {
-        1.111572195921731 * f_pow(linear, 0.45) - 0.111572195921731
+        fmla(1.111572195921731, f_pow(linear, 0.45), -0.111572195921731)
     } else {
         1.0
     }
@@ -207,7 +224,7 @@ fn smpte240_from_linearf_extended(linear: f32) -> f32 {
     if linear < 0.022821585529445 {
         linear * 4.0
     } else {
-        1.111572195921731 * f_powf(linear, 0.45) - 0.111572195921731
+        fmla(1.111572195921731, f_powf(linear, 0.45), -0.111572195921731)
     }
 }
 
@@ -305,11 +322,15 @@ fn bt1361_from_linear(linear: f64) -> f64 {
     if linear < -0.25 {
         -0.25
     } else if linear < 0.0 {
-        -0.27482420670236 * f_pow(-4.0 * linear, 0.45) + 0.02482420670236
+        fmla(
+            -0.27482420670236,
+            f_pow(-4.0 * linear, 0.45),
+            0.02482420670236,
+        )
     } else if linear < 0.018053968510807 {
         linear * 4.5
     } else if linear < 1.0 {
-        1.09929682680944 * f_pow(linear, 0.45) - 0.09929682680944
+        fmla(1.09929682680944, f_pow(linear, 0.45), -0.09929682680944)
     } else {
         1.0
     }
@@ -321,11 +342,19 @@ fn bt1361_from_linearf(linear: f32) -> f32 {
     if linear < -0.25 {
         -0.25
     } else if linear < 0.0 {
-        -0.27482420670236 * dirty_powf(-4.0 * linear, 0.45) + 0.02482420670236
+        fmla(
+            -0.27482420670236,
+            dirty_powf(-4.0 * linear, 0.45),
+            0.02482420670236,
+        )
     } else if linear < 0.018053968510807 {
         linear * 4.5
     } else if linear < 1.0 {
-        1.09929682680944 * dirty_powf(linear, 0.45) - 0.09929682680944
+        fmla(
+            1.09929682680944,
+            dirty_powf(linear, 0.45),
+            -0.09929682680944,
+        )
     } else {
         1.0
     }
@@ -415,22 +444,22 @@ fn iec61966_to_linearf(gamma: f32) -> f32 {
 #[inline]
 fn iec61966_from_linear(v: f64) -> f64 {
     if v < -0.018053968510807f64 {
-        -1.09929682680944f64 * f_pow(-v, 0.45) + 0.09929682680944f64
+        fmla(-1.09929682680944f64, f_pow(-v, 0.45), 0.09929682680944f64)
     } else if v < 0.018053968510807f64 {
         v * 4.5f64
     } else {
-        1.09929682680944f64 * f_pow(v, 0.45) - 0.09929682680944f64
+        fmla(1.09929682680944f64, f_pow(v, 0.45), -0.09929682680944f64)
     }
 }
 
 #[inline]
 fn iec61966_from_linearf(v: f32) -> f32 {
     if v < -0.018053968510807 {
-        -1.09929682680944 * dirty_powf(-v, 0.45) + 0.09929682680944
+        fmla(-1.09929682680944, dirty_powf(-v, 0.45), 0.09929682680944)
     } else if v < 0.018053968510807 {
         v * 4.5
     } else {
-        1.09929682680944 * dirty_powf(v, 0.45) - 0.09929682680944
+        fmla(1.09929682680944, dirty_powf(v, 0.45), -0.09929682680944)
     }
 }
 
@@ -488,7 +517,7 @@ pub(crate) fn pq_to_linear(gamma: f64) -> f64 {
     if gamma > 0.0 {
         let pow_gamma = f_pow(gamma, 1.0 / 78.84375);
         let num = (pow_gamma - 0.8359375).max(0.);
-        let den = (18.8515625 - 18.6875 * pow_gamma).max(f64::MIN);
+        let den = mlaf(18.8515625, -18.6875, pow_gamma).max(f64::MIN);
         f_pow(num / den, 1.0 / 0.1593017578125)
     } else {
         0.0
@@ -501,7 +530,7 @@ pub(crate) fn pq_to_linearf(gamma: f32) -> f32 {
     if gamma > 0.0 {
         let pow_gamma = f_powf(gamma, 1.0 / 78.84375);
         let num = (pow_gamma - 0.8359375).max(0.);
-        let den = (18.8515625 - 18.6875 * pow_gamma).max(f32::MIN);
+        let den = mlaf(18.8515625, -18.6875, pow_gamma).max(f32::MIN);
         f_powf(num / den, 1.0 / 0.1593017578125)
     } else {
         0.0
@@ -514,8 +543,8 @@ fn pq_from_linear(linear: f64) -> f64 {
     if linear > 0.0 {
         let linear = linear.clamp(0., 1.);
         let pow_linear = f_pow(linear, 0.1593017578125);
-        let num = 0.1640625 * pow_linear - 0.1640625;
-        let den = 1.0 + 18.6875 * pow_linear;
+        let num = fmla(0.1640625, pow_linear, -0.1640625);
+        let den = mlaf(1.0, 18.6875, pow_linear);
         f_pow(1.0 + num / den, 78.84375)
     } else {
         0.0
@@ -528,8 +557,8 @@ pub(crate) fn pq_from_linearf(linear: f32) -> f32 {
     if linear > 0.0 {
         let linear = linear.max(0.);
         let pow_linear = f_powf(linear, 0.1593017578125);
-        let num = 0.1640625 * pow_linear - 0.1640625;
-        let den = 1.0 + 18.6875 * pow_linear;
+        let num = fmla(0.1640625, pow_linear, -0.1640625);
+        let den = mlaf(1.0, 18.6875, pow_linear);
         f_powf(1.0 + num / den, 78.84375)
     } else {
         0.0
@@ -580,7 +609,11 @@ fn hlg_from_linear(linear: f64) -> f64 {
     } else if linear <= (1.0 / 12.0) {
         (3.0 * linear).sqrt()
     } else {
-        0.17883277 * f_log(12.0 * linear - 0.28466892) + 0.55991073
+        fmla(
+            0.17883277,
+            f_log(fmla(12.0, linear, -0.28466892)),
+            0.55991073,
+        )
     }
 }
 
@@ -903,7 +936,7 @@ mod tests {
     fn srgb_test() {
         let srgb_0 = srgb_to_linear(0.5);
         let srgb_1 = srgb_from_linear(srgb_0);
-        assert_eq!(0.5, srgb_1);
+        assert!((0.5 - srgb_1).abs() < 1e-9f64);
     }
 
     #[test]
@@ -960,5 +993,40 @@ mod tests {
         let srgb_0 = srgb_to_linear_extended(0.5);
         let srgb_1 = srgb_from_linear_extended(srgb_0);
         assert!((0.5 - srgb_1).abs() < 1e-5f32);
+    }
+
+    #[test]
+    fn hlg_test() {
+        let z0 = hlg_to_linear(0.5);
+        let z1 = hlg_from_linear(z0);
+        assert!((0.5 - z1).abs() < 1e-5f64);
+    }
+
+    #[test]
+    fn pq_test() {
+        let z0 = pq_to_linear(0.5);
+        let z1 = pq_from_linear(z0);
+        assert!((0.5 - z1).abs() < 1e-5f64);
+    }
+
+    #[test]
+    fn pqf_test() {
+        let z0 = pq_to_linearf(0.5);
+        let z1 = pq_from_linearf(z0);
+        assert!((0.5 - z1).abs() < 1e-5f32);
+    }
+
+    #[test]
+    fn iec_test() {
+        let z0 = iec61966_to_linear(0.5);
+        let z1 = iec61966_from_linear(z0);
+        assert!((0.5 - z1).abs() < 1e-5f64);
+    }
+
+    #[test]
+    fn bt1361_test() {
+        let z0 = bt1361_to_linear(0.5);
+        let z1 = bt1361_from_linear(z0);
+        assert!((0.5 - z1).abs() < 1e-5f64);
     }
 }

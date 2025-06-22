@@ -83,6 +83,7 @@ mod dt_ucs;
 mod helpers;
 mod lut_hint;
 mod matan;
+mod srlab2;
 
 pub use chad::{
     adapt_to_d50, adapt_to_d50_d, adapt_to_illuminant, adapt_to_illuminant_d,
@@ -118,6 +119,7 @@ pub use profile::{
     StandardIlluminant, StandardObserver, TechnologySignatures, ViewingConditions,
 };
 pub use rgb::{FusedExp, FusedExp2, FusedExp10, FusedLog, FusedLog2, FusedLog10, FusedPow, Rgb};
+pub use srlab2::Srlab2;
 pub use transform::{
     BarycentricWeightScale, InPlaceStage, InterpolationMethod, Layout, PointeeSizeExpressible,
     Stage, Transform8BitExecutor, Transform16BitExecutor, TransformExecutor,
