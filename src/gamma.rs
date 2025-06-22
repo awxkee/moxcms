@@ -390,14 +390,14 @@ pub(crate) fn iec61966_to_linear(gamma: f64) -> f64 {
     if gamma < -4.5f64 * 0.018053968510807f64 {
         f_pow(
             (-gamma + 0.09929682680944f64) / -1.09929682680944f64,
-            1.0f64 / 0.45f64,
+            1.0 / 0.45,
         )
     } else if gamma < 4.5f64 * 0.018053968510807f64 {
-        gamma / 4.5f64
+        gamma / 4.5
     } else {
         f_pow(
             (gamma + 0.09929682680944f64) / 1.09929682680944f64,
-            1.0f64 / 0.45f64,
+            1.0 / 0.45,
         )
     }
 }
@@ -416,11 +416,11 @@ fn iec61966_to_linearf(gamma: f32) -> f32 {
 #[inline]
 fn iec61966_from_linear(v: f64) -> f64 {
     if v < -0.018053968510807f64 {
-        -1.09929682680944f64 * f_pow(-v, 0.45f64) + 0.09929682680944f64
+        -1.09929682680944f64 * f_pow(-v, 0.45) + 0.09929682680944f64
     } else if v < 0.018053968510807f64 {
         v * 4.5f64
     } else {
-        1.09929682680944f64 * f_pow(v, 0.45f64) - 0.09929682680944f64
+        1.09929682680944f64 * f_pow(v, 0.45) - 0.09929682680944f64
     }
 }
 
@@ -893,5 +893,73 @@ impl TransferCharacteristics {
             }
         }
         table
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn srgb_test() {
+        let srgb_0 = srgb_to_linear(0.5);
+        let srgb_1 = srgb_from_linear(srgb_0);
+        assert_eq!(0.5, srgb_1);
+    }
+
+    #[test]
+    fn log100_sqrt10_test() {
+        let srgb_0 = log100_sqrt10_to_linear(0.5);
+        let srgb_1 = log100_sqrt10_from_linear(srgb_0);
+        assert_eq!(0.5, srgb_1);
+    }
+
+    #[test]
+    fn log100_test() {
+        let srgb_0 = log100_to_linear(0.5);
+        let srgb_1 = log100_from_linear(srgb_0);
+        assert_eq!(0.5, srgb_1);
+    }
+
+    #[test]
+    fn iec61966_test() {
+        let srgb_0 = iec61966_to_linear(0.5);
+        let srgb_1 = iec61966_from_linear(srgb_0);
+        assert!((0.5 - srgb_1).abs() < 1e-9f64);
+    }
+
+    #[test]
+    fn smpte240_test() {
+        let srgb_0 = smpte240_to_linear(0.5);
+        let srgb_1 = smpte240_from_linear(srgb_0);
+        assert!((0.5 - srgb_1).abs() < 1e-9f64);
+    }
+
+    #[test]
+    fn smpte428_test() {
+        let srgb_0 = smpte428_to_linear(0.5);
+        let srgb_1 = smpte428_from_linear(srgb_0);
+        assert!((0.5 - srgb_1).abs() < 1e-9f64);
+    }
+
+    #[test]
+    fn rec709_test() {
+        let srgb_0 = rec709_to_linear(0.5);
+        let srgb_1 = rec709_from_linear(srgb_0);
+        assert!((0.5 - srgb_1).abs() < 1e-9f64);
+    }
+
+    #[test]
+    fn rec709f_test() {
+        let srgb_0 = rec709_to_linear_extended(0.5);
+        let srgb_1 = rec709_from_linear_extended(srgb_0);
+        assert!((0.5 - srgb_1).abs() < 1e-5f32);
+    }
+
+    #[test]
+    fn srgbf_test() {
+        let srgb_0 = srgb_to_linear_extended(0.5);
+        let srgb_1 = srgb_from_linear_extended(srgb_0);
+        assert!((0.5 - srgb_1).abs() < 1e-5f32);
     }
 }
