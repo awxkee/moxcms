@@ -28,12 +28,13 @@
  */
 use crate::cicp::create_rec709_parametric;
 use crate::matan::is_curve_linear16;
-use crate::math::{dirty_powf, m_clamp};
+use crate::math::m_clamp;
 use crate::mlaf::{mlaf, neg_mlaf};
 use crate::transform::PointeeSizeExpressible;
 use crate::writer::FloatToFixedU8Fixed8;
-use crate::{CmsError, ColorProfile, Rgb, TransferCharacteristics, f_pow, f_powf};
+use crate::{CmsError, ColorProfile, Rgb, TransferCharacteristics};
 use num_traits::AsPrimitive;
+use pxfm::{dirty_powf, f_pow, f_powf};
 
 #[derive(Clone, Debug)]
 pub enum ToneReprCurve {

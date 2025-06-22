@@ -26,8 +26,9 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+use crate::Xyz;
 use crate::mlaf::mlaf;
-use crate::{Xyz, f_atan2f, f_powf, f_sincosf};
+use pxfm::{f_atan2f, f_powf, f_sincosf};
 
 /// Darktable UCS JCH ( Darktable Uniform Color Space )
 #[derive(Copy, Clone, PartialOrd, PartialEq, Debug)]

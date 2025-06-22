@@ -27,7 +27,8 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::mlaf::mlaf;
-use crate::{Matrix3f, Vector3f, Xyz, f_atan2f, f_sincosf, hypotf};
+use crate::{Matrix3f, Vector3f, Xyz};
+use pxfm::{f_atan2f, f_hypotf, f_sincosf};
 
 /// Structure for Yrg colorspace
 ///
@@ -123,7 +124,7 @@ impl Ych {
         // -> grading RGB conversion.
         let r = yrg.r - 0.21902143;
         let g = yrg.g - 0.54371398;
-        let c = hypotf(g, r);
+        let c = f_hypotf(g, r);
         let h = f_atan2f(g, r);
         Self { y, c, h }
     }

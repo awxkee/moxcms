@@ -53,10 +53,9 @@ pub struct LCh {
     pub h: f32,
 }
 
-use crate::{
-    Chromaticity, Lab, Xyz, atan2f, const_hypotf, f_atan2f, f_cbrtf, f_sincosf, hypotf, powf,
-};
+use crate::{Chromaticity, Lab, Xyz};
 use num_traits::Pow;
+use pxfm::{f_atan2f, f_cbrtf, f_hypotf, f_powf, f_sincosf};
 use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 
 pub(crate) const LUV_WHITE_U_PRIME: f32 = 4.0f32 * Chromaticity::D50.to_xyz().y
@@ -145,7 +144,7 @@ impl LCh {
     pub fn from_luv(luv: Luv) -> Self {
         LCh {
             l: luv.l,
-            c: hypotf(luv.u, luv.v),
+            c: f_hypotf(luv.u, luv.v),
             h: f_atan2f(luv.v, luv.u),
         }
     }
@@ -155,7 +154,7 @@ impl LCh {
     pub fn from_lab(lab: Lab) -> Self {
         LCh {
             l: lab.l,
-            c: hypotf(lab.a, lab.b),
+            c: f_hypotf(lab.a, lab.b),
             h: f_atan2f(lab.b, lab.a),
         }
     }
@@ -170,15 +169,6 @@ impl LCh {
     #[inline]
     pub fn from_xyz_lab(xyz: Xyz) -> Self {
         Self::from_lab(Lab::from_xyz(xyz))
-    }
-
-    #[inline]
-    pub const fn const_from_luv(luv: Luv) -> Self {
-        LCh {
-            l: luv.l,
-            c: const_hypotf(luv.u, luv.v),
-            h: atan2f(luv.v, luv.u),
-        }
     }
 
     /// Converts LCh(uv) to Luv
@@ -599,7 +589,11 @@ impl Pow<f32> for Luv {
 
     #[inline]
     fn pow(self, rhs: f32) -> Self::Output {
-        Luv::new(powf(self.l, rhs), powf(self.u, rhs), powf(self.v, rhs))
+        Luv::new(
+            f_powf(self.l, rhs),
+            f_powf(self.u, rhs),
+            f_powf(self.v, rhs),
+        )
     }
 }
 
@@ -608,7 +602,11 @@ impl Pow<f32> for LCh {
 
     #[inline]
     fn pow(self, rhs: f32) -> Self::Output {
-        LCh::new(powf(self.l, rhs), powf(self.c, rhs), powf(self.h, rhs))
+        LCh::new(
+            f_powf(self.l, rhs),
+            f_powf(self.c, rhs),
+            f_powf(self.h, rhs),
+        )
     }
 }
 
@@ -618,9 +616,9 @@ impl Pow<Luv> for Luv {
     #[inline]
     fn pow(self, rhs: Luv) -> Self::Output {
         Luv::new(
-            powf(self.l, rhs.l),
-            powf(self.u, rhs.u),
-            powf(self.v, rhs.v),
+            f_powf(self.l, rhs.l),
+            f_powf(self.u, rhs.u),
+            f_powf(self.v, rhs.v),
         )
     }
 }
@@ -631,9 +629,9 @@ impl Pow<LCh> for LCh {
     #[inline]
     fn pow(self, rhs: LCh) -> Self::Output {
         LCh::new(
-            powf(self.l, rhs.l),
-            powf(self.c, rhs.c),
-            powf(self.h, rhs.h),
+            f_powf(self.l, rhs.l),
+            f_powf(self.c, rhs.c),
+            f_powf(self.h, rhs.h),
         )
     }
 }

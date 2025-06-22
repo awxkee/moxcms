@@ -36,7 +36,7 @@ pub struct MalformedSize {
     pub expected: usize,
 }
 
-#[derive(Debug, Copy, Clone, PartialOrd, PartialEq)]
+#[derive(Debug, Clone, PartialOrd, PartialEq)]
 pub enum CmsError {
     LaneSizeMismatch,
     LaneMultipleOfChannels,
@@ -62,6 +62,7 @@ pub enum CmsError {
     MalformedClut(MalformedSize),
     MalformedCurveLutTable(MalformedSize),
     InvalidInksCountForProfile,
+    MalformedTrcCurve(String),
 }
 
 impl Display for CmsError {
@@ -113,6 +114,7 @@ impl Display for CmsError {
             CmsError::InvalidInksCountForProfile => {
                 f.write_str("Invalid inks count for profile was provided")
             }
+            CmsError::MalformedTrcCurve(str) => f.write_str(str),
         }
     }
 }

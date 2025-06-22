@@ -27,13 +27,13 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::chad::BRADFORD_D;
-use crate::math::copysign;
 use crate::trc::{ToneReprCurve, curve_from_gamma};
 use crate::{
     CicpColorPrimaries, CicpProfile, ColorPrimaries, ColorProfile, DataColorSpace,
     LocalizableString, Matrix3d, MatrixCoefficients, ProfileClass, ProfileText, RenderingIntent,
-    TransferCharacteristics, XyY, exp, floor, pow,
+    TransferCharacteristics, XyY,
 };
+use pxfm::{copysignk, exp, floor, pow};
 
 /// From lcms: `cmsWhitePointFromTemp`
 /// tempK must be >= 4000. and <= 25000.
@@ -102,7 +102,7 @@ const fn pq_curve(x: f64) -> f64 {
     let den = C2 - C3 * xpo;
     let res = pow(num / den, 1.0 / M1);
 
-    copysign(res, sign)
+    copysignk(res, sign)
 }
 
 pub(crate) const fn build_trc_table_pq() -> [u16; 4096] {
@@ -171,7 +171,7 @@ const fn hlg_curve(x: f64) -> f64 {
         (exp((e - C) * RA) + B) / 12.0
     };
 
-    copysign(res, sign)
+    copysignk(res, sign)
 }
 
 /// Perceptual Quantizer Lookup table

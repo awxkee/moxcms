@@ -102,13 +102,7 @@ pub use jzazbz::Jzazbz;
 pub use jzczhz::Jzczhz;
 pub use lab::Lab;
 pub use luv::{LCh, Luv};
-pub use math::{
-    Float48, Float106, atan2f, atanf, cbrtf, const_hypotf, cosf, exp, expf, f_acos, f_acosf,
-    f_asin, f_asinf, f_atan, f_atan2, f_atan2f, f_atanf, f_cbrt, f_cbrtf, f_cos, f_cosf, f_coshf,
-    f_exp, f_exp2, f_exp2f, f_exp10, f_exp10f, f_expf, f_log, f_log2, f_log2f, f_log10, f_logf,
-    f_pow, f_powf, f_sin, f_sincos, f_sincosf, f_sinf, f_sinhf, f_tan, f_tanf, f_tanhf, floor,
-    floorf, hypotf, log, log10f, logf, pow, powf, rounding_div_ceil, sinf, sqrtf,
-};
+pub use math::rounding_div_ceil;
 pub use matrix::{
     BT2020_MATRIX, Chromaticity, DISPLAY_P3_MATRIX, Matrix3, Matrix3d, Matrix3f, Matrix4f,
     SRGB_MATRIX, Vector3, Vector3d, Vector3f, Vector3i, Vector3u, Vector4, Vector4d, Vector4f,

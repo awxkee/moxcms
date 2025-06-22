@@ -26,10 +26,10 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+use crate::Xyz;
 use crate::jzazbz::Jzazbz;
-use crate::math::hypot3f;
-use crate::{Xyz, atan2f, f_cbrtf, f_sincosf, f_sinf, hypotf};
 use num_traits::Pow;
+use pxfm::{f_atan2f, f_cbrtf, f_hypot3f, f_hypotf, f_sincosf, f_sinf};
 use std::ops::{
     Add, AddAssign, Div, DivAssign, Index, IndexMut, Mul, MulAssign, Neg, Sub, SubAssign,
 };
@@ -56,8 +56,8 @@ impl Jzczhz {
     /// Converts Jzazbz to polar coordinates Jzczhz
     #[inline]
     pub fn from_jzazbz(jzazbz: Jzazbz) -> Jzczhz {
-        let cz = hypotf(jzazbz.az, jzazbz.bz);
-        let hz = atan2f(jzazbz.bz, jzazbz.az);
+        let cz = f_hypotf(jzazbz.az, jzazbz.bz);
+        let hz = f_atan2f(jzazbz.bz, jzazbz.az);
         Jzczhz::new(jzazbz.jz, cz, hz)
     }
 
@@ -107,7 +107,7 @@ impl Jzczhz {
         let dcz = self.cz - other.cz;
         let dhz = self.hz - other.hz;
         let dh = 2. * (self.cz * other.cz).sqrt() * f_sinf(dhz * 0.5);
-        hypot3f(djz, dcz, dh)
+        f_hypot3f(djz, dcz, dh)
     }
 
     #[inline]
