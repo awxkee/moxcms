@@ -6,11 +6,12 @@
  */
 use crate::math::{FusedMultiplyAdd, m_clamp, m_max, m_min};
 use crate::mlaf::mlaf;
-use crate::{
-    Matrix3f, Vector3, Xyz, f_exp, f_exp2, f_exp2f, f_exp10, f_exp10f, f_expf, f_log, f_log2,
-    f_log2f, f_log10, f_logf, f_pow, f_powf, log10f,
-};
+use crate::{Matrix3f, Vector3, Xyz};
 use num_traits::{AsPrimitive, Bounded, Float, Num, Pow, Signed};
+use pxfm::{
+    f_exp, f_exp2, f_exp2f, f_exp10, f_exp10f, f_expf, f_log, f_log2, f_log2f, f_log10, f_log10f,
+    f_logf, f_pow, f_powf,
+};
 use std::cmp::Ordering;
 use std::ops::{Add, AddAssign, Div, DivAssign, Index, IndexMut, Mul, MulAssign, Neg, Sub};
 
@@ -259,7 +260,7 @@ impl FusedLog<Rgb<f64>> for Rgb<f64> {
 impl FusedLog10<Rgb<f32>> for Rgb<f32> {
     #[inline]
     fn f_log10(&self) -> Rgb<f32> {
-        Rgb::new(log10f(self.r), log10f(self.g), log10f(self.b))
+        Rgb::new(f_log10f(self.r), f_log10f(self.g), f_log10f(self.b))
     }
 }
 

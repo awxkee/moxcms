@@ -4,9 +4,10 @@
  * // Use of this source code is governed by a BSD-style
  * // license that can be found in the LICENSE file.
  */
+use crate::Rgb;
 use crate::mlaf::mlaf;
-use crate::{Rgb, f_cbrtf, f_powf};
 use num_traits::Pow;
+use pxfm::{f_cbrtf, f_powf};
 use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 
 #[repr(C)]

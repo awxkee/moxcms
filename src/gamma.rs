@@ -26,13 +26,12 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-use crate::math::dirty_powf;
 use crate::transform::PointeeSizeExpressible;
-use crate::{
-    Rgb, TransferCharacteristics, f_exp, f_exp10, f_exp10f, f_expf, f_log, f_log10, f_logf, f_pow,
-    f_powf, log10f,
-};
+use crate::{Rgb, TransferCharacteristics};
 use num_traits::AsPrimitive;
+use pxfm::{
+    dirty_powf, f_exp, f_exp10, f_exp10f, f_expf, f_log, f_log10, f_log10f, f_logf, f_pow, f_powf,
+};
 
 #[inline]
 /// Linear transfer function for sRGB
@@ -228,7 +227,7 @@ fn log100_from_linearf(linear: f32) -> f32 {
     if linear <= 0.01 {
         0.
     } else {
-        1. + log10f(linear.min(1.)) / 2.0
+        1. + f_log10f(linear.min(1.)) / 2.0
     }
 }
 
@@ -296,7 +295,7 @@ fn log100_sqrt10_from_linearf(linear: f32) -> f32 {
     if linear <= 0.00316227766 {
         0.0
     } else {
-        1.0 + log10f(linear.min(1.)) / 2.5
+        1.0 + f_log10f(linear.min(1.)) / 2.5
     }
 }
 

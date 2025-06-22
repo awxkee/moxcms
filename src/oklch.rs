@@ -4,9 +4,9 @@
  * // Use of this source code is governed by a BSD-style
  * // license that can be found in the LICENSE file.
  */
-use crate::math::atan2f;
-use crate::{Oklab, Rgb, const_hypotf, f_cbrtf, f_powf, f_sincosf, hypotf};
+use crate::{Oklab, Rgb};
 use num_traits::Pow;
+use pxfm::{f_atan2f, f_cbrtf, f_hypotf, f_powf, f_sincosf};
 use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 
 /// Represents *Oklch* colorspace
@@ -48,16 +48,8 @@ impl Oklch {
     /// Converts *Oklab* to *Oklch*
     #[inline]
     pub fn from_oklab(oklab: Oklab) -> Oklch {
-        let chroma = hypotf(oklab.b, oklab.a);
-        let hue = atan2f(oklab.b, oklab.a);
-        Oklch::new(oklab.l, chroma, hue)
-    }
-
-    /// Converts *Oklab* to *Oklch*
-    #[inline]
-    pub const fn const_from_oklab(oklab: Oklab) -> Oklch {
-        let chroma = const_hypotf(oklab.b, oklab.a);
-        let hue = atan2f(oklab.b, oklab.a);
+        let chroma = f_hypotf(oklab.b, oklab.a);
+        let hue = f_atan2f(oklab.b, oklab.a);
         Oklch::new(oklab.l, chroma, hue)
     }
 

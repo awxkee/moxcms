@@ -26,8 +26,8 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-use crate::math::cbrtf;
 use crate::{Chromaticity, LCh, Xyz};
+use pxfm::f_cbrtf;
 
 /// Holds CIE LAB values
 #[repr(C)]
@@ -65,18 +65,18 @@ const fn f_1(t: f32) -> f32 {
 }
 
 #[inline(always)]
-const fn f(t: f32) -> f32 {
+fn f(t: f32) -> f32 {
     if t <= 24. / 116. * (24. / 116.) * (24. / 116.) {
         (841. / 108. * t) + 16. / 116.
     } else {
-        cbrtf(t)
+        f_cbrtf(t)
     }
 }
 
 impl Lab {
     /// Converts to CIE Lab from CIE XYZ for PCS encoding
     #[inline]
-    pub const fn from_pcs_xyz(xyz: Xyz) -> Self {
+    pub fn from_pcs_xyz(xyz: Xyz) -> Self {
         const WP: Xyz = Chromaticity::D50.to_xyz();
         let device_x = (xyz.x as f64 * (1.0f64 + 32767.0f64 / 32768.0f64) / WP.x as f64) as f32;
         let device_y = (xyz.y as f64 * (1.0f64 + 32767.0f64 / 32768.0f64) / WP.y as f64) as f32;
@@ -98,7 +98,7 @@ impl Lab {
 
     /// Converts to CIE Lab from CIE XYZ
     #[inline]
-    pub const fn from_xyz(xyz: Xyz) -> Self {
+    pub fn from_xyz(xyz: Xyz) -> Self {
         const WP: Xyz = Chromaticity::D50.to_xyz();
         let device_x = (xyz.x as f64 * (1.0f64 + 32767.0f64 / 32768.0f64) / WP.x as f64) as f32;
         let device_y = (xyz.y as f64 * (1.0f64 + 32767.0f64 / 32768.0f64) / WP.y as f64) as f32;
@@ -117,7 +117,7 @@ impl Lab {
 
     /// Converts CIE [Lab] into CIE [Xyz] for PCS encoding
     #[inline]
-    pub const fn to_pcs_xyz(self) -> Xyz {
+    pub fn to_pcs_xyz(self) -> Xyz {
         let device_l = self.l * 100.0;
         let device_a = self.a * 255.0 - 128.0;
         let device_b = self.b * 255.0 - 128.0;

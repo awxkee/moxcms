@@ -18,9 +18,5 @@ criterion = { version = "0.6", features = ["html_reports"] }
 libm = "0.2"
 
 [[bench]]
-name = "math"
-harness = false
-
-[[bench]]
 name = "icc"
 harness = false

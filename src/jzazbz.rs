@@ -26,11 +26,11 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+use crate::Xyz;
 use crate::jzczhz::Jzczhz;
-use crate::math::dirty_powf;
 use crate::mlaf::mlaf;
-use crate::{Xyz, f_cbrtf};
 use num_traits::Pow;
+use pxfm::{dirty_powf, f_cbrtf};
 use std::ops::{
     Add, AddAssign, Div, DivAssign, Index, IndexMut, Mul, MulAssign, Neg, Sub, SubAssign,
 };

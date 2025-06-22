@@ -690,11 +690,11 @@ impl ColorProfile {
             slice.len()
         };
         if last_tag_offset > slice.len() {
-            return Err(CmsError::InvalidProfile);
+            return Err(CmsError::MalformedTrcCurve("Data exhausted".to_string()));
         }
         let tag = &slice[entry..last_tag_offset];
         if tag.len() < TAG_SIZE {
-            return Err(CmsError::InvalidProfile);
+            return Err(CmsError::MalformedTrcCurve("Data exhausted".to_string()));
         }
         if curve_type == TagTypeDefinition::LutToneCurve {
             let entry_count = u32::from_be_bytes([tag[8], tag[9], tag[10], tag[11]]) as usize;
@@ -706,7 +706,9 @@ impl ColorProfile {
             }
             let curve_end = entry_count.safe_mul(size_of::<u16>())?.safe_add(12)?;
             if tag.len() < curve_end {
-                return Err(CmsError::InvalidProfile);
+                return Err(CmsError::MalformedTrcCurve(
+                    "Curve end ends to early".to_string(),
+                ));
             }
             let curve_sliced = &tag[12..curve_end];
             let mut curve_values = vec![0u16; entry_count];
@@ -719,13 +721,17 @@ impl ColorProfile {
         } else if curve_type == TagTypeDefinition::ParametricToneCurve {
             let entry_count = u16::from_be_bytes([tag[8], tag[9]]) as usize;
             if entry_count > 4 {
-                return Err(CmsError::InvalidProfile);
+                return Err(CmsError::MalformedTrcCurve(
+                    "Parametric curve has unknown entries count".to_string(),
+                ));
             }
 
             const COUNT_TO_LENGTH: [usize; 5] = [1, 3, 4, 5, 7]; //PARAMETRIC_CURVE_TYPE
 
             if tag.len() < 12 + COUNT_TO_LENGTH[entry_count] * size_of::<u32>() {
-                return Err(CmsError::InvalidProfile);
+                return Err(CmsError::MalformedTrcCurve(
+                    "Parametric curve has unknown entries count exhaust data too early".to_string(),
+                ));
             }
             let curve_sliced = &tag[12..12 + COUNT_TO_LENGTH[entry_count] * size_of::<u32>()];
             let mut params = vec![0f32; COUNT_TO_LENGTH[entry_count]];
@@ -743,7 +749,9 @@ impl ColorProfile {
             *read_size = 12 + COUNT_TO_LENGTH[entry_count] * 4;
             Ok(Some(ToneReprCurve::Parametric(params)))
         } else {
-            Err(CmsError::InvalidProfile)
+            Err(CmsError::MalformedTrcCurve(
+                "Unknown parametric curve tag".to_string(),
+            ))
         }
     }
 
