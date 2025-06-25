@@ -27,6 +27,7 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 #![allow(clippy::manual_clamp, clippy::excessive_precision)]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 #![deny(unreachable_pub)]
 #![deny(
     clippy::print_stdout,
