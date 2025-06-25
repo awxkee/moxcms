@@ -553,7 +553,7 @@ impl ColorProfile {
                 )?;
 
                 let gamma = dst_pr.build_gamma_table::<T, 65536, GAMMA_CAP, BIT_DEPTH>(
-                    &self.red_trc,
+                    &dst_pr.red_trc,
                     options.allow_use_cicp_transfer,
                 )?;
 
@@ -582,15 +582,15 @@ impl ColorProfile {
             )?;
 
             let gamma_r = dst_pr.build_gamma_table::<T, 65536, GAMMA_CAP, BIT_DEPTH>(
-                &self.red_trc,
+                &dst_pr.red_trc,
                 options.allow_use_cicp_transfer,
             )?;
             let gamma_g = dst_pr.build_gamma_table::<T, 65536, GAMMA_CAP, BIT_DEPTH>(
-                &self.green_trc,
+                &dst_pr.green_trc,
                 options.allow_use_cicp_transfer,
             )?;
             let gamma_b = dst_pr.build_gamma_table::<T, 65536, GAMMA_CAP, BIT_DEPTH>(
-                &self.blue_trc,
+                &dst_pr.blue_trc,
                 options.allow_use_cicp_transfer,
             )?;
 
@@ -621,7 +621,7 @@ impl ColorProfile {
             }
             let gray_linear = self.build_gray_linearize_table::<T, LINEAR_CAP, BIT_DEPTH>()?;
             let gray_gamma = dst_pr.build_gamma_table::<T, 65536, GAMMA_CAP, BIT_DEPTH>(
-                &self.gray_trc,
+                &dst_pr.red_trc,
                 options.allow_use_cicp_transfer,
             )?;
 
@@ -808,10 +808,10 @@ mod tests {
 
     #[test]
     fn test_transform_gray_to_rgb8() {
-        let srgb_profile = ColorProfile::new_gray_with_gamma(2.2f32);
+        let gray_profile = ColorProfile::new_gray_with_gamma(2.2f32);
         let bt2020_profile = ColorProfile::new_bt2020();
         let random_point_x = rand::rng().random_range(0..255);
-        let transform = srgb_profile
+        let transform = gray_profile
             .create_transform_8bit(
                 Layout::Gray,
                 &bt2020_profile,

@@ -416,17 +416,13 @@ impl TransferCharacteristics {
 }
 
 pub(crate) fn create_rec709_parametric() -> [f32; 5] {
-    const ALPHA: f32 = 1.099;
-    const BETA: f32 = 0.018;
-
-    const LINEAR_CONF: f32 = 4.500;
     const POW_EXP: f32 = 0.45;
 
     const G: f32 = 1. / POW_EXP;
-    const A: f32 = 1. / ALPHA;
-    const B: f32 = 1. - A;
-    const C: f32 = 1. / LINEAR_CONF;
-    const D: f32 = LINEAR_CONF * BETA;
+    const B: f32 = (0.09929682680944f64 / 1.09929682680944f64) as f32;
+    const C: f32 = 1f32 / 4.5f32;
+    const D: f32 = (4.5f64 * 0.018053968510807f64) as f32;
+    const A: f32 = (1. / 1.09929682680944f64) as f32;
 
     [G, A, B, C, D]
 }

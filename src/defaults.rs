@@ -27,6 +27,7 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::chad::BRADFORD_D;
+use crate::cicp::create_rec709_parametric;
 use crate::trc::{ToneReprCurve, curve_from_gamma};
 use crate::{
     CicpColorPrimaries, CicpProfile, ColorPrimaries, ColorProfile, DataColorSpace,
@@ -388,8 +389,7 @@ impl ColorProfile {
         let mut profile = ColorProfile::basic_rgb_profile();
         profile.update_colorants(ColorProfile::BT2020_COLORANTS);
 
-        let curve =
-            ToneReprCurve::Parametric(vec![2.4, 1. / 1.055, 0.055 / 1.055, 1. / 12.92, 0.04045]);
+        let curve = ToneReprCurve::Parametric(create_rec709_parametric().to_vec());
         profile.red_trc = Some(curve.clone());
         profile.blue_trc = Some(curve.clone());
         profile.green_trc = Some(curve);
