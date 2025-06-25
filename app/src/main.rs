@@ -248,7 +248,7 @@ fn main() {
 
     let gray_icc = fs::read("./assets/FOGRA55.icc").unwrap();
     let md_icc_v4 = fs::read("./assets/us_swop_coated.icc").unwrap();
-    let gray_target = ColorProfile::new_from_slice(&md_icc_v4).unwrap();
+    let gray_target = ColorProfile::new_bt2020(); // ColorProfile::new_from_slice(&md_icc_v4).unwrap();
 
     // let mut profile_clone = gray_target.clone();
     // profile_clone.lut_a_to_b_colorimetric = to_lut_v4(&profile_clone.lut_a_to_b_colorimetric, true);

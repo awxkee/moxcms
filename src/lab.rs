@@ -26,7 +26,7 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-use crate::mlaf::mlaf;
+use crate::mlaf::{fmla, mlaf};
 use crate::{Chromaticity, LCh, Xyz};
 use pxfm::f_cbrtf;
 
@@ -120,8 +120,8 @@ impl Lab {
     #[inline]
     pub fn to_pcs_xyz(self) -> Xyz {
         let device_l = self.l * 100.0;
-        let device_a = self.a * 255.0 - 128.0;
-        let device_b = self.b * 255.0 - 128.0;
+        let device_a = fmla(self.a, 255.0, -128.0);
+        let device_b = fmla(self.b, 255.0, -128.0);
 
         let y = (device_l + 16.0) / 116.0;
 
