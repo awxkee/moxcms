@@ -28,7 +28,8 @@
  */
 use crate::conversions::{
     LutBarycentricReduction, RgbXyzFactory, RgbXyzFactoryOpt, ToneReproductionRgbToGray,
-    TransformMatrixShaper, make_gray_to_x, make_lut_transform, make_rgb_to_gray,
+    TransformMatrixShaper, make_gray_to_unfused, make_gray_to_x, make_lut_transform,
+    make_rgb_to_gray,
 };
 use crate::err::CmsError;
 use crate::trc::GammaLutInterpolate;
@@ -619,18 +620,62 @@ impl ColorProfile {
             if src_layout != Layout::GrayAlpha && src_layout != Layout::Gray {
                 return Err(CmsError::InvalidLayout);
             }
-            let gray_linear = self.build_gray_linearize_table::<T, LINEAR_CAP, BIT_DEPTH>()?;
-            let gray_gamma = dst_pr.build_gamma_table::<T, 65536, GAMMA_CAP, BIT_DEPTH>(
-                &dst_pr.red_trc,
-                options.allow_use_cicp_transfer,
-            )?;
 
-            make_gray_to_x::<T, LINEAR_CAP, BIT_DEPTH, GAMMA_CAP>(
-                src_layout,
-                dst_layout,
-                &gray_linear,
-                &gray_gamma,
-            )
+            let gray_linear = self.build_gray_linearize_table::<T, LINEAR_CAP, BIT_DEPTH>()?;
+
+            if dst_pr.color_space == DataColorSpace::Gray {
+                // Gray -> Gray case
+                let gray_gamma = dst_pr.build_gamma_table::<T, 65536, GAMMA_CAP, BIT_DEPTH>(
+                    &dst_pr.gray_trc,
+                    options.allow_use_cicp_transfer,
+                )?;
+
+                make_gray_to_x::<T, LINEAR_CAP, BIT_DEPTH, GAMMA_CAP>(
+                    src_layout,
+                    dst_layout,
+                    &gray_linear,
+                    &gray_gamma,
+                )
+            } else {
+                #[allow(clippy::collapsible_if)]
+                if dst_pr.are_all_trc_the_same() {
+                    // Gray -> RGB where all TRC is the same
+                    let rgb_gamma = dst_pr.build_gamma_table::<T, 65536, GAMMA_CAP, BIT_DEPTH>(
+                        &dst_pr.red_trc,
+                        options.allow_use_cicp_transfer,
+                    )?;
+
+                    make_gray_to_x::<T, LINEAR_CAP, BIT_DEPTH, GAMMA_CAP>(
+                        src_layout,
+                        dst_layout,
+                        &gray_linear,
+                        &rgb_gamma,
+                    )
+                } else {
+                    // Gray -> RGB where all TRC is NOT the same
+                    let red_gamma = dst_pr.build_gamma_table::<T, 65536, GAMMA_CAP, BIT_DEPTH>(
+                        &dst_pr.red_trc,
+                        options.allow_use_cicp_transfer,
+                    )?;
+                    let green_gamma = dst_pr.build_gamma_table::<T, 65536, GAMMA_CAP, BIT_DEPTH>(
+                        &dst_pr.green_trc,
+                        options.allow_use_cicp_transfer,
+                    )?;
+                    let blue_gamma = dst_pr.build_gamma_table::<T, 65536, GAMMA_CAP, BIT_DEPTH>(
+                        &dst_pr.blue_trc,
+                        options.allow_use_cicp_transfer,
+                    )?;
+
+                    make_gray_to_unfused::<T, LINEAR_CAP, BIT_DEPTH, GAMMA_CAP>(
+                        src_layout,
+                        dst_layout,
+                        gray_linear,
+                        red_gamma,
+                        green_gamma,
+                        blue_gamma,
+                    )
+                }
+            }
         } else if self.color_space == DataColorSpace::Rgb
             && dst_pr.color_space == DataColorSpace::Gray
             && dst_pr.pcs == DataColorSpace::Xyz

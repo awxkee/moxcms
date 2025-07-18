@@ -58,7 +58,7 @@ mod transform_lut3_to_4;
 mod transform_lut4_to_3;
 mod xyz_lab;
 
-pub(crate) use gray2rgb::make_gray_to_x;
+pub(crate) use gray2rgb::{make_gray_to_unfused, make_gray_to_x};
 pub(crate) use interpolator::LutBarycentricReduction;
 pub(crate) use lut_transforms::make_lut_transform;
 pub(crate) use rgb_xyz_factory::{RgbXyzFactory, RgbXyzFactoryOpt};

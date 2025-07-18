@@ -1011,7 +1011,18 @@ impl ColorProfile {
                             Self::read_meas_tag(slice, tag_entry as usize, tag_size)?;
                     }
                     Tag::CodeIndependentPoints => {
-                        profile.cicp = Self::read_cicp_tag(slice, tag_entry as usize, tag_size)?;
+                        // This tag may be present when the data colour space in the profile header is RGB, YCbCr, or XYZ, and the
+                        // profile class in the profile header is Input or Display. The tag shall not be present for other data colour spaces
+                        // or profile classes indicated in the profile header.
+                        if (profile.profile_class == ProfileClass::InputDevice
+                            || profile.profile_class == ProfileClass::DisplayDevice)
+                            && (profile.color_space == DataColorSpace::Rgb
+                                || profile.color_space == DataColorSpace::YCbr
+                                || profile.color_space == DataColorSpace::Xyz)
+                        {
+                            profile.cicp =
+                                Self::read_cicp_tag(slice, tag_entry as usize, tag_size)?;
+                        }
                     }
                     Tag::ChromaticAdaptation => {
                         profile.chromatic_adaptation =
