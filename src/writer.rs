@@ -30,9 +30,9 @@ use crate::profile::{LutDataType, ProfileHeader};
 use crate::tag::{TAG_SIZE, Tag, TagTypeDefinition};
 use crate::trc::ToneReprCurve;
 use crate::{
-    CicpProfile, CmsError, ColorDateTime, ColorProfile, LocalizableString, LutMultidimensionalType,
-    LutStore, LutType, LutWarehouse, Matrix3d, ProfileSignature, ProfileText, ProfileVersion,
-    Vector3d, Xyzd,
+    CicpProfile, CmsError, ColorDateTime, ColorProfile, DataColorSpace, LocalizableString,
+    LutMultidimensionalType, LutStore, LutType, LutWarehouse, Matrix3d, ProfileClass,
+    ProfileSignature, ProfileText, ProfileVersion, Vector3d, Xyzd,
 };
 
 pub(crate) trait FloatToFixedS15Fixed16 {
@@ -679,10 +679,21 @@ impl ColorProfile {
 
         let has_cicp = self.cicp.is_some();
 
+        // This tag may be present when the data colour space in the profile header is RGB, YCbCr, or XYZ, and the
+        // profile class in the profile header is Input or Display. The tag shall not be present for other data colour spaces
+        // or profile classes indicated in the profile header.
+
         if let Some(cicp) = &self.cicp {
-            write_tag_entry(&mut tags, Tag::CodeIndependentPoints, base_offset, 12);
-            write_cicp_entry(&mut entries, cicp);
-            base_offset += 12;
+            if (self.profile_class == ProfileClass::InputDevice
+                || self.profile_class == ProfileClass::DisplayDevice)
+                && (self.color_space == DataColorSpace::Rgb
+                    || self.color_space == DataColorSpace::YCbr
+                    || self.color_space == DataColorSpace::Xyz)
+            {
+                write_tag_entry(&mut tags, Tag::CodeIndependentPoints, base_offset, 12);
+                write_cicp_entry(&mut entries, cicp);
+                base_offset += 12;
+            }
         }
 
         if let Some(lut) = &self.lut_a_to_b_perceptual {
