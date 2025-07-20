@@ -32,7 +32,7 @@ use crate::math::m_clamp;
 use crate::mlaf::{mlaf, neg_mlaf};
 use crate::transform::PointeeSizeExpressible;
 use crate::writer::FloatToFixedU8Fixed8;
-use crate::{CmsError, ColorProfile, Rgb, TransferCharacteristics};
+use crate::{CmsError, ColorProfile, DataColorSpace, Rgb, TransferCharacteristics};
 use num_traits::AsPrimitive;
 use pxfm::{dirty_powf, f_pow, f_powf};
 
@@ -876,7 +876,6 @@ impl ToneReprCurve {
         }
     }
 
-    #[inline(always)]
     pub(crate) fn build_linearize_table<
         T: PointeeSizeExpressible,
         const N: usize,
@@ -894,7 +893,6 @@ impl ToneReprCurve {
         }
     }
 
-    // #[inline]
     pub(crate) fn build_gamma_table<
         T: Default + Copy + 'static + PointeeSizeExpressible + GammaLutInterpolate,
         const BUCKET: usize,
@@ -1134,14 +1132,20 @@ impl ColorProfile {
         if let Some(tc) = self.cicp.as_ref().map(|c| c.transfer_characteristics) {
             if tc.has_transfer_curve() {
                 return Some(Box::new(ExtendedGammaCicpEvaluator {
-                    trc: tc.extended_gamma_tristimulus(),
+                    rgb_trc: tc.extended_gamma_tristimulus(),
+                    trc: tc.extended_gamma_single(),
                 }));
             }
         }
         if !self.are_all_trc_the_same() {
             return None;
         }
-        if let Some(red_trc) = &self.red_trc {
+        let reference_trc = if self.color_space == DataColorSpace::Gray {
+            self.gray_trc.as_ref()
+        } else {
+            self.red_trc.as_ref()
+        };
+        if let Some(red_trc) = reference_trc {
             match red_trc {
                 ToneReprCurve::Lut(lut) => {
                     if lut.is_empty() {
@@ -1164,13 +1168,16 @@ impl ColorProfile {
 
                         if compare_parametric(lc_params.as_slice(), srgb_params.as_slice()) {
                             return Some(Box::new(ExtendedGammaCicpEvaluator {
-                                trc: TransferCharacteristics::Srgb.extended_gamma_tristimulus(),
+                                rgb_trc: TransferCharacteristics::Srgb.extended_gamma_tristimulus(),
+                                trc: TransferCharacteristics::Srgb.extended_gamma_single(),
                             }));
                         }
 
                         if compare_parametric(lc_params.as_slice(), rec709_params.as_slice()) {
                             return Some(Box::new(ExtendedGammaCicpEvaluator {
-                                trc: TransferCharacteristics::Bt709.extended_gamma_tristimulus(),
+                                rgb_trc: TransferCharacteristics::Bt709
+                                    .extended_gamma_tristimulus(),
+                                trc: TransferCharacteristics::Bt709.extended_gamma_single(),
                             }));
                         }
                     }
@@ -1187,6 +1194,9 @@ impl ColorProfile {
 
     /// Check if all TRC are the same
     pub(crate) fn are_all_trc_the_same(&self) -> bool {
+        if self.color_space == DataColorSpace::Gray {
+            return true;
+        }
         if let (Some(red_trc), Some(green_trc), Some(blue_trc)) =
             (&self.red_trc, &self.green_trc, &self.blue_trc)
         {
@@ -1262,7 +1272,8 @@ impl ColorProfile {
         if let Some(tc) = self.cicp.as_ref().map(|c| c.transfer_characteristics) {
             if tc.has_transfer_curve() {
                 return Some(Box::new(ExtendedGammaCicpEvaluator {
-                    trc: tc.extended_linear_tristimulus(),
+                    rgb_trc: tc.extended_linear_tristimulus(),
+                    trc: tc.extended_linear_single(),
                 }));
             }
         }
@@ -1292,13 +1303,17 @@ impl ColorProfile {
 
                         if compare_parametric(lc_params.as_slice(), srgb_params.as_slice()) {
                             return Some(Box::new(ExtendedGammaCicpEvaluator {
-                                trc: TransferCharacteristics::Srgb.extended_linear_tristimulus(),
+                                rgb_trc: TransferCharacteristics::Srgb
+                                    .extended_linear_tristimulus(),
+                                trc: TransferCharacteristics::Srgb.extended_linear_single(),
                             }));
                         }
 
                         if compare_parametric(lc_params.as_slice(), rec709_params.as_slice()) {
                             return Some(Box::new(ExtendedGammaCicpEvaluator {
-                                trc: TransferCharacteristics::Bt709.extended_linear_tristimulus(),
+                                rgb_trc: TransferCharacteristics::Bt709
+                                    .extended_linear_tristimulus(),
+                                trc: TransferCharacteristics::Bt709.extended_linear_single(),
                             }));
                         }
                     }
@@ -1315,7 +1330,8 @@ impl ColorProfile {
 }
 
 pub(crate) struct ExtendedGammaCicpEvaluator {
-    trc: fn(Rgb<f32>) -> Rgb<f32>,
+    rgb_trc: fn(Rgb<f32>) -> Rgb<f32>,
+    trc: fn(f32) -> f32,
 }
 
 pub(crate) struct ExtendedParametricEvaluator {
@@ -1330,7 +1346,11 @@ pub(crate) struct ExtendedGammaEvaluatorLinear {}
 
 impl ExtendedGammaEvaluator for ExtendedGammaCicpEvaluator {
     fn evaluate(&self, rgb: Rgb<f32>) -> Rgb<f32> {
-        (self.trc)(rgb)
+        (self.rgb_trc)(rgb)
+    }
+
+    fn evaluate_single(&self, value: f32) -> f32 {
+        (self.trc)(value)
     }
 }
 
@@ -1342,6 +1362,10 @@ impl ExtendedGammaEvaluator for ExtendedParametricEvaluator {
             self.parametric.eval(rgb.b),
         )
     }
+
+    fn evaluate_single(&self, value: f32) -> f32 {
+        self.parametric.eval(value)
+    }
 }
 
 impl ExtendedGammaEvaluator for ExtendedGammaEvaluatorPureGamma {
@@ -1352,14 +1376,23 @@ impl ExtendedGammaEvaluator for ExtendedGammaEvaluatorPureGamma {
             dirty_powf(rgb.b, self.gamma),
         )
     }
+
+    fn evaluate_single(&self, value: f32) -> f32 {
+        dirty_powf(value, self.gamma)
+    }
 }
 
 impl ExtendedGammaEvaluator for ExtendedGammaEvaluatorLinear {
     fn evaluate(&self, rgb: Rgb<f32>) -> Rgb<f32> {
         rgb
     }
+
+    fn evaluate_single(&self, value: f32) -> f32 {
+        value
+    }
 }
 
 pub(crate) trait ExtendedGammaEvaluator {
     fn evaluate(&self, rgb: Rgb<f32>) -> Rgb<f32>;
+    fn evaluate_single(&self, value: f32) -> f32;
 }

@@ -53,7 +53,7 @@ fn srgb_to_linear(gamma: f64) -> f64 {
 
 #[inline]
 /// Linear transfer function for sRGB
-fn srgb_to_linear_extended(gamma: f32) -> f32 {
+fn srgb_to_linearf_extended(gamma: f32) -> f32 {
     if gamma < 12.92 * 0.0030412825601275209 {
         gamma * (1. / 12.92f32)
     } else {
@@ -112,7 +112,7 @@ fn rec709_to_linear(gamma: f64) -> f64 {
 
 #[inline]
 /// Linear transfer function for Rec.709
-fn rec709_to_linear_extended(gamma: f32) -> f32 {
+fn rec709_to_linearf_extended(gamma: f32) -> f32 {
     if gamma < 4.5 * 0.018053968510807 {
         gamma * (1. / 4.5)
     } else {
@@ -140,7 +140,7 @@ fn rec709_from_linear(linear: f64) -> f64 {
 
 #[inline]
 /// Gamma transfer function for Rec.709
-fn rec709_from_linear_extended(linear: f32) -> f32 {
+fn rec709_from_linearf_extended(linear: f32) -> f32 {
     if linear < 0.018053968510807 {
         linear * 4.5
     } else {
@@ -695,9 +695,9 @@ impl TransferCharacteristics {
             | TransferCharacteristics::Bt202010bit
             | TransferCharacteristics::Bt202012bit => |x| {
                 Rgb::new(
-                    rec709_from_linear_extended(x.r),
-                    rec709_from_linear_extended(x.g),
-                    rec709_from_linear_extended(x.b),
+                    rec709_from_linearf_extended(x.r),
+                    rec709_from_linearf_extended(x.g),
+                    rec709_from_linearf_extended(x.b),
                 )
             },
             TransferCharacteristics::Unspecified => |x| Rgb::new(x.r, x.g, x.b),
@@ -782,6 +782,29 @@ impl TransferCharacteristics {
         }
     }
 
+    pub(crate) fn extended_gamma_single(self) -> fn(f32) -> f32 {
+        match self {
+            TransferCharacteristics::Reserved => |x| x,
+            TransferCharacteristics::Bt709
+            | TransferCharacteristics::Bt601
+            | TransferCharacteristics::Bt202010bit
+            | TransferCharacteristics::Bt202012bit => |x| rec709_from_linearf_extended(x),
+            TransferCharacteristics::Unspecified => |x| x,
+            TransferCharacteristics::Bt470M => |x| gamma2p2_from_linear_f(x),
+            TransferCharacteristics::Bt470Bg => |x| gamma2p8_from_linear_f(x),
+            TransferCharacteristics::Smpte240 => |x| smpte240_from_linearf_extended(x),
+            TransferCharacteristics::Linear => |x| x,
+            TransferCharacteristics::Log100 => |x| log100_from_linearf(x),
+            TransferCharacteristics::Log100sqrt10 => |x| log100_sqrt10_from_linearf(x),
+            TransferCharacteristics::Iec61966 => |x| iec61966_from_linearf(x),
+            TransferCharacteristics::Bt1361 => |x| bt1361_from_linearf(x),
+            TransferCharacteristics::Srgb => |x| srgb_from_linear_extended(x),
+            TransferCharacteristics::Smpte2084 => |x| pq_from_linearf(x),
+            TransferCharacteristics::Smpte428 => |x| smpte428_from_linearf(x),
+            TransferCharacteristics::Hlg => |x| hlg_from_linearf(x),
+        }
+    }
+
     pub(crate) fn extended_linear_tristimulus(self) -> fn(Rgb<f32>) -> Rgb<f32> {
         match self {
             TransferCharacteristics::Reserved => |x| Rgb::new(x.r, x.g, x.b),
@@ -790,9 +813,9 @@ impl TransferCharacteristics {
             | TransferCharacteristics::Bt202010bit
             | TransferCharacteristics::Bt202012bit => |x| {
                 Rgb::new(
-                    rec709_to_linear_extended(x.r),
-                    rec709_to_linear_extended(x.g),
-                    rec709_to_linear_extended(x.b),
+                    rec709_to_linearf_extended(x.r),
+                    rec709_to_linearf_extended(x.g),
+                    rec709_to_linearf_extended(x.b),
                 )
             },
             TransferCharacteristics::Unspecified => |x| Rgb::new(x.r, x.g, x.b),
@@ -848,9 +871,9 @@ impl TransferCharacteristics {
             },
             TransferCharacteristics::Srgb => |x| {
                 Rgb::new(
-                    srgb_to_linear_extended(x.r),
-                    srgb_to_linear_extended(x.g),
-                    srgb_to_linear_extended(x.b),
+                    srgb_to_linearf_extended(x.r),
+                    srgb_to_linearf_extended(x.g),
+                    srgb_to_linearf_extended(x.b),
                 )
             },
             TransferCharacteristics::Smpte2084 => {
@@ -870,6 +893,29 @@ impl TransferCharacteristics {
                     hlg_to_linearf(x.b),
                 )
             },
+        }
+    }
+
+    pub(crate) fn extended_linear_single(self) -> fn(f32) -> f32 {
+        match self {
+            TransferCharacteristics::Reserved => |x| x,
+            TransferCharacteristics::Bt709
+            | TransferCharacteristics::Bt601
+            | TransferCharacteristics::Bt202010bit
+            | TransferCharacteristics::Bt202012bit => |x| rec709_to_linearf_extended(x),
+            TransferCharacteristics::Unspecified => |x| x,
+            TransferCharacteristics::Bt470M => |x| gamma2p2_to_linear_f(x),
+            TransferCharacteristics::Bt470Bg => |x| gamma2p8_to_linear_f(x),
+            TransferCharacteristics::Smpte240 => |x| smpte240_to_linearf_extended(x),
+            TransferCharacteristics::Linear => |x| x,
+            TransferCharacteristics::Log100 => |x| log100_to_linearf(x),
+            TransferCharacteristics::Log100sqrt10 => |x| log100_sqrt10_to_linearf(x),
+            TransferCharacteristics::Iec61966 => |x| iec61966_to_linearf(x),
+            TransferCharacteristics::Bt1361 => |x| bt1361_to_linearf(x),
+            TransferCharacteristics::Srgb => |x| srgb_to_linearf_extended(x),
+            TransferCharacteristics::Smpte2084 => |x| pq_to_linearf(x),
+            TransferCharacteristics::Smpte428 => |x| smpte428_to_linearf_extended(x),
+            TransferCharacteristics::Hlg => |x| hlg_to_linearf(x),
         }
     }
 
@@ -983,14 +1029,14 @@ mod tests {
 
     #[test]
     fn rec709f_test() {
-        let srgb_0 = rec709_to_linear_extended(0.5);
-        let srgb_1 = rec709_from_linear_extended(srgb_0);
+        let srgb_0 = rec709_to_linearf_extended(0.5);
+        let srgb_1 = rec709_from_linearf_extended(srgb_0);
         assert!((0.5 - srgb_1).abs() < 1e-5f32);
     }
 
     #[test]
     fn srgbf_test() {
-        let srgb_0 = srgb_to_linear_extended(0.5);
+        let srgb_0 = srgb_to_linearf_extended(0.5);
         let srgb_1 = srgb_from_linear_extended(srgb_0);
         assert!((0.5 - srgb_1).abs() < 1e-5f32);
     }

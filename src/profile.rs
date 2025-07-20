@@ -26,6 +26,7 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+use crate::chad::BRADFORD_D;
 use crate::cicp::{
     CicpColorPrimaries, ColorPrimaries, MatrixCoefficients, TransferCharacteristics,
 };
@@ -1154,6 +1155,7 @@ impl ColorProfile {
         let green_xyz = primaries.green.to_xyzd();
         let blue_xyz = primaries.blue.to_xyzd();
 
+        self.chromatic_adaptation = Some(BRADFORD_D);
         self.update_rgb_colorimetry_triplet(white_point, red_xyz, green_xyz, blue_xyz)
     }
 
