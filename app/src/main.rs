@@ -28,9 +28,10 @@
  */
 // use jxl_oxide::{JxlImage, JxlThreadPool, Lcms2, Moxcms};
 use image::DynamicImage;
+use moxcms::ProfileClass::ColorSpace;
 use moxcms::{
-    BarycentricWeightScale, ColorProfile, InterpolationMethod, Layout, LutStore, LutWarehouse,
-    RenderingIntent, ToneReprCurve, TransformOptions, Vector3d,
+    BarycentricWeightScale, ColorProfile, DataColorSpace, InterpolationMethod, Layout, LutStore,
+    LutWarehouse, RenderingIntent, ToneReprCurve, TransformOptions, Vector3d,
 };
 use std::fs;
 use std::time::Instant;
@@ -250,6 +251,28 @@ fn main() {
     let md_icc_v4 = fs::read("./assets/us_swop_coated.icc").unwrap();
     let gray_target = ColorProfile::new_bt2020(); // ColorProfile::new_from_slice(&md_icc_v4).unwrap();
 
+    let srgb = ColorProfile::new_srgb();
+    let mut gray_profile = ColorProfile::new_gray_with_gamma(1.0);
+    gray_profile.color_space = DataColorSpace::Gray;
+    gray_profile.gray_trc = srgb.red_trc.clone();
+    let mut test_profile = vec![0.; 4];
+    test_profile[2] = 1.;
+    let mut dst = vec![0.; 1];
+
+    let cvt = srgb
+        .create_transform_f32(
+            Layout::Rgba,
+            &gray_profile,
+            Layout::Gray,
+            TransformOptions {
+                allow_extended_range_rgb_xyz: false,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+    cvt.transform(&test_profile, &mut dst).unwrap();
+    println!("{:?}", dst);
+
     // let mut profile_clone = gray_target.clone();
     // profile_clone.lut_a_to_b_colorimetric = to_lut_v4(&profile_clone.lut_a_to_b_colorimetric, true);
     // profile_clone.lut_a_to_b_perceptual = to_lut_v4(&profile_clone.lut_a_to_b_perceptual, true);
@@ -263,99 +286,99 @@ fn main() {
     // let encoded = profile_clone.encode().unwrap();
     // fs::write("./assets/FOGRA55_v4.icc", encoded).unwrap();
 
-    let img = DynamicImage::from_decoder(decoder).unwrap();
-    let rgb_f32 = img.to_rgb16();
-
-    let srgb = moxcms::ColorProfile::new_srgb();
-
-    let transform = srgb
-        .create_transform_16bit(
-            moxcms::Layout::Rgb,
-            &gray_target,
-            moxcms::Layout::Rgba,
-            TransformOptions {
-                prefer_fixed_point: false,
-                ..Default::default()
-            },
-        )
-        .unwrap();
-
-    let mut new_img_bytes = vec![0u16; (img.as_bytes().len() / 3) * 4];
-    transform.transform(&rgb_f32, &mut new_img_bytes).unwrap();
-
-    // let profile = lcms2::Profile::new_icc(&md_icc_v4).unwrap();
-    // let srgb_lcms = lcms2::Profile::new_srgb();
-    // let transform = lcms2::Transform::new(
-    //     &srgb_lcms,
-    //     lcms2::PixelFormat::RGB_8,
-    //     &profile,
-    //     lcms2::PixelFormat::CMYK_8,
-    //     lcms2::Intent::RelativeColorimetric,
-    // )
-    // .unwrap();
-
-    // transform.transform_pixels(img.as_bytes(), &mut new_img_bytes);
-
-    let inverse_transform = gray_target
-        .create_transform_16bit(
-            moxcms::Layout::Rgba,
-            &srgb,
-            moxcms::Layout::Rgb,
-            TransformOptions {
-                prefer_fixed_point: false,
-                rendering_intent: RenderingIntent::RelativeColorimetric,
-                ..Default::default()
-            },
-        )
-        .unwrap();
-
-    let mut new_img_bytes2 = vec![0u16; img.as_bytes().len()];
-    let instant = Instant::now();
-    inverse_transform
-        .transform(&new_img_bytes, &mut new_img_bytes2)
-        .unwrap();
-    println!("moxcms inverse {:?}", instant.elapsed());
-
-    let recollected = new_img_bytes2
-        .iter()
-        .map(|&x| (x >> 8).min(255).max(0) as u8)
-        .collect::<Vec<_>>();
-
-    let new_img = DynamicImage::ImageRgb8(
-        image::RgbImage::from_raw(img.width(), img.height(), recollected).unwrap(),
-    );
-    new_img.save("converted.png").unwrap();
-
-    // let profile = lcms2::Profile::new_icc(&gray_icc).unwrap();
-    // let srgb = lcms2::Profile::new_srgb();
-    // let transform = lcms2::Transform::new(
-    //     &profile,
-    //     lcms2::PixelFormat::RGB_8,
-    //     &srgb,
-    //     lcms2::PixelFormat::RGB_8,
-    //     lcms2::Intent::Perceptual,
-    // )
-    // .unwrap();
-    // let inverse_transform = lcms2::Transform::new(
-    //     &profile,
-    //     lcms2::PixelFormat::CMYK_8,
-    //     &srgb_lcms,
-    //     lcms2::PixelFormat::RGB_8,
-    //     lcms2::Intent::RelativeColorimetric,
-    // )
-    // .unwrap();
-
-    let mut new_img = vec![0u8; img.as_bytes().len()];
-    // transform.transform_in_place(new_img.as_mut_slice());
-    // inverse_transform.transform_in_place(new_img.as_mut_slice());
-    let instant = Instant::now();
-    // inverse_transform.transform_pixels(&new_img_bytes, &mut new_img);
-    println!("LCMS inverse {:?}", instant.elapsed());
-
-    let new_img = DynamicImage::ImageRgb8(
-        image::RgbImage::from_raw(img.width(), img.height(), new_img).unwrap(),
-    );
-    new_img.save("converted_lcms2.png").unwrap();
+    // let img = DynamicImage::from_decoder(decoder).unwrap();
+    // let rgb_f32 = img.to_rgb16();
+    //
+    // let srgb = moxcms::ColorProfile::new_srgb();
+    //
+    // let transform = srgb
+    //     .create_transform_16bit(
+    //         moxcms::Layout::Rgb,
+    //         &gray_target,
+    //         moxcms::Layout::Rgba,
+    //         TransformOptions {
+    //             prefer_fixed_point: false,
+    //             ..Default::default()
+    //         },
+    //     )
+    //     .unwrap();
+    //
+    // let mut new_img_bytes = vec![0u16; (img.as_bytes().len() / 3) * 4];
+    // transform.transform(&rgb_f32, &mut new_img_bytes).unwrap();
+    //
+    // // let profile = lcms2::Profile::new_icc(&md_icc_v4).unwrap();
+    // // let srgb_lcms = lcms2::Profile::new_srgb();
+    // // let transform = lcms2::Transform::new(
+    // //     &srgb_lcms,
+    // //     lcms2::PixelFormat::RGB_8,
+    // //     &profile,
+    // //     lcms2::PixelFormat::CMYK_8,
+    // //     lcms2::Intent::RelativeColorimetric,
+    // // )
+    // // .unwrap();
+    //
+    // // transform.transform_pixels(img.as_bytes(), &mut new_img_bytes);
+    //
+    // let inverse_transform = gray_target
+    //     .create_transform_16bit(
+    //         moxcms::Layout::Rgba,
+    //         &srgb,
+    //         moxcms::Layout::Rgb,
+    //         TransformOptions {
+    //             prefer_fixed_point: false,
+    //             rendering_intent: RenderingIntent::RelativeColorimetric,
+    //             ..Default::default()
+    //         },
+    //     )
+    //     .unwrap();
+    //
+    // let mut new_img_bytes2 = vec![0u16; img.as_bytes().len()];
+    // let instant = Instant::now();
+    // inverse_transform
+    //     .transform(&new_img_bytes, &mut new_img_bytes2)
+    //     .unwrap();
+    // println!("moxcms inverse {:?}", instant.elapsed());
+    //
+    // let recollected = new_img_bytes2
+    //     .iter()
+    //     .map(|&x| (x >> 8).min(255).max(0) as u8)
+    //     .collect::<Vec<_>>();
+    //
+    // let new_img = DynamicImage::ImageRgb8(
+    //     image::RgbImage::from_raw(img.width(), img.height(), recollected).unwrap(),
+    // );
+    // new_img.save("converted.png").unwrap();
+    //
+    // // let profile = lcms2::Profile::new_icc(&gray_icc).unwrap();
+    // // let srgb = lcms2::Profile::new_srgb();
+    // // let transform = lcms2::Transform::new(
+    // //     &profile,
+    // //     lcms2::PixelFormat::RGB_8,
+    // //     &srgb,
+    // //     lcms2::PixelFormat::RGB_8,
+    // //     lcms2::Intent::Perceptual,
+    // // )
+    // // .unwrap();
+    // // let inverse_transform = lcms2::Transform::new(
+    // //     &profile,
+    // //     lcms2::PixelFormat::CMYK_8,
+    // //     &srgb_lcms,
+    // //     lcms2::PixelFormat::RGB_8,
+    // //     lcms2::Intent::RelativeColorimetric,
+    // // )
+    // // .unwrap();
+    //
+    // let mut new_img = vec![0u8; img.as_bytes().len()];
+    // // transform.transform_in_place(new_img.as_mut_slice());
+    // // inverse_transform.transform_in_place(new_img.as_mut_slice());
+    // let instant = Instant::now();
+    // // inverse_transform.transform_pixels(&new_img_bytes, &mut new_img);
+    // println!("LCMS inverse {:?}", instant.elapsed());
+    //
+    // let new_img = DynamicImage::ImageRgb8(
+    //     image::RgbImage::from_raw(img.width(), img.height(), new_img).unwrap(),
+    // );
+    // new_img.save("converted_lcms2.png").unwrap();
 }
 
 // fn main() {

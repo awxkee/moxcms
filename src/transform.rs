@@ -506,7 +506,7 @@ impl ColorProfile {
 
             if !T::FINITE && options.allow_extended_range_rgb_xyz {
                 if let Some(gamma_evaluator) = dst_pr.try_extended_gamma_evaluator() {
-                    if let Some(linear_evaluator) = dst_pr.try_extended_linearizing_evaluator() {
+                    if let Some(linear_evaluator) = self.try_extended_linearizing_evaluator() {
                         use crate::conversions::{
                             TransformShaperFloatInOut, make_rgb_xyz_rgb_transform_float_in_out,
                         };
@@ -624,6 +624,21 @@ impl ColorProfile {
             let gray_linear = self.build_gray_linearize_table::<T, LINEAR_CAP, BIT_DEPTH>()?;
 
             if dst_pr.color_space == DataColorSpace::Gray {
+                if !T::FINITE && options.allow_extended_range_rgb_xyz {
+                    if let Some(gamma_evaluator) = dst_pr.try_extended_gamma_evaluator() {
+                        if let Some(linear_evaluator) = self.try_extended_linearizing_evaluator() {
+                            // Gray -> Gray case extended range
+                            use crate::conversions::make_gray_to_one_trc_extended;
+                            return make_gray_to_one_trc_extended::<T, BIT_DEPTH>(
+                                src_layout,
+                                dst_layout,
+                                linear_evaluator,
+                                gamma_evaluator,
+                            );
+                        }
+                    }
+                }
+
                 // Gray -> Gray case
                 let gray_gamma = dst_pr.build_gamma_table::<T, 65536, GAMMA_CAP, BIT_DEPTH>(
                     &dst_pr.gray_trc,
@@ -639,6 +654,23 @@ impl ColorProfile {
             } else {
                 #[allow(clippy::collapsible_if)]
                 if dst_pr.are_all_trc_the_same() {
+                    if !T::FINITE && options.allow_extended_range_rgb_xyz {
+                        if let Some(gamma_evaluator) = dst_pr.try_extended_gamma_evaluator() {
+                            if let Some(linear_evaluator) =
+                                self.try_extended_linearizing_evaluator()
+                            {
+                                // Gray -> RGB where all TRC is the same with extended range
+                                use crate::conversions::make_gray_to_one_trc_extended;
+                                return make_gray_to_one_trc_extended::<T, BIT_DEPTH>(
+                                    src_layout,
+                                    dst_layout,
+                                    linear_evaluator,
+                                    gamma_evaluator,
+                                );
+                            }
+                        }
+                    }
+
                     // Gray -> RGB where all TRC is the same
                     let rgb_gamma = dst_pr.build_gamma_table::<T, 65536, GAMMA_CAP, BIT_DEPTH>(
                         &dst_pr.red_trc,
@@ -653,6 +685,24 @@ impl ColorProfile {
                     )
                 } else {
                     // Gray -> RGB where all TRC is NOT the same
+                    if !T::FINITE && options.allow_extended_range_rgb_xyz {
+                        if let Some(gamma_evaluator) = dst_pr.try_extended_gamma_evaluator() {
+                            if let Some(linear_evaluator) =
+                                self.try_extended_linearizing_evaluator()
+                            {
+                                // Gray -> RGB where all TRC is NOT the same with extended range
+
+                                use crate::conversions::make_gray_to_rgb_extended;
+                                return make_gray_to_rgb_extended::<T, BIT_DEPTH>(
+                                    src_layout,
+                                    dst_layout,
+                                    linear_evaluator,
+                                    gamma_evaluator,
+                                );
+                            }
+                        }
+                    }
+
                     let red_gamma = dst_pr.build_gamma_table::<T, 65536, GAMMA_CAP, BIT_DEPTH>(
                         &dst_pr.red_trc,
                         options.allow_use_cicp_transfer,
@@ -688,6 +738,27 @@ impl ColorProfile {
                 return Err(CmsError::InvalidLayout);
             }
 
+            let transform = self.rgb_to_xyz_matrix().to_f32();
+
+            let vector = Vector3f {
+                v: [transform.v[1][0], transform.v[1][1], transform.v[1][2]],
+            };
+
+            if !T::FINITE && options.allow_extended_range_rgb_xyz {
+                if let Some(gamma_evaluator) = dst_pr.try_extended_gamma_evaluator() {
+                    if let Some(linear_evaluator) = self.try_extended_linearizing_evaluator() {
+                        use crate::conversions::make_rgb_to_gray_extended;
+                        return Ok(make_rgb_to_gray_extended::<T, BIT_DEPTH>(
+                            src_layout,
+                            dst_layout,
+                            linear_evaluator,
+                            gamma_evaluator,
+                            vector,
+                        ));
+                    }
+                }
+            }
+
             let lin_r = self.build_r_linearize_table::<T, LINEAR_CAP, BIT_DEPTH>(
                 options.allow_use_cicp_transfer,
             )?;
@@ -701,12 +772,6 @@ impl ColorProfile {
                 &dst_pr.gray_trc,
                 options.allow_use_cicp_transfer,
             )?;
-
-            let transform = self.rgb_to_xyz_matrix().to_f32();
-
-            let vector = Vector3f {
-                v: [transform.v[1][0], transform.v[1][1], transform.v[1][2]],
-            };
 
             let trc_box = ToneReproductionRgbToGray::<T, LINEAR_CAP> {
                 r_linear: lin_r,
@@ -776,7 +841,7 @@ impl ColorProfile {
 
 #[cfg(test)]
 mod tests {
-    use crate::{ColorProfile, Layout, RenderingIntent, TransformOptions};
+    use crate::{ColorProfile, DataColorSpace, Layout, RenderingIntent, TransformOptions};
     use rand::Rng;
 
     #[test]
@@ -1161,5 +1226,76 @@ mod tests {
                 "On channel 2 difference should be less than 35, but it was {diff2}"
             );
         }
+    }
+
+    #[test]
+    fn test_transform_rgb_to_gray_extended() {
+        let srgb = ColorProfile::new_srgb();
+        let mut gray_profile = ColorProfile::new_gray_with_gamma(1.0);
+        gray_profile.color_space = DataColorSpace::Gray;
+        gray_profile.gray_trc = srgb.red_trc.clone();
+        let mut test_profile = vec![0.; 4];
+        test_profile[2] = 1.;
+        let mut dst = vec![0.; 1];
+
+        let mut inverse = vec![0.; 4];
+
+        let cvt0 = srgb
+            .create_transform_f32(
+                Layout::Rgba,
+                &gray_profile,
+                Layout::Gray,
+                TransformOptions {
+                    allow_extended_range_rgb_xyz: true,
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        cvt0.transform(&test_profile, &mut dst).unwrap();
+        assert!((dst[0] - 0.273046) < 1e-4);
+
+        let cvt_inverse = gray_profile
+            .create_transform_f32(
+                Layout::Gray,
+                &srgb,
+                Layout::Rgba,
+                TransformOptions {
+                    allow_extended_range_rgb_xyz: false,
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        cvt_inverse.transform(&dst, &mut inverse).unwrap();
+        assert!((inverse[0] - 0.273002833) < 1e-4);
+
+        let cvt1 = srgb
+            .create_transform_f32(
+                Layout::Rgba,
+                &gray_profile,
+                Layout::Gray,
+                TransformOptions {
+                    allow_extended_range_rgb_xyz: false,
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        cvt1.transform(&test_profile, &mut dst).unwrap();
+        assert!((dst[0] - 0.27307168) < 1e-5);
+
+        inverse.fill(0.);
+
+        let cvt_inverse = gray_profile
+            .create_transform_f32(
+                Layout::Gray,
+                &srgb,
+                Layout::Rgba,
+                TransformOptions {
+                    allow_extended_range_rgb_xyz: true,
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        cvt_inverse.transform(&dst, &mut inverse).unwrap();
+        assert!((inverse[0] - 0.273002833) < 1e-4);
     }
 }
