@@ -89,8 +89,6 @@ where
         }
 
         if let (Some(a_curves), Some(clut)) = (self.a_curves.as_ref(), self.clut.as_ref()) {
-            let layout = Layout::from_inks(self.output_inks);
-
             let mut inks = vec![0.; self.output_inks];
 
             if clut.is_empty() {
@@ -100,7 +98,7 @@ where
             let md_lut = MultidimensionalLut::new(self.grid_size, 3, self.output_inks);
 
             for (src, dst) in src
-                .chunks_exact(layout.channels())
+                .chunks_exact(3)
                 .zip(dst.chunks_exact_mut(self.dst_layout.channels()))
             {
                 tetra_3i_to_any_vec(
@@ -284,7 +282,7 @@ pub(crate) fn katana_multi_dimensional_3xn_to_device<
 where
     f32: AsPrimitive<T>,
 {
-    if mab.num_input_channels < 3 {
+    if mab.num_input_channels == 0 {
         return Err(CmsError::UnsupportedProfileConnection);
     }
     let transform = make_multidimensional_nx3::<T, BIT_DEPTH>(

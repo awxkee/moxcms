@@ -28,7 +28,7 @@
  */
 use crate::conversions::lut3x4::create_lut3_samples;
 use crate::mlaf::mlaf;
-use crate::trc::ExtendedGammaEvaluator;
+use crate::trc::ToneCurveEvaluator;
 use crate::{
     CmsError, ColorProfile, GammaLutInterpolate, InPlaceStage, Matrix3f, PointeeSizeExpressible,
     RenderingIntent, Rgb, TransformOptions, filmlike_clip,
@@ -108,7 +108,7 @@ impl<T: Clone + AsPrimitive<f32>, const BIT_DEPTH: usize, const GAMMA_LUT: usize
 }
 
 pub(crate) struct XyzToRgbStageExtended<T: Clone> {
-    pub(crate) gamma_evaluator: Box<dyn ExtendedGammaEvaluator>,
+    pub(crate) gamma_evaluator: Box<dyn ToneCurveEvaluator>,
     pub(crate) matrices: Vec<Matrix3f>,
     pub(crate) phantom_data: PhantomData<T>,
 }
@@ -140,7 +140,7 @@ impl<T: Clone + AsPrimitive<f32>> InPlaceStage for XyzToRgbStageExtended<T> {
 
         for dst in dst.chunks_exact_mut(3) {
             let mut rgb = Rgb::new(dst[0], dst[1], dst[2]);
-            rgb = self.gamma_evaluator.evaluate(rgb);
+            rgb = self.gamma_evaluator.evaluate_tristimulus(rgb);
             dst[0] = rgb.r.as_();
             dst[1] = rgb.g.as_();
             dst[2] = rgb.b.as_();
@@ -233,7 +233,7 @@ where
     let mut lut = vec![0f32; lut_origins.len()];
     lin_stage.transform(&lut_origins, &mut lut)?;
 
-    let xyz_to_rgb = source.rgb_to_xyz_matrix();
+    let xyz_to_rgb = source.rgb_to_xyz_matrix_with_options(opts);
 
     let matrices = vec![
         xyz_to_rgb.to_f32(),
@@ -273,7 +273,7 @@ where
 {
     if !T::FINITE {
         if let Some(extended_gamma) = dest.try_extended_gamma_evaluator() {
-            let xyz_to_rgb = dest.rgb_to_xyz_matrix().inverse();
+            let xyz_to_rgb = dest.rgb_to_xyz_matrix_with_options(options).inverse();
 
             let mut matrices = vec![Matrix3f {
                 v: [
@@ -306,7 +306,7 @@ where
         options.allow_use_cicp_transfer,
     )?;
 
-    let xyz_to_rgb = dest.rgb_to_xyz_matrix().inverse();
+    let xyz_to_rgb = dest.rgb_to_xyz_matrix_with_options(options).inverse();
 
     let mut matrices = vec![Matrix3f {
         v: [

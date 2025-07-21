@@ -30,9 +30,10 @@ use crate::conversions::katana::KatanaInitialStage;
 use crate::conversions::katana::md3x3::MultidimensionalDirection;
 use crate::conversions::katana::md4x3::{execute_matrix_stage3, execute_simple_curves3};
 use crate::conversions::md_lut::{
-    MultidimensionalLut, linear_3i_vec3f_direct, linear_4i_vec3f, linear_5i_vec3f, linear_6i_vec3f,
-    linear_7i_vec3f, linear_8i_vec3f, linear_9i_vec3f, linear_10i_vec3f, linear_11i_vec3f,
-    linear_12i_vec3f, linear_13i_vec3f, linear_14i_vec3f, linear_15i_vec3f,
+    MultidimensionalLut, linear_1i_vec3f, linear_2i_vec3f_direct, linear_3i_vec3f_direct,
+    linear_4i_vec3f, linear_5i_vec3f, linear_6i_vec3f, linear_7i_vec3f, linear_8i_vec3f,
+    linear_9i_vec3f, linear_10i_vec3f, linear_11i_vec3f, linear_12i_vec3f, linear_13i_vec3f,
+    linear_14i_vec3f, linear_15i_vec3f,
 };
 use crate::safe_math::SafeMul;
 use crate::trc::lut_interp_linear_float;
@@ -87,8 +88,8 @@ impl<
             let fetcher = match layout {
                 Layout::Rgb => linear_3i_vec3f_direct::<OUT>,
                 Layout::Rgba => linear_4i_vec3f::<OUT>,
-                Layout::Gray => unreachable!(),
-                Layout::GrayAlpha => unreachable!(),
+                Layout::Gray => linear_1i_vec3f::<OUT>,
+                Layout::GrayAlpha => linear_2i_vec3f_direct::<OUT>,
                 Layout::Inks5 => linear_5i_vec3f::<OUT>,
                 Layout::Inks6 => linear_6i_vec3f::<OUT>,
                 Layout::Inks7 => linear_7i_vec3f::<OUT>,
