@@ -26,7 +26,7 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-use crate::trc::ExtendedGammaEvaluator;
+use crate::trc::ToneCurveEvaluator;
 use crate::{CmsError, Layout, Matrix3f, PointeeSizeExpressible, Rgb, TransformExecutor};
 use num_traits::AsPrimitive;
 use std::marker::PhantomData;
@@ -35,14 +35,14 @@ pub(crate) struct TransformShaperRgbFloat<T: Clone, const BUCKET: usize> {
     pub(crate) r_linear: Box<[f32; BUCKET]>,
     pub(crate) g_linear: Box<[f32; BUCKET]>,
     pub(crate) b_linear: Box<[f32; BUCKET]>,
-    pub(crate) gamma_evaluator: Box<dyn ExtendedGammaEvaluator + Send + Sync>,
+    pub(crate) gamma_evaluator: Box<dyn ToneCurveEvaluator + Send + Sync>,
     pub(crate) adaptation_matrix: Matrix3f,
     pub(crate) phantom_data: PhantomData<T>,
 }
 
 pub(crate) struct TransformShaperFloatInOut<T: Clone> {
-    pub(crate) linear_evaluator: Box<dyn ExtendedGammaEvaluator + Send + Sync>,
-    pub(crate) gamma_evaluator: Box<dyn ExtendedGammaEvaluator + Send + Sync>,
+    pub(crate) linear_evaluator: Box<dyn ToneCurveEvaluator + Send + Sync>,
+    pub(crate) gamma_evaluator: Box<dyn ToneCurveEvaluator + Send + Sync>,
     pub(crate) adaptation_matrix: Matrix3f,
     pub(crate) phantom_data: PhantomData<T>,
 }
@@ -239,7 +239,7 @@ where
             );
 
             let mut rgb = Rgb::new(new_r, new_g, new_b);
-            rgb = self.profile.gamma_evaluator.evaluate(rgb);
+            rgb = self.profile.gamma_evaluator.evaluate_tristimulus(rgb);
 
             dst[dst_cn.r_i()] = rgb.r.as_();
             dst[dst_cn.g_i()] = rgb.g.as_();
@@ -292,7 +292,7 @@ where
                 src[src_cn.g_i()].as_(),
                 src[src_cn.b_i()].as_(),
             );
-            src_rgb = self.profile.linear_evaluator.evaluate(src_rgb);
+            src_rgb = self.profile.linear_evaluator.evaluate_tristimulus(src_rgb);
             let r = src_rgb.r;
             let g = src_rgb.g;
             let b = src_rgb.b;
@@ -321,7 +321,7 @@ where
             );
 
             let mut rgb = Rgb::new(new_r, new_g, new_b);
-            rgb = self.profile.gamma_evaluator.evaluate(rgb);
+            rgb = self.profile.gamma_evaluator.evaluate_tristimulus(rgb);
 
             dst[dst_cn.r_i()] = rgb.r.as_();
             dst[dst_cn.g_i()] = rgb.g.as_();

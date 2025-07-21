@@ -26,14 +26,21 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+mod encode_gray_lut;
+
 // use jxl_oxide::{JxlImage, JxlThreadPool, Lcms2, Moxcms};
+use crate::encode_gray_lut::encode_gray_lut;
 use image::DynamicImage;
 use moxcms::ProfileClass::ColorSpace;
 use moxcms::{
-    BarycentricWeightScale, ColorProfile, DataColorSpace, InterpolationMethod, Layout, LutStore,
-    LutWarehouse, RenderingIntent, ToneReprCurve, TransformOptions, Vector3d,
+    BarycentricWeightScale, Chromaticity, CicpColorPrimaries, CicpProfile, ColorPrimaries,
+    ColorProfile, Cube, DataColorSpace, InterpolationMethod, Layout, LutMultidimensionalType,
+    LutStore, LutWarehouse, Matrix3d, Matrix3f, MatrixCoefficients, RenderingIntent, Rgb,
+    ToneReprCurve, TransferCharacteristics, TransformOptions, Vector3, Vector3d, WHITE_POINT_D50,
+    WHITE_POINT_D65, Xyz, Xyzd, adapt_to_illuminant_d, adaption_matrix_d,
 };
 use std::fs;
+use std::ops::Mul;
 use std::time::Instant;
 
 fn compute_abs_diff4(src: &[f32], dst: &[[f32; 4]], highlights: &mut [f32]) {
@@ -122,6 +129,7 @@ fn check_gray() {
                 interpolation_method: InterpolationMethod::Linear,
                 barycentric_weight_scale: BarycentricWeightScale::Low,
                 allow_extended_range_rgb_xyz: false,
+                bypass_icc_d50_white_point: false,
             },
         )
         .unwrap();
@@ -240,6 +248,32 @@ fn to_lut_v4(lut: &Option<LutWarehouse>, to_pcs: bool) -> Option<LutWarehouse> {
     }
 }
 
+pub(crate) fn create_tone_curve_gray_d65(samples: usize) -> Vec<u16> {
+    assert!(samples >= 1);
+
+    let scale_samples = 1. / (samples - 1) as f32;
+
+    let rgb_to_xyz_d65 = adapt_to_illuminant_d(
+        ColorProfile::rgb_to_xyz_matrix_with_white_point(ColorPrimaries::BT_709, WHITE_POINT_D65),
+        WHITE_POINT_D65,
+        WHITE_POINT_D50.to_xyz(),
+    )
+    .to_f32();
+    let srgb_linear_evaluator =
+        ToneReprCurve::make_cicp_linear_evaluator(TransferCharacteristics::Srgb).unwrap();
+
+    let mut src = Vec::with_capacity(samples);
+    for y in 0..samples as u32 {
+        // This is RGB D65 values, not linearized
+        let vy = y as f32 * scale_samples;
+        let linearized = srgb_linear_evaluator.evaluate_tristimulus(Rgb::new(vy, vy, vy));
+        let xyz = Xyz::new(linearized.r, linearized.g, linearized.b).matrix_mul(rgb_to_xyz_d65);
+        src.push((xyz.y * 65535.).round().max(0.).min(65535.) as u16);
+    }
+
+    src
+}
+
 fn main() {
     let reader = image::ImageReader::open("./assets/bench.jpg").unwrap();
     let mut decoder = reader.into_decoder().unwrap();
@@ -251,13 +285,43 @@ fn main() {
     let md_icc_v4 = fs::read("./assets/us_swop_coated.icc").unwrap();
     let gray_target = ColorProfile::new_bt2020(); // ColorProfile::new_from_slice(&md_icc_v4).unwrap();
 
+    // Curve first point must be 0 and last 65535.
+    // let mut new_curve = vec![0u16; 4096];
+    let mut srgb = ColorProfile::new_from_cicp_with_no_d50_adoption(CicpProfile {
+        color_primaries: CicpColorPrimaries::Bt709,
+        transfer_characteristics: TransferCharacteristics::Srgb,
+        matrix_coefficients: MatrixCoefficients::Bt709,
+        full_range: true,
+    });
+    srgb.white_point = WHITE_POINT_D65.to_xyzd();
     let srgb = ColorProfile::new_srgb();
-    let mut gray_profile = ColorProfile::new_gray_with_gamma(1.0);
-    gray_profile.color_space = DataColorSpace::Gray;
-    gray_profile.gray_trc = srgb.red_trc.clone();
+
+    // let gamma_table = srgb.build_gamma_table(&srgb.red_trc, true).unwrap();
+
+    // gray_profile.gray_trc = Some(ToneReprCurve::Lut(new_curve));
+    // gray_profile.gray_trc = srgb.red_trc.clone();
+
+    let gray_profile = encode_gray_lut();
+
+    let encode = gray_profile.encode().unwrap();
+    fs::write("./gray.icc", encode).unwrap();
+
     let mut test_profile = vec![0.; 4];
     test_profile[2] = 1.;
     let mut dst = vec![0.; 1];
+
+    let srgb_value = TransferCharacteristics::Srgb.linearize(1.);
+    let rgb = Rgb::new(0.0, 0.0, srgb_value as f32);
+
+    let sum = rgb.r * 0.2126729 + rgb.g * 0.7151522 + rgb.b * 0.0721750;
+    println!("sum {:?}, v {}", sum, sum * 255.);
+    let gammoized = TransferCharacteristics::Srgb.gamma(sum as f64);
+    println!("{:?}, {}", gammoized, gammoized * 255.);
+    println!(
+        "sum1 {:?}, sum2 {:?}",
+        TransferCharacteristics::Srgb.gamma(0.06851903),
+        TransferCharacteristics::Srgb.gamma(0.06851903) * 255.
+    );
 
     let cvt = srgb
         .create_transform_f32(
@@ -265,13 +329,30 @@ fn main() {
             &gray_profile,
             Layout::Gray,
             TransformOptions {
-                allow_extended_range_rgb_xyz: false,
+                allow_extended_range_rgb_xyz: true,
+                bypass_icc_d50_white_point: true,
                 ..Default::default()
             },
         )
         .unwrap();
     cvt.transform(&test_profile, &mut dst).unwrap();
     println!("{:?}", dst);
+
+    let bvt = gray_profile
+        .create_transform_f32(
+            Layout::Gray,
+            &srgb,
+            Layout::Rgba,
+            TransformOptions {
+                allow_extended_range_rgb_xyz: true,
+                bypass_icc_d50_white_point: true,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+
+    bvt.transform(&dst, &mut test_profile).unwrap();
+    println!("{:?}", test_profile);
 
     // let mut profile_clone = gray_target.clone();
     // profile_clone.lut_a_to_b_colorimetric = to_lut_v4(&profile_clone.lut_a_to_b_colorimetric, true);

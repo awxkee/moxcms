@@ -28,7 +28,7 @@
  */
 use crate::mlaf::mlaf;
 use crate::transform::PointeeSizeExpressible;
-use crate::trc::ExtendedGammaEvaluator;
+use crate::trc::ToneCurveEvaluator;
 use crate::{CmsError, Layout, Rgb, TransformExecutor, Vector3f};
 use num_traits::AsPrimitive;
 use std::marker::PhantomData;
@@ -39,8 +39,8 @@ struct TransformRgbToGrayExtendedExecutor<
     const DST_LAYOUT: u8,
     const BIT_DEPTH: usize,
 > {
-    linear_eval: Box<dyn ExtendedGammaEvaluator + Send + Sync>,
-    gamma_eval: Box<dyn ExtendedGammaEvaluator + Send + Sync>,
+    linear_eval: Box<dyn ToneCurveEvaluator + Send + Sync>,
+    gamma_eval: Box<dyn ToneCurveEvaluator + Send + Sync>,
     weights: Vector3f,
     _phantom: PhantomData<T>,
 }
@@ -51,8 +51,8 @@ pub(crate) fn make_rgb_to_gray_extended<
 >(
     src_layout: Layout,
     dst_layout: Layout,
-    linear_eval: Box<dyn ExtendedGammaEvaluator + Send + Sync>,
-    gamma_eval: Box<dyn ExtendedGammaEvaluator + Send + Sync>,
+    linear_eval: Box<dyn ToneCurveEvaluator + Send + Sync>,
+    gamma_eval: Box<dyn ToneCurveEvaluator + Send + Sync>,
     weights: Vector3f,
 ) -> Box<dyn TransformExecutor<T> + Send + Sync>
 where
@@ -157,7 +157,7 @@ where
                 src[src_cn.g_i()].as_(),
                 src[src_cn.b_i()].as_(),
             );
-            let lin_tristimulus = self.linear_eval.evaluate(in_tristimulus);
+            let lin_tristimulus = self.linear_eval.evaluate_tristimulus(in_tristimulus);
             let a = if src_channels == 4 {
                 src[src_cn.a_i()]
             } else {
@@ -174,7 +174,7 @@ where
             )
             .min(1.)
             .max(0.);
-            let gamma_value = self.gamma_eval.evaluate_single(grey);
+            let gamma_value = self.gamma_eval.evaluate_value(grey);
             dst[0] = gamma_value.as_();
             if dst_channels == 2 {
                 dst[1] = a;

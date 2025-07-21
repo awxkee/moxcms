@@ -329,6 +329,8 @@ use crate::trc::GammaLutInterpolate;
 #[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
 make_transform_4x3_fn!(make_transformer_4x3, NeonLut4x3Factory);
 
+#[inline(never)]
+#[cold]
 pub(crate) fn make_lut_transform<
     T: Copy
         + Default

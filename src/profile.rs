@@ -37,7 +37,10 @@ use crate::reader::s15_fixed16_number_to_float;
 use crate::safe_math::{SafeAdd, SafeMul};
 use crate::tag::{TAG_SIZE, Tag};
 use crate::trc::ToneReprCurve;
-use crate::{Chromaticity, Layout, Matrix3d, Vector3d, Xyzd, adapt_to_d50_d};
+use crate::{
+    Chromaticity, Layout, Matrix3d, TransformOptions, Vector3d, Xyzd, adapt_to_d50_d,
+    adapt_to_illuminant_xyz_d,
+};
 use std::io::Read;
 
 const MAX_PROFILE_SIZE: usize = 1024 * 1024 * 10; // 10 MB max, for Fogra39 etc
@@ -1149,6 +1152,22 @@ impl ColorProfile {
         adapt_to_d50_d(colorants, white_point)
     }
 
+    /// Computes colorants matrix with no adoption to D65.
+    pub fn colorants_matrix_no_adoption(primaries: ColorPrimaries, white_point: XyY) -> Matrix3d {
+        let red_xyz = primaries.red.to_xyzd();
+        let green_xyz = primaries.green.to_xyzd();
+        let blue_xyz = primaries.blue.to_xyzd();
+
+        let xyz_matrix = Matrix3d {
+            v: [
+                [red_xyz.x, green_xyz.x, blue_xyz.x],
+                [red_xyz.y, green_xyz.y, blue_xyz.y],
+                [red_xyz.z, green_xyz.z, blue_xyz.z],
+            ],
+        };
+        ColorProfile::rgb_to_xyz_d(xyz_matrix, white_point.to_xyzd())
+    }
+
     /// Updates RGB triple colorimetry from 3 [Chromaticity] and white point
     pub const fn update_rgb_colorimetry(&mut self, white_point: XyY, primaries: ColorPrimaries) {
         let red_xyz = primaries.red.to_xyzd();
@@ -1157,6 +1176,23 @@ impl ColorProfile {
 
         self.chromatic_adaptation = Some(BRADFORD_D);
         self.update_rgb_colorimetry_triplet(white_point, red_xyz, green_xyz, blue_xyz)
+    }
+
+    /// Updates RGB triple colorimetry from 3 [Chromaticity] and white point with no D50 adoption.
+    /// This is computing only profiles. **DO NOT SAVE** them.
+    pub fn update_rgb_colorimetry_no_adoption(
+        &mut self,
+        white_point: XyY,
+        primaries: ColorPrimaries,
+    ) {
+        let red_xyz = primaries.red.to_xyzd();
+        let green_xyz = primaries.green.to_xyzd();
+        let blue_xyz = primaries.blue.to_xyzd();
+
+        self.chromatic_adaptation = None;
+        self.white_point = white_point.to_xyzd();
+
+        self.update_rgb_colorimetry_triplet_no_adoption(white_point, red_xyz, green_xyz, blue_xyz)
     }
 
     /// Updates RGB triple colorimetry from 3 [Xyzd] and white point
@@ -1180,6 +1216,27 @@ impl ColorProfile {
         let colorants = ColorProfile::rgb_to_xyz_d(xyz_matrix, white_point.to_xyzd());
         let colorants = adapt_to_d50_d(colorants, white_point);
 
+        self.update_colorants(colorants);
+    }
+
+    /// Updates RGB triple colorimetry from 3 [Xyzd] and white point with no adoption to D50.
+    /// This is computing only profiles, **DO NOT SAVE THEM**
+    pub fn update_rgb_colorimetry_triplet_no_adoption(
+        &mut self,
+        white_point: XyY,
+        red_xyz: Xyzd,
+        green_xyz: Xyzd,
+        blue_xyz: Xyzd,
+    ) {
+        let xyz_matrix = Matrix3d {
+            v: [
+                [red_xyz.x, green_xyz.x, blue_xyz.x],
+                [red_xyz.y, green_xyz.y, blue_xyz.y],
+                [red_xyz.z, green_xyz.z, blue_xyz.z],
+            ],
+        };
+        let colorants = ColorProfile::rgb_to_xyz_d(xyz_matrix, white_point.to_xyzd());
+        self.white_point = white_point.to_xyzd();
         self.update_colorants(colorants);
     }
 
@@ -1224,6 +1281,36 @@ impl ColorProfile {
         false
     }
 
+    /// Updates RGB triple colorimetry from CICP without adoption to D50.
+    /// This is computing only profiles, **DO NOT SAVE THEM**
+    pub fn update_rgb_colorimetry_from_cicp_no_adoption_d50(&mut self, cicp: CicpProfile) -> bool {
+        self.cicp = Some(cicp);
+        if !cicp.color_primaries.has_chromaticity()
+            || !cicp.transfer_characteristics.has_transfer_curve()
+        {
+            return false;
+        }
+        let primaries_xy: ColorPrimaries = match cicp.color_primaries.try_into() {
+            Ok(primaries) => primaries,
+            Err(_) => return false,
+        };
+        let white_point: Chromaticity = match cicp.color_primaries.white_point() {
+            Ok(v) => v,
+            Err(_) => return false,
+        };
+
+        self.update_rgb_colorimetry_no_adoption(white_point.to_xyyb(), primaries_xy);
+
+        let red_trc: ToneReprCurve = match cicp.transfer_characteristics.try_into() {
+            Ok(trc) => trc,
+            Err(_) => return false,
+        };
+        self.green_trc = Some(red_trc.clone());
+        self.blue_trc = Some(red_trc.clone());
+        self.red_trc = Some(red_trc);
+        false
+    }
+
     pub const fn rgb_to_xyz(&self, xyz_matrix: Matrix3f, wp: Xyz) -> Matrix3f {
         let xyz_inverse = xyz_matrix.inverse();
         let s = xyz_inverse.mul_vector(wp.to_vector());
@@ -1232,7 +1319,8 @@ impl ColorProfile {
         v.mul_row_vector::<2>(s)
     }
 
-    /// If Primaries is invalid will return invalid matrix on const context
+    /// If Primaries is invalid will return invalid matrix on const context.
+    /// This assumes not transposed matrix and returns not transposed matrix.
     pub const fn rgb_to_xyz_d(xyz_matrix: Matrix3d, wp: Xyzd) -> Matrix3d {
         let xyz_inverse = xyz_matrix.inverse();
         let s = xyz_inverse.mul_vector(wp.to_vector_d());
@@ -1248,6 +1336,27 @@ impl ColorProfile {
         ColorProfile::rgb_to_xyz_d(xyz_matrix, white_point)
     }
 
+    pub(crate) fn rgb_to_xyz_matrix_with_options(
+        &self,
+        transform_options: TransformOptions,
+    ) -> Matrix3d {
+        let xyz_matrix = self.colorant_matrix();
+        let white_point = if transform_options.bypass_icc_d50_white_point {
+            self.white_point
+        } else {
+            Chromaticity::D50.to_xyzd()
+        };
+        ColorProfile::rgb_to_xyz_d(xyz_matrix, white_point)
+    }
+
+    /// Creates custom RGB -> XYZ transformation matrix with custom white point without an adaption to D50.
+    pub fn rgb_to_xyz_matrix_with_white_point(
+        primaries: ColorPrimaries,
+        white_point: XyY,
+    ) -> Matrix3d {
+        ColorProfile::colorants_matrix_no_adoption(primaries, white_point)
+    }
+
     /// Computes transform matrix RGB -> XYZ -> RGB
     /// Current profile is used as source, other as destination
     pub fn transform_matrix(&self, dest: &ColorProfile) -> Matrix3d {
@@ -1255,6 +1364,34 @@ impl ColorProfile {
         let dst = dest.rgb_to_xyz_matrix();
         let dest_inverse = dst.inverse();
         dest_inverse.mat_mul(source)
+    }
+
+    /// Computes transform matrix RGB -> XYZ -> RGB
+    /// Current profile is used as source, other as destination
+    pub(crate) fn transform_matrix_with_options(
+        &self,
+        dest: &ColorProfile,
+        options: TransformOptions,
+    ) -> Matrix3d {
+        if options.bypass_icc_d50_white_point {
+            let mut source = self.rgb_to_xyz_matrix_with_options(options);
+            let dst = dest.rgb_to_xyz_matrix_with_options(options);
+            if !self.white_point.eq(&dest.white_point) {
+                let adaptation = adapt_to_illuminant_xyz_d(
+                    source,
+                    self.white_point.to_xyz(),
+                    dest.white_point.to_xyz(),
+                );
+                source = adaptation;
+            }
+            let dest_inverse = dst.inverse();
+            dest_inverse.mat_mul(source)
+        } else {
+            let source = self.rgb_to_xyz_matrix();
+            let dst = dest.rgb_to_xyz_matrix();
+            let dest_inverse = dst.inverse();
+            dest_inverse.mat_mul(source)
+        }
     }
 
     /// Returns volume of colors stored in profile

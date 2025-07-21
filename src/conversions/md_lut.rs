@@ -383,6 +383,85 @@ fn linear_3i_vec3f<const N: usize>(
     fast_cube.tetra(src_x, src_next, weights)
 }
 
+pub(crate) fn linear_1i_vec3f<const N: usize>(
+    lut: &MultidimensionalLut,
+    arr: &[f32],
+    inputs: &[f32],
+) -> NVector<f32, N> {
+    let lin_x = inputs[0].max(0.0).min(1.0);
+
+    let scale_x = lut.grid_scale[0];
+
+    let lx = lin_x * scale_x;
+
+    let x = lx.floor() as i32;
+
+    let x_n = lx.ceil() as i32;
+
+    let x_w = lx - x as f32;
+
+    let x_stride = lut.grid_strides[0];
+
+    let offset = |xi: i32| -> usize { (xi as u32 * x_stride) as usize * lut.output_inks };
+
+    // Sample 2 corners
+    let a = NVector::<f32, N>::from_slice(&arr[offset(x)..][..N].try_into().unwrap());
+    let b = NVector::<f32, N>::from_slice(&arr[offset(x_n)..][..N].try_into().unwrap());
+
+    a * NVector::<f32, N>::from(1.0 - x_w) + b * NVector::<f32, N>::from(x_w)
+}
+
+pub(crate) fn linear_2i_vec3f_direct<const N: usize>(
+    lut: &MultidimensionalLut,
+    arr: &[f32],
+    inputs: &[f32],
+) -> NVector<f32, N> {
+    linear_2i_vec3f(lut, arr, inputs[0], inputs[1])
+}
+
+fn linear_2i_vec3f<const N: usize>(
+    lut: &MultidimensionalLut,
+    arr: &[f32],
+    x: f32,
+    y: f32,
+) -> NVector<f32, N> {
+    let lin_x = x.max(0.0).min(1.0);
+    let lin_y = y.max(0.0).min(1.0);
+
+    let scale_x = lut.grid_scale[0];
+    let scale_y = lut.grid_scale[1];
+
+    let lx = lin_x * scale_x;
+    let ly = lin_y * scale_y;
+
+    let x = lx.floor() as i32;
+    let y = ly.floor() as i32;
+
+    let x_n = lx.ceil() as i32;
+    let y_n = ly.ceil() as i32;
+
+    let x_w = lx - x as f32;
+    let y_w = ly - y as f32;
+
+    let x_stride = lut.grid_strides[0];
+    let y_stride = lut.grid_strides[1];
+
+    let offset = |xi: i32, yi: i32| -> usize {
+        (xi as u32 * x_stride + yi as u32 * y_stride) as usize * lut.output_inks
+    };
+
+    // Sample 4 corners
+    let a = NVector::<f32, N>::from_slice(&arr[offset(x, y)..][..N].try_into().unwrap());
+    let b = NVector::<f32, N>::from_slice(&arr[offset(x_n, y)..][..N].try_into().unwrap());
+    let c = NVector::<f32, N>::from_slice(&arr[offset(x, y_n)..][..N].try_into().unwrap());
+    let d = NVector::<f32, N>::from_slice(&arr[offset(x_n, y_n)..][..N].try_into().unwrap());
+
+    let ab = a * NVector::<f32, N>::from(1.0 - x_w) + b * NVector::<f32, N>::from(x_w);
+    let cd = c * NVector::<f32, N>::from(1.0 - x_w) + d * NVector::<f32, N>::from(x_w);
+
+    ab * NVector::<f32, N>::from(1.0 - y_w) + cd * NVector::<f32, N>::from(y_w)
+}
+
 pub(crate) fn linear_4i_vec3f<const N: usize>(
     lut: &MultidimensionalLut,
     arr: &[f32],

@@ -107,6 +107,11 @@ pub struct TransformOptions {
     /// This allows to work with excellent precision with extended range,
     /// at a cost of execution time.
     pub allow_extended_range_rgb_xyz: bool,
+    /// Will pick white point set in profile instead of D50 fixed point colorimetry.
+    /// **Do not use it until you know what you're doing.**
+    /// Destination profile white point always chosen as a target, both profiles must
+    /// have assigned related `white_point`.
+    pub bypass_icc_d50_white_point: bool,
     // pub black_point_compensation: bool,
 }
 
@@ -142,6 +147,7 @@ impl Default for TransformOptions {
             interpolation_method: InterpolationMethod::default(),
             barycentric_weight_scale: BarycentricWeightScale::default(),
             allow_extended_range_rgb_xyz: false,
+            bypass_icc_d50_white_point: false,
             // black_point_compensation: false,
         }
     }
@@ -502,7 +508,13 @@ impl ColorProfile {
                 return Err(CmsError::InvalidLayout);
             }
 
-            let transform = self.transform_matrix(dst_pr);
+            if self.has_device_to_pcs_lut() || dst_pr.has_pcs_to_device_lut() {
+                return make_lut_transform::<T, BIT_DEPTH, LINEAR_CAP, GAMMA_CAP>(
+                    src_layout, self, dst_layout, dst_pr, options,
+                );
+            }
+
+            let transform = self.transform_matrix_with_options(dst_pr, options);
 
             if !T::FINITE && options.allow_extended_range_rgb_xyz {
                 if let Some(gamma_evaluator) = dst_pr.try_extended_gamma_evaluator() {
@@ -611,14 +623,20 @@ impl ColorProfile {
                 profile_transform,
                 options,
             )
-        } else if self.color_space == DataColorSpace::Gray
+        } else if (self.color_space == DataColorSpace::Gray && self.gray_trc.is_some())
             && (dst_pr.color_space == DataColorSpace::Rgb
-                || dst_pr.color_space == DataColorSpace::Gray)
+                || (dst_pr.color_space == DataColorSpace::Gray && dst_pr.gray_trc.is_some()))
             && self.pcs == DataColorSpace::Xyz
             && dst_pr.pcs == DataColorSpace::Xyz
         {
             if src_layout != Layout::GrayAlpha && src_layout != Layout::Gray {
                 return Err(CmsError::InvalidLayout);
+            }
+
+            if self.has_device_to_pcs_lut() || dst_pr.has_pcs_to_device_lut() {
+                return make_lut_transform::<T, BIT_DEPTH, LINEAR_CAP, GAMMA_CAP>(
+                    src_layout, self, dst_layout, dst_pr, options,
+                );
             }
 
             let gray_linear = self.build_gray_linearize_table::<T, LINEAR_CAP, BIT_DEPTH>()?;
@@ -727,7 +745,7 @@ impl ColorProfile {
                 }
             }
         } else if self.color_space == DataColorSpace::Rgb
-            && dst_pr.color_space == DataColorSpace::Gray
+            && (dst_pr.color_space == DataColorSpace::Gray && dst_pr.gray_trc.is_some())
             && dst_pr.pcs == DataColorSpace::Xyz
             && self.pcs == DataColorSpace::Xyz
         {
@@ -738,7 +756,13 @@ impl ColorProfile {
                 return Err(CmsError::InvalidLayout);
             }
 
-            let transform = self.rgb_to_xyz_matrix().to_f32();
+            if self.has_device_to_pcs_lut() || dst_pr.has_pcs_to_device_lut() {
+                return make_lut_transform::<T, BIT_DEPTH, LINEAR_CAP, GAMMA_CAP>(
+                    src_layout, self, dst_layout, dst_pr, options,
+                );
+            }
+
+            let transform = self.rgb_to_xyz_matrix_with_options(options).to_f32();
 
             let vector = Vector3f {
                 v: [transform.v[1][0], transform.v[1][1], transform.v[1][2]],

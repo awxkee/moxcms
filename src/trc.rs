@@ -42,6 +42,160 @@ pub enum ToneReprCurve {
     Parametric(Vec<f32>),
 }
 
+impl ToneReprCurve {
+    pub fn inverse(&self) -> Result<ToneReprCurve, CmsError> {
+        match self {
+            ToneReprCurve::Lut(lut) => {
+                let inverse_length = lut.len().max(256);
+                Ok(ToneReprCurve::Lut(invert_lut(lut, inverse_length)))
+            }
+            ToneReprCurve::Parametric(parametric) => ParametricCurve::new(parametric)
+                .and_then(|x| x.invert())
+                .map(|x| ToneReprCurve::Parametric([x.g, x.a, x.b, x.c, x.d, x.e, x.f].to_vec()))
+                .ok_or(CmsError::BuildTransferFunction),
+        }
+    }
+
+    /// Creates tone curve evaluator
+    pub fn make_linear_evaluator(
+        &self,
+    ) -> Result<Box<dyn ToneCurveEvaluator + Send + Sync>, CmsError> {
+        match self {
+            ToneReprCurve::Lut(lut) => {
+                if lut.is_empty() {
+                    return Ok(Box::new(ToneCurveEvaluatorLinear {}));
+                }
+                if lut.len() == 1 {
+                    let gamma = u8_fixed_8number_to_float(lut[0]);
+                    return Ok(Box::new(ToneCurveEvaluatorPureGamma { gamma }));
+                }
+                let converted_curve = lut.iter().map(|&x| x as f32 / 65535.0).collect::<Vec<_>>();
+                Ok(Box::new(ToneCurveLutEvaluator {
+                    lut: converted_curve,
+                }))
+            }
+            ToneReprCurve::Parametric(parametric) => {
+                let parametric_curve =
+                    ParametricCurve::new(parametric).ok_or(CmsError::BuildTransferFunction)?;
+                Ok(Box::new(ToneCurveParametricEvaluator {
+                    parametric: parametric_curve,
+                }))
+            }
+        }
+    }
+
+    /// Creates tone curve evaluator from transfer characteristics
+    pub fn make_cicp_linear_evaluator(
+        transfer_characteristics: TransferCharacteristics,
+    ) -> Result<Box<dyn ToneCurveEvaluator + Send + Sync>, CmsError> {
+        if !transfer_characteristics.has_transfer_curve() {
+            return Err(CmsError::BuildTransferFunction);
+        }
+        Ok(Box::new(ToneCurveCicpLinearEvaluator {
+            trc: transfer_characteristics,
+        }))
+    }
+
+    /// Creates tone curve inverse evaluator
+    pub fn make_gamma_evaluator(
+        &self,
+    ) -> Result<Box<dyn ToneCurveEvaluator + Send + Sync>, CmsError> {
+        match self {
+            ToneReprCurve::Lut(lut) => {
+                if lut.is_empty() {
+                    return Ok(Box::new(ToneCurveEvaluatorLinear {}));
+                }
+                if lut.len() == 1 {
+                    let gamma = 1. / u8_fixed_8number_to_float(lut[0]);
+                    return Ok(Box::new(ToneCurveEvaluatorPureGamma { gamma }));
+                }
+                let inverted_lut = invert_lut(lut, 16384);
+                let converted_curve = inverted_lut
+                    .iter()
+                    .map(|&x| x as f32 / 65535.0)
+                    .collect::<Vec<_>>();
+                Ok(Box::new(ToneCurveLutEvaluator {
+                    lut: converted_curve,
+                }))
+            }
+            ToneReprCurve::Parametric(parametric) => {
+                let parametric_curve = ParametricCurve::new(parametric)
+                    .and_then(|x| x.invert())
+                    .ok_or(CmsError::BuildTransferFunction)?;
+                Ok(Box::new(ToneCurveParametricEvaluator {
+                    parametric: parametric_curve,
+                }))
+            }
+        }
+    }
+
+    /// Creates tone curve inverse evaluator from transfer characteristics
+    pub fn make_cicp_gamma_evaluator(
+        transfer_characteristics: TransferCharacteristics,
+    ) -> Result<Box<dyn ToneCurveEvaluator + Send + Sync>, CmsError> {
+        if !transfer_characteristics.has_transfer_curve() {
+            return Err(CmsError::BuildTransferFunction);
+        }
+        Ok(Box::new(ToneCurveCicpGammaEvaluator {
+            trc: transfer_characteristics,
+        }))
+    }
+}
+
+struct ToneCurveCicpLinearEvaluator {
+    trc: TransferCharacteristics,
+}
+
+struct ToneCurveCicpGammaEvaluator {
+    trc: TransferCharacteristics,
+}
+
+impl ToneCurveEvaluator for ToneCurveCicpLinearEvaluator {
+    fn evaluate_tristimulus(&self, rgb: Rgb<f32>) -> Rgb<f32> {
+        Rgb::new(
+            self.trc.linearize(rgb.r as f64) as f32,
+            self.trc.linearize(rgb.g as f64) as f32,
+            self.trc.linearize(rgb.b as f64) as f32,
+        )
+    }
+
+    fn evaluate_value(&self, value: f32) -> f32 {
+        self.trc.linearize(value as f64) as f32
+    }
+}
+
+impl ToneCurveEvaluator for ToneCurveCicpGammaEvaluator {
+    fn evaluate_tristimulus(&self, rgb: Rgb<f32>) -> Rgb<f32> {
+        Rgb::new(
+            self.trc.gamma(rgb.r as f64) as f32,
+            self.trc.gamma(rgb.g as f64) as f32,
+            self.trc.gamma(rgb.b as f64) as f32,
+        )
+    }
+
+    fn evaluate_value(&self, value: f32) -> f32 {
+        self.trc.gamma(value as f64) as f32
+    }
+}
+
+struct ToneCurveLutEvaluator {
+    lut: Vec<f32>,
+}
+
+impl ToneCurveEvaluator for ToneCurveLutEvaluator {
+    fn evaluate_value(&self, value: f32) -> f32 {
+        lut_interp_linear_float(value, &self.lut)
+    }
+
+    fn evaluate_tristimulus(&self, rgb: Rgb<f32>) -> Rgb<f32> {
+        Rgb::new(
+            lut_interp_linear_float(rgb.r, &self.lut),
+            lut_interp_linear_float(rgb.g, &self.lut),
+            lut_interp_linear_float(rgb.b, &self.lut),
+        )
+    }
+}
+
 pub(crate) fn build_trc_table(num_entries: i32, eotf: impl Fn(f64) -> f64) -> Vec<u16> {
     let mut table = vec![0u16; num_entries as usize];
 
@@ -650,7 +804,11 @@ fn lut_inverse_interp16(value: u16, lut_table: &[u16]) -> u16 {
 
     let mut num_zeroes: i32 = 0;
     for &item in lut_table.iter() {
-        if item == 0 { num_zeroes += 1 } else { break }
+        if item == 0 {
+            num_zeroes += 1
+        } else {
+            break;
+        }
     }
 
     if num_zeroes == 0 && value as i32 == 0 {
@@ -742,7 +900,11 @@ fn lut_inverse_interp16_boxed<const N: usize>(value: u16, lut_table: &[u16; N]) 
 
     let mut num_zeroes: i32 = 0;
     for &item in lut_table.iter() {
-        if item == 0 { num_zeroes += 1 } else { break }
+        if item == 0 {
+            num_zeroes += 1
+        } else {
+            break;
+        }
     }
 
     if num_zeroes == 0 && value as i32 == 0 {
@@ -856,7 +1018,7 @@ impl ToneReprCurve {
         match self {
             ToneReprCurve::Lut(lut) => {
                 if lut.is_empty() {
-                    let passthrough_table = passthrough_table::<f32, 65536, 1>();
+                    let passthrough_table = passthrough_table::<f32, 16384, 1>();
                     Ok(passthrough_table.to_vec())
                 } else {
                     Ok(lut
@@ -1128,10 +1290,10 @@ impl ColorProfile {
     /// Checks if profile gamma can work in extended precision and we have implementation for this
     pub(crate) fn try_extended_gamma_evaluator(
         &self,
-    ) -> Option<Box<dyn ExtendedGammaEvaluator + Send + Sync>> {
+    ) -> Option<Box<dyn ToneCurveEvaluator + Send + Sync>> {
         if let Some(tc) = self.cicp.as_ref().map(|c| c.transfer_characteristics) {
             if tc.has_transfer_curve() {
-                return Some(Box::new(ExtendedGammaCicpEvaluator {
+                return Some(Box::new(ToneCurveCicpEvaluator {
                     rgb_trc: tc.extended_gamma_tristimulus(),
                     trc: tc.extended_gamma_single(),
                 }));
@@ -1146,50 +1308,57 @@ impl ColorProfile {
             self.red_trc.as_ref()
         };
         if let Some(red_trc) = reference_trc {
-            match red_trc {
-                ToneReprCurve::Lut(lut) => {
-                    if lut.is_empty() {
-                        return Some(Box::new(ExtendedGammaEvaluatorLinear {}));
-                    }
-                    if lut.len() == 1 {
-                        let gamma = 1. / u8_fixed_8number_to_float(lut[0]);
-                        return Some(Box::new(ExtendedGammaEvaluatorPureGamma { gamma }));
-                    }
-                }
-                ToneReprCurve::Parametric(params) => {
-                    if params.len() == 5 {
-                        let srgb_params = vec![2.4, 1. / 1.055, 0.055 / 1.055, 1. / 12.92, 0.04045];
-                        let rec709_params = create_rec709_parametric();
-
-                        let mut lc_params: [f32; 5] = [0.; 5];
-                        for (dst, src) in lc_params.iter_mut().zip(params.iter()) {
-                            *dst = *src;
-                        }
-
-                        if compare_parametric(lc_params.as_slice(), srgb_params.as_slice()) {
-                            return Some(Box::new(ExtendedGammaCicpEvaluator {
-                                rgb_trc: TransferCharacteristics::Srgb.extended_gamma_tristimulus(),
-                                trc: TransferCharacteristics::Srgb.extended_gamma_single(),
-                            }));
-                        }
-
-                        if compare_parametric(lc_params.as_slice(), rec709_params.as_slice()) {
-                            return Some(Box::new(ExtendedGammaCicpEvaluator {
-                                rgb_trc: TransferCharacteristics::Bt709
-                                    .extended_gamma_tristimulus(),
-                                trc: TransferCharacteristics::Bt709.extended_gamma_single(),
-                            }));
-                        }
-                    }
-
-                    let parametric_curve = ParametricCurve::new(params);
-                    if let Some(v) = parametric_curve?.invert() {
-                        return Some(Box::new(ExtendedParametricEvaluator { parametric: v }));
-                    }
-                }
-            }
+            return Self::make_gamma_evaluator_all_the_same(red_trc);
         }
         None
+    }
+
+    fn make_gamma_evaluator_all_the_same(
+        red_trc: &ToneReprCurve,
+    ) -> Option<Box<dyn ToneCurveEvaluator + Send + Sync>> {
+        match red_trc {
+            ToneReprCurve::Lut(lut) => {
+                if lut.is_empty() {
+                    return Some(Box::new(ToneCurveEvaluatorLinear {}));
+                }
+                if lut.len() == 1 {
+                    let gamma = 1. / u8_fixed_8number_to_float(lut[0]);
+                    return Some(Box::new(ToneCurveEvaluatorPureGamma { gamma }));
+                }
+                None
+            }
+            ToneReprCurve::Parametric(params) => {
+                if params.len() == 5 {
+                    let srgb_params = vec![2.4, 1. / 1.055, 0.055 / 1.055, 1. / 12.92, 0.04045];
+                    let rec709_params = create_rec709_parametric();
+
+                    let mut lc_params: [f32; 5] = [0.; 5];
+                    for (dst, src) in lc_params.iter_mut().zip(params.iter()) {
+                        *dst = *src;
+                    }
+
+                    if compare_parametric(lc_params.as_slice(), srgb_params.as_slice()) {
+                        return Some(Box::new(ToneCurveCicpEvaluator {
+                            rgb_trc: TransferCharacteristics::Srgb.extended_gamma_tristimulus(),
+                            trc: TransferCharacteristics::Srgb.extended_gamma_single(),
+                        }));
+                    }
+
+                    if compare_parametric(lc_params.as_slice(), rec709_params.as_slice()) {
+                        return Some(Box::new(ToneCurveCicpEvaluator {
+                            rgb_trc: TransferCharacteristics::Bt709.extended_gamma_tristimulus(),
+                            trc: TransferCharacteristics::Bt709.extended_gamma_single(),
+                        }));
+                    }
+                }
+
+                let parametric_curve = ParametricCurve::new(params);
+                if let Some(v) = parametric_curve?.invert() {
+                    return Some(Box::new(ToneCurveParametricEvaluator { parametric: v }));
+                }
+                None
+            }
+        }
     }
 
     /// Check if all TRC are the same
@@ -1268,10 +1437,10 @@ impl ColorProfile {
     /// Checks if profile linearization can work in extended precision and we have implementation for this
     pub(crate) fn try_extended_linearizing_evaluator(
         &self,
-    ) -> Option<Box<dyn ExtendedGammaEvaluator + Send + Sync>> {
+    ) -> Option<Box<dyn ToneCurveEvaluator + Send + Sync>> {
         if let Some(tc) = self.cicp.as_ref().map(|c| c.transfer_characteristics) {
             if tc.has_transfer_curve() {
-                return Some(Box::new(ExtendedGammaCicpEvaluator {
+                return Some(Box::new(ToneCurveCicpEvaluator {
                     rgb_trc: tc.extended_linear_tristimulus(),
                     trc: tc.extended_linear_single(),
                 }));
@@ -1280,48 +1449,62 @@ impl ColorProfile {
         if !self.are_all_trc_the_same() {
             return None;
         }
-        if let Some(red_trc) = &self.red_trc {
-            match red_trc {
-                ToneReprCurve::Lut(lut) => {
-                    if lut.is_empty() {
-                        return Some(Box::new(ExtendedGammaEvaluatorLinear {}));
+        let reference_trc = if self.color_space == DataColorSpace::Gray {
+            self.gray_trc.as_ref()
+        } else {
+            self.red_trc.as_ref()
+        };
+        if let Some(red_trc) = reference_trc {
+            if let Some(value) = Self::make_linear_curve_evaluator_all_the_same(red_trc) {
+                return value;
+            }
+        }
+        None
+    }
+
+    fn make_linear_curve_evaluator_all_the_same(
+        evaluator_curve: &ToneReprCurve,
+    ) -> Option<Option<Box<dyn ToneCurveEvaluator + Send + Sync>>> {
+        match evaluator_curve {
+            ToneReprCurve::Lut(lut) => {
+                if lut.is_empty() {
+                    return Some(Some(Box::new(ToneCurveEvaluatorLinear {})));
+                }
+                if lut.len() == 1 {
+                    let gamma = u8_fixed_8number_to_float(lut[0]);
+                    return Some(Some(Box::new(ToneCurveEvaluatorPureGamma { gamma })));
+                }
+            }
+            ToneReprCurve::Parametric(params) => {
+                if params.len() == 5 {
+                    let srgb_params = vec![2.4, 1. / 1.055, 0.055 / 1.055, 1. / 12.92, 0.04045];
+                    let rec709_params = create_rec709_parametric();
+
+                    let mut lc_params: [f32; 5] = [0.; 5];
+                    for (dst, src) in lc_params.iter_mut().zip(params.iter()) {
+                        *dst = *src;
                     }
-                    if lut.len() == 1 {
-                        let gamma = u8_fixed_8number_to_float(lut[0]);
-                        return Some(Box::new(ExtendedGammaEvaluatorPureGamma { gamma }));
+
+                    if compare_parametric(lc_params.as_slice(), srgb_params.as_slice()) {
+                        return Some(Some(Box::new(ToneCurveCicpEvaluator {
+                            rgb_trc: TransferCharacteristics::Srgb.extended_linear_tristimulus(),
+                            trc: TransferCharacteristics::Srgb.extended_linear_single(),
+                        })));
+                    }
+
+                    if compare_parametric(lc_params.as_slice(), rec709_params.as_slice()) {
+                        return Some(Some(Box::new(ToneCurveCicpEvaluator {
+                            rgb_trc: TransferCharacteristics::Bt709.extended_linear_tristimulus(),
+                            trc: TransferCharacteristics::Bt709.extended_linear_single(),
+                        })));
                     }
                 }
-                ToneReprCurve::Parametric(params) => {
-                    if params.len() == 5 {
-                        let srgb_params = vec![2.4, 1. / 1.055, 0.055 / 1.055, 1. / 12.92, 0.04045];
-                        let rec709_params = create_rec709_parametric();
 
-                        let mut lc_params: [f32; 5] = [0.; 5];
-                        for (dst, src) in lc_params.iter_mut().zip(params.iter()) {
-                            *dst = *src;
-                        }
-
-                        if compare_parametric(lc_params.as_slice(), srgb_params.as_slice()) {
-                            return Some(Box::new(ExtendedGammaCicpEvaluator {
-                                rgb_trc: TransferCharacteristics::Srgb
-                                    .extended_linear_tristimulus(),
-                                trc: TransferCharacteristics::Srgb.extended_linear_single(),
-                            }));
-                        }
-
-                        if compare_parametric(lc_params.as_slice(), rec709_params.as_slice()) {
-                            return Some(Box::new(ExtendedGammaCicpEvaluator {
-                                rgb_trc: TransferCharacteristics::Bt709
-                                    .extended_linear_tristimulus(),
-                                trc: TransferCharacteristics::Bt709.extended_linear_single(),
-                            }));
-                        }
-                    }
-
-                    let parametric_curve = ParametricCurve::new(params);
-                    if let Some(v) = parametric_curve {
-                        return Some(Box::new(ExtendedParametricEvaluator { parametric: v }));
-                    }
+                let parametric_curve = ParametricCurve::new(params);
+                if let Some(v) = parametric_curve {
+                    return Some(Some(Box::new(ToneCurveParametricEvaluator {
+                        parametric: v,
+                    })));
                 }
             }
         }
@@ -1329,33 +1512,33 @@ impl ColorProfile {
     }
 }
 
-pub(crate) struct ExtendedGammaCicpEvaluator {
+pub(crate) struct ToneCurveCicpEvaluator {
     rgb_trc: fn(Rgb<f32>) -> Rgb<f32>,
     trc: fn(f32) -> f32,
 }
 
-pub(crate) struct ExtendedParametricEvaluator {
+pub(crate) struct ToneCurveParametricEvaluator {
     parametric: ParametricCurve,
 }
 
-pub(crate) struct ExtendedGammaEvaluatorPureGamma {
+pub(crate) struct ToneCurveEvaluatorPureGamma {
     gamma: f32,
 }
 
-pub(crate) struct ExtendedGammaEvaluatorLinear {}
+pub(crate) struct ToneCurveEvaluatorLinear {}
 
-impl ExtendedGammaEvaluator for ExtendedGammaCicpEvaluator {
-    fn evaluate(&self, rgb: Rgb<f32>) -> Rgb<f32> {
+impl ToneCurveEvaluator for ToneCurveCicpEvaluator {
+    fn evaluate_tristimulus(&self, rgb: Rgb<f32>) -> Rgb<f32> {
         (self.rgb_trc)(rgb)
     }
 
-    fn evaluate_single(&self, value: f32) -> f32 {
+    fn evaluate_value(&self, value: f32) -> f32 {
         (self.trc)(value)
     }
 }
 
-impl ExtendedGammaEvaluator for ExtendedParametricEvaluator {
-    fn evaluate(&self, rgb: Rgb<f32>) -> Rgb<f32> {
+impl ToneCurveEvaluator for ToneCurveParametricEvaluator {
+    fn evaluate_tristimulus(&self, rgb: Rgb<f32>) -> Rgb<f32> {
         Rgb::new(
             self.parametric.eval(rgb.r),
             self.parametric.eval(rgb.g),
@@ -1363,13 +1546,13 @@ impl ExtendedGammaEvaluator for ExtendedParametricEvaluator {
         )
     }
 
-    fn evaluate_single(&self, value: f32) -> f32 {
+    fn evaluate_value(&self, value: f32) -> f32 {
         self.parametric.eval(value)
     }
 }
 
-impl ExtendedGammaEvaluator for ExtendedGammaEvaluatorPureGamma {
-    fn evaluate(&self, rgb: Rgb<f32>) -> Rgb<f32> {
+impl ToneCurveEvaluator for ToneCurveEvaluatorPureGamma {
+    fn evaluate_tristimulus(&self, rgb: Rgb<f32>) -> Rgb<f32> {
         Rgb::new(
             dirty_powf(rgb.r, self.gamma),
             dirty_powf(rgb.g, self.gamma),
@@ -1377,22 +1560,22 @@ impl ExtendedGammaEvaluator for ExtendedGammaEvaluatorPureGamma {
         )
     }
 
-    fn evaluate_single(&self, value: f32) -> f32 {
+    fn evaluate_value(&self, value: f32) -> f32 {
         dirty_powf(value, self.gamma)
     }
 }
 
-impl ExtendedGammaEvaluator for ExtendedGammaEvaluatorLinear {
-    fn evaluate(&self, rgb: Rgb<f32>) -> Rgb<f32> {
+impl ToneCurveEvaluator for ToneCurveEvaluatorLinear {
+    fn evaluate_tristimulus(&self, rgb: Rgb<f32>) -> Rgb<f32> {
         rgb
     }
 
-    fn evaluate_single(&self, value: f32) -> f32 {
+    fn evaluate_value(&self, value: f32) -> f32 {
         value
     }
 }
 
-pub(crate) trait ExtendedGammaEvaluator {
-    fn evaluate(&self, rgb: Rgb<f32>) -> Rgb<f32>;
-    fn evaluate_single(&self, value: f32) -> f32;
+pub trait ToneCurveEvaluator {
+    fn evaluate_tristimulus(&self, rgb: Rgb<f32>) -> Rgb<f32>;
+    fn evaluate_value(&self, value: f32) -> f32;
 }

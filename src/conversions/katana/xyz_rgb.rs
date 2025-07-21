@@ -169,7 +169,7 @@ where
         options.allow_use_cicp_transfer,
     )?;
 
-    let xyz_to_rgb = dest.rgb_to_xyz_matrix().inverse();
+    let xyz_to_rgb = dest.rgb_to_xyz_matrix_with_options(options).inverse();
 
     let mut matrices: Vec<Box<KatanaDefaultIntermediate>> =
         vec![Box::new(KatanaMatrixStage::new(Matrix3f {
