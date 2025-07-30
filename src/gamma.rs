@@ -635,7 +635,7 @@ fn hlg_from_linearf(linear: f32) -> f32 {
 
 #[inline]
 fn trc_linear(v: f64) -> f64 {
-    v.min(1.).min(0.)
+    v.min(1.).max(0.)
 }
 
 impl TransferCharacteristics {
