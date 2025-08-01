@@ -28,7 +28,7 @@
  */
 use crate::conversions::lut3x4::create_lut3_samples;
 use crate::mlaf::mlaf;
-use crate::trc::ExtendedGammaEvaluator;
+use crate::trc::ToneCurveEvaluator;
 use crate::{
     CmsError, ColorProfile, GammaLutInterpolate, InPlaceStage, Matrix3f, PointeeSizeExpressible,
     RenderingIntent, Rgb, TransformOptions, filmlike_clip,
@@ -108,7 +108,7 @@ impl<T: Clone + AsPrimitive<f32>, const BIT_DEPTH: usize, const GAMMA_LUT: usize
 }
 
 pub(crate) struct XyzToRgbStageExtended<T: Clone> {
-    pub(crate) gamma_evaluator: Box<dyn ExtendedGammaEvaluator>,
+    pub(crate) gamma_evaluator: Box<dyn ToneCurveEvaluator>,
     pub(crate) matrices: Vec<Matrix3f>,
     pub(crate) phantom_data: PhantomData<T>,
 }
@@ -140,7 +140,7 @@ impl<T: Clone + AsPrimitive<f32>> InPlaceStage for XyzToRgbStageExtended<T> {
 
         for dst in dst.chunks_exact_mut(3) {
             let mut rgb = Rgb::new(dst[0], dst[1], dst[2]);
-            rgb = self.gamma_evaluator.evaluate(rgb);
+            rgb = self.gamma_evaluator.evaluate_tristimulus(rgb);
             dst[0] = rgb.r.as_();
             dst[1] = rgb.g.as_();
             dst[2] = rgb.b.as_();

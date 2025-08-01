@@ -27,7 +27,7 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::transform::PointeeSizeExpressible;
-use crate::trc::ExtendedGammaEvaluator;
+use crate::trc::ToneCurveEvaluator;
 use crate::{CmsError, Layout, Rgb, TransformExecutor};
 use num_traits::AsPrimitive;
 use std::marker::PhantomData;
@@ -38,8 +38,8 @@ struct TransformGrayOneToOneExecutor<
     const DEST_LAYOUT: u8,
     const BIT_DEPTH: usize,
 > {
-    linear_eval: Box<dyn ExtendedGammaEvaluator + Send + Sync>,
-    gamma_eval: Box<dyn ExtendedGammaEvaluator + Send + Sync>,
+    linear_eval: Box<dyn ToneCurveEvaluator + Send + Sync>,
+    gamma_eval: Box<dyn ToneCurveEvaluator + Send + Sync>,
     _phantom: PhantomData<T>,
 }
 
@@ -49,8 +49,8 @@ pub(crate) fn make_gray_to_one_trc_extended<
 >(
     src_layout: Layout,
     dst_layout: Layout,
-    linear_eval: Box<dyn ExtendedGammaEvaluator + Send + Sync>,
-    gamma_eval: Box<dyn ExtendedGammaEvaluator + Send + Sync>,
+    linear_eval: Box<dyn ToneCurveEvaluator + Send + Sync>,
+    gamma_eval: Box<dyn ToneCurveEvaluator + Send + Sync>,
 ) -> Result<Box<dyn TransformExecutor<T> + Sync + Send>, CmsError>
 where
     u32: AsPrimitive<T>,
@@ -185,8 +185,8 @@ where
             .chunks_exact(src_channels)
             .zip(dst.chunks_exact_mut(dst_channels))
         {
-            let linear_value = self.linear_eval.evaluate_single(src[0].as_());
-            let g = self.gamma_eval.evaluate_single(linear_value).as_();
+            let linear_value = self.linear_eval.evaluate_value(src[0].as_());
+            let g = self.gamma_eval.evaluate_value(linear_value).as_();
             let a = if is_gray_alpha { src[1] } else { max_value };
 
             dst[0] = g;
@@ -212,8 +212,8 @@ struct TransformGrayToRgbExtendedExecutor<
     const DEST_LAYOUT: u8,
     const BIT_DEPTH: usize,
 > {
-    linear_eval: Box<dyn ExtendedGammaEvaluator + Send + Sync>,
-    gamma_eval: Box<dyn ExtendedGammaEvaluator + Send + Sync>,
+    linear_eval: Box<dyn ToneCurveEvaluator + Send + Sync>,
+    gamma_eval: Box<dyn ToneCurveEvaluator + Send + Sync>,
     _phantom: PhantomData<T>,
 }
 
@@ -223,8 +223,8 @@ pub(crate) fn make_gray_to_rgb_extended<
 >(
     src_layout: Layout,
     dst_layout: Layout,
-    linear_eval: Box<dyn ExtendedGammaEvaluator + Send + Sync>,
-    gamma_eval: Box<dyn ExtendedGammaEvaluator + Send + Sync>,
+    linear_eval: Box<dyn ToneCurveEvaluator + Send + Sync>,
+    gamma_eval: Box<dyn ToneCurveEvaluator + Send + Sync>,
 ) -> Result<Box<dyn TransformExecutor<T> + Sync + Send>, CmsError>
 where
     u32: AsPrimitive<T>,
@@ -361,12 +361,14 @@ where
             .chunks_exact(src_channels)
             .zip(dst.chunks_exact_mut(dst_channels))
         {
-            let linear_value = self.linear_eval.evaluate_single(src[0].as_());
+            let linear_value = self.linear_eval.evaluate_value(src[0].as_());
             let a = if is_gray_alpha { src[1] } else { max_value };
 
-            let tristimulus =
-                self.gamma_eval
-                    .evaluate(Rgb::new(linear_value, linear_value, linear_value));
+            let tristimulus = self.gamma_eval.evaluate_tristimulus(Rgb::new(
+                linear_value,
+                linear_value,
+                linear_value,
+            ));
 
             let red_value = tristimulus.r.as_();
             let green_value = tristimulus.g.as_();

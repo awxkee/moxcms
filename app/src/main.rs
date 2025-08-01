@@ -26,14 +26,21 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+mod encode_gray_lut;
+
 // use jxl_oxide::{JxlImage, JxlThreadPool, Lcms2, Moxcms};
+use crate::encode_gray_lut::encode_gray_lut;
 use image::DynamicImage;
 use moxcms::ProfileClass::ColorSpace;
 use moxcms::{
-    BarycentricWeightScale, ColorProfile, DataColorSpace, InterpolationMethod, Layout, LutStore,
-    LutWarehouse, RenderingIntent, ToneReprCurve, TransformOptions, Vector3d,
+    BarycentricWeightScale, Chromaticity, CicpColorPrimaries, CicpProfile, ColorPrimaries,
+    ColorProfile, Cube, DataColorSpace, InterpolationMethod, Layout, LutMultidimensionalType,
+    LutStore, LutWarehouse, Matrix3d, Matrix3f, MatrixCoefficients, RenderingIntent, Rgb,
+    ToneReprCurve, TransferCharacteristics, TransformOptions, Vector3, Vector3d, WHITE_POINT_D50,
+    WHITE_POINT_D65, Xyz, Xyzd, adapt_to_illuminant_d, adaption_matrix_d,
 };
 use std::fs;
+use std::ops::Mul;
 use std::time::Instant;
 
 fn compute_abs_diff4(src: &[f32], dst: &[[f32; 4]], highlights: &mut [f32]) {
@@ -251,27 +258,70 @@ fn main() {
     let md_icc_v4 = fs::read("./assets/us_swop_coated.icc").unwrap();
     let gray_target = ColorProfile::new_bt2020(); // ColorProfile::new_from_slice(&md_icc_v4).unwrap();
 
+    // Curve first point must be 0 and last 65535.
+    // let mut new_curve = vec![0u16; 4096];
     let srgb = ColorProfile::new_srgb();
-    let mut gray_profile = ColorProfile::new_gray_with_gamma(1.0);
-    gray_profile.color_space = DataColorSpace::Gray;
-    gray_profile.gray_trc = srgb.red_trc.clone();
-    let mut test_profile = vec![0.; 4];
-    test_profile[2] = 1.;
-    let mut dst = vec![0.; 1];
+
+    // let gamma_table = srgb.build_gamma_table(&srgb.red_trc, true).unwrap();
+
+    // gray_profile.gray_trc = Some(ToneReprCurve::Lut(new_curve));
+    // gray_profile.gray_trc = srgb.red_trc.clone();
+
+    let gray_profile = encode_gray_lut();
+
+    let encode = gray_profile.encode().unwrap();
+    fs::write("./gray.icc", encode).unwrap();
+
+    let img = DynamicImage::from_decoder(decoder).unwrap();
+    let rgb_f32 = img.to_rgb8();
+
+    let srgb_value = TransferCharacteristics::Srgb.linearize(1.);
+    let rgb = Rgb::new(0.0, 0.0, srgb_value as f32);
+
+    let sum = rgb.r * 0.2126729 + rgb.g * 0.7151522 + rgb.b * 0.0721750;
+    println!("sum {:?}, v {}", sum, sum * 255.);
+    let gammoized = TransferCharacteristics::Srgb.gamma(sum as f64);
+    println!("{:?}, {}", gammoized, gammoized * 255.);
+    println!(
+        "sum1 {:?}, sum2 {:?}",
+        TransferCharacteristics::Srgb.gamma(0.06851903),
+        TransferCharacteristics::Srgb.gamma(0.06851903) * 255.
+    );
+
+    let mut dst = vec![0u8; img.width() as usize * img.height() as usize];
+    let mut dst2 = vec![0u8; img.width() as usize * img.height() as usize * 4];
 
     let cvt = srgb
-        .create_transform_f32(
-            Layout::Rgba,
+        .create_transform_8bit(
+            Layout::Rgb,
             &gray_profile,
             Layout::Gray,
             TransformOptions {
-                allow_extended_range_rgb_xyz: false,
+                allow_extended_range_rgb_xyz: true,
                 ..Default::default()
             },
         )
         .unwrap();
-    cvt.transform(&test_profile, &mut dst).unwrap();
-    println!("{:?}", dst);
+    cvt.transform(&rgb_f32, &mut dst).unwrap();
+
+    let bvt = gray_profile
+        .create_transform_8bit(
+            Layout::Gray,
+            &srgb,
+            Layout::Rgba,
+            TransformOptions {
+                allow_extended_range_rgb_xyz: true,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+
+    bvt.transform(&dst, &mut dst2).unwrap();
+
+    let new_img = DynamicImage::ImageRgba8(
+        image::RgbaImage::from_raw(img.width(), img.height(), dst2).unwrap(),
+    );
+    new_img.save("converted_gray.png").unwrap();
 
     // let mut profile_clone = gray_target.clone();
     // profile_clone.lut_a_to_b_colorimetric = to_lut_v4(&profile_clone.lut_a_to_b_colorimetric, true);
@@ -286,8 +336,6 @@ fn main() {
     // let encoded = profile_clone.encode().unwrap();
     // fs::write("./assets/FOGRA55_v4.icc", encoded).unwrap();
 
-    // let img = DynamicImage::from_decoder(decoder).unwrap();
-    // let rgb_f32 = img.to_rgb16();
     //
     // let srgb = moxcms::ColorProfile::new_srgb();
     //

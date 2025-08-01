@@ -218,6 +218,13 @@ impl ColorProfile {
         }
     }
 
+    /// Creates new profile from CICP
+    pub fn new_from_cicp(cicp_color_primaries: CicpProfile) -> ColorProfile {
+        let mut basic = ColorProfile::basic_rgb_profile();
+        basic.update_rgb_colorimetry_from_cicp(cicp_color_primaries);
+        basic
+    }
+
     /// Creates new sRGB profile
     pub fn new_srgb() -> ColorProfile {
         let mut profile = ColorProfile::basic_rgb_profile();

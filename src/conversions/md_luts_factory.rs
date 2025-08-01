@@ -64,13 +64,6 @@ where
     (): LutBarycentricReduction<T, u8>,
     (): LutBarycentricReduction<T, u16>,
 {
-    if src_layout.channels() < 3 {
-        return Err(CmsError::UnsupportedProfileConnection);
-    }
-    if dst_layout.channels() < 3 {
-        return Err(CmsError::UnsupportedProfileConnection);
-    }
-
     let mut stages: Vec<Box<dyn KatanaIntermediateStage<f32> + Send + Sync>> = Vec::new();
 
     let initial_stage: Box<dyn KatanaInitialStage<f32, T> + Send + Sync> = match source

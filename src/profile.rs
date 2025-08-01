@@ -1232,7 +1232,8 @@ impl ColorProfile {
         v.mul_row_vector::<2>(s)
     }
 
-    /// If Primaries is invalid will return invalid matrix on const context
+    /// If Primaries is invalid will return invalid matrix on const context.
+    /// This assumes not transposed matrix and returns not transposed matrix.
     pub const fn rgb_to_xyz_d(xyz_matrix: Matrix3d, wp: Xyzd) -> Matrix3d {
         let xyz_inverse = xyz_matrix.inverse();
         let s = xyz_inverse.mul_vector(wp.to_vector_d());

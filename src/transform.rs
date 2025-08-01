@@ -502,6 +502,12 @@ impl ColorProfile {
                 return Err(CmsError::InvalidLayout);
             }
 
+            if self.has_device_to_pcs_lut() || dst_pr.has_pcs_to_device_lut() {
+                return make_lut_transform::<T, BIT_DEPTH, LINEAR_CAP, GAMMA_CAP>(
+                    src_layout, self, dst_layout, dst_pr, options,
+                );
+            }
+
             let transform = self.transform_matrix(dst_pr);
 
             if !T::FINITE && options.allow_extended_range_rgb_xyz {
@@ -611,14 +617,20 @@ impl ColorProfile {
                 profile_transform,
                 options,
             )
-        } else if self.color_space == DataColorSpace::Gray
+        } else if (self.color_space == DataColorSpace::Gray && self.gray_trc.is_some())
             && (dst_pr.color_space == DataColorSpace::Rgb
-                || dst_pr.color_space == DataColorSpace::Gray)
+                || (dst_pr.color_space == DataColorSpace::Gray && dst_pr.gray_trc.is_some()))
             && self.pcs == DataColorSpace::Xyz
             && dst_pr.pcs == DataColorSpace::Xyz
         {
             if src_layout != Layout::GrayAlpha && src_layout != Layout::Gray {
                 return Err(CmsError::InvalidLayout);
+            }
+
+            if self.has_device_to_pcs_lut() || dst_pr.has_pcs_to_device_lut() {
+                return make_lut_transform::<T, BIT_DEPTH, LINEAR_CAP, GAMMA_CAP>(
+                    src_layout, self, dst_layout, dst_pr, options,
+                );
             }
 
             let gray_linear = self.build_gray_linearize_table::<T, LINEAR_CAP, BIT_DEPTH>()?;
@@ -727,7 +739,7 @@ impl ColorProfile {
                 }
             }
         } else if self.color_space == DataColorSpace::Rgb
-            && dst_pr.color_space == DataColorSpace::Gray
+            && (dst_pr.color_space == DataColorSpace::Gray && dst_pr.gray_trc.is_some())
             && dst_pr.pcs == DataColorSpace::Xyz
             && self.pcs == DataColorSpace::Xyz
         {
@@ -738,7 +750,13 @@ impl ColorProfile {
                 return Err(CmsError::InvalidLayout);
             }
 
-            let transform = self.rgb_to_xyz_matrix().to_f32();
+            if self.has_device_to_pcs_lut() || dst_pr.has_pcs_to_device_lut() {
+                return make_lut_transform::<T, BIT_DEPTH, LINEAR_CAP, GAMMA_CAP>(
+                    src_layout, self, dst_layout, dst_pr, options,
+                );
+            }
+
+            let transform = self.transform_matrix(dst_pr).to_f32();
 
             let vector = Vector3f {
                 v: [transform.v[1][0], transform.v[1][1], transform.v[1][2]],
