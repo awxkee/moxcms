@@ -107,11 +107,6 @@ pub struct TransformOptions {
     /// This allows to work with excellent precision with extended range,
     /// at a cost of execution time.
     pub allow_extended_range_rgb_xyz: bool,
-    /// Will pick white point set in profile instead of D50 fixed point colorimetry.
-    /// **Do not use it until you know what you're doing.**
-    /// Destination profile white point always chosen as a target, both profiles must
-    /// have assigned related `white_point`.
-    pub bypass_icc_d50_white_point: bool,
     // pub black_point_compensation: bool,
 }
 
@@ -147,7 +142,6 @@ impl Default for TransformOptions {
             interpolation_method: InterpolationMethod::default(),
             barycentric_weight_scale: BarycentricWeightScale::default(),
             allow_extended_range_rgb_xyz: false,
-            bypass_icc_d50_white_point: false,
             // black_point_compensation: false,
         }
     }
@@ -514,7 +508,7 @@ impl ColorProfile {
                 );
             }
 
-            let transform = self.transform_matrix_with_options(dst_pr, options);
+            let transform = self.transform_matrix(dst_pr);
 
             if !T::FINITE && options.allow_extended_range_rgb_xyz {
                 if let Some(gamma_evaluator) = dst_pr.try_extended_gamma_evaluator() {
@@ -762,7 +756,7 @@ impl ColorProfile {
                 );
             }
 
-            let transform = self.rgb_to_xyz_matrix_with_options(options).to_f32();
+            let transform = self.transform_matrix(dst_pr).to_f32();
 
             let vector = Vector3f {
                 v: [transform.v[1][0], transform.v[1][1], transform.v[1][2]],

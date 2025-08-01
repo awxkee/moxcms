@@ -129,7 +129,6 @@ fn check_gray() {
                 interpolation_method: InterpolationMethod::Linear,
                 barycentric_weight_scale: BarycentricWeightScale::Low,
                 allow_extended_range_rgb_xyz: false,
-                bypass_icc_d50_white_point: false,
             },
         )
         .unwrap();
@@ -248,32 +247,6 @@ fn to_lut_v4(lut: &Option<LutWarehouse>, to_pcs: bool) -> Option<LutWarehouse> {
     }
 }
 
-pub(crate) fn create_tone_curve_gray_d65(samples: usize) -> Vec<u16> {
-    assert!(samples >= 1);
-
-    let scale_samples = 1. / (samples - 1) as f32;
-
-    let rgb_to_xyz_d65 = adapt_to_illuminant_d(
-        ColorProfile::rgb_to_xyz_matrix_with_white_point(ColorPrimaries::BT_709, WHITE_POINT_D65),
-        WHITE_POINT_D65,
-        WHITE_POINT_D50.to_xyz(),
-    )
-    .to_f32();
-    let srgb_linear_evaluator =
-        ToneReprCurve::make_cicp_linear_evaluator(TransferCharacteristics::Srgb).unwrap();
-
-    let mut src = Vec::with_capacity(samples);
-    for y in 0..samples as u32 {
-        // This is RGB D65 values, not linearized
-        let vy = y as f32 * scale_samples;
-        let linearized = srgb_linear_evaluator.evaluate_tristimulus(Rgb::new(vy, vy, vy));
-        let xyz = Xyz::new(linearized.r, linearized.g, linearized.b).matrix_mul(rgb_to_xyz_d65);
-        src.push((xyz.y * 65535.).round().max(0.).min(65535.) as u16);
-    }
-
-    src
-}
-
 fn main() {
     let reader = image::ImageReader::open("./assets/bench.jpg").unwrap();
     let mut decoder = reader.into_decoder().unwrap();
@@ -287,13 +260,6 @@ fn main() {
 
     // Curve first point must be 0 and last 65535.
     // let mut new_curve = vec![0u16; 4096];
-    let mut srgb = ColorProfile::new_from_cicp_with_no_d50_adoption(CicpProfile {
-        color_primaries: CicpColorPrimaries::Bt709,
-        transfer_characteristics: TransferCharacteristics::Srgb,
-        matrix_coefficients: MatrixCoefficients::Bt709,
-        full_range: true,
-    });
-    srgb.white_point = WHITE_POINT_D65.to_xyzd();
     let srgb = ColorProfile::new_srgb();
 
     // let gamma_table = srgb.build_gamma_table(&srgb.red_trc, true).unwrap();
@@ -306,9 +272,8 @@ fn main() {
     let encode = gray_profile.encode().unwrap();
     fs::write("./gray.icc", encode).unwrap();
 
-    let mut test_profile = vec![0.; 4];
-    test_profile[2] = 1.;
-    let mut dst = vec![0.; 1];
+    let img = DynamicImage::from_decoder(decoder).unwrap();
+    let rgb_f32 = img.to_rgb8();
 
     let srgb_value = TransferCharacteristics::Srgb.linearize(1.);
     let rgb = Rgb::new(0.0, 0.0, srgb_value as f32);
@@ -323,36 +288,40 @@ fn main() {
         TransferCharacteristics::Srgb.gamma(0.06851903) * 255.
     );
 
+    let mut dst = vec![0u8; img.width() as usize * img.height() as usize];
+    let mut dst2 = vec![0u8; img.width() as usize * img.height() as usize * 4];
+
     let cvt = srgb
-        .create_transform_f32(
-            Layout::Rgba,
+        .create_transform_8bit(
+            Layout::Rgb,
             &gray_profile,
             Layout::Gray,
             TransformOptions {
                 allow_extended_range_rgb_xyz: true,
-                bypass_icc_d50_white_point: true,
                 ..Default::default()
             },
         )
         .unwrap();
-    cvt.transform(&test_profile, &mut dst).unwrap();
-    println!("{:?}", dst);
+    cvt.transform(&rgb_f32, &mut dst).unwrap();
 
     let bvt = gray_profile
-        .create_transform_f32(
+        .create_transform_8bit(
             Layout::Gray,
             &srgb,
             Layout::Rgba,
             TransformOptions {
                 allow_extended_range_rgb_xyz: true,
-                bypass_icc_d50_white_point: true,
                 ..Default::default()
             },
         )
         .unwrap();
 
-    bvt.transform(&dst, &mut test_profile).unwrap();
-    println!("{:?}", test_profile);
+    bvt.transform(&dst, &mut dst2).unwrap();
+
+    let new_img = DynamicImage::ImageRgba8(
+        image::RgbaImage::from_raw(img.width(), img.height(), dst2).unwrap(),
+    );
+    new_img.save("converted_gray.png").unwrap();
 
     // let mut profile_clone = gray_target.clone();
     // profile_clone.lut_a_to_b_colorimetric = to_lut_v4(&profile_clone.lut_a_to_b_colorimetric, true);
@@ -367,8 +336,6 @@ fn main() {
     // let encoded = profile_clone.encode().unwrap();
     // fs::write("./assets/FOGRA55_v4.icc", encoded).unwrap();
 
-    // let img = DynamicImage::from_decoder(decoder).unwrap();
-    // let rgb_f32 = img.to_rgb16();
     //
     // let srgb = moxcms::ColorProfile::new_srgb();
     //

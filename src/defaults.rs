@@ -225,14 +225,6 @@ impl ColorProfile {
         basic
     }
 
-    /// Creates new profile from CICP without D50 adoption.
-    /// Those profiles for computing only, **DO NOT** save them
-    pub fn new_from_cicp_with_no_d50_adoption(cicp_color_primaries: CicpProfile) -> ColorProfile {
-        let mut basic = ColorProfile::basic_rgb_profile();
-        basic.update_rgb_colorimetry_from_cicp_no_adoption_d50(cicp_color_primaries);
-        basic
-    }
-
     /// Creates new sRGB profile
     pub fn new_srgb() -> ColorProfile {
         let mut profile = ColorProfile::basic_rgb_profile();

@@ -139,7 +139,7 @@ where
         _ => unreachable!(),
     };
 
-    let xyz_to_rgb = source.rgb_to_xyz_matrix_with_options(opts);
+    let xyz_to_rgb = source.rgb_to_xyz_matrix();
 
     let matrices: Vec<Box<dyn KatanaIntermediateStage<f32> + Send + Sync>> =
         vec![Box::new(KatanaMatrixStage {

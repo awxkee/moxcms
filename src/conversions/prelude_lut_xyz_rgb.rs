@@ -233,7 +233,7 @@ where
     let mut lut = vec![0f32; lut_origins.len()];
     lin_stage.transform(&lut_origins, &mut lut)?;
 
-    let xyz_to_rgb = source.rgb_to_xyz_matrix_with_options(opts);
+    let xyz_to_rgb = source.rgb_to_xyz_matrix();
 
     let matrices = vec![
         xyz_to_rgb.to_f32(),
@@ -273,7 +273,7 @@ where
 {
     if !T::FINITE {
         if let Some(extended_gamma) = dest.try_extended_gamma_evaluator() {
-            let xyz_to_rgb = dest.rgb_to_xyz_matrix_with_options(options).inverse();
+            let xyz_to_rgb = dest.rgb_to_xyz_matrix().inverse();
 
             let mut matrices = vec![Matrix3f {
                 v: [
@@ -306,7 +306,7 @@ where
         options.allow_use_cicp_transfer,
     )?;
 
-    let xyz_to_rgb = dest.rgb_to_xyz_matrix_with_options(options).inverse();
+    let xyz_to_rgb = dest.rgb_to_xyz_matrix().inverse();
 
     let mut matrices = vec![Matrix3f {
         v: [
