@@ -28,7 +28,8 @@
  */
 use crate::conversions::LutBarycentricReduction;
 use crate::conversions::katana::{
-    Katana, KatanaInitialStage, KatanaIntermediateStage, KatanaStageLabToXyz, KatanaStageXyzToLab,
+    CopyAlphaStage, InjectAlphaStage, Katana, KatanaInitialStage, KatanaIntermediateStage,
+    KatanaPostFinalizationStage, KatanaStageLabToXyz, KatanaStageXyzToLab,
     katana_create_rgb_lin_lut, katana_input_make_lut_nx3, katana_multi_dimensional_3xn_to_device,
     katana_multi_dimensional_nx3_to_pcs, katana_output_make_lut_3xn, katana_pcs_lab_v2_to_v4,
     katana_pcs_lab_v4_to_v2, katana_prepare_inverse_lut_rgb_xyz,
@@ -78,12 +79,13 @@ where
         false => match source.get_device_to_pcs(options.rendering_intent).ok_or(
             CmsError::UnsupportedLutRenderingIntent(source.rendering_intent),
         )? {
-            LutWarehouse::Lut(lut) => katana_input_make_lut_nx3::<T, BIT_DEPTH>(
+            LutWarehouse::Lut(lut) => katana_input_make_lut_nx3::<T>(
                 src_layout,
                 src_layout.channels(),
                 lut,
                 options,
                 source.pcs,
+                BIT_DEPTH,
             )?,
             LutWarehouse::Multidimensional(mab) => {
                 katana_multi_dimensional_nx3_to_pcs::<T, BIT_DEPTH>(
@@ -107,21 +109,16 @@ where
             .get_pcs_to_device(options.rendering_intent)
             .ok_or(CmsError::UnsupportedProfileConnection)?;
         match pcs_to_device {
-            LutWarehouse::Lut(lut) => katana_output_make_lut_3xn::<T, BIT_DEPTH>(
+            LutWarehouse::Lut(lut) => katana_output_make_lut_3xn::<T>(
                 dst_layout,
                 lut,
                 options,
                 dest.color_space,
+                BIT_DEPTH,
             )?,
-            LutWarehouse::Multidimensional(mab) => {
-                katana_multi_dimensional_3xn_to_device::<T, BIT_DEPTH>(
-                    dst_layout,
-                    mab,
-                    options,
-                    dest.pcs,
-                    dest.color_space,
-                )?
-            }
+            LutWarehouse::Multidimensional(mab) => katana_multi_dimensional_3xn_to_device::<T>(
+                dst_layout, mab, options, dest.pcs, BIT_DEPTH,
+            )?,
         }
     } else if dest.is_matrix_shaper() {
         let state = katana_prepare_inverse_lut_rgb_xyz::<T, BIT_DEPTH, GAMMA_LUT>(
@@ -133,9 +130,61 @@ where
         return Err(CmsError::UnsupportedProfileConnection);
     };
 
+    let mut post_finalization: Vec<Box<dyn KatanaPostFinalizationStage<T> + Send + Sync>> =
+        Vec::new();
+    if let Some(stage) =
+        prepare_alpha_finalizer::<T>(src_layout, source, dst_layout, dest, BIT_DEPTH)
+    {
+        post_finalization.push(stage);
+    }
+
     Ok(Box::new(Katana::<f32, T> {
         initial_stage,
         final_stage,
         stages,
+        post_finalization,
     }))
+}
+
+pub(crate) fn prepare_alpha_finalizer<
+    T: Copy
+        + Default
+        + AsPrimitive<f32>
+        + Send
+        + Sync
+        + AsPrimitive<usize>
+        + PointeeSizeExpressible
+        + GammaLutInterpolate,
+>(
+    src_layout: Layout,
+    source: &ColorProfile,
+    dst_layout: Layout,
+    dest: &ColorProfile,
+    bit_depth: usize,
+) -> Option<Box<dyn KatanaPostFinalizationStage<T> + Send + Sync>>
+where
+    f32: AsPrimitive<T>,
+{
+    if (dst_layout == Layout::GrayAlpha && dest.color_space == DataColorSpace::Gray)
+        || (dst_layout == Layout::Rgba || dest.color_space == DataColorSpace::Rgb)
+    {
+        return if (src_layout == Layout::GrayAlpha && source.color_space == DataColorSpace::Gray)
+            || (src_layout == Layout::Rgba || source.color_space == DataColorSpace::Rgb)
+        {
+            Some(Box::new(CopyAlphaStage {
+                src_layout,
+                dst_layout,
+                target_color_space: dest.color_space,
+                _phantom: Default::default(),
+            }))
+        } else {
+            Some(Box::new(InjectAlphaStage {
+                dst_layout,
+                target_color_space: dest.color_space,
+                _phantom: Default::default(),
+                bit_depth,
+            }))
+        };
+    }
+    None
 }

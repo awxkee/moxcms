@@ -1122,7 +1122,6 @@ impl Cube<'_> {
         }
     }
 
-    #[inline]
     pub fn trilinear_vec3(&self, lin_x: f32, lin_y: f32, lin_z: f32) -> Vector3f {
         self.trilinear(
             lin_x,
@@ -1138,7 +1137,6 @@ impl Cube<'_> {
 
     #[cfg(feature = "options")]
     #[cfg_attr(docsrs, doc(cfg(feature = "options")))]
-    #[inline]
     pub fn prism_vec3(&self, lin_x: f32, lin_y: f32, lin_z: f32) -> Vector3f {
         self.prism(
             lin_x,
@@ -1154,7 +1152,6 @@ impl Cube<'_> {
 
     #[cfg(feature = "options")]
     #[cfg_attr(docsrs, doc(cfg(feature = "options")))]
-    #[inline]
     pub fn pyramid_vec3(&self, lin_x: f32, lin_y: f32, lin_z: f32) -> Vector3f {
         self.pyramid(
             lin_x,
@@ -1170,7 +1167,6 @@ impl Cube<'_> {
 
     #[cfg(feature = "options")]
     #[cfg_attr(docsrs, doc(cfg(feature = "options")))]
-    #[inline]
     pub fn tetra_vec3(&self, lin_x: f32, lin_y: f32, lin_z: f32) -> Vector3f {
         self.tetra(
             lin_x,
@@ -1184,7 +1180,6 @@ impl Cube<'_> {
         )
     }
 
-    #[inline]
     pub fn trilinear_vec4(&self, lin_x: f32, lin_y: f32, lin_z: f32) -> Vector4f {
         self.trilinear(
             lin_x,
@@ -1199,7 +1194,6 @@ impl Cube<'_> {
     }
 
     #[cfg(feature = "options")]
-    #[inline]
     pub fn tetra_vec4(&self, lin_x: f32, lin_y: f32, lin_z: f32) -> Vector4f {
         self.tetra(
             lin_x,
@@ -1215,7 +1209,6 @@ impl Cube<'_> {
 
     #[cfg(feature = "options")]
     #[cfg_attr(docsrs, doc(cfg(feature = "options")))]
-    #[inline]
     pub fn pyramid_vec4(&self, lin_x: f32, lin_y: f32, lin_z: f32) -> Vector4f {
         self.pyramid(
             lin_x,
@@ -1231,7 +1224,6 @@ impl Cube<'_> {
 
     #[cfg(feature = "options")]
     #[cfg_attr(docsrs, doc(cfg(feature = "options")))]
-    #[inline]
     pub fn prism_vec4(&self, lin_x: f32, lin_y: f32, lin_z: f32) -> Vector4f {
         self.prism(
             lin_x,

@@ -36,19 +36,19 @@ use crate::{
 use num_traits::AsPrimitive;
 use std::marker::PhantomData;
 
-pub(crate) struct XyzToRgbStage<T: Clone, const BIT_DEPTH: usize, const GAMMA_LUT: usize> {
+pub(crate) struct XyzToRgbStage<T: Clone> {
     pub(crate) r_gamma: Box<[T; 65536]>,
     pub(crate) g_gamma: Box<[T; 65536]>,
     pub(crate) b_gamma: Box<[T; 65536]>,
     pub(crate) matrices: Vec<Matrix3f>,
     pub(crate) intent: RenderingIntent,
+    pub(crate) bit_depth: usize,
+    pub(crate) gamma_lut: usize,
 }
 
-impl<T: Clone + AsPrimitive<f32>, const BIT_DEPTH: usize, const GAMMA_LUT: usize> InPlaceStage
-    for XyzToRgbStage<T, BIT_DEPTH, GAMMA_LUT>
-{
+impl<T: Clone + AsPrimitive<f32>> InPlaceStage for XyzToRgbStage<T> {
     fn transform(&self, dst: &mut [f32]) -> Result<(), CmsError> {
-        assert!(BIT_DEPTH > 0);
+        assert!(self.bit_depth > 0);
         if !self.matrices.is_empty() {
             let m = self.matrices[0];
             for dst in dst.chunks_exact_mut(3) {
@@ -72,9 +72,9 @@ impl<T: Clone + AsPrimitive<f32>, const BIT_DEPTH: usize, const GAMMA_LUT: usize
             }
         }
 
-        let max_colors = (1 << BIT_DEPTH) - 1;
+        let max_colors = (1 << self.bit_depth) - 1;
         let color_scale = 1f32 / max_colors as f32;
-        let lut_cap = (GAMMA_LUT - 1) as f32;
+        let lut_cap = (self.gamma_lut - 1) as f32;
 
         if self.intent != RenderingIntent::AbsoluteColorimetric {
             for dst in dst.chunks_exact_mut(3) {
@@ -150,24 +150,19 @@ impl<T: Clone + AsPrimitive<f32>> InPlaceStage for XyzToRgbStageExtended<T> {
     }
 }
 
-struct RgbLinearizationStage<
-    T: Clone,
-    const BIT_DEPTH: usize,
-    const LINEAR_CAP: usize,
-    const SAMPLES: usize,
-> {
+struct RgbLinearizationStage<T: Clone, const LINEAR_CAP: usize, const SAMPLES: usize> {
     r_lin: Box<[f32; LINEAR_CAP]>,
     g_lin: Box<[f32; LINEAR_CAP]>,
     b_lin: Box<[f32; LINEAR_CAP]>,
     _phantom: PhantomData<T>,
+    bit_depth: usize,
 }
 
 impl<
     T: Clone + AsPrimitive<usize> + PointeeSizeExpressible,
-    const BIT_DEPTH: usize,
     const LINEAR_CAP: usize,
     const SAMPLES: usize,
-> RgbLinearizationStage<T, BIT_DEPTH, LINEAR_CAP, SAMPLES>
+> RgbLinearizationStage<T, LINEAR_CAP, SAMPLES>
 {
     fn transform(&self, src: &[T], dst: &mut [f32]) -> Result<(), CmsError> {
         if src.len() % 3 != 0 {
@@ -178,13 +173,13 @@ impl<
         }
 
         let scale = if T::FINITE {
-            ((1 << BIT_DEPTH) - 1) as f32 / (SAMPLES as f32 - 1f32)
+            ((1 << self.bit_depth) - 1) as f32 / (SAMPLES as f32 - 1f32)
         } else {
             (T::NOT_FINITE_LINEAR_TABLE_SIZE - 1) as f32 / (SAMPLES as f32 - 1f32)
         };
 
         let capped_value = if T::FINITE {
-            (1 << BIT_DEPTH) - 1
+            (1 << self.bit_depth) - 1
         } else {
             T::NOT_FINITE_LINEAR_TABLE_SIZE - 1
         };
@@ -223,11 +218,12 @@ where
     let lin_b =
         source.build_b_linearize_table::<T, LINEAR_CAP, BIT_DEPTH>(opts.allow_use_cicp_transfer)?;
 
-    let lin_stage = RgbLinearizationStage::<T, BIT_DEPTH, LINEAR_CAP, GRID_SIZE> {
+    let lin_stage = RgbLinearizationStage::<T, LINEAR_CAP, GRID_SIZE> {
         r_lin: lin_r,
         g_lin: lin_g,
         b_lin: lin_b,
         _phantom: PhantomData,
+        bit_depth: BIT_DEPTH,
     };
 
     let mut lut = vec![0f32; lut_origins.len()];
@@ -317,12 +313,14 @@ where
     }];
 
     matrices.push(xyz_to_rgb.to_f32());
-    let xyz_to_rgb_stage = XyzToRgbStage::<T, BIT_DEPTH, GAMMA_LUT> {
+    let xyz_to_rgb_stage = XyzToRgbStage::<T> {
         r_gamma: gamma_map_r,
         g_gamma: gamma_map_g,
         b_gamma: gamma_map_b,
         matrices,
         intent: options.rendering_intent,
+        gamma_lut: GAMMA_LUT,
+        bit_depth: BIT_DEPTH,
     };
     xyz_to_rgb_stage.transform(lut)?;
     Ok(())

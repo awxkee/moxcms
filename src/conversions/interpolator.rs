@@ -291,7 +291,6 @@ macro_rules! define_md_inter {
                 Self { cube: table }
             }
 
-            #[inline(always)]
             fn inter3<U: AsPrimitive<usize>, const BINS: usize>(
                 &self,
                 in_r: U,
@@ -308,7 +307,6 @@ macro_rules! define_md_inter {
                 )
             }
 
-            #[inline(always)]
             fn inter4<U: AsPrimitive<usize>, const BINS: usize>(
                 &self,
                 in_r: U,

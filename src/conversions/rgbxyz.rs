@@ -245,9 +245,9 @@ macro_rules! create_rgb_xyz_dependant_executor {
                     { Layout::Rgba as u8 },
                     LINEAR_CAP,
                     GAMMA_LUT,
-                    BIT_DEPTH,
                 > {
                     profile,
+                    bit_depth: BIT_DEPTH,
                 }));
             } else if (src_layout == Layout::Rgb) && (dst_layout == Layout::Rgba) {
                 return Ok(Box::new($dependant::<
@@ -256,9 +256,9 @@ macro_rules! create_rgb_xyz_dependant_executor {
                     { Layout::Rgba as u8 },
                     LINEAR_CAP,
                     GAMMA_LUT,
-                    BIT_DEPTH,
                 > {
                     profile,
+                    bit_depth: BIT_DEPTH,
                 }));
             } else if (src_layout == Layout::Rgba) && (dst_layout == Layout::Rgb) {
                 return Ok(Box::new($dependant::<
@@ -267,9 +267,9 @@ macro_rules! create_rgb_xyz_dependant_executor {
                     { Layout::Rgb as u8 },
                     LINEAR_CAP,
                     GAMMA_LUT,
-                    BIT_DEPTH,
                 > {
                     profile,
+                    bit_depth: BIT_DEPTH,
                 }));
             } else if (src_layout == Layout::Rgb) && (dst_layout == Layout::Rgb) {
                 return Ok(Box::new($dependant::<
@@ -278,9 +278,9 @@ macro_rules! create_rgb_xyz_dependant_executor {
                     { Layout::Rgb as u8 },
                     LINEAR_CAP,
                     GAMMA_LUT,
-                    BIT_DEPTH,
                 > {
                     profile,
+                    bit_depth: BIT_DEPTH,
                 }));
             }
             Err(CmsError::UnsupportedProfileConnection)

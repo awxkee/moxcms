@@ -54,10 +54,10 @@ pub(crate) struct TransformShaperQ2_13Neon<
     const DST_LAYOUT: u8,
     const LINEAR_CAP: usize,
     const GAMMA_LUT: usize,
-    const BIT_DEPTH: usize,
     const PRECISION: i32,
 > {
     pub(crate) profile: TransformMatrixShaperFixedPoint<i16, T, LINEAR_CAP>,
+    pub(crate) bit_depth: usize,
 }
 
 impl<
@@ -66,18 +66,9 @@ impl<
     const DST_LAYOUT: u8,
     const LINEAR_CAP: usize,
     const GAMMA_LUT: usize,
-    const BIT_DEPTH: usize,
     const PRECISION: i32,
 > TransformExecutor<T>
-    for TransformShaperQ2_13Neon<
-        T,
-        SRC_LAYOUT,
-        DST_LAYOUT,
-        LINEAR_CAP,
-        GAMMA_LUT,
-        BIT_DEPTH,
-        PRECISION,
-    >
+    for TransformShaperQ2_13Neon<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP, GAMMA_LUT, PRECISION>
 where
     u32: AsPrimitive<T>,
 {
@@ -98,7 +89,7 @@ where
         }
 
         let t = self.profile.adaptation_matrix.transpose();
-        let max_colors: T = ((1 << BIT_DEPTH) - 1).as_();
+        let max_colors: T = ((1 << self.bit_depth) - 1).as_();
 
         let (src_chunks, src_remainder) = split_by_twos(src, src_channels);
         let (dst_chunks, dst_remainder) = split_by_twos_mut(dst, dst_channels);

@@ -57,13 +57,9 @@ struct TransformShaperFloatScalar<
     pub(crate) profile: TransformShaperRgbFloat<T, LINEAR_CAP>,
 }
 
-struct TransformShaperRgbFloatInOut<
-    T: Clone,
-    const SRC_LAYOUT: u8,
-    const DST_LAYOUT: u8,
-    const BIT_DEPTH: usize,
-> {
+struct TransformShaperRgbFloatInOut<T: Clone, const SRC_LAYOUT: u8, const DST_LAYOUT: u8> {
     pub(crate) profile: TransformShaperFloatInOut<T>,
+    pub(crate) bit_depth: usize,
 }
 
 pub(crate) fn make_rgb_xyz_rgb_transform_float<
@@ -140,36 +136,36 @@ where
             T,
             { Layout::Rgba as u8 },
             { Layout::Rgba as u8 },
-            BIT_DEPTH,
         > {
             profile,
+            bit_depth: BIT_DEPTH,
         }));
     } else if (src_layout == Layout::Rgb) && (dst_layout == Layout::Rgba) {
         return Ok(Box::new(TransformShaperRgbFloatInOut::<
             T,
             { Layout::Rgb as u8 },
             { Layout::Rgba as u8 },
-            BIT_DEPTH,
         > {
             profile,
+            bit_depth: BIT_DEPTH,
         }));
     } else if (src_layout == Layout::Rgba) && (dst_layout == Layout::Rgb) {
         return Ok(Box::new(TransformShaperRgbFloatInOut::<
             T,
             { Layout::Rgba as u8 },
             { Layout::Rgb as u8 },
-            BIT_DEPTH,
         > {
             profile,
+            bit_depth: BIT_DEPTH,
         }));
     } else if (src_layout == Layout::Rgb) && (dst_layout == Layout::Rgb) {
         return Ok(Box::new(TransformShaperRgbFloatInOut::<
             T,
             { Layout::Rgb as u8 },
             { Layout::Rgb as u8 },
-            BIT_DEPTH,
         > {
             profile,
+            bit_depth: BIT_DEPTH,
         }));
     }
     Err(CmsError::UnsupportedProfileConnection)
@@ -257,8 +253,7 @@ impl<
     T: Clone + PointeeSizeExpressible + Copy + Default + 'static + AsPrimitive<f32>,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
-    const BIT_DEPTH: usize,
-> TransformExecutor<T> for TransformShaperRgbFloatInOut<T, SRC_LAYOUT, DST_LAYOUT, BIT_DEPTH>
+> TransformExecutor<T> for TransformShaperRgbFloatInOut<T, SRC_LAYOUT, DST_LAYOUT>
 where
     u32: AsPrimitive<T>,
     f32: AsPrimitive<T>,
@@ -281,7 +276,7 @@ where
         }
 
         let transform = self.profile.adaptation_matrix;
-        let max_colors: T = ((1 << BIT_DEPTH) - 1).as_();
+        let max_colors: T = ((1 << self.bit_depth) - 1).as_();
 
         for (src, dst) in src
             .chunks_exact(src_channels)

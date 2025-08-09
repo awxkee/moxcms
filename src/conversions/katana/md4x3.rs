@@ -75,7 +75,6 @@ pub(crate) fn execute_matrix_stage3(matrix: Matrix3f, bias: Vector3f, dst: &mut 
 
 struct Multidimensional4x3<
     T: Copy + Default + AsPrimitive<f32> + PointeeSizeExpressible + Send + Sync,
-    const BIT_DEPTH: usize,
 > {
     a_curves: Option<Box<[Vec<f32>; 4]>>,
     m_curves: Option<Box<[Vec<f32>; 3]>>,
@@ -88,12 +87,11 @@ struct Multidimensional4x3<
     pcs: DataColorSpace,
     grid_size: [u8; 4],
     _phantom: PhantomData<T>,
+    bit_depth: usize,
 }
 
-impl<
-    T: Copy + Default + AsPrimitive<f32> + PointeeSizeExpressible + Send + Sync,
-    const BIT_DEPTH: usize,
-> Multidimensional4x3<T, BIT_DEPTH>
+impl<T: Copy + Default + AsPrimitive<f32> + PointeeSizeExpressible + Send + Sync>
+    Multidimensional4x3<T>
 {
     fn to_pcs_impl<Fetch: Fn(f32, f32, f32, f32) -> Vector3f>(
         &self,
@@ -102,7 +100,7 @@ impl<
         fetch: Fetch,
     ) -> Result<(), CmsError> {
         let norm_value = if T::FINITE {
-            1.0 / ((1u32 << BIT_DEPTH) - 1) as f32
+            1.0 / ((1u32 << self.bit_depth) - 1) as f32
         } else {
             1.0
         };
@@ -152,10 +150,8 @@ impl<
     }
 }
 
-impl<
-    T: Copy + Default + AsPrimitive<f32> + PointeeSizeExpressible + Send + Sync,
-    const BIT_DEPTH: usize,
-> KatanaInitialStage<f32, T> for Multidimensional4x3<T, BIT_DEPTH>
+impl<T: Copy + Default + AsPrimitive<f32> + PointeeSizeExpressible + Send + Sync>
+    KatanaInitialStage<f32, T> for Multidimensional4x3<T>
 {
     fn to_pcs(&self, input: &[T]) -> Result<Vec<f32>, CmsError> {
         if input.len() % 4 != 0 {
@@ -202,13 +198,13 @@ impl<
 
 fn make_multidimensional_4x3<
     T: Copy + Default + AsPrimitive<f32> + PointeeSizeExpressible + Send + Sync,
-    const BIT_DEPTH: usize,
 >(
     mab: &LutMultidimensionalType,
     options: TransformOptions,
     pcs: DataColorSpace,
     direction: MultidimensionalDirection,
-) -> Result<Multidimensional4x3<T, BIT_DEPTH>, CmsError> {
+    bit_depth: usize,
+) -> Result<Multidimensional4x3<T>, CmsError> {
     if mab.num_input_channels != 4 && mab.num_output_channels != 3 {
         return Err(CmsError::UnsupportedProfileConnection);
     }
@@ -288,7 +284,7 @@ fn make_multidimensional_4x3<
 
     let bias = mab.bias.cast();
 
-    let transform = Multidimensional4x3::<T, BIT_DEPTH> {
+    let transform = Multidimensional4x3::<T> {
         a_curves,
         b_curves,
         m_curves,
@@ -300,6 +296,7 @@ fn make_multidimensional_4x3<
         grid_size,
         bias,
         _phantom: PhantomData,
+        bit_depth,
     };
 
     Ok(transform)
@@ -307,17 +304,18 @@ fn make_multidimensional_4x3<
 
 pub(crate) fn multi_dimensional_4x3_to_pcs<
     T: Copy + Default + AsPrimitive<f32> + PointeeSizeExpressible + Send + Sync,
-    const BIT_DEPTH: usize,
 >(
     mab: &LutMultidimensionalType,
     options: TransformOptions,
     pcs: DataColorSpace,
+    bit_depth: usize,
 ) -> Result<Box<dyn KatanaInitialStage<f32, T> + Send + Sync>, CmsError> {
-    let transform = make_multidimensional_4x3::<T, BIT_DEPTH>(
+    let transform = make_multidimensional_4x3::<T>(
         mab,
         options,
         pcs,
         MultidimensionalDirection::DeviceToPcs,
+        bit_depth,
     )?;
     Ok(Box::new(transform))
 }

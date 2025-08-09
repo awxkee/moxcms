@@ -295,14 +295,14 @@ make_transform_3x3_fn!(make_transformer_3x3_sse41, SseLut3x3Factory);
 use crate::conversions::avx::AvxLut4x3Factory;
 use crate::conversions::interpolator::LutBarycentricReduction;
 use crate::conversions::katana::{
-    Katana, KatanaDefaultIntermediate, KatanaInitialStage, KatanaStageLabToXyz,
-    KatanaStageXyzToLab, katana_create_rgb_lin_lut, katana_pcs_lab_v2_to_v4,
+    Katana, KatanaDefaultIntermediate, KatanaInitialStage, KatanaPostFinalizationStage,
+    KatanaStageLabToXyz, KatanaStageXyzToLab, katana_create_rgb_lin_lut, katana_pcs_lab_v2_to_v4,
     katana_pcs_lab_v4_to_v2, katana_prepare_inverse_lut_rgb_xyz, multi_dimensional_3x3_to_device,
     multi_dimensional_3x3_to_pcs, multi_dimensional_4x3_to_pcs,
 };
 use crate::conversions::mab4x3::prepare_mab_4x3;
 use crate::conversions::mba3x4::prepare_mba_3x4;
-use crate::conversions::md_luts_factory::do_any_to_any;
+use crate::conversions::md_luts_factory::{do_any_to_any, prepare_alpha_finalizer};
 // use crate::conversions::bpc::compensate_bpc_in_lut;
 
 #[cfg(all(target_arch = "x86_64", feature = "avx"))]
@@ -394,10 +394,10 @@ where
                     CmsError::UnsupportedLutRenderingIntent(source.rendering_intent),
                 )? {
                     LutWarehouse::Lut(lut) => {
-                        katana_input_stage_lut_4x3::<T, BIT_DEPTH>(lut, options, source.pcs)?
+                        katana_input_stage_lut_4x3::<T>(lut, options, source.pcs, BIT_DEPTH)?
                     }
                     LutWarehouse::Multidimensional(mab) => {
-                        multi_dimensional_4x3_to_pcs::<T, BIT_DEPTH>(mab, options, source.pcs)?
+                        multi_dimensional_4x3_to_pcs::<T>(mab, options, source.pcs, BIT_DEPTH)?
                     }
                 };
 
@@ -418,10 +418,10 @@ where
                     .ok_or(CmsError::UnsupportedProfileConnection)?;
                 match pcs_to_device {
                     LutWarehouse::Lut(lut) => {
-                        katana_output_stage_lut_3x3::<T, BIT_DEPTH>(lut, options, dest.pcs)?
+                        katana_output_stage_lut_3x3::<T>(lut, options, dest.pcs, BIT_DEPTH)?
                     }
                     LutWarehouse::Multidimensional(mab) => {
-                        multi_dimensional_3x3_to_device::<T, BIT_DEPTH>(mab, options, dest.pcs)?
+                        multi_dimensional_3x3_to_device::<T>(mab, options, dest.pcs, BIT_DEPTH)?
                     }
                 }
             } else if dest.is_matrix_shaper() {
@@ -434,10 +434,19 @@ where
                 return Err(CmsError::UnsupportedProfileConnection);
             };
 
+            let mut post_finalization: Vec<Box<dyn KatanaPostFinalizationStage<T> + Send + Sync>> =
+                Vec::new();
+            if let Some(stage) =
+                prepare_alpha_finalizer::<T>(src_layout, source, dst_layout, dest, BIT_DEPTH)
+            {
+                post_finalization.push(stage);
+            }
+
             return Ok(Box::new(Katana::<f32, T> {
                 initial_stage,
                 final_stage,
                 stages,
+                post_finalization,
             }));
         }
 
@@ -643,10 +652,10 @@ where
                         CmsError::UnsupportedLutRenderingIntent(source.rendering_intent),
                     )? {
                         LutWarehouse::Lut(lut) => {
-                            katana_input_stage_lut_3x3::<T, BIT_DEPTH>(lut, options, source.pcs)?
+                            katana_input_stage_lut_3x3::<T>(lut, options, source.pcs, BIT_DEPTH)?
                         }
                         LutWarehouse::Multidimensional(mab) => {
-                            multi_dimensional_3x3_to_pcs::<T, BIT_DEPTH>(mab, options, source.pcs)?
+                            multi_dimensional_3x3_to_pcs::<T>(mab, options, source.pcs, BIT_DEPTH)?
                         }
                     }
                 };
@@ -666,10 +675,10 @@ where
                     .ok_or(CmsError::UnsupportedProfileConnection)?;
                 match pcs_to_device {
                     LutWarehouse::Lut(lut) => {
-                        katana_output_stage_lut_3x3::<T, BIT_DEPTH>(lut, options, dest.pcs)?
+                        katana_output_stage_lut_3x3::<T>(lut, options, dest.pcs, BIT_DEPTH)?
                     }
                     LutWarehouse::Multidimensional(mab) => {
-                        multi_dimensional_3x3_to_device::<T, BIT_DEPTH>(mab, options, dest.pcs)?
+                        multi_dimensional_3x3_to_device::<T>(mab, options, dest.pcs, BIT_DEPTH)?
                     }
                 }
             } else if dest.is_matrix_shaper() {
@@ -682,10 +691,19 @@ where
                 return Err(CmsError::UnsupportedProfileConnection);
             };
 
+            let mut post_finalization: Vec<Box<dyn KatanaPostFinalizationStage<T> + Send + Sync>> =
+                Vec::new();
+            if let Some(stage) =
+                prepare_alpha_finalizer::<T>(src_layout, source, dst_layout, dest, BIT_DEPTH)
+            {
+                post_finalization.push(stage);
+            }
+
             return Ok(Box::new(Katana::<f32, T> {
                 initial_stage: source_stage,
                 final_stage,
                 stages,
+                post_finalization,
             }));
         }
 

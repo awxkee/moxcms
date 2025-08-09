@@ -45,7 +45,6 @@ pub(crate) enum MultidimensionalDirection {
 
 struct Multidimensional3x3<
     T: Copy + Default + AsPrimitive<f32> + PointeeSizeExpressible + Send + Sync,
-    const BIT_DEPTH: usize,
 > {
     a_curves: Option<Box<[Vec<f32>; 3]>>,
     m_curves: Option<Box<[Vec<f32>; 3]>>,
@@ -58,12 +57,11 @@ struct Multidimensional3x3<
     pcs: DataColorSpace,
     grid_size: [u8; 3],
     _phantom: PhantomData<T>,
+    bit_depth: usize,
 }
 
-impl<
-    T: Copy + Default + AsPrimitive<f32> + PointeeSizeExpressible + Send + Sync,
-    const BIT_DEPTH: usize,
-> Multidimensional3x3<T, BIT_DEPTH>
+impl<T: Copy + Default + AsPrimitive<f32> + PointeeSizeExpressible + Send + Sync>
+    Multidimensional3x3<T>
 {
     fn execute_matrix_stage(&self, dst: &mut [f32]) {
         let m = self.matrix;
@@ -106,7 +104,7 @@ impl<
         fetch: Fetch,
     ) -> Result<(), CmsError> {
         let norm_value = if T::FINITE {
-            1.0 / ((1u32 << BIT_DEPTH) - 1) as f32
+            1.0 / ((1u32 << self.bit_depth) - 1) as f32
         } else {
             1.0
         };
@@ -164,10 +162,8 @@ impl<
     }
 }
 
-impl<
-    T: Copy + Default + AsPrimitive<f32> + PointeeSizeExpressible + Send + Sync,
-    const BIT_DEPTH: usize,
-> KatanaInitialStage<f32, T> for Multidimensional3x3<T, BIT_DEPTH>
+impl<T: Copy + Default + AsPrimitive<f32> + PointeeSizeExpressible + Send + Sync>
+    KatanaInitialStage<f32, T> for Multidimensional3x3<T>
 {
     fn to_pcs(&self, input: &[T]) -> Result<Vec<f32>, CmsError> {
         if input.len() % 3 != 0 {
@@ -206,10 +202,8 @@ impl<
     }
 }
 
-impl<
-    T: Copy + Default + AsPrimitive<f32> + PointeeSizeExpressible + Send + Sync,
-    const BIT_DEPTH: usize,
-> Multidimensional3x3<T, BIT_DEPTH>
+impl<T: Copy + Default + AsPrimitive<f32> + PointeeSizeExpressible + Send + Sync>
+    Multidimensional3x3<T>
 where
     f32: AsPrimitive<T>,
 {
@@ -220,7 +214,7 @@ where
         fetch: Fetch,
     ) -> Result<(), CmsError> {
         let norm_value = if T::FINITE {
-            ((1u32 << BIT_DEPTH) - 1) as f32
+            ((1u32 << self.bit_depth) - 1) as f32
         } else {
             1.0
         };
@@ -304,10 +298,8 @@ where
     }
 }
 
-impl<
-    T: Copy + Default + AsPrimitive<f32> + PointeeSizeExpressible + Send + Sync,
-    const BIT_DEPTH: usize,
-> KatanaFinalStage<f32, T> for Multidimensional3x3<T, BIT_DEPTH>
+impl<T: Copy + Default + AsPrimitive<f32> + PointeeSizeExpressible + Send + Sync>
+    KatanaFinalStage<f32, T> for Multidimensional3x3<T>
 where
     f32: AsPrimitive<T>,
 {
@@ -353,13 +345,13 @@ where
 
 fn make_multidimensional_3x3<
     T: Copy + Default + AsPrimitive<f32> + PointeeSizeExpressible + Send + Sync,
-    const BIT_DEPTH: usize,
 >(
     mab: &LutMultidimensionalType,
     options: TransformOptions,
     pcs: DataColorSpace,
     direction: MultidimensionalDirection,
-) -> Result<Multidimensional3x3<T, BIT_DEPTH>, CmsError> {
+    bit_depth: usize,
+) -> Result<Multidimensional3x3<T>, CmsError> {
     if mab.num_input_channels != 3 && mab.num_output_channels != 3 {
         return Err(CmsError::UnsupportedProfileConnection);
     }
@@ -433,7 +425,7 @@ fn make_multidimensional_3x3<
 
     let bias = mab.bias.cast();
 
-    let transform = Multidimensional3x3::<T, BIT_DEPTH> {
+    let transform = Multidimensional3x3::<T> {
         a_curves,
         b_curves,
         m_curves,
@@ -445,6 +437,7 @@ fn make_multidimensional_3x3<
         grid_size,
         bias,
         _phantom: PhantomData,
+        bit_depth,
     };
 
     Ok(transform)
@@ -452,37 +445,39 @@ fn make_multidimensional_3x3<
 
 pub(crate) fn multi_dimensional_3x3_to_pcs<
     T: Copy + Default + AsPrimitive<f32> + PointeeSizeExpressible + Send + Sync,
-    const BIT_DEPTH: usize,
 >(
     mab: &LutMultidimensionalType,
     options: TransformOptions,
     pcs: DataColorSpace,
+    bit_depth: usize,
 ) -> Result<Box<dyn KatanaInitialStage<f32, T> + Send + Sync>, CmsError> {
-    let transform = make_multidimensional_3x3::<T, BIT_DEPTH>(
+    let transform = make_multidimensional_3x3::<T>(
         mab,
         options,
         pcs,
         MultidimensionalDirection::DeviceToPcs,
+        bit_depth,
     )?;
     Ok(Box::new(transform))
 }
 
 pub(crate) fn multi_dimensional_3x3_to_device<
     T: Copy + Default + AsPrimitive<f32> + PointeeSizeExpressible + Send + Sync,
-    const BIT_DEPTH: usize,
 >(
     mab: &LutMultidimensionalType,
     options: TransformOptions,
     pcs: DataColorSpace,
+    bit_depth: usize,
 ) -> Result<Box<dyn KatanaFinalStage<f32, T> + Send + Sync>, CmsError>
 where
     f32: AsPrimitive<T>,
 {
-    let transform = make_multidimensional_3x3::<T, BIT_DEPTH>(
+    let transform = make_multidimensional_3x3::<T>(
         mab,
         options,
         pcs,
         MultidimensionalDirection::PcsToDevice,
+        bit_depth,
     )?;
     Ok(Box::new(transform))
 }

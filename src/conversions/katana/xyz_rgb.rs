@@ -37,22 +37,20 @@ use crate::{
 };
 use num_traits::AsPrimitive;
 
-pub(crate) struct KatanaXyzToRgbStage<
-    T: Clone,
-    const LAYOUT: u8,
-    const BIT_DEPTH: usize,
-    const GAMMA_LUT: usize,
-> {
+pub(crate) struct KatanaXyzToRgbStage<T: Clone, const LAYOUT: u8> {
     pub(crate) r_gamma: Box<[T; 65536]>,
     pub(crate) g_gamma: Box<[T; 65536]>,
     pub(crate) b_gamma: Box<[T; 65536]>,
     pub(crate) intent: RenderingIntent,
+    pub(crate) bit_depth: usize,
+    pub(crate) gamma_lut: usize,
 }
 
-impl<T: Clone + AsPrimitive<f32>, const LAYOUT: u8, const BIT_DEPTH: usize, const GAMMA_LUT: usize>
-    KatanaFinalStage<f32, T> for KatanaXyzToRgbStage<T, LAYOUT, BIT_DEPTH, GAMMA_LUT>
+impl<T: Clone + AsPrimitive<f32> + PointeeSizeExpressible, const LAYOUT: u8>
+    KatanaFinalStage<f32, T> for KatanaXyzToRgbStage<T, LAYOUT>
 where
     u32: AsPrimitive<T>,
+    f32: AsPrimitive<T>,
 {
     fn to_output(&self, src: &mut [f32], dst: &mut [T]) -> Result<(), CmsError> {
         let dst_cn = Layout::from(LAYOUT);
@@ -69,8 +67,13 @@ where
             return Err(CmsError::LaneSizeMismatch);
         }
 
-        let max_colors = (1 << BIT_DEPTH) - 1;
-        let lut_cap = (GAMMA_LUT - 1) as f32;
+        let max_colors: T = (if T::FINITE {
+            ((1u32 << self.bit_depth) - 1) as f32
+        } else {
+            1.0
+        })
+        .as_();
+        let lut_cap = (self.gamma_lut - 1) as f32;
 
         if self.intent != RenderingIntent::AbsoluteColorimetric {
             for (src, dst) in src.chunks_exact(3).zip(dst.chunks_exact_mut(dst_channels)) {
@@ -86,7 +89,7 @@ where
                 dst[1] = self.g_gamma[g as usize];
                 dst[2] = self.b_gamma[b as usize];
                 if dst_cn == Layout::Rgba {
-                    dst[3] = max_colors.as_();
+                    dst[3] = max_colors;
                 }
             }
         } else {
@@ -100,7 +103,7 @@ where
                 dst[1] = self.g_gamma[g as usize];
                 dst[2] = self.b_gamma[b as usize];
                 if dst_cn == Layout::Rgba {
-                    dst[3] = max_colors.as_();
+                    dst[3] = max_colors;
                 }
             }
         }
@@ -183,26 +186,28 @@ where
     matrices.push(Box::new(KatanaMatrixStage::new(xyz_to_rgb.to_f32())));
     match dest_layout {
         Layout::Rgb => {
-            let xyz_to_rgb_stage =
-                KatanaXyzToRgbStage::<T, { Layout::Rgb as u8 }, BIT_DEPTH, GAMMA_LUT> {
-                    r_gamma: gamma_map_r,
-                    g_gamma: gamma_map_g,
-                    b_gamma: gamma_map_b,
-                    intent: options.rendering_intent,
-                };
+            let xyz_to_rgb_stage = KatanaXyzToRgbStage::<T, { Layout::Rgb as u8 }> {
+                r_gamma: gamma_map_r,
+                g_gamma: gamma_map_g,
+                b_gamma: gamma_map_b,
+                intent: options.rendering_intent,
+                bit_depth: BIT_DEPTH,
+                gamma_lut: GAMMA_LUT,
+            };
             Ok(KatanaXyzRgbState {
                 stages: matrices,
                 final_stage: Box::new(xyz_to_rgb_stage),
             })
         }
         Layout::Rgba => {
-            let xyz_to_rgb_stage =
-                KatanaXyzToRgbStage::<T, { Layout::Rgba as u8 }, BIT_DEPTH, GAMMA_LUT> {
-                    r_gamma: gamma_map_r,
-                    g_gamma: gamma_map_g,
-                    b_gamma: gamma_map_b,
-                    intent: options.rendering_intent,
-                };
+            let xyz_to_rgb_stage = KatanaXyzToRgbStage::<T, { Layout::Rgba as u8 }> {
+                r_gamma: gamma_map_r,
+                g_gamma: gamma_map_g,
+                b_gamma: gamma_map_b,
+                intent: options.rendering_intent,
+                bit_depth: BIT_DEPTH,
+                gamma_lut: GAMMA_LUT,
+            };
             Ok(KatanaXyzRgbState {
                 stages: matrices,
                 final_stage: Box::new(xyz_to_rgb_stage),
