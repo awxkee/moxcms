@@ -641,11 +641,12 @@ impl ColorProfile {
                         if let Some(linear_evaluator) = self.try_extended_linearizing_evaluator() {
                             // Gray -> Gray case extended range
                             use crate::conversions::make_gray_to_one_trc_extended;
-                            return make_gray_to_one_trc_extended::<T, BIT_DEPTH>(
+                            return make_gray_to_one_trc_extended::<T>(
                                 src_layout,
                                 dst_layout,
                                 linear_evaluator,
                                 gamma_evaluator,
+                                BIT_DEPTH,
                             );
                         }
                     }
@@ -657,11 +658,13 @@ impl ColorProfile {
                     options.allow_use_cicp_transfer,
                 )?;
 
-                make_gray_to_x::<T, LINEAR_CAP, BIT_DEPTH, GAMMA_CAP>(
+                make_gray_to_x::<T, LINEAR_CAP>(
                     src_layout,
                     dst_layout,
                     &gray_linear,
                     &gray_gamma,
+                    BIT_DEPTH,
+                    GAMMA_CAP,
                 )
             } else {
                 #[allow(clippy::collapsible_if)]
@@ -673,11 +676,12 @@ impl ColorProfile {
                             {
                                 // Gray -> RGB where all TRC is the same with extended range
                                 use crate::conversions::make_gray_to_one_trc_extended;
-                                return make_gray_to_one_trc_extended::<T, BIT_DEPTH>(
+                                return make_gray_to_one_trc_extended::<T>(
                                     src_layout,
                                     dst_layout,
                                     linear_evaluator,
                                     gamma_evaluator,
+                                    BIT_DEPTH,
                                 );
                             }
                         }
@@ -689,11 +693,13 @@ impl ColorProfile {
                         options.allow_use_cicp_transfer,
                     )?;
 
-                    make_gray_to_x::<T, LINEAR_CAP, BIT_DEPTH, GAMMA_CAP>(
+                    make_gray_to_x::<T, LINEAR_CAP>(
                         src_layout,
                         dst_layout,
                         &gray_linear,
                         &rgb_gamma,
+                        BIT_DEPTH,
+                        GAMMA_CAP,
                     )
                 } else {
                     // Gray -> RGB where all TRC is NOT the same
@@ -705,11 +711,12 @@ impl ColorProfile {
                                 // Gray -> RGB where all TRC is NOT the same with extended range
 
                                 use crate::conversions::make_gray_to_rgb_extended;
-                                return make_gray_to_rgb_extended::<T, BIT_DEPTH>(
+                                return make_gray_to_rgb_extended::<T>(
                                     src_layout,
                                     dst_layout,
                                     linear_evaluator,
                                     gamma_evaluator,
+                                    BIT_DEPTH,
                                 );
                             }
                         }
@@ -728,13 +735,15 @@ impl ColorProfile {
                         options.allow_use_cicp_transfer,
                     )?;
 
-                    make_gray_to_unfused::<T, LINEAR_CAP, BIT_DEPTH, GAMMA_CAP>(
+                    make_gray_to_unfused::<T, LINEAR_CAP>(
                         src_layout,
                         dst_layout,
                         gray_linear,
                         red_gamma,
                         green_gamma,
                         blue_gamma,
+                        BIT_DEPTH,
+                        GAMMA_CAP,
                     )
                 }
             }
@@ -766,12 +775,13 @@ impl ColorProfile {
                 if let Some(gamma_evaluator) = dst_pr.try_extended_gamma_evaluator() {
                     if let Some(linear_evaluator) = self.try_extended_linearizing_evaluator() {
                         use crate::conversions::make_rgb_to_gray_extended;
-                        return Ok(make_rgb_to_gray_extended::<T, BIT_DEPTH>(
+                        return Ok(make_rgb_to_gray_extended::<T>(
                             src_layout,
                             dst_layout,
                             linear_evaluator,
                             gamma_evaluator,
                             vector,
+                            BIT_DEPTH,
                         ));
                     }
                 }

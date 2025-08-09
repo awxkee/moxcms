@@ -48,7 +48,7 @@ struct Lut3x3 {
 }
 
 #[derive(Default)]
-struct KatanaLut3x3<T: Copy + Default, const BIT_DEPTH: usize> {
+struct KatanaLut3x3<T: Copy + Default> {
     input: [Vec<f32>; 3],
     clut: Vec<f32>,
     grid_size: u8,
@@ -56,6 +56,7 @@ struct KatanaLut3x3<T: Copy + Default, const BIT_DEPTH: usize> {
     interpolation_method: InterpolationMethod,
     pcs: DataColorSpace,
     _phantom: std::marker::PhantomData<T>,
+    bit_depth: usize,
 }
 
 fn make_lut_3x3(
@@ -142,18 +143,18 @@ fn stage_lut_3x3(
 
 pub(crate) fn katana_input_stage_lut_3x3<
     T: Copy + Default + AsPrimitive<f32> + PointeeSizeExpressible + Send + Sync,
-    const BIT_DEPTH: usize,
 >(
     lut: &LutDataType,
     options: TransformOptions,
     pcs: DataColorSpace,
+    bit_depth: usize,
 ) -> Result<Box<dyn KatanaInitialStage<f32, T> + Send + Sync>, CmsError>
 where
     f32: AsPrimitive<T>,
 {
     let lut = make_lut_3x3(lut, options, pcs)?;
 
-    let transform = KatanaLut3x3::<T, BIT_DEPTH> {
+    let transform = KatanaLut3x3::<T> {
         input: lut.input,
         gamma: lut.gamma,
         interpolation_method: lut.interpolation_method,
@@ -161,6 +162,7 @@ where
         grid_size: lut.grid_size,
         pcs: lut.pcs,
         _phantom: std::marker::PhantomData,
+        bit_depth,
     };
 
     Ok(Box::new(transform))
@@ -168,18 +170,18 @@ where
 
 pub(crate) fn katana_output_stage_lut_3x3<
     T: Copy + Default + AsPrimitive<f32> + PointeeSizeExpressible + Send + Sync,
-    const BIT_DEPTH: usize,
 >(
     lut: &LutDataType,
     options: TransformOptions,
     pcs: DataColorSpace,
+    bit_depth: usize,
 ) -> Result<Box<dyn KatanaFinalStage<f32, T> + Send + Sync>, CmsError>
 where
     f32: AsPrimitive<T>,
 {
     let lut = make_lut_3x3(lut, options, pcs)?;
 
-    let transform = KatanaLut3x3::<T, BIT_DEPTH> {
+    let transform = KatanaLut3x3::<T> {
         input: lut.input,
         gamma: lut.gamma,
         interpolation_method: lut.interpolation_method,
@@ -187,6 +189,7 @@ where
         grid_size: lut.grid_size,
         pcs: lut.pcs,
         _phantom: std::marker::PhantomData,
+        bit_depth,
     };
 
     Ok(Box::new(transform))
@@ -251,8 +254,7 @@ impl Stage for Lut3x3 {
     }
 }
 
-impl<T: Copy + Default + PointeeSizeExpressible + AsPrimitive<f32>, const BIT_DEPTH: usize>
-    KatanaLut3x3<T, BIT_DEPTH>
+impl<T: Copy + Default + PointeeSizeExpressible + AsPrimitive<f32>> KatanaLut3x3<T>
 where
     f32: AsPrimitive<T>,
 {
@@ -265,7 +267,7 @@ where
             return Err(CmsError::LaneMultipleOfChannels);
         }
         let normalizing_value = if T::FINITE {
-            1.0 / ((1u32 << BIT_DEPTH) - 1) as f32
+            1.0 / ((1u32 << self.bit_depth) - 1) as f32
         } else {
             1.0
         };
@@ -309,7 +311,7 @@ where
             return Err(CmsError::LaneSizeMismatch);
         }
         let norm_value = if T::FINITE {
-            ((1u32 << BIT_DEPTH) - 1) as f32
+            ((1u32 << self.bit_depth) - 1) as f32
         } else {
             1.0
         };
@@ -342,8 +344,8 @@ where
     }
 }
 
-impl<T: Copy + Default + PointeeSizeExpressible + AsPrimitive<f32>, const BIT_DEPTH: usize>
-    KatanaInitialStage<f32, T> for KatanaLut3x3<T, BIT_DEPTH>
+impl<T: Copy + Default + PointeeSizeExpressible + AsPrimitive<f32>> KatanaInitialStage<f32, T>
+    for KatanaLut3x3<T>
 where
     f32: AsPrimitive<T>,
 {
@@ -375,8 +377,8 @@ where
     }
 }
 
-impl<T: Copy + Default + PointeeSizeExpressible + AsPrimitive<f32>, const BIT_DEPTH: usize>
-    KatanaFinalStage<f32, T> for KatanaLut3x3<T, BIT_DEPTH>
+impl<T: Copy + Default + PointeeSizeExpressible + AsPrimitive<f32>> KatanaFinalStage<f32, T>
+    for KatanaLut3x3<T>
 where
     f32: AsPrimitive<T>,
 {

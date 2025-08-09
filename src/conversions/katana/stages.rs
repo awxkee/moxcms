@@ -56,12 +56,18 @@ impl<W> KatanaIntermediateStage<W> for BlackholeIntermediateStage<W> {
     }
 }
 
+/// I input/output data type
+pub(crate) trait KatanaPostFinalizationStage<I> {
+    fn finalize(&self, src: &[I], dst: &mut [I]) -> Result<(), CmsError>;
+}
+
 /// W storage working data type
 /// I input/output data type
 pub(crate) struct Katana<W, I> {
     pub(crate) initial_stage: Box<dyn KatanaInitialStage<W, I> + Send + Sync>,
     pub(crate) final_stage: Box<dyn KatanaFinalStage<W, I> + Sync + Send>,
     pub(crate) stages: Vec<Box<dyn KatanaIntermediateStage<W> + Send + Sync>>,
+    pub(crate) post_finalization: Vec<Box<dyn KatanaPostFinalizationStage<I> + Send + Sync>>,
 }
 
 impl<W, I: Copy + Default> TransformExecutor<I> for Katana<W, I> {
@@ -70,6 +76,10 @@ impl<W, I: Copy + Default> TransformExecutor<I> for Katana<W, I> {
         for stage in self.stages.iter() {
             working_vec = stage.stage(&mut working_vec)?;
         }
-        self.final_stage.to_output(&mut working_vec, dst)
+        self.final_stage.to_output(&mut working_vec, dst)?;
+        for finalization in self.post_finalization.iter() {
+            finalization.finalize(src, dst)?;
+        }
+        Ok(())
     }
 }

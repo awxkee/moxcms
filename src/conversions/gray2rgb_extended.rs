@@ -32,25 +32,21 @@ use crate::{CmsError, Layout, Rgb, TransformExecutor};
 use num_traits::AsPrimitive;
 use std::marker::PhantomData;
 
-struct TransformGrayOneToOneExecutor<
-    T,
-    const SRC_LAYOUT: u8,
-    const DEST_LAYOUT: u8,
-    const BIT_DEPTH: usize,
-> {
+struct TransformGrayOneToOneExecutor<T, const SRC_LAYOUT: u8, const DEST_LAYOUT: u8> {
     linear_eval: Box<dyn ToneCurveEvaluator + Send + Sync>,
     gamma_eval: Box<dyn ToneCurveEvaluator + Send + Sync>,
     _phantom: PhantomData<T>,
+    bit_depth: usize,
 }
 
 pub(crate) fn make_gray_to_one_trc_extended<
     T: Copy + Default + PointeeSizeExpressible + 'static + Send + Sync + AsPrimitive<f32>,
-    const BIT_DEPTH: usize,
 >(
     src_layout: Layout,
     dst_layout: Layout,
     linear_eval: Box<dyn ToneCurveEvaluator + Send + Sync>,
     gamma_eval: Box<dyn ToneCurveEvaluator + Send + Sync>,
+    bit_depth: usize,
 ) -> Result<Box<dyn TransformExecutor<T> + Sync + Send>, CmsError>
 where
     u32: AsPrimitive<T>,
@@ -66,41 +62,41 @@ where
                 T,
                 { Layout::Gray as u8 },
                 { Layout::Rgb as u8 },
-                BIT_DEPTH,
             > {
                 linear_eval,
                 gamma_eval,
                 _phantom: PhantomData,
+                bit_depth,
             })),
             Layout::Rgba => Ok(Box::new(TransformGrayOneToOneExecutor::<
                 T,
                 { Layout::Gray as u8 },
                 { Layout::Rgba as u8 },
-                BIT_DEPTH,
             > {
                 linear_eval,
                 gamma_eval,
                 _phantom: PhantomData,
+                bit_depth,
             })),
             Layout::Gray => Ok(Box::new(TransformGrayOneToOneExecutor::<
                 T,
                 { Layout::Gray as u8 },
                 { Layout::Gray as u8 },
-                BIT_DEPTH,
             > {
                 linear_eval,
                 gamma_eval,
                 _phantom: PhantomData,
+                bit_depth,
             })),
             Layout::GrayAlpha => Ok(Box::new(TransformGrayOneToOneExecutor::<
                 T,
                 { Layout::Gray as u8 },
                 { Layout::GrayAlpha as u8 },
-                BIT_DEPTH,
             > {
                 linear_eval,
                 gamma_eval,
                 _phantom: PhantomData,
+                bit_depth,
             })),
             _ => unreachable!(),
         },
@@ -109,41 +105,41 @@ where
                 T,
                 { Layout::Gray as u8 },
                 { Layout::GrayAlpha as u8 },
-                BIT_DEPTH,
             > {
                 linear_eval,
                 gamma_eval,
                 _phantom: PhantomData,
+                bit_depth,
             })),
             Layout::Rgba => Ok(Box::new(TransformGrayOneToOneExecutor::<
                 T,
                 { Layout::Gray as u8 },
                 { Layout::Rgba as u8 },
-                BIT_DEPTH,
             > {
                 linear_eval,
                 gamma_eval,
                 _phantom: PhantomData,
+                bit_depth,
             })),
             Layout::Gray => Ok(Box::new(TransformGrayOneToOneExecutor::<
                 T,
                 { Layout::Gray as u8 },
                 { Layout::Gray as u8 },
-                BIT_DEPTH,
             > {
                 linear_eval,
                 gamma_eval,
                 _phantom: PhantomData,
+                bit_depth,
             })),
             Layout::GrayAlpha => Ok(Box::new(TransformGrayOneToOneExecutor::<
                 T,
                 { Layout::GrayAlpha as u8 },
                 { Layout::GrayAlpha as u8 },
-                BIT_DEPTH,
             > {
                 linear_eval,
                 gamma_eval,
                 _phantom: PhantomData,
+                bit_depth,
             })),
             _ => unreachable!(),
         },
@@ -155,8 +151,7 @@ impl<
     T: Copy + Default + PointeeSizeExpressible + 'static + AsPrimitive<f32>,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
-    const BIT_DEPTH: usize,
-> TransformExecutor<T> for TransformGrayOneToOneExecutor<T, SRC_LAYOUT, DST_LAYOUT, BIT_DEPTH>
+> TransformExecutor<T> for TransformGrayOneToOneExecutor<T, SRC_LAYOUT, DST_LAYOUT>
 where
     u32: AsPrimitive<T>,
     f32: AsPrimitive<T>,
@@ -179,7 +174,7 @@ where
 
         let is_gray_alpha = src_cn == Layout::GrayAlpha;
 
-        let max_value: T = ((1u32 << BIT_DEPTH as u32) - 1u32).as_();
+        let max_value: T = ((1u32 << self.bit_depth as u32) - 1u32).as_();
 
         for (src, dst) in src
             .chunks_exact(src_channels)
@@ -206,25 +201,21 @@ where
     }
 }
 
-struct TransformGrayToRgbExtendedExecutor<
-    T,
-    const SRC_LAYOUT: u8,
-    const DEST_LAYOUT: u8,
-    const BIT_DEPTH: usize,
-> {
+struct TransformGrayToRgbExtendedExecutor<T, const SRC_LAYOUT: u8, const DEST_LAYOUT: u8> {
     linear_eval: Box<dyn ToneCurveEvaluator + Send + Sync>,
     gamma_eval: Box<dyn ToneCurveEvaluator + Send + Sync>,
     _phantom: PhantomData<T>,
+    bit_depth: usize,
 }
 
 pub(crate) fn make_gray_to_rgb_extended<
     T: Copy + Default + PointeeSizeExpressible + 'static + Send + Sync + AsPrimitive<f32>,
-    const BIT_DEPTH: usize,
 >(
     src_layout: Layout,
     dst_layout: Layout,
     linear_eval: Box<dyn ToneCurveEvaluator + Send + Sync>,
     gamma_eval: Box<dyn ToneCurveEvaluator + Send + Sync>,
+    bit_depth: usize,
 ) -> Result<Box<dyn TransformExecutor<T> + Sync + Send>, CmsError>
 where
     u32: AsPrimitive<T>,
@@ -242,41 +233,41 @@ where
                 T,
                 { Layout::Gray as u8 },
                 { Layout::Rgb as u8 },
-                BIT_DEPTH,
             > {
                 linear_eval,
                 gamma_eval,
                 _phantom: PhantomData,
+                bit_depth,
             })),
             Layout::Rgba => Ok(Box::new(TransformGrayToRgbExtendedExecutor::<
                 T,
                 { Layout::Gray as u8 },
                 { Layout::Rgba as u8 },
-                BIT_DEPTH,
             > {
                 linear_eval,
                 gamma_eval,
                 _phantom: PhantomData,
+                bit_depth,
             })),
             Layout::Gray => Ok(Box::new(TransformGrayToRgbExtendedExecutor::<
                 T,
                 { Layout::Gray as u8 },
                 { Layout::Gray as u8 },
-                BIT_DEPTH,
             > {
                 linear_eval,
                 gamma_eval,
                 _phantom: PhantomData,
+                bit_depth,
             })),
             Layout::GrayAlpha => Ok(Box::new(TransformGrayToRgbExtendedExecutor::<
                 T,
                 { Layout::Gray as u8 },
                 { Layout::GrayAlpha as u8 },
-                BIT_DEPTH,
             > {
                 linear_eval,
                 gamma_eval,
                 _phantom: PhantomData,
+                bit_depth,
             })),
             _ => Err(CmsError::UnsupportedProfileConnection),
         },
@@ -285,41 +276,41 @@ where
                 T,
                 { Layout::Gray as u8 },
                 { Layout::GrayAlpha as u8 },
-                BIT_DEPTH,
             > {
                 linear_eval,
                 gamma_eval,
                 _phantom: PhantomData,
+                bit_depth,
             })),
             Layout::Rgba => Ok(Box::new(TransformGrayToRgbExtendedExecutor::<
                 T,
                 { Layout::Gray as u8 },
                 { Layout::Rgba as u8 },
-                BIT_DEPTH,
             > {
                 linear_eval,
                 gamma_eval,
                 _phantom: PhantomData,
+                bit_depth,
             })),
             Layout::Gray => Ok(Box::new(TransformGrayToRgbExtendedExecutor::<
                 T,
                 { Layout::Gray as u8 },
                 { Layout::Gray as u8 },
-                BIT_DEPTH,
             > {
                 linear_eval,
                 gamma_eval,
                 _phantom: PhantomData,
+                bit_depth,
             })),
             Layout::GrayAlpha => Ok(Box::new(TransformGrayToRgbExtendedExecutor::<
                 T,
                 { Layout::GrayAlpha as u8 },
                 { Layout::GrayAlpha as u8 },
-                BIT_DEPTH,
             > {
                 linear_eval,
                 gamma_eval,
                 _phantom: PhantomData,
+                bit_depth,
             })),
             _ => Err(CmsError::UnsupportedProfileConnection),
         },
@@ -331,8 +322,7 @@ impl<
     T: Copy + Default + PointeeSizeExpressible + 'static + AsPrimitive<f32>,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
-    const BIT_DEPTH: usize,
-> TransformExecutor<T> for TransformGrayToRgbExtendedExecutor<T, SRC_LAYOUT, DST_LAYOUT, BIT_DEPTH>
+> TransformExecutor<T> for TransformGrayToRgbExtendedExecutor<T, SRC_LAYOUT, DST_LAYOUT>
 where
     u32: AsPrimitive<T>,
     f32: AsPrimitive<T>,
@@ -355,7 +345,7 @@ where
 
         let is_gray_alpha = src_cn == Layout::GrayAlpha;
 
-        let max_value: T = ((1u32 << BIT_DEPTH as u32) - 1u32).as_();
+        let max_value: T = ((1u32 << self.bit_depth as u32) - 1u32).as_();
 
         for (src, dst) in src
             .chunks_exact(src_channels)

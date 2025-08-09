@@ -59,10 +59,10 @@ struct TransformMatrixShaperQ2_13<
     const DST_LAYOUT: u8,
     const LINEAR_CAP: usize,
     const GAMMA_LUT: usize,
-    const BIT_DEPTH: usize,
     const PRECISION: i32,
 > {
     pub(crate) profile: TransformMatrixShaperFixedPoint<i16, T, LINEAR_CAP>,
+    pub(crate) bit_depth: usize,
 }
 
 #[allow(unused)]
@@ -72,10 +72,10 @@ struct TransformMatrixShaperQ2_13Optimized<
     const DST_LAYOUT: u8,
     const LINEAR_CAP: usize,
     const GAMMA_LUT: usize,
-    const BIT_DEPTH: usize,
     const PRECISION: i32,
 > {
     pub(crate) profile: TransformMatrixShaperFixedPointOpt<i16, i16, T, LINEAR_CAP>,
+    pub(crate) bit_depth: usize,
 }
 
 #[allow(unused)]
@@ -85,18 +85,9 @@ impl<
     const DST_LAYOUT: u8,
     const LINEAR_CAP: usize,
     const GAMMA_LUT: usize,
-    const BIT_DEPTH: usize,
     const PRECISION: i32,
 > TransformExecutor<T>
-    for TransformMatrixShaperQ2_13<
-        T,
-        SRC_LAYOUT,
-        DST_LAYOUT,
-        LINEAR_CAP,
-        GAMMA_LUT,
-        BIT_DEPTH,
-        PRECISION,
-    >
+    for TransformMatrixShaperQ2_13<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP, GAMMA_LUT, PRECISION>
 where
     u32: AsPrimitive<T>,
 {
@@ -117,7 +108,7 @@ where
         }
 
         let transform = self.profile.adaptation_matrix;
-        let max_colors: T = ((1 << BIT_DEPTH as u32) - 1u32).as_();
+        let max_colors: T = ((1 << self.bit_depth as u32) - 1u32).as_();
         let rnd: i32 = (1i32 << (PRECISION - 1));
 
         let v_gamma_max = GAMMA_LUT as i32 - 1;
@@ -174,7 +165,6 @@ impl<
     const DST_LAYOUT: u8,
     const LINEAR_CAP: usize,
     const GAMMA_LUT: usize,
-    const BIT_DEPTH: usize,
     const PRECISION: i32,
 > TransformExecutor<T>
     for TransformMatrixShaperQ2_13Optimized<
@@ -183,7 +173,6 @@ impl<
         DST_LAYOUT,
         LINEAR_CAP,
         GAMMA_LUT,
-        BIT_DEPTH,
         PRECISION,
     >
 where
@@ -206,7 +195,7 @@ where
         }
 
         let transform = self.profile.adaptation_matrix;
-        let max_colors: T = ((1 << BIT_DEPTH as u32) - 1u32).as_();
+        let max_colors: T = ((1 << self.bit_depth as u32) - 1u32).as_();
         let rnd: i32 = (1i32 << (PRECISION - 1));
 
         let v_gamma_max = GAMMA_LUT as i32 - 1;
@@ -281,10 +270,10 @@ macro_rules! create_rgb_xyz_dependant_q2_13_executor {
                     { Layout::Rgba as u8 },
                     LINEAR_CAP,
                     GAMMA_LUT,
-                    BIT_DEPTH,
                     PRECISION,
                 > {
                     profile: q2_13_profile,
+                    bit_depth: BIT_DEPTH,
                 }));
             } else if (src_layout == Layout::Rgb) && (dst_layout == Layout::Rgba) {
                 return Ok(Box::new($dependant::<
@@ -293,10 +282,10 @@ macro_rules! create_rgb_xyz_dependant_q2_13_executor {
                     { Layout::Rgba as u8 },
                     LINEAR_CAP,
                     GAMMA_LUT,
-                    BIT_DEPTH,
                     PRECISION,
                 > {
                     profile: q2_13_profile,
+                    bit_depth: BIT_DEPTH,
                 }));
             } else if (src_layout == Layout::Rgba) && (dst_layout == Layout::Rgb) {
                 return Ok(Box::new($dependant::<
@@ -305,10 +294,10 @@ macro_rules! create_rgb_xyz_dependant_q2_13_executor {
                     { Layout::Rgb as u8 },
                     LINEAR_CAP,
                     GAMMA_LUT,
-                    BIT_DEPTH,
                     PRECISION,
                 > {
                     profile: q2_13_profile,
+                    bit_depth: BIT_DEPTH,
                 }));
             } else if (src_layout == Layout::Rgb) && (dst_layout == Layout::Rgb) {
                 return Ok(Box::new($dependant::<
@@ -317,10 +306,10 @@ macro_rules! create_rgb_xyz_dependant_q2_13_executor {
                     { Layout::Rgb as u8 },
                     LINEAR_CAP,
                     GAMMA_LUT,
-                    BIT_DEPTH,
                     PRECISION,
                 > {
                     profile: q2_13_profile,
+                    bit_depth: BIT_DEPTH,
                 }));
             }
             Err(CmsError::UnsupportedProfileConnection)

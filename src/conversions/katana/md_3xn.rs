@@ -41,7 +41,6 @@ use std::marker::PhantomData;
 
 struct Multidimensional3xN<
     T: Copy + Default + AsPrimitive<f32> + PointeeSizeExpressible + Send + Sync,
-    const BIT_DEPTH: usize,
 > {
     a_curves: Option<Vec<Vec<f32>>>,
     m_curves: Option<Box<[Vec<f32>; 3]>>,
@@ -54,19 +53,17 @@ struct Multidimensional3xN<
     output_inks: usize,
     _phantom: PhantomData<T>,
     dst_layout: Layout,
-    target_color_space: DataColorSpace,
+    bit_depth: usize,
 }
 
-impl<
-    T: Copy + Default + AsPrimitive<f32> + PointeeSizeExpressible + Send + Sync,
-    const BIT_DEPTH: usize,
-> Multidimensional3xN<T, BIT_DEPTH>
+impl<T: Copy + Default + AsPrimitive<f32> + PointeeSizeExpressible + Send + Sync>
+    Multidimensional3xN<T>
 where
     f32: AsPrimitive<T>,
 {
     fn to_output_impl(&self, src: &mut [f32], dst: &mut [T]) -> Result<(), CmsError> {
         let norm_value = if T::FINITE {
-            ((1u32 << BIT_DEPTH) - 1) as f32
+            ((1u32 << self.bit_depth) - 1) as f32
         } else {
             1.0
         };
@@ -125,12 +122,6 @@ where
                     }
                 }
             }
-
-            if self.dst_layout == Layout::Rgba && self.target_color_space == DataColorSpace::Rgb {
-                for dst in dst.chunks_exact_mut(self.dst_layout.channels()) {
-                    dst[3] = norm_value.as_();
-                }
-            }
         } else {
             return Err(CmsError::InvalidAtoBLut);
         }
@@ -139,10 +130,8 @@ where
     }
 }
 
-impl<
-    T: Copy + Default + AsPrimitive<f32> + PointeeSizeExpressible + Send + Sync,
-    const BIT_DEPTH: usize,
-> KatanaFinalStage<f32, T> for Multidimensional3xN<T, BIT_DEPTH>
+impl<T: Copy + Default + AsPrimitive<f32> + PointeeSizeExpressible + Send + Sync>
+    KatanaFinalStage<f32, T> for Multidimensional3xN<T>
 where
     f32: AsPrimitive<T>,
 {
@@ -161,15 +150,14 @@ where
 
 fn make_multidimensional_nx3<
     T: Copy + Default + AsPrimitive<f32> + PointeeSizeExpressible + Send + Sync,
-    const BIT_DEPTH: usize,
 >(
     dst_layout: Layout,
     mab: &LutMultidimensionalType,
     _: TransformOptions,
     pcs: DataColorSpace,
     direction: MultidimensionalDirection,
-    target_color_space: DataColorSpace,
-) -> Result<Multidimensional3xN<T, BIT_DEPTH>, CmsError> {
+    bit_depth: usize,
+) -> Result<Multidimensional3xN<T>, CmsError> {
     let real_inks = if pcs == DataColorSpace::Rgb {
         3
     } else {
@@ -251,7 +239,7 @@ fn make_multidimensional_nx3<
 
     let bias = mab.bias.cast();
 
-    let transform = Multidimensional3xN::<T, BIT_DEPTH> {
+    let transform = Multidimensional3xN::<T> {
         a_curves,
         b_curves,
         m_curves,
@@ -263,7 +251,7 @@ fn make_multidimensional_nx3<
         dst_layout,
         output_inks: real_inks,
         _phantom: PhantomData,
-        target_color_space,
+        bit_depth,
     };
 
     Ok(transform)
@@ -271,13 +259,12 @@ fn make_multidimensional_nx3<
 
 pub(crate) fn katana_multi_dimensional_3xn_to_device<
     T: Copy + Default + AsPrimitive<f32> + PointeeSizeExpressible + Send + Sync,
-    const BIT_DEPTH: usize,
 >(
     dst_layout: Layout,
     mab: &LutMultidimensionalType,
     options: TransformOptions,
     pcs: DataColorSpace,
-    target_color_space: DataColorSpace,
+    bit_depth: usize,
 ) -> Result<Box<dyn KatanaFinalStage<f32, T> + Send + Sync>, CmsError>
 where
     f32: AsPrimitive<T>,
@@ -285,13 +272,13 @@ where
     if mab.num_input_channels == 0 {
         return Err(CmsError::UnsupportedProfileConnection);
     }
-    let transform = make_multidimensional_nx3::<T, BIT_DEPTH>(
+    let transform = make_multidimensional_nx3::<T>(
         dst_layout,
         mab,
         options,
         pcs,
         MultidimensionalDirection::PcsToDevice,
-        target_color_space,
+        bit_depth,
     )?;
     Ok(Box::new(transform))
 }

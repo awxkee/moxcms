@@ -50,7 +50,7 @@ struct Lut4x3 {
 
 #[allow(unused)]
 #[derive(Default)]
-struct KatanaLut4x3<T: Copy + PointeeSizeExpressible + AsPrimitive<f32>, const BIT_DEPTH: usize> {
+struct KatanaLut4x3<T: Copy + PointeeSizeExpressible + AsPrimitive<f32>> {
     linearization: [Vec<f32>; 4],
     clut: Vec<f32>,
     grid_size: u8,
@@ -58,6 +58,7 @@ struct KatanaLut4x3<T: Copy + PointeeSizeExpressible + AsPrimitive<f32>, const B
     interpolation_method: InterpolationMethod,
     pcs: DataColorSpace,
     _phantom: PhantomData<T>,
+    bit_depth: usize,
 }
 
 #[allow(unused)]
@@ -129,9 +130,7 @@ macro_rules! define_lut4_dispatch {
     };
 }
 
-impl<T: Copy + PointeeSizeExpressible + AsPrimitive<f32>, const BIT_DEPTH: usize>
-    KatanaLut4x3<T, BIT_DEPTH>
-{
+impl<T: Copy + PointeeSizeExpressible + AsPrimitive<f32>> KatanaLut4x3<T> {
     fn to_pcs_impl<Fetch: Fn(f32, f32, f32, f32) -> Vector3f>(
         &self,
         input: &[T],
@@ -141,7 +140,7 @@ impl<T: Copy + PointeeSizeExpressible + AsPrimitive<f32>, const BIT_DEPTH: usize
             return Err(CmsError::LaneMultipleOfChannels);
         }
         let norm_value = if T::FINITE {
-            1.0 / ((1u32 << BIT_DEPTH) - 1) as f32
+            1.0 / ((1u32 << self.bit_depth) - 1) as f32
         } else {
             1.0
         };
@@ -169,8 +168,8 @@ impl<T: Copy + PointeeSizeExpressible + AsPrimitive<f32>, const BIT_DEPTH: usize
     }
 }
 
-impl<T: Copy + PointeeSizeExpressible + AsPrimitive<f32>, const BIT_DEPTH: usize>
-    KatanaInitialStage<f32, T> for KatanaLut4x3<T, BIT_DEPTH>
+impl<T: Copy + PointeeSizeExpressible + AsPrimitive<f32>> KatanaInitialStage<f32, T>
+    for KatanaLut4x3<T>
 {
     fn to_pcs(&self, input: &[T]) -> Result<Vec<f32>, CmsError> {
         if input.len() % 4 != 0 {
@@ -327,11 +326,11 @@ fn stage_lut_4x3(
 
 pub(crate) fn katana_input_stage_lut_4x3<
     T: Copy + PointeeSizeExpressible + AsPrimitive<f32> + Send + Sync,
-    const BIT_DEPTH: usize,
 >(
     lut: &LutDataType,
     options: TransformOptions,
     pcs: DataColorSpace,
+    bit_depth: usize,
 ) -> Result<Box<dyn KatanaInitialStage<f32, T> + Send + Sync>, CmsError> {
     // There is 4 possible cases:
     // - All curves are non-linear
@@ -340,7 +339,7 @@ pub(crate) fn katana_input_stage_lut_4x3<
     // - All curves linear
     let lut = make_lut_4x3(lut, options, pcs)?;
 
-    let transform = KatanaLut4x3::<T, BIT_DEPTH> {
+    let transform = KatanaLut4x3::<T> {
         linearization: lut.linearization,
         interpolation_method: lut.interpolation_method,
         pcs: lut.pcs,
@@ -348,6 +347,7 @@ pub(crate) fn katana_input_stage_lut_4x3<
         grid_size: lut.grid_size,
         output: lut.output,
         _phantom: PhantomData,
+        bit_depth,
     };
     Ok(Box::new(transform))
 }

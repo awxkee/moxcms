@@ -42,10 +42,10 @@ pub(crate) struct TransformShaperQ2_13Sse<
     const DST_LAYOUT: u8,
     const LINEAR_CAP: usize,
     const GAMMA_LUT: usize,
-    const BIT_DEPTH: usize,
     const PRECISION: i32,
 > {
     pub(crate) profile: TransformMatrixShaperFixedPoint<i32, T, LINEAR_CAP>,
+    pub(crate) bit_depth: usize,
 }
 
 #[inline(always)]
@@ -60,9 +60,8 @@ impl<
     const DST_LAYOUT: u8,
     const LINEAR_CAP: usize,
     const GAMMA_LUT: usize,
-    const BIT_DEPTH: usize,
     const PRECISION: i32,
-> TransformShaperQ2_13Sse<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH, PRECISION>
+> TransformShaperQ2_13Sse<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP, GAMMA_LUT, PRECISION>
 where
     u32: AsPrimitive<T>,
 {
@@ -87,7 +86,7 @@ where
 
         let t = self.profile.adaptation_matrix.transpose();
 
-        let max_colors = ((1 << BIT_DEPTH) - 1).as_();
+        let max_colors = ((1 << self.bit_depth) - 1).as_();
 
         unsafe {
             let m0 = _mm_setr_epi16(
@@ -156,18 +155,9 @@ impl<
     const DST_LAYOUT: u8,
     const LINEAR_CAP: usize,
     const GAMMA_LUT: usize,
-    const BIT_DEPTH: usize,
     const PRECISION: i32,
 > TransformExecutor<T>
-    for TransformShaperQ2_13Sse<
-        T,
-        SRC_LAYOUT,
-        DST_LAYOUT,
-        LINEAR_CAP,
-        GAMMA_LUT,
-        BIT_DEPTH,
-        PRECISION,
-    >
+    for TransformShaperQ2_13Sse<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP, GAMMA_LUT, PRECISION>
 where
     u32: AsPrimitive<T>,
 {

@@ -33,27 +33,23 @@ use crate::{CmsError, Layout, Rgb, TransformExecutor, Vector3f};
 use num_traits::AsPrimitive;
 use std::marker::PhantomData;
 
-struct TransformRgbToGrayExtendedExecutor<
-    T,
-    const SRC_LAYOUT: u8,
-    const DST_LAYOUT: u8,
-    const BIT_DEPTH: usize,
-> {
+struct TransformRgbToGrayExtendedExecutor<T, const SRC_LAYOUT: u8, const DST_LAYOUT: u8> {
     linear_eval: Box<dyn ToneCurveEvaluator + Send + Sync>,
     gamma_eval: Box<dyn ToneCurveEvaluator + Send + Sync>,
     weights: Vector3f,
     _phantom: PhantomData<T>,
+    bit_depth: usize,
 }
 
 pub(crate) fn make_rgb_to_gray_extended<
     T: Copy + Default + PointeeSizeExpressible + Send + Sync + 'static + AsPrimitive<f32>,
-    const BIT_DEPTH: usize,
 >(
     src_layout: Layout,
     dst_layout: Layout,
     linear_eval: Box<dyn ToneCurveEvaluator + Send + Sync>,
     gamma_eval: Box<dyn ToneCurveEvaluator + Send + Sync>,
     weights: Vector3f,
+    bit_depth: usize,
 ) -> Box<dyn TransformExecutor<T> + Send + Sync>
 where
     u32: AsPrimitive<T>,
@@ -67,23 +63,23 @@ where
                 T,
                 { Layout::Rgb as u8 },
                 { Layout::Gray as u8 },
-                BIT_DEPTH,
             > {
                 linear_eval,
                 gamma_eval,
                 weights,
                 _phantom: PhantomData,
+                bit_depth,
             }),
             Layout::GrayAlpha => Box::new(TransformRgbToGrayExtendedExecutor::<
                 T,
                 { Layout::Rgb as u8 },
                 { Layout::GrayAlpha as u8 },
-                BIT_DEPTH,
             > {
                 linear_eval,
                 gamma_eval,
                 weights,
                 _phantom: PhantomData,
+                bit_depth,
             }),
             _ => unreachable!(),
         },
@@ -94,23 +90,23 @@ where
                 T,
                 { Layout::Rgba as u8 },
                 { Layout::Gray as u8 },
-                BIT_DEPTH,
             > {
                 linear_eval,
                 gamma_eval,
                 weights,
                 _phantom: PhantomData,
+                bit_depth,
             }),
             Layout::GrayAlpha => Box::new(TransformRgbToGrayExtendedExecutor::<
                 T,
                 { Layout::Rgba as u8 },
                 { Layout::GrayAlpha as u8 },
-                BIT_DEPTH,
             > {
                 linear_eval,
                 gamma_eval,
                 weights,
                 _phantom: PhantomData,
+                bit_depth,
             }),
             _ => unreachable!(),
         },
@@ -124,8 +120,7 @@ impl<
     T: Copy + Default + PointeeSizeExpressible + 'static + AsPrimitive<f32>,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
-    const BIT_DEPTH: usize,
-> TransformExecutor<T> for TransformRgbToGrayExtendedExecutor<T, SRC_LAYOUT, DST_LAYOUT, BIT_DEPTH>
+> TransformExecutor<T> for TransformRgbToGrayExtendedExecutor<T, SRC_LAYOUT, DST_LAYOUT>
 where
     u32: AsPrimitive<T>,
     f32: AsPrimitive<T>,
@@ -146,7 +141,7 @@ where
             return Err(CmsError::LaneMultipleOfChannels);
         }
 
-        let max_value = ((1u32 << BIT_DEPTH) - 1).as_();
+        let max_value = ((1u32 << self.bit_depth) - 1).as_();
 
         for (src, dst) in src
             .chunks_exact(src_channels)

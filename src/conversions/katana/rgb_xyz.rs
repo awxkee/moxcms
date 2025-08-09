@@ -32,24 +32,20 @@ use crate::{CmsError, ColorProfile, Layout, Matrix3f, PointeeSizeExpressible, Tr
 use num_traits::AsPrimitive;
 use std::marker::PhantomData;
 
-struct KatanaRgbLinearizationStage<
-    T: Clone,
-    const LAYOUT: u8,
-    const BIT_DEPTH: usize,
-    const LINEAR_CAP: usize,
-> {
+struct KatanaRgbLinearizationStage<T: Clone, const LAYOUT: u8, const LINEAR_CAP: usize> {
     r_lin: Box<[f32; LINEAR_CAP]>,
     g_lin: Box<[f32; LINEAR_CAP]>,
     b_lin: Box<[f32; LINEAR_CAP]>,
+    linear_cap: usize,
+    bit_depth: usize,
     _phantom: PhantomData<T>,
 }
 
 impl<
     T: Clone + AsPrimitive<f32> + PointeeSizeExpressible,
     const LAYOUT: u8,
-    const BIT_DEPTH: usize,
     const LINEAR_CAP: usize,
-> KatanaInitialStage<f32, T> for KatanaRgbLinearizationStage<T, LAYOUT, BIT_DEPTH, LINEAR_CAP>
+> KatanaInitialStage<f32, T> for KatanaRgbLinearizationStage<T, LAYOUT, LINEAR_CAP>
 {
     fn to_pcs(&self, input: &[T]) -> Result<Vec<f32>, CmsError> {
         let src_layout = Layout::from(LAYOUT);
@@ -59,13 +55,13 @@ impl<
         let mut dst = vec![0.; input.len() / src_layout.channels() * 3];
 
         let scale = if T::FINITE {
-            (LINEAR_CAP as f32 - 1.) / ((1 << BIT_DEPTH) - 1) as f32
+            (self.linear_cap as f32 - 1.) / ((1 << self.bit_depth) - 1) as f32
         } else {
             (T::NOT_FINITE_LINEAR_TABLE_SIZE - 1) as f32
         };
 
         let cap_value = if T::FINITE {
-            ((1 << BIT_DEPTH) - 1) as f32
+            ((1 << self.bit_depth) - 1) as f32
         } else {
             (T::NOT_FINITE_LINEAR_TABLE_SIZE - 1) as f32
         };
@@ -113,25 +109,28 @@ where
     let lin_stage: Box<dyn KatanaInitialStage<f32, T> + Send + Sync> = match layout {
         Layout::Rgb => {
             Box::new(
-                KatanaRgbLinearizationStage::<T, { Layout::Rgb as u8 }, BIT_DEPTH, LINEAR_CAP> {
+                KatanaRgbLinearizationStage::<T, { Layout::Rgb as u8 }, LINEAR_CAP> {
                     r_lin: lin_r,
                     g_lin: lin_g,
                     b_lin: lin_b,
+                    bit_depth: BIT_DEPTH,
+                    linear_cap: LINEAR_CAP,
                     _phantom: PhantomData,
                 },
             )
         }
-        Layout::Rgba => Box::new(KatanaRgbLinearizationStage::<
-            T,
-            { Layout::Rgba as u8 },
-            BIT_DEPTH,
-            LINEAR_CAP,
-        > {
-            r_lin: lin_r,
-            g_lin: lin_g,
-            b_lin: lin_b,
-            _phantom: PhantomData,
-        }),
+        Layout::Rgba => {
+            Box::new(
+                KatanaRgbLinearizationStage::<T, { Layout::Rgba as u8 }, LINEAR_CAP> {
+                    r_lin: lin_r,
+                    g_lin: lin_g,
+                    b_lin: lin_b,
+                    bit_depth: BIT_DEPTH,
+                    linear_cap: LINEAR_CAP,
+                    _phantom: PhantomData,
+                },
+            )
+        }
         Layout::Gray => unimplemented!("Gray should not be called on Rgb/Rgba execution path"),
         Layout::GrayAlpha => {
             unimplemented!("GrayAlpha should not be called on Rgb/Rgba execution path")

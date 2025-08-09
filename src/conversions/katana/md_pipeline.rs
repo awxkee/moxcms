@@ -43,16 +43,17 @@ use std::array::from_fn;
 use std::marker::PhantomData;
 
 #[derive(Default)]
-struct KatanaLutNx3<T, const BIT_DEPTH: usize> {
+struct KatanaLutNx3<T> {
     linearization: Vec<Vec<f32>>,
     clut: Vec<f32>,
     grid_size: u8,
     input_inks: usize,
     output: [Vec<f32>; 3],
     _phantom: PhantomData<T>,
+    bit_depth: usize,
 }
 
-struct KatanaLut3xN<T, const BIT_DEPTH: usize> {
+struct KatanaLut3xN<T> {
     linearization: [Vec<f32>; 3],
     clut: Vec<f32>,
     grid_size: u8,
@@ -61,17 +62,16 @@ struct KatanaLut3xN<T, const BIT_DEPTH: usize> {
     dst_layout: Layout,
     target_color_space: DataColorSpace,
     _phantom: PhantomData<T>,
+    bit_depth: usize,
 }
 
-impl<T: Copy + PointeeSizeExpressible + AsPrimitive<f32>, const BIT_DEPTH: usize>
-    KatanaLutNx3<T, BIT_DEPTH>
-{
+impl<T: Copy + PointeeSizeExpressible + AsPrimitive<f32>> KatanaLutNx3<T> {
     fn to_pcs_impl(&self, input: &[T]) -> Result<Vec<f32>, CmsError> {
         if input.len() % self.input_inks != 0 {
             return Err(CmsError::LaneMultipleOfChannels);
         }
         let norm_value = if T::FINITE {
-            1.0 / ((1u32 << BIT_DEPTH) - 1) as f32
+            1.0 / ((1u32 << self.bit_depth) - 1) as f32
         } else {
             1.0
         };
@@ -134,8 +134,8 @@ impl<T: Copy + PointeeSizeExpressible + AsPrimitive<f32>, const BIT_DEPTH: usize
     }
 }
 
-impl<T: Copy + PointeeSizeExpressible + AsPrimitive<f32>, const BIT_DEPTH: usize>
-    KatanaInitialStage<f32, T> for KatanaLutNx3<T, BIT_DEPTH>
+impl<T: Copy + PointeeSizeExpressible + AsPrimitive<f32>> KatanaInitialStage<f32, T>
+    for KatanaLutNx3<T>
 {
     fn to_pcs(&self, input: &[T]) -> Result<Vec<f32>, CmsError> {
         if input.len() % self.input_inks != 0 {
@@ -146,8 +146,8 @@ impl<T: Copy + PointeeSizeExpressible + AsPrimitive<f32>, const BIT_DEPTH: usize
     }
 }
 
-impl<T: Copy + PointeeSizeExpressible + AsPrimitive<f32>, const BIT_DEPTH: usize>
-    KatanaFinalStage<f32, T> for KatanaLut3xN<T, BIT_DEPTH>
+impl<T: Copy + PointeeSizeExpressible + AsPrimitive<f32>> KatanaFinalStage<f32, T>
+    for KatanaLut3xN<T>
 where
     f32: AsPrimitive<T>,
 {
@@ -167,7 +167,7 @@ where
         let md_lut = MultidimensionalLut::new(grid_sizes, 3, self.output_inks);
 
         let scale_value = if T::FINITE {
-            ((1u32 << BIT_DEPTH) - 1) as f32
+            ((1u32 << self.bit_depth) - 1) as f32
         } else {
             1.0
         };
@@ -209,15 +209,13 @@ where
     }
 }
 
-fn katana_make_lut_nx3<
-    T: Copy + PointeeSizeExpressible + AsPrimitive<f32>,
-    const BIT_DEPTH: usize,
->(
+fn katana_make_lut_nx3<T: Copy + PointeeSizeExpressible + AsPrimitive<f32>>(
     inks: usize,
     lut: &LutDataType,
     _: TransformOptions,
     _: DataColorSpace,
-) -> Result<KatanaLutNx3<T, BIT_DEPTH>, CmsError> {
+    bit_depth: usize,
+) -> Result<KatanaLutNx3<T>, CmsError> {
     if inks != lut.num_input_channels as usize {
         return Err(CmsError::UnsupportedProfileConnection);
     }
@@ -270,27 +268,26 @@ fn katana_make_lut_nx3<
         [lut.num_output_table_entries as usize * 2..lut.num_output_table_entries as usize * 3]
         .to_vec();
 
-    let transform = KatanaLutNx3::<T, BIT_DEPTH> {
+    let transform = KatanaLutNx3::<T> {
         linearization,
         clut: clut_table,
         grid_size: lut.num_clut_grid_points,
         output: [gamma_curve0, gamma_curve1, gamma_curve2],
         input_inks: inks,
         _phantom: PhantomData,
+        bit_depth,
     };
     Ok(transform)
 }
 
-fn katana_make_lut_3xn<
-    T: Copy + PointeeSizeExpressible + AsPrimitive<f32>,
-    const BIT_DEPTH: usize,
->(
+fn katana_make_lut_3xn<T: Copy + PointeeSizeExpressible + AsPrimitive<f32>>(
     inks: usize,
     dst_layout: Layout,
     lut: &LutDataType,
     _: TransformOptions,
     target_color_space: DataColorSpace,
-) -> Result<KatanaLut3xN<T, BIT_DEPTH>, CmsError> {
+    bit_depth: usize,
+) -> Result<KatanaLut3xN<T>, CmsError> {
     if lut.num_input_channels as usize != 3 {
         return Err(CmsError::UnsupportedProfileConnection);
     }
@@ -350,7 +347,7 @@ fn katana_make_lut_3xn<
         })
         .collect::<_>();
 
-    let transform = KatanaLut3xN::<T, BIT_DEPTH> {
+    let transform = KatanaLut3xN::<T> {
         linearization: [linear_curve0, linear_curve1, linear_curve2],
         clut: clut_table,
         grid_size: lut.num_clut_grid_points,
@@ -359,19 +356,20 @@ fn katana_make_lut_3xn<
         _phantom: PhantomData,
         target_color_space,
         dst_layout,
+        bit_depth,
     };
     Ok(transform)
 }
 
 pub(crate) fn katana_input_make_lut_nx3<
     T: Copy + PointeeSizeExpressible + AsPrimitive<f32> + Send + Sync,
-    const BIT_DEPTH: usize,
 >(
     src_layout: Layout,
     inks: usize,
     lut: &LutDataType,
     options: TransformOptions,
     pcs: DataColorSpace,
+    bit_depth: usize,
 ) -> Result<Box<dyn KatanaInitialStage<f32, T> + Send + Sync>, CmsError> {
     if pcs == DataColorSpace::Rgb {
         if lut.num_input_channels != 3 {
@@ -383,18 +381,18 @@ pub(crate) fn katana_input_make_lut_nx3<
     } else if lut.num_input_channels != src_layout.channels() as u8 {
         return Err(CmsError::InvalidInksCountForProfile);
     }
-    let z0 = katana_make_lut_nx3::<T, BIT_DEPTH>(inks, lut, options, pcs)?;
+    let z0 = katana_make_lut_nx3::<T>(inks, lut, options, pcs, bit_depth)?;
     Ok(Box::new(z0))
 }
 
 pub(crate) fn katana_output_make_lut_3xn<
     T: Copy + PointeeSizeExpressible + AsPrimitive<f32> + Send + Sync,
-    const BIT_DEPTH: usize,
 >(
     dst_layout: Layout,
     lut: &LutDataType,
     options: TransformOptions,
     target_color_space: DataColorSpace,
+    bit_depth: usize,
 ) -> Result<Box<dyn KatanaFinalStage<f32, T> + Send + Sync>, CmsError>
 where
     f32: AsPrimitive<T>,
@@ -404,12 +402,13 @@ where
     } else {
         dst_layout.channels()
     };
-    let z0 = katana_make_lut_3xn::<T, BIT_DEPTH>(
+    let z0 = katana_make_lut_3xn::<T>(
         real_inks,
         dst_layout,
         lut,
         options,
         target_color_space,
+        bit_depth,
     )?;
     Ok(Box::new(z0))
 }

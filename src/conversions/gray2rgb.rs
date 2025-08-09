@@ -36,22 +36,21 @@ struct TransformGray2RgbFusedExecutor<
     const SRC_LAYOUT: u8,
     const DEST_LAYOUT: u8,
     const BUCKET: usize,
-    const BIT_DEPTH: usize,
-    const GAMMA_LUT: usize,
 > {
     fused_gamma: Box<[T; BUCKET]>,
+    bit_depth: usize,
 }
 
 pub(crate) fn make_gray_to_x<
     T: Copy + Default + PointeeSizeExpressible + 'static + Send + Sync,
     const BUCKET: usize,
-    const BIT_DEPTH: usize,
-    const GAMMA_LUT: usize,
 >(
     src_layout: Layout,
     dst_layout: Layout,
     gray_linear: &[f32; BUCKET],
     gray_gamma: &[T; 65536],
+    bit_depth: usize,
+    gamma_lut: usize,
 ) -> Result<Box<dyn TransformExecutor<T> + Sync + Send>, CmsError>
 where
     u32: AsPrimitive<T>,
@@ -61,7 +60,7 @@ where
     }
 
     let mut fused_gamma = Box::new([T::default(); BUCKET]);
-    let max_lut_size = (GAMMA_LUT - 1) as f32;
+    let max_lut_size = (gamma_lut - 1) as f32;
     for (&src, dst) in gray_linear.iter().zip(fused_gamma.iter_mut()) {
         let possible_value = ((src * max_lut_size).round() as u32).min(max_lut_size as u32) as u16;
         *dst = gray_gamma[possible_value as usize];
@@ -74,40 +73,36 @@ where
                 { Layout::Gray as u8 },
                 { Layout::Rgb as u8 },
                 BUCKET,
-                BIT_DEPTH,
-                GAMMA_LUT,
             > {
                 fused_gamma,
+                bit_depth,
             })),
             Layout::Rgba => Ok(Box::new(TransformGray2RgbFusedExecutor::<
                 T,
                 { Layout::Gray as u8 },
                 { Layout::Rgba as u8 },
                 BUCKET,
-                BIT_DEPTH,
-                GAMMA_LUT,
             > {
                 fused_gamma,
+                bit_depth,
             })),
             Layout::Gray => Ok(Box::new(TransformGray2RgbFusedExecutor::<
                 T,
                 { Layout::Gray as u8 },
                 { Layout::Gray as u8 },
                 BUCKET,
-                BIT_DEPTH,
-                GAMMA_LUT,
             > {
                 fused_gamma,
+                bit_depth,
             })),
             Layout::GrayAlpha => Ok(Box::new(TransformGray2RgbFusedExecutor::<
                 T,
                 { Layout::Gray as u8 },
                 { Layout::GrayAlpha as u8 },
                 BUCKET,
-                BIT_DEPTH,
-                GAMMA_LUT,
             > {
                 fused_gamma,
+                bit_depth,
             })),
             _ => unreachable!(),
         },
@@ -117,40 +112,36 @@ where
                 { Layout::Gray as u8 },
                 { Layout::GrayAlpha as u8 },
                 BUCKET,
-                BIT_DEPTH,
-                GAMMA_LUT,
             > {
                 fused_gamma,
+                bit_depth,
             })),
             Layout::Rgba => Ok(Box::new(TransformGray2RgbFusedExecutor::<
                 T,
                 { Layout::Gray as u8 },
                 { Layout::Rgba as u8 },
                 BUCKET,
-                BIT_DEPTH,
-                GAMMA_LUT,
             > {
                 fused_gamma,
+                bit_depth,
             })),
             Layout::Gray => Ok(Box::new(TransformGray2RgbFusedExecutor::<
                 T,
                 { Layout::Gray as u8 },
                 { Layout::Gray as u8 },
                 BUCKET,
-                BIT_DEPTH,
-                GAMMA_LUT,
             > {
                 fused_gamma,
+                bit_depth,
             })),
             Layout::GrayAlpha => Ok(Box::new(TransformGray2RgbFusedExecutor::<
                 T,
                 { Layout::GrayAlpha as u8 },
                 { Layout::GrayAlpha as u8 },
                 BUCKET,
-                BIT_DEPTH,
-                GAMMA_LUT,
             > {
                 fused_gamma,
+                bit_depth,
             })),
             _ => unreachable!(),
         },
@@ -163,10 +154,7 @@ impl<
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
     const BUCKET: usize,
-    const BIT_DEPTH: usize,
-    const GAMMA_LUT: usize,
-> TransformExecutor<T>
-    for TransformGray2RgbFusedExecutor<T, SRC_LAYOUT, DST_LAYOUT, BUCKET, BIT_DEPTH, GAMMA_LUT>
+> TransformExecutor<T> for TransformGray2RgbFusedExecutor<T, SRC_LAYOUT, DST_LAYOUT, BUCKET>
 where
     u32: AsPrimitive<T>,
 {
@@ -188,7 +176,7 @@ where
 
         let is_gray_alpha = src_cn == Layout::GrayAlpha;
 
-        let max_value: T = ((1u32 << BIT_DEPTH as u32) - 1u32).as_();
+        let max_value: T = ((1u32 << self.bit_depth as u32) - 1u32).as_();
 
         for (src, dst) in src
             .chunks_exact(src_channels)
@@ -220,20 +208,19 @@ struct TransformGrayToRgbExecutor<
     const SRC_LAYOUT: u8,
     const DEST_LAYOUT: u8,
     const BUCKET: usize,
-    const BIT_DEPTH: usize,
-    const GAMMA_LUT: usize,
 > {
     gray_linear: Box<[f32; BUCKET]>,
     red_gamma: Box<[T; 65536]>,
     green_gamma: Box<[T; 65536]>,
     blue_gamma: Box<[T; 65536]>,
+    bit_depth: usize,
+    gamma_lut: usize,
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn make_gray_to_unfused<
     T: Copy + Default + PointeeSizeExpressible + 'static + Send + Sync,
     const BUCKET: usize,
-    const BIT_DEPTH: usize,
-    const GAMMA_LUT: usize,
 >(
     src_layout: Layout,
     dst_layout: Layout,
@@ -241,6 +228,8 @@ pub(crate) fn make_gray_to_unfused<
     red_gamma: Box<[T; 65536]>,
     green_gamma: Box<[T; 65536]>,
     blue_gamma: Box<[T; 65536]>,
+    bit_depth: usize,
+    gamma_lut: usize,
 ) -> Result<Box<dyn TransformExecutor<T> + Sync + Send>, CmsError>
 where
     u32: AsPrimitive<T>,
@@ -258,52 +247,52 @@ where
                 { Layout::Gray as u8 },
                 { Layout::Rgb as u8 },
                 BUCKET,
-                BIT_DEPTH,
-                GAMMA_LUT,
             > {
                 gray_linear,
                 red_gamma,
                 green_gamma,
                 blue_gamma,
+                bit_depth,
+                gamma_lut,
             })),
             Layout::Rgba => Ok(Box::new(TransformGrayToRgbExecutor::<
                 T,
                 { Layout::Gray as u8 },
                 { Layout::Rgba as u8 },
                 BUCKET,
-                BIT_DEPTH,
-                GAMMA_LUT,
             > {
                 gray_linear,
                 red_gamma,
                 green_gamma,
                 blue_gamma,
+                bit_depth,
+                gamma_lut,
             })),
             Layout::Gray => Ok(Box::new(TransformGrayToRgbExecutor::<
                 T,
                 { Layout::Gray as u8 },
                 { Layout::Gray as u8 },
                 BUCKET,
-                BIT_DEPTH,
-                GAMMA_LUT,
             > {
                 gray_linear,
                 red_gamma,
                 green_gamma,
                 blue_gamma,
+                bit_depth,
+                gamma_lut,
             })),
             Layout::GrayAlpha => Ok(Box::new(TransformGrayToRgbExecutor::<
                 T,
                 { Layout::Gray as u8 },
                 { Layout::GrayAlpha as u8 },
                 BUCKET,
-                BIT_DEPTH,
-                GAMMA_LUT,
             > {
                 gray_linear,
                 red_gamma,
                 green_gamma,
                 blue_gamma,
+                bit_depth,
+                gamma_lut,
             })),
             _ => Err(CmsError::UnsupportedProfileConnection),
         },
@@ -313,52 +302,52 @@ where
                 { Layout::Gray as u8 },
                 { Layout::GrayAlpha as u8 },
                 BUCKET,
-                BIT_DEPTH,
-                GAMMA_LUT,
             > {
                 gray_linear,
                 red_gamma,
                 green_gamma,
                 blue_gamma,
+                bit_depth,
+                gamma_lut,
             })),
             Layout::Rgba => Ok(Box::new(TransformGrayToRgbExecutor::<
                 T,
                 { Layout::Gray as u8 },
                 { Layout::Rgba as u8 },
                 BUCKET,
-                BIT_DEPTH,
-                GAMMA_LUT,
             > {
                 gray_linear,
                 red_gamma,
                 green_gamma,
                 blue_gamma,
+                bit_depth,
+                gamma_lut,
             })),
             Layout::Gray => Ok(Box::new(TransformGrayToRgbExecutor::<
                 T,
                 { Layout::Gray as u8 },
                 { Layout::Gray as u8 },
                 BUCKET,
-                BIT_DEPTH,
-                GAMMA_LUT,
             > {
                 gray_linear,
                 red_gamma,
                 green_gamma,
                 blue_gamma,
+                bit_depth,
+                gamma_lut,
             })),
             Layout::GrayAlpha => Ok(Box::new(TransformGrayToRgbExecutor::<
                 T,
                 { Layout::GrayAlpha as u8 },
                 { Layout::GrayAlpha as u8 },
                 BUCKET,
-                BIT_DEPTH,
-                GAMMA_LUT,
             > {
                 gray_linear,
                 red_gamma,
                 green_gamma,
                 blue_gamma,
+                bit_depth,
+                gamma_lut,
             })),
             _ => Err(CmsError::UnsupportedProfileConnection),
         },
@@ -371,10 +360,7 @@ impl<
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
     const BUCKET: usize,
-    const BIT_DEPTH: usize,
-    const GAMMA_LUT: usize,
-> TransformExecutor<T>
-    for TransformGrayToRgbExecutor<T, SRC_LAYOUT, DST_LAYOUT, BUCKET, BIT_DEPTH, GAMMA_LUT>
+> TransformExecutor<T> for TransformGrayToRgbExecutor<T, SRC_LAYOUT, DST_LAYOUT, BUCKET>
 where
     u32: AsPrimitive<T>,
 {
@@ -396,8 +382,8 @@ where
 
         let is_gray_alpha = src_cn == Layout::GrayAlpha;
 
-        let max_value: T = ((1u32 << BIT_DEPTH as u32) - 1u32).as_();
-        let max_lut_size = (GAMMA_LUT - 1) as f32;
+        let max_value: T = ((1u32 << self.bit_depth as u32) - 1u32).as_();
+        let max_lut_size = (self.gamma_lut - 1) as f32;
 
         for (src, dst) in src
             .chunks_exact(src_channels)
