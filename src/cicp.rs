@@ -31,7 +31,7 @@ use crate::gamma::{
     pq_to_linear, smpte240_to_linear, smpte428_to_linear,
 };
 use crate::{
-    Chromaticity,
+    Chromaticity, ColorProfile, Matrix3d, Matrix3f, XyYRepresentable,
     err::CmsError,
     trc::{ToneReprCurve, build_trc_table, curve_from_gamma},
 };
@@ -272,6 +272,52 @@ impl ColorPrimaries {
         green: Chromaticity { x: 0.295, y: 0.605 },
         blue: Chromaticity { x: 0.155, y: 0.077 },
     };
+}
+
+impl ColorPrimaries {
+    /// Returns RGB -> XYZ conversion matrix
+    ///
+    /// # Arguments
+    ///
+    /// * `white_point`: [Chromaticity] or [crate::XyY] or any item conforming [XyYRepresentable]
+    ///
+    /// returns: [Matrix3d]
+    pub fn transform_to_xyz_d(self, white_point: impl XyYRepresentable) -> Matrix3d {
+        let red_xyz = self.red.to_scaled_xyzd();
+        let green_xyz = self.green.to_scaled_xyzd();
+        let blue_xyz = self.blue.to_scaled_xyzd();
+
+        let xyz_matrix = Matrix3d {
+            v: [
+                [red_xyz.x, green_xyz.x, blue_xyz.x],
+                [red_xyz.y, green_xyz.y, blue_xyz.y],
+                [red_xyz.z, green_xyz.z, blue_xyz.z],
+            ],
+        };
+        ColorProfile::rgb_to_xyz_d(xyz_matrix, white_point.to_xyy().to_xyzd())
+    }
+
+    /// Returns RGB -> XYZ conversion matrix
+    ///
+    /// # Arguments
+    ///
+    /// * `white_point`: [Chromaticity] or [crate::XyY] or any item conforming [XyYRepresentable]
+    ///
+    /// returns: [Matrix3f]
+    pub fn transform_to_xyz(self, white_point: impl XyYRepresentable) -> Matrix3f {
+        let red_xyz = self.red.to_scaled_xyz();
+        let green_xyz = self.green.to_scaled_xyz();
+        let blue_xyz = self.blue.to_scaled_xyz();
+
+        let xyz_matrix = Matrix3f {
+            v: [
+                [red_xyz.x, green_xyz.x, blue_xyz.x],
+                [red_xyz.y, green_xyz.y, blue_xyz.y],
+                [red_xyz.z, green_xyz.z, blue_xyz.z],
+            ],
+        };
+        ColorProfile::rgb_to_xyz_static(xyz_matrix, white_point.to_xyy().to_xyz())
+    }
 }
 
 /// See [Rec. ITU-T H.273 (12/2016)](https://www.itu.int/rec/T-REC-H.273-201612-I/en) Table 3
@@ -562,5 +608,35 @@ impl TryFrom<u8> for MatrixCoefficients {
             14 => Ok(MatrixCoefficients::ICtCp),
             _ => Err(CmsError::InvalidCicp),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::WHITE_POINT_D65;
+
+    #[test]
+    fn test_to_xyz_using_absolute_coordinates() {
+        let conversion_matrix = ColorPrimaries::BT_709.transform_to_xyz_d(WHITE_POINT_D65);
+        assert!((conversion_matrix.v[0][0] - 0.4121524015214193).abs() < 1e-14);
+        assert!((conversion_matrix.v[1][1] - 0.7153537403945436).abs() < 1e-14);
+        assert!((conversion_matrix.v[2][2] - 0.9497138466283235).abs() < 1e-14);
+    }
+
+    #[test]
+    fn test_to_xyz_using_absolute_coordinates_xyz() {
+        let conversion_matrix = ColorPrimaries::XYZ.transform_to_xyz_d(WHITE_POINT_D65);
+        assert!((conversion_matrix.v[0][0] - 0.95015469385536477).abs() < 1e-14);
+        assert!((conversion_matrix.v[1][1] - 1.0).abs() < 1e-14);
+        assert!((conversion_matrix.v[2][2] - 1.0882590676722474).abs() < 1e-14);
+    }
+
+    #[test]
+    fn test_to_xyz_using_absolute_coordinates_f() {
+        let conversion_matrix = ColorPrimaries::BT_709.transform_to_xyz(WHITE_POINT_D65);
+        assert!((conversion_matrix.v[0][0] - 0.4121524015214193).abs() < 1e-5);
+        assert!((conversion_matrix.v[1][1] - 0.7153537403945436).abs() < 1e-5);
+        assert!((conversion_matrix.v[2][2] - 0.9497138466283235).abs() < 1e-5);
     }
 }

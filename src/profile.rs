@@ -32,12 +32,12 @@ use crate::cicp::{
 };
 use crate::dat::ColorDateTime;
 use crate::err::CmsError;
-use crate::matrix::{Matrix3f, XyY, Xyz};
+use crate::matrix::{Matrix3f, Xyz};
 use crate::reader::s15_fixed16_number_to_float;
 use crate::safe_math::{SafeAdd, SafeMul};
 use crate::tag::{TAG_SIZE, Tag};
 use crate::trc::ToneReprCurve;
-use crate::{Chromaticity, Layout, Matrix3d, Vector3d, Xyzd, adapt_to_d50_d};
+use crate::{Chromaticity, Layout, Matrix3d, Vector3d, XyY, Xyzd, adapt_to_d50_d};
 use std::io::Read;
 
 const MAX_PROFILE_SIZE: usize = 1024 * 1024 * 10; // 10 MB max, for Fogra39 etc
@@ -1225,6 +1225,15 @@ impl ColorProfile {
     }
 
     pub const fn rgb_to_xyz(&self, xyz_matrix: Matrix3f, wp: Xyz) -> Matrix3f {
+        let xyz_inverse = xyz_matrix.inverse();
+        let s = xyz_inverse.mul_vector(wp.to_vector());
+        let mut v = xyz_matrix.mul_row_vector::<0>(s);
+        v = v.mul_row_vector::<1>(s);
+        v.mul_row_vector::<2>(s)
+    }
+
+    ///TODO: make primary instead of [rgb_to_xyz] in the next major version
+    pub(crate) const fn rgb_to_xyz_static(xyz_matrix: Matrix3f, wp: Xyz) -> Matrix3f {
         let xyz_inverse = xyz_matrix.inverse();
         let s = xyz_inverse.mul_vector(wp.to_vector());
         let mut v = xyz_matrix.mul_row_vector::<0>(s);
