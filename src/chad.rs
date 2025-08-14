@@ -26,8 +26,8 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-use crate::matrix::{Matrix3f, Vector3f, XyY, Xyz};
-use crate::{Chromaticity, Matrix3d, Vector3d};
+use crate::matrix::{Matrix3f, Vector3f, Xyz};
+use crate::{Chromaticity, Matrix3d, Vector3d, XyY};
 
 pub(crate) const BRADFORD_D: Matrix3d = Matrix3d {
     v: [

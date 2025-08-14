@@ -80,16 +80,19 @@ mod trc;
 mod writer;
 mod yrg;
 // Simple math analysis module
+mod chromaticity;
 mod dt_ucs;
 mod helpers;
 mod lut_hint;
 mod matan;
 mod srlab2;
+mod xyy;
 
 pub use chad::{
     adapt_to_d50, adapt_to_d50_d, adapt_to_illuminant, adapt_to_illuminant_d,
     adapt_to_illuminant_xyz, adapt_to_illuminant_xyz_d, adaption_matrix, adaption_matrix_d,
 };
+pub use chromaticity::Chromaticity;
 pub use cicp::{CicpColorPrimaries, ColorPrimaries, MatrixCoefficients, TransferCharacteristics};
 pub use dat::ColorDateTime;
 pub use defaults::{
@@ -106,9 +109,8 @@ pub use lab::Lab;
 pub use luv::{LCh, Luv};
 pub use math::rounding_div_ceil;
 pub use matrix::{
-    BT2020_MATRIX, Chromaticity, DISPLAY_P3_MATRIX, Matrix3, Matrix3d, Matrix3f, Matrix4f,
-    SRGB_MATRIX, Vector3, Vector3d, Vector3f, Vector3i, Vector3u, Vector4, Vector4d, Vector4f,
-    Vector4i, XyY, Xyz, Xyzd,
+    BT2020_MATRIX, DISPLAY_P3_MATRIX, Matrix3, Matrix3d, Matrix3f, Matrix4f, SRGB_MATRIX, Vector3,
+    Vector3d, Vector3f, Vector3i, Vector3u, Vector4, Vector4d, Vector4f, Vector4i, Xyz, Xyzd,
 };
 pub use nd_array::{Cube, Hypercube};
 pub use oklab::Oklab;
@@ -127,4 +129,5 @@ pub use transform::{
     TransformF32BitExecutor, TransformF64BitExecutor, TransformOptions,
 };
 pub use trc::{GammaLutInterpolate, ToneCurveEvaluator, ToneReprCurve, curve_from_gamma};
+pub use xyy::{XyY, XyYRepresentable};
 pub use yrg::{Ych, Yrg, cie_y_1931_to_cie_y_2006};
