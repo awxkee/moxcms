@@ -33,11 +33,12 @@ use crate::encode_gray_lut::encode_gray_lut;
 use image::DynamicImage;
 use moxcms::ProfileClass::ColorSpace;
 use moxcms::{
-    BarycentricWeightScale, Chromaticity, CicpColorPrimaries, CicpProfile, ColorPrimaries,
-    ColorProfile, Cube, DataColorSpace, InterpolationMethod, Layout, LutMultidimensionalType,
-    LutStore, LutWarehouse, Matrix3d, Matrix3f, MatrixCoefficients, RenderingIntent, Rgb,
-    ToneReprCurve, TransferCharacteristics, TransformOptions, Vector3, Vector3d, WHITE_POINT_D50,
-    WHITE_POINT_D65, Xyz, Xyzd, adapt_to_illuminant_d, adaption_matrix_d,
+    BarycentricWeightScale, Chromaticity, CicpColorPrimaries, CicpProfile, ColorDateTime,
+    ColorPrimaries, ColorProfile, Cube, DataColorSpace, InterpolationMethod, Layout,
+    LutMultidimensionalType, LutStore, LutWarehouse, Matrix3d, Matrix3f, MatrixCoefficients,
+    RenderingIntent, Rgb, ToneReprCurve, TransferCharacteristics, TransformOptions, Vector3,
+    Vector3d, WHITE_POINT_D50, WHITE_POINT_D65, Xyz, Xyzd, adapt_to_illuminant_d,
+    adaption_matrix_d,
 };
 use std::fs;
 use std::ops::Mul;

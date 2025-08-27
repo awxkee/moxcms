@@ -26,12 +26,9 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+use crate::conversions::katana::md_nx3::interpolate_out_function;
 use crate::conversions::katana::{KatanaFinalStage, KatanaInitialStage};
-use crate::conversions::md_lut::{
-    MultidimensionalLut, linear_3i_vec3f_direct, linear_4i_vec3f, linear_5i_vec3f, linear_6i_vec3f,
-    linear_7i_vec3f, linear_8i_vec3f, linear_9i_vec3f, linear_10i_vec3f, linear_11i_vec3f,
-    linear_12i_vec3f, linear_13i_vec3f, linear_14i_vec3f, linear_15i_vec3f, tetra_3i_to_any_vec,
-};
+use crate::conversions::md_lut::{MultidimensionalLut, tetra_3i_to_any_vec};
 use crate::profile::LutDataType;
 use crate::safe_math::{SafeMul, SafePowi};
 use crate::trc::lut_interp_linear_float;
@@ -92,25 +89,7 @@ impl<T: Copy + PointeeSizeExpressible + AsPrimitive<f32>> KatanaLutNx3<T> {
 
         let mut dst = vec![0.; (input.len() / layout.channels()) * 3];
 
-        const OUT: usize = 3;
-
-        let fetcher = match layout {
-            Layout::Rgb => linear_3i_vec3f_direct::<OUT>,
-            Layout::Rgba => linear_4i_vec3f::<OUT>,
-            Layout::Gray => unreachable!(),
-            Layout::GrayAlpha => unreachable!(),
-            Layout::Inks5 => linear_5i_vec3f::<OUT>,
-            Layout::Inks6 => linear_6i_vec3f::<OUT>,
-            Layout::Inks7 => linear_7i_vec3f::<OUT>,
-            Layout::Inks8 => linear_8i_vec3f::<OUT>,
-            Layout::Inks9 => linear_9i_vec3f::<OUT>,
-            Layout::Inks10 => linear_10i_vec3f::<OUT>,
-            Layout::Inks11 => linear_11i_vec3f::<OUT>,
-            Layout::Inks12 => linear_12i_vec3f::<OUT>,
-            Layout::Inks13 => linear_13i_vec3f::<OUT>,
-            Layout::Inks14 => linear_14i_vec3f::<OUT>,
-            Layout::Inks15 => linear_15i_vec3f::<OUT>,
-        };
+        let fetcher = interpolate_out_function(layout);
 
         for (dest, src) in dst
             .chunks_exact_mut(3)
