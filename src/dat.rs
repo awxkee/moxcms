@@ -28,7 +28,7 @@
  */
 use crate::CmsError;
 use crate::writer::write_u16_be;
-use chrono::{Datelike, Timelike, Utc};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, Ord, PartialOrd, Eq, PartialEq, Default)]
@@ -39,6 +39,34 @@ pub struct ColorDateTime {
     pub hours: u16,
     pub minutes: u16,
     pub seconds: u16,
+}
+
+fn is_leap(year: i32) -> bool {
+    (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0)
+}
+
+fn days_in_month(year: i32, month: i32) -> i32 {
+    match month {
+        1 => 31,
+        2 => {
+            if is_leap(year) {
+                29
+            } else {
+                28
+            }
+        }
+        3 => 31,
+        4 => 30,
+        5 => 31,
+        6 => 30,
+        7 => 31,
+        8 => 31,
+        9 => 30,
+        10 => 31,
+        11 => 30,
+        12 => 31,
+        _ => unreachable!("Unknown month"),
+    }
 }
 
 impl ColorDateTime {
@@ -65,14 +93,46 @@ impl ColorDateTime {
 
     /// Creates a new `ColorDateTime` from the current system time (UTC)
     pub fn now() -> Self {
-        let now = Utc::now();
+        let now = match SystemTime::now().duration_since(UNIX_EPOCH) {
+            Ok(v) => v,
+            Err(_) => return Self::default(),
+        };
+        let mut days = (now.as_secs() / 86_400) as i64;
+        let secs_of_day = (now.as_secs() % 86_400) as i64;
+
+        let mut year = 1970;
+        loop {
+            let year_days = if is_leap(year) { 366 } else { 365 };
+            if days >= year_days {
+                days -= year_days;
+                year += 1;
+            } else {
+                break;
+            }
+        }
+
+        let mut month = 1;
+        loop {
+            let mdays = days_in_month(year, month);
+            if days >= mdays as i64 {
+                days -= mdays as i64;
+                month += 1;
+            } else {
+                break;
+            }
+        }
+        let day = days + 1; // days from zero based to 1 base
+
+        let hour = secs_of_day / 3600;
+        let min = (secs_of_day % 3600) / 60;
+        let sec = secs_of_day % 60;
         Self {
-            year: now.year() as u16,
-            month: now.month() as u16,
-            day_of_the_month: now.day() as u16,
-            hours: now.hour() as u16,
-            minutes: now.minute() as u16,
-            seconds: now.second() as u16,
+            year: year as u16,
+            month: month as u16,
+            day_of_the_month: day as u16,
+            hours: hour as u16,
+            minutes: min as u16,
+            seconds: sec as u16,
         }
     }
 

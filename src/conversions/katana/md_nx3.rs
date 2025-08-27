@@ -30,7 +30,7 @@ use crate::conversions::katana::KatanaInitialStage;
 use crate::conversions::katana::md3x3::MultidimensionalDirection;
 use crate::conversions::katana::md4x3::{execute_matrix_stage3, execute_simple_curves3};
 use crate::conversions::md_lut::{
-    MultidimensionalLut, linear_1i_vec3f, linear_2i_vec3f_direct, linear_3i_vec3f_direct,
+    MultidimensionalLut, NVector, linear_1i_vec3f, linear_2i_vec3f_direct, linear_3i_vec3f_direct,
     linear_4i_vec3f, linear_5i_vec3f, linear_6i_vec3f, linear_7i_vec3f, linear_8i_vec3f,
     linear_9i_vec3f, linear_10i_vec3f, linear_11i_vec3f, linear_12i_vec3f, linear_13i_vec3f,
     linear_14i_vec3f, linear_15i_vec3f,
@@ -60,6 +60,30 @@ struct MultidimensionalNx3<
     _phantom: PhantomData<T>,
 }
 
+#[inline(never)]
+pub(crate) fn interpolate_out_function(
+    layout: Layout,
+) -> fn(lut: &MultidimensionalLut, arr: &[f32], inputs: &[f32]) -> NVector<f32, 3> {
+    const OUT: usize = 3;
+    match layout {
+        Layout::Rgb => linear_3i_vec3f_direct::<OUT>,
+        Layout::Rgba => linear_4i_vec3f::<OUT>,
+        Layout::Gray => linear_1i_vec3f::<OUT>,
+        Layout::GrayAlpha => linear_2i_vec3f_direct::<OUT>,
+        Layout::Inks5 => linear_5i_vec3f::<OUT>,
+        Layout::Inks6 => linear_6i_vec3f::<OUT>,
+        Layout::Inks7 => linear_7i_vec3f::<OUT>,
+        Layout::Inks8 => linear_8i_vec3f::<OUT>,
+        Layout::Inks9 => linear_9i_vec3f::<OUT>,
+        Layout::Inks10 => linear_10i_vec3f::<OUT>,
+        Layout::Inks11 => linear_11i_vec3f::<OUT>,
+        Layout::Inks12 => linear_12i_vec3f::<OUT>,
+        Layout::Inks13 => linear_13i_vec3f::<OUT>,
+        Layout::Inks14 => linear_14i_vec3f::<OUT>,
+        Layout::Inks15 => linear_15i_vec3f::<OUT>,
+    }
+}
+
 impl<
     T: Copy + Default + AsPrimitive<f32> + PointeeSizeExpressible + Send + Sync,
     const BIT_DEPTH: usize,
@@ -81,33 +105,15 @@ impl<
         // OR B - A A - curves stage
 
         if let (Some(a_curves), Some(clut)) = (self.a_curves.as_ref(), self.clut.as_ref()) {
-            const OUT: usize = 3;
-
             let layout = Layout::from_inks(self.input_inks);
-
-            let fetcher = match layout {
-                Layout::Rgb => linear_3i_vec3f_direct::<OUT>,
-                Layout::Rgba => linear_4i_vec3f::<OUT>,
-                Layout::Gray => linear_1i_vec3f::<OUT>,
-                Layout::GrayAlpha => linear_2i_vec3f_direct::<OUT>,
-                Layout::Inks5 => linear_5i_vec3f::<OUT>,
-                Layout::Inks6 => linear_6i_vec3f::<OUT>,
-                Layout::Inks7 => linear_7i_vec3f::<OUT>,
-                Layout::Inks8 => linear_8i_vec3f::<OUT>,
-                Layout::Inks9 => linear_9i_vec3f::<OUT>,
-                Layout::Inks10 => linear_10i_vec3f::<OUT>,
-                Layout::Inks11 => linear_11i_vec3f::<OUT>,
-                Layout::Inks12 => linear_12i_vec3f::<OUT>,
-                Layout::Inks13 => linear_13i_vec3f::<OUT>,
-                Layout::Inks14 => linear_14i_vec3f::<OUT>,
-                Layout::Inks15 => linear_15i_vec3f::<OUT>,
-            };
 
             let mut inks = vec![0.; self.input_inks];
 
             if clut.is_empty() {
                 return Err(CmsError::InvalidAtoBLut);
             }
+
+            let fetcher = interpolate_out_function(layout);
 
             let md_lut = MultidimensionalLut::new(self.grid_size, self.input_inks, 3);
 
