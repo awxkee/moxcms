@@ -46,7 +46,6 @@ use std::marker::PhantomData;
 
 struct MultidimensionalNx3<
     T: Copy + Default + AsPrimitive<f32> + PointeeSizeExpressible + Send + Sync,
-    const BIT_DEPTH: usize,
 > {
     a_curves: Option<Vec<Vec<f32>>>,
     m_curves: Option<Box<[Vec<f32>; 3]>>,
@@ -58,6 +57,7 @@ struct MultidimensionalNx3<
     grid_size: [u8; 16],
     input_inks: usize,
     _phantom: PhantomData<T>,
+    bit_depth: usize,
 }
 
 #[inline(never)]
@@ -84,14 +84,12 @@ pub(crate) fn interpolate_out_function(
     }
 }
 
-impl<
-    T: Copy + Default + AsPrimitive<f32> + PointeeSizeExpressible + Send + Sync,
-    const BIT_DEPTH: usize,
-> MultidimensionalNx3<T, BIT_DEPTH>
+impl<T: Copy + Default + AsPrimitive<f32> + PointeeSizeExpressible + Send + Sync>
+    MultidimensionalNx3<T>
 {
     fn to_pcs_impl(&self, input: &[T], dst: &mut [f32]) -> Result<(), CmsError> {
         let norm_value = if T::FINITE {
-            1.0 / ((1u32 << BIT_DEPTH) - 1) as f32
+            1.0 / ((1u32 << self.bit_depth) - 1) as f32
         } else {
             1.0
         };
@@ -151,10 +149,8 @@ impl<
     }
 }
 
-impl<
-    T: Copy + Default + AsPrimitive<f32> + PointeeSizeExpressible + Send + Sync,
-    const BIT_DEPTH: usize,
-> KatanaInitialStage<f32, T> for MultidimensionalNx3<T, BIT_DEPTH>
+impl<T: Copy + Default + AsPrimitive<f32> + PointeeSizeExpressible + Send + Sync>
+    KatanaInitialStage<f32, T> for MultidimensionalNx3<T>
 {
     fn to_pcs(&self, input: &[T]) -> Result<Vec<f32>, CmsError> {
         if input.len() % self.input_inks != 0 {
@@ -170,13 +166,13 @@ impl<
 
 fn make_multidimensional_nx3<
     T: Copy + Default + AsPrimitive<f32> + PointeeSizeExpressible + Send + Sync,
-    const BIT_DEPTH: usize,
 >(
     mab: &LutMultidimensionalType,
     _: TransformOptions,
     _: DataColorSpace,
     direction: MultidimensionalDirection,
-) -> Result<MultidimensionalNx3<T, BIT_DEPTH>, CmsError> {
+    bit_depth: usize,
+) -> Result<MultidimensionalNx3<T>, CmsError> {
     if mab.num_output_channels != 3 {
         return Err(CmsError::UnsupportedProfileConnection);
     }
@@ -251,7 +247,7 @@ fn make_multidimensional_nx3<
 
     let bias = mab.bias.cast();
 
-    let transform = MultidimensionalNx3::<T, BIT_DEPTH> {
+    let transform = MultidimensionalNx3::<T> {
         a_curves,
         b_curves,
         m_curves,
@@ -262,6 +258,7 @@ fn make_multidimensional_nx3<
         bias,
         input_inks: mab.num_input_channels as usize,
         _phantom: PhantomData,
+        bit_depth,
     };
 
     Ok(transform)
@@ -269,12 +266,12 @@ fn make_multidimensional_nx3<
 
 pub(crate) fn katana_multi_dimensional_nx3_to_pcs<
     T: Copy + Default + AsPrimitive<f32> + PointeeSizeExpressible + Send + Sync,
-    const BIT_DEPTH: usize,
 >(
     src_layout: Layout,
     mab: &LutMultidimensionalType,
     options: TransformOptions,
     pcs: DataColorSpace,
+    bit_depth: usize,
 ) -> Result<Box<dyn KatanaInitialStage<f32, T> + Send + Sync>, CmsError> {
     if pcs == DataColorSpace::Rgb {
         if mab.num_input_channels != 3 {
@@ -286,11 +283,12 @@ pub(crate) fn katana_multi_dimensional_nx3_to_pcs<
     } else if mab.num_input_channels != src_layout.channels() as u8 {
         return Err(CmsError::InvalidInksCountForProfile);
     }
-    let transform = make_multidimensional_nx3::<T, BIT_DEPTH>(
+    let transform = make_multidimensional_nx3::<T>(
         mab,
         options,
         pcs,
         MultidimensionalDirection::DeviceToPcs,
+        bit_depth,
     )?;
     Ok(Box::new(transform))
 }

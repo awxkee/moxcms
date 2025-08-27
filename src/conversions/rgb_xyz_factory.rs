@@ -70,41 +70,29 @@ impl RgbXyzFactory<u16> for u16 {
             {
                 use crate::conversions::rgbxyz_fixed::make_rgb_xyz_q2_13_transform_avx2;
                 if std::arch::is_x86_feature_detected!("avx2") {
-                    return make_rgb_xyz_q2_13_transform_avx2::<
-                        u16,
-                        LINEAR_CAP,
-                        GAMMA_LUT,
-                        BIT_DEPTH,
-                        FIXED_POINT_SCALE,
-                    >(src_layout, dst_layout, profile);
+                    return make_rgb_xyz_q2_13_transform_avx2::<u16, LINEAR_CAP, FIXED_POINT_SCALE>(
+                        src_layout, dst_layout, profile, GAMMA_LUT, BIT_DEPTH,
+                    );
                 }
             }
             #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"))]
             {
                 use crate::conversions::rgbxyz_fixed::make_rgb_xyz_q2_13_transform_sse_41;
                 if std::arch::is_x86_feature_detected!("sse4.1") {
-                    return make_rgb_xyz_q2_13_transform_sse_41::<
-                        u16,
-                        LINEAR_CAP,
-                        GAMMA_LUT,
-                        BIT_DEPTH,
-                        FIXED_POINT_SCALE,
-                    >(src_layout, dst_layout, profile);
+                    return make_rgb_xyz_q2_13_transform_sse_41::<u16, LINEAR_CAP, FIXED_POINT_SCALE>(
+                        src_layout, dst_layout, profile, GAMMA_LUT, BIT_DEPTH,
+                    );
                 }
             }
             #[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
             {
-                return make_rgb_xyz_q2_13::<
-                    u16,
-                    LINEAR_CAP,
-                    GAMMA_LUT,
-                    BIT_DEPTH,
-                    FIXED_POINT_SCALE,
-                >(src_layout, dst_layout, profile);
+                return make_rgb_xyz_q2_13::<u16, LINEAR_CAP, FIXED_POINT_SCALE>(
+                    src_layout, dst_layout, profile, GAMMA_LUT, BIT_DEPTH,
+                );
             }
         }
-        make_rgb_xyz_rgb_transform::<u16, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>(
-            src_layout, dst_layout, profile,
+        make_rgb_xyz_rgb_transform::<u16, LINEAR_CAP>(
+            src_layout, dst_layout, profile, GAMMA_LUT, BIT_DEPTH,
         )
     }
 }
@@ -121,41 +109,29 @@ impl RgbXyzFactory<f32> for f32 {
             {
                 use crate::conversions::rgbxyz_fixed::make_rgb_xyz_q2_13_transform_avx2;
                 if std::arch::is_x86_feature_detected!("avx2") {
-                    return make_rgb_xyz_q2_13_transform_avx2::<
-                        f32,
-                        LINEAR_CAP,
-                        GAMMA_LUT,
-                        BIT_DEPTH,
-                        FIXED_POINT_SCALE,
-                    >(src_layout, dst_layout, profile);
+                    return make_rgb_xyz_q2_13_transform_avx2::<f32, LINEAR_CAP, FIXED_POINT_SCALE>(
+                        src_layout, dst_layout, profile, GAMMA_LUT, BIT_DEPTH,
+                    );
                 }
             }
             #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"))]
             {
                 use crate::conversions::rgbxyz_fixed::make_rgb_xyz_q2_13_transform_sse_41;
                 if std::arch::is_x86_feature_detected!("sse4.1") {
-                    return make_rgb_xyz_q2_13_transform_sse_41::<
-                        f32,
-                        LINEAR_CAP,
-                        GAMMA_LUT,
-                        BIT_DEPTH,
-                        FIXED_POINT_SCALE,
-                    >(src_layout, dst_layout, profile);
+                    return make_rgb_xyz_q2_13_transform_sse_41::<f32, LINEAR_CAP, FIXED_POINT_SCALE>(
+                        src_layout, dst_layout, profile, GAMMA_LUT, BIT_DEPTH,
+                    );
                 }
             }
             #[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
             {
-                return make_rgb_xyz_q2_13::<
-                    f32,
-                    LINEAR_CAP,
-                    GAMMA_LUT,
-                    BIT_DEPTH,
-                    FIXED_POINT_SCALE,
-                >(src_layout, dst_layout, profile);
+                return make_rgb_xyz_q2_13::<f32, LINEAR_CAP, FIXED_POINT_SCALE>(
+                    src_layout, dst_layout, profile, GAMMA_LUT, BIT_DEPTH,
+                );
             }
         }
-        make_rgb_xyz_rgb_transform::<f32, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>(
-            src_layout, dst_layout, profile,
+        make_rgb_xyz_rgb_transform::<f32, LINEAR_CAP>(
+            src_layout, dst_layout, profile, GAMMA_LUT, BIT_DEPTH,
         )
     }
 }
@@ -167,8 +143,8 @@ impl RgbXyzFactory<f64> for f64 {
         profile: TransformMatrixShaper<f64, LINEAR_CAP>,
         _: TransformOptions,
     ) -> Result<Box<dyn TransformExecutor<f64> + Send + Sync>, CmsError> {
-        make_rgb_xyz_rgb_transform::<f64, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>(
-            src_layout, dst_layout, profile,
+        make_rgb_xyz_rgb_transform::<f64, LINEAR_CAP>(
+            src_layout, dst_layout, profile, GAMMA_LUT, BIT_DEPTH,
         )
     }
 }
@@ -185,34 +161,26 @@ impl RgbXyzFactory<u8> for u8 {
             {
                 use crate::conversions::rgbxyz_fixed::make_rgb_xyz_q2_13_transform_avx2;
                 if std::arch::is_x86_feature_detected!("avx2") {
-                    return make_rgb_xyz_q2_13_transform_avx2::<
-                        u8,
-                        LINEAR_CAP,
-                        GAMMA_LUT,
-                        8,
-                        FIXED_POINT_SCALE,
-                    >(src_layout, dst_layout, profile);
+                    return make_rgb_xyz_q2_13_transform_avx2::<u8, LINEAR_CAP, FIXED_POINT_SCALE>(
+                        src_layout, dst_layout, profile, GAMMA_LUT, 8,
+                    );
                 }
             }
             #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"))]
             {
                 use crate::conversions::rgbxyz_fixed::make_rgb_xyz_q2_13_transform_sse_41;
                 if std::arch::is_x86_feature_detected!("sse4.1") {
-                    return make_rgb_xyz_q2_13_transform_sse_41::<
-                        u8,
-                        LINEAR_CAP,
-                        GAMMA_LUT,
-                        8,
-                        FIXED_POINT_SCALE,
-                    >(src_layout, dst_layout, profile);
+                    return make_rgb_xyz_q2_13_transform_sse_41::<u8, LINEAR_CAP, FIXED_POINT_SCALE>(
+                        src_layout, dst_layout, profile, GAMMA_LUT, 8,
+                    );
                 }
             }
-            make_rgb_xyz_q2_13::<u8, LINEAR_CAP, GAMMA_LUT, 8, FIXED_POINT_SCALE>(
-                src_layout, dst_layout, profile,
+            make_rgb_xyz_q2_13::<u8, LINEAR_CAP, FIXED_POINT_SCALE>(
+                src_layout, dst_layout, profile, GAMMA_LUT, 8,
             )
         } else {
-            make_rgb_xyz_rgb_transform::<u8, LINEAR_CAP, GAMMA_LUT, 8>(
-                src_layout, dst_layout, profile,
+            make_rgb_xyz_rgb_transform::<u8, LINEAR_CAP>(
+                src_layout, dst_layout, profile, GAMMA_LUT, 8,
             )
         }
     }
@@ -236,8 +204,8 @@ impl RgbXyzFactoryOpt<u16> for u16 {
             {
                 if std::arch::is_aarch64_feature_detected!("rdm") {
                     use crate::conversions::rgbxyz_fixed::make_rgb_xyz_q1_30_opt;
-                    return make_rgb_xyz_q1_30_opt::<u16, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH, 30>(
-                        src_layout, dst_layout, profile,
+                    return make_rgb_xyz_q1_30_opt::<u16, LINEAR_CAP, 30>(
+                        src_layout, dst_layout, profile, GAMMA_LUT, BIT_DEPTH,
                     );
                 }
             }
@@ -250,10 +218,10 @@ impl RgbXyzFactoryOpt<u16> for u16 {
                     return make_rgb_xyz_q2_13_transform_avx2_opt::<
                         u16,
                         LINEAR_CAP,
-                        GAMMA_LUT,
-                        BIT_DEPTH,
                         FIXED_POINT_SCALE,
-                    >(src_layout, dst_layout, profile);
+                    >(
+                        src_layout, dst_layout, profile, GAMMA_LUT, BIT_DEPTH
+                    );
                 }
             }
             #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"))]
@@ -263,25 +231,21 @@ impl RgbXyzFactoryOpt<u16> for u16 {
                     return make_rgb_xyz_q2_13_transform_sse_41_opt::<
                         u16,
                         LINEAR_CAP,
-                        GAMMA_LUT,
-                        BIT_DEPTH,
                         FIXED_POINT_SCALE,
-                    >(src_layout, dst_layout, profile);
+                    >(
+                        src_layout, dst_layout, profile, GAMMA_LUT, BIT_DEPTH
+                    );
                 }
             }
             #[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
             {
-                return make_rgb_xyz_q2_13_opt::<
-                    u16,
-                    LINEAR_CAP,
-                    GAMMA_LUT,
-                    BIT_DEPTH,
-                    FIXED_POINT_SCALE,
-                >(src_layout, dst_layout, profile);
+                return make_rgb_xyz_q2_13_opt::<u16, LINEAR_CAP, FIXED_POINT_SCALE>(
+                    src_layout, dst_layout, profile, GAMMA_LUT, BIT_DEPTH,
+                );
             }
         }
-        make_rgb_xyz_rgb_transform_opt::<u16, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>(
-            src_layout, dst_layout, profile,
+        make_rgb_xyz_rgb_transform_opt::<u16, LINEAR_CAP>(
+            src_layout, dst_layout, profile, GAMMA_LUT, BIT_DEPTH,
         )
     }
 }
@@ -305,10 +269,10 @@ impl RgbXyzFactoryOpt<f32> for f32 {
                     return make_rgb_xyz_q2_13_transform_avx2_opt::<
                         f32,
                         LINEAR_CAP,
-                        GAMMA_LUT,
-                        BIT_DEPTH,
                         FIXED_POINT_SCALE,
-                    >(src_layout, dst_layout, profile);
+                    >(
+                        src_layout, dst_layout, profile, GAMMA_LUT, BIT_DEPTH
+                    );
                 }
             }
             #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"))]
@@ -318,28 +282,28 @@ impl RgbXyzFactoryOpt<f32> for f32 {
                     return make_rgb_xyz_q2_13_transform_sse_41_opt::<
                         f32,
                         LINEAR_CAP,
-                        GAMMA_LUT,
-                        BIT_DEPTH,
                         FIXED_POINT_SCALE,
-                    >(src_layout, dst_layout, profile);
+                    >(
+                        src_layout, dst_layout, profile, GAMMA_LUT, BIT_DEPTH
+                    );
                 }
             }
             #[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
             {
                 return if std::arch::is_aarch64_feature_detected!("rdm") {
                     use crate::conversions::rgbxyz_fixed::make_rgb_xyz_q1_30_opt;
-                    make_rgb_xyz_q1_30_opt::<f32, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH, 30>(
-                        src_layout, dst_layout, profile,
+                    make_rgb_xyz_q1_30_opt::<f32, LINEAR_CAP, 30>(
+                        src_layout, dst_layout, profile, GAMMA_LUT, BIT_DEPTH,
                     )
                 } else {
-                    make_rgb_xyz_q2_13_opt::<f32, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH, FIXED_POINT_SCALE>(
-                        src_layout, dst_layout, profile,
+                    make_rgb_xyz_q2_13_opt::<f32, LINEAR_CAP, FIXED_POINT_SCALE>(
+                        src_layout, dst_layout, profile, GAMMA_LUT, BIT_DEPTH,
                     )
                 };
             }
         }
-        make_rgb_xyz_rgb_transform_opt::<f32, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>(
-            src_layout, dst_layout, profile,
+        make_rgb_xyz_rgb_transform_opt::<f32, LINEAR_CAP>(
+            src_layout, dst_layout, profile, GAMMA_LUT, BIT_DEPTH,
         )
     }
 }
@@ -360,14 +324,14 @@ impl RgbXyzFactoryOpt<f64> for f64 {
             {
                 if std::arch::is_aarch64_feature_detected!("rdm") {
                     use crate::conversions::rgbxyz_fixed::make_rgb_xyz_q1_30_opt;
-                    return make_rgb_xyz_q1_30_opt::<f64, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH, 30>(
-                        src_layout, dst_layout, profile,
+                    return make_rgb_xyz_q1_30_opt::<f64, LINEAR_CAP, 30>(
+                        src_layout, dst_layout, profile, GAMMA_LUT, BIT_DEPTH,
                     );
                 }
             }
         }
-        make_rgb_xyz_rgb_transform_opt::<f64, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>(
-            src_layout, dst_layout, profile,
+        make_rgb_xyz_rgb_transform_opt::<f64, LINEAR_CAP>(
+            src_layout, dst_layout, profile, GAMMA_LUT, BIT_DEPTH,
         )
     }
 }
@@ -393,10 +357,8 @@ impl RgbXyzFactoryOpt<u8> for u8 {
                     return make_rgb_xyz_q2_13_transform_avx512_opt::<
                         u8,
                         LINEAR_CAP,
-                        GAMMA_LUT,
-                        8,
                         FIXED_POINT_SCALE,
-                    >(src_layout, dst_layout, profile);
+                    >(src_layout, dst_layout, profile, GAMMA_LUT, 8);
                 }
             }
             #[cfg(all(target_arch = "x86_64", feature = "avx"))]
@@ -406,10 +368,8 @@ impl RgbXyzFactoryOpt<u8> for u8 {
                     return make_rgb_xyz_q2_13_transform_avx2_opt::<
                         u8,
                         LINEAR_CAP,
-                        GAMMA_LUT,
-                        8,
                         FIXED_POINT_SCALE,
-                    >(src_layout, dst_layout, profile);
+                    >(src_layout, dst_layout, profile, GAMMA_LUT, 8);
                 }
             }
             #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"))]
@@ -419,18 +379,16 @@ impl RgbXyzFactoryOpt<u8> for u8 {
                     return make_rgb_xyz_q2_13_transform_sse_41_opt::<
                         u8,
                         LINEAR_CAP,
-                        GAMMA_LUT,
-                        8,
                         FIXED_POINT_SCALE,
-                    >(src_layout, dst_layout, profile);
+                    >(src_layout, dst_layout, profile, GAMMA_LUT, 8);
                 }
             }
-            make_rgb_xyz_q2_13_opt::<u8, LINEAR_CAP, GAMMA_LUT, 8, FIXED_POINT_SCALE>(
-                src_layout, dst_layout, profile,
+            make_rgb_xyz_q2_13_opt::<u8, LINEAR_CAP, FIXED_POINT_SCALE>(
+                src_layout, dst_layout, profile, GAMMA_LUT, 8,
             )
         } else {
-            make_rgb_xyz_rgb_transform_opt::<u8, LINEAR_CAP, GAMMA_LUT, 8>(
-                src_layout, dst_layout, profile,
+            make_rgb_xyz_rgb_transform_opt::<u8, LINEAR_CAP>(
+                src_layout, dst_layout, profile, GAMMA_LUT, 8,
             )
         }
     }

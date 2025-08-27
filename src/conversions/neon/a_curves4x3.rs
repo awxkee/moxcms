@@ -31,7 +31,7 @@ use crate::conversions::neon::interpolator::NeonVector;
 use crate::{CmsError, DataColorSpace, InterpolationMethod, Stage};
 use std::arch::aarch64::vgetq_lane_f32;
 
-pub(crate) struct ACurves4x3Neon<'a, const DEPTH: usize> {
+pub(crate) struct ACurves4x3Neon<'a> {
     pub(crate) curve0: Box<[f32; 65536]>,
     pub(crate) curve1: Box<[f32; 65536]>,
     pub(crate) curve2: Box<[f32; 65536]>,
@@ -40,6 +40,7 @@ pub(crate) struct ACurves4x3Neon<'a, const DEPTH: usize> {
     pub(crate) grid_size: [u8; 4],
     pub(crate) interpolation_method: InterpolationMethod,
     pub(crate) pcs: DataColorSpace,
+    pub(crate) depth: usize,
 }
 
 pub(crate) struct ACurves4x3NeonOptimizedNeon<'a> {
@@ -49,14 +50,14 @@ pub(crate) struct ACurves4x3NeonOptimizedNeon<'a> {
     pub(crate) pcs: DataColorSpace,
 }
 
-impl<const DEPTH: usize> ACurves4x3Neon<'_, DEPTH> {
+impl ACurves4x3Neon<'_> {
     fn transform_impl<Fetch: Fn(f32, f32, f32, f32) -> NeonVector>(
         &self,
         src: &[f32],
         dst: &mut [f32],
         fetch: Fetch,
     ) -> Result<(), CmsError> {
-        let scale_value = (DEPTH - 1) as f32;
+        let scale_value = (self.depth - 1) as f32;
 
         assert_eq!(src.len() / 4, dst.len() / 3);
 
@@ -107,7 +108,7 @@ impl ACurves4x3NeonOptimizedNeon<'_> {
     }
 }
 
-impl<const DEPTH: usize> Stage for ACurves4x3Neon<'_, DEPTH> {
+impl Stage for ACurves4x3Neon<'_> {
     fn transform(&self, src: &[f32], dst: &mut [f32]) -> Result<(), CmsError> {
         let lut = HypercubeNeon::new(self.clut, self.grid_size, 3);
 

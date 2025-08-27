@@ -39,11 +39,11 @@ pub(crate) struct TransformShaperRgbQ2_13OptAvx<
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
     const LINEAR_CAP: usize,
-    const GAMMA_LUT: usize,
     const PRECISION: i32,
 > {
     pub(crate) profile: TransformMatrixShaperFixedPointOpt<i32, i16, T, LINEAR_CAP>,
     pub(crate) bit_depth: usize,
+    pub(crate) gamma_lut: usize,
 }
 
 impl<
@@ -51,9 +51,8 @@ impl<
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
     const LINEAR_CAP: usize,
-    const GAMMA_LUT: usize,
     const PRECISION: i32,
-> TransformShaperRgbQ2_13OptAvx<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP, GAMMA_LUT, PRECISION>
+> TransformShaperRgbQ2_13OptAvx<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP, PRECISION>
 where
     u32: AsPrimitive<T>,
 {
@@ -95,7 +94,7 @@ where
 
             let zeros = _mm256_setzero_si256();
 
-            let v_max_value = _mm256_set1_epi32(GAMMA_LUT as i32 - 1);
+            let v_max_value = _mm256_set1_epi32(self.gamma_lut as i32 - 1);
 
             let (mut r0, mut g0, mut b0, mut a0);
             let (mut r1, mut g1, mut b1, mut a1);
@@ -285,10 +284,9 @@ impl<
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
     const LINEAR_CAP: usize,
-    const GAMMA_LUT: usize,
     const PRECISION: i32,
 > TransformExecutor<T>
-    for TransformShaperRgbQ2_13OptAvx<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP, GAMMA_LUT, PRECISION>
+    for TransformShaperRgbQ2_13OptAvx<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP, PRECISION>
 where
     u32: AsPrimitive<T>,
 {

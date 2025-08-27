@@ -38,11 +38,11 @@ pub(crate) struct TransformShaperQ1_30NeonOpt<
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
     const LINEAR_CAP: usize,
-    const GAMMA_LUT: usize,
-    const BIT_DEPTH: usize,
     const PRECISION: i32,
 > {
     pub(crate) profile: TransformMatrixShaperFixedPointOpt<i32, i32, T, LINEAR_CAP>,
+    pub(crate) gamma_lut: usize,
+    pub(crate) bit_depth: usize,
 }
 
 impl<
@@ -50,19 +50,8 @@ impl<
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
     const LINEAR_CAP: usize,
-    const GAMMA_LUT: usize,
-    const BIT_DEPTH: usize,
     const PRECISION: i32,
->
-    TransformShaperQ1_30NeonOpt<
-        T,
-        SRC_LAYOUT,
-        DST_LAYOUT,
-        LINEAR_CAP,
-        GAMMA_LUT,
-        BIT_DEPTH,
-        PRECISION,
-    >
+> TransformShaperQ1_30NeonOpt<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP, PRECISION>
 where
     u32: AsPrimitive<T>,
 {
@@ -84,7 +73,7 @@ where
         }
 
         let t = self.profile.adaptation_matrix.transpose();
-        let max_colors: T = ((1 << BIT_DEPTH) - 1).as_();
+        let max_colors: T = ((1 << self.bit_depth) - 1).as_();
 
         let (src_chunks, src_remainder) = split_by_twos(src, src_channels);
         let (dst_chunks, dst_remainder) = split_by_twos_mut(dst, dst_channels);
@@ -94,7 +83,7 @@ where
             let m1 = vld1q_s32([t.v[1][0], t.v[1][1], t.v[1][2], 0].as_ptr());
             let m2 = vld1q_s32([t.v[2][0], t.v[2][1], t.v[2][2], 0].as_ptr());
 
-            let v_max_value = vdup_n_u16((GAMMA_LUT - 1) as u16);
+            let v_max_value = vdup_n_u16((self.gamma_lut - 1) as u16);
 
             if !src_chunks.is_empty() {
                 let (src0, src1) = src_chunks.split_at(src_chunks.len() / 2);
@@ -207,12 +196,10 @@ where
                     let mut vr2 = vqmovun_s32(vr2);
                     let mut vr3 = vqmovun_s32(vr3);
 
-                    if BIT_DEPTH != 16 {
-                        vr0 = vmin_u16(vr0, v_max_value);
-                        vr1 = vmin_u16(vr1, v_max_value);
-                        vr2 = vmin_u16(vr2, v_max_value);
-                        vr3 = vmin_u16(vr3, v_max_value);
-                    }
+                    vr0 = vmin_u16(vr0, v_max_value);
+                    vr1 = vmin_u16(vr1, v_max_value);
+                    vr2 = vmin_u16(vr2, v_max_value);
+                    vr3 = vmin_u16(vr3, v_max_value);
 
                     let r0p = &self.profile.linear[src0[src_cn.r_i()]._as_usize()];
                     let g0p = &self.profile.linear[src0[src_cn.g_i()]._as_usize()];
@@ -329,12 +316,10 @@ where
                     let mut vr2 = vqmovun_s32(vr2);
                     let mut vr3 = vqmovun_s32(vr3);
 
-                    if BIT_DEPTH != 16 {
-                        vr0 = vmin_u16(vr0, v_max_value);
-                        vr1 = vmin_u16(vr1, v_max_value);
-                        vr2 = vmin_u16(vr2, v_max_value);
-                        vr3 = vmin_u16(vr3, v_max_value);
-                    }
+                    vr0 = vmin_u16(vr0, v_max_value);
+                    vr1 = vmin_u16(vr1, v_max_value);
+                    vr2 = vmin_u16(vr2, v_max_value);
+                    vr3 = vmin_u16(vr3, v_max_value);
 
                     dst0[dst_cn.r_i()] = self.profile.gamma[vget_lane_u16::<0>(vr0) as usize];
                     dst0[dst_cn.g_i()] = self.profile.gamma[vget_lane_u16::<1>(vr0) as usize];
@@ -393,9 +378,7 @@ where
                 let v = vqrdmlahq_s32(v1, b, m2);
 
                 let mut vr0 = vqmovun_s32(v);
-                if BIT_DEPTH != 16 {
-                    vr0 = vmin_u16(vr0, v_max_value);
-                }
+                vr0 = vmin_u16(vr0, v_max_value);
 
                 dst[dst_cn.r_i()] = self.profile.gamma[vget_lane_u16::<0>(vr0) as usize];
                 dst[dst_cn.g_i()] = self.profile.gamma[vget_lane_u16::<1>(vr0) as usize];
@@ -415,19 +398,9 @@ impl<
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
     const LINEAR_CAP: usize,
-    const GAMMA_LUT: usize,
-    const BIT_DEPTH: usize,
     const PRECISION: i32,
 > TransformExecutor<T>
-    for TransformShaperQ1_30NeonOpt<
-        T,
-        SRC_LAYOUT,
-        DST_LAYOUT,
-        LINEAR_CAP,
-        GAMMA_LUT,
-        BIT_DEPTH,
-        PRECISION,
-    >
+    for TransformShaperQ1_30NeonOpt<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP, PRECISION>
 where
     u32: AsPrimitive<T>,
 {

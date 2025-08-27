@@ -522,14 +522,15 @@ pub(crate) fn make_gamma_linear_table<
     T: Default + Copy + 'static + PointeeSizeExpressible,
     const BUCKET: usize,
     const N: usize,
-    const BIT_DEPTH: usize,
->() -> Box<[T; BUCKET]>
+>(
+    bit_depth: usize,
+) -> Box<[T; BUCKET]>
 where
     f32: AsPrimitive<T>,
 {
     let mut table = Box::new([T::default(); BUCKET]);
     let max_range = if T::FINITE {
-        (1f64 / ((N - 1) as f64 / (1 << BIT_DEPTH) as f64)) as f32
+        (1f64 / ((N - 1) as f64 / (1 << bit_depth) as f64)) as f32
     } else {
         (1f64 / ((N - 1) as f64)) as f32
     };
@@ -735,16 +736,16 @@ fn make_gamma_pow_table<
     T: Default + Copy + 'static + PointeeSizeExpressible,
     const BUCKET: usize,
     const N: usize,
-    const BIT_DEPTH: usize,
 >(
     gamma: f32,
+    bit_depth: usize,
 ) -> Box<[T; BUCKET]>
 where
     f32: AsPrimitive<T>,
 {
     let mut table = Box::new([T::default(); BUCKET]);
     let scale = 1f32 / (N - 1) as f32;
-    let cap = ((1 << BIT_DEPTH) - 1) as f32;
+    let cap = ((1 << bit_depth) - 1) as f32;
     if T::FINITE {
         for (v, output) in table.iter_mut().take(N).enumerate() {
             *output = (cap * f_powf(v as f32 * scale, gamma)).round().as_();
@@ -1081,14 +1082,14 @@ impl ToneReprCurve {
                     if compare_parametric(lc_params.as_slice(), srgb_params.as_slice()) {
                         return Some(
                             TransferCharacteristics::Srgb
-                                .make_gamma_table::<T, BUCKET, N, BIT_DEPTH>(),
+                                .make_gamma_table::<T, BUCKET, N>(BIT_DEPTH),
                         );
                     }
 
                     if compare_parametric(lc_params.as_slice(), rec709_params.as_slice()) {
                         return Some(
                             TransferCharacteristics::Bt709
-                                .make_gamma_table::<T, BUCKET, N, BIT_DEPTH>(),
+                                .make_gamma_table::<T, BUCKET, N>(BIT_DEPTH),
                         );
                     }
                 }
@@ -1112,9 +1113,10 @@ impl ToneReprCurve {
                 Some(make_gamma_lut::<T, BUCKET, N, BIT_DEPTH>(&inverted))
             }
             ToneReprCurve::Lut(data) => match data.len() {
-                0 => Some(make_gamma_linear_table::<T, BUCKET, N, BIT_DEPTH>()),
-                1 => Some(make_gamma_pow_table::<T, BUCKET, N, BIT_DEPTH>(
+                0 => Some(make_gamma_linear_table::<T, BUCKET, N>(BIT_DEPTH)),
+                1 => Some(make_gamma_pow_table::<T, BUCKET, N>(
                     1. / u8_fixed_8number_to_float(data[0]),
+                    BIT_DEPTH,
                 )),
                 _ => {
                     let mut inverted_size = data.len();
@@ -1278,7 +1280,7 @@ impl ColorProfile {
         if use_cicp {
             if let Some(tc) = self.cicp.as_ref().map(|c| c.transfer_characteristics) {
                 if tc.has_transfer_curve() {
-                    return Ok(tc.make_gamma_table::<T, BUCKET, N, BIT_DEPTH>());
+                    return Ok(tc.make_gamma_table::<T, BUCKET, N>(BIT_DEPTH));
                 }
             }
         }

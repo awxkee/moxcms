@@ -31,7 +31,7 @@ use crate::conversions::neon::interpolator::NeonVector;
 use crate::{CmsError, DataColorSpace, InPlaceStage, InterpolationMethod};
 use std::arch::aarch64::*;
 
-pub(crate) struct ACurves3Neon<'a, const DEPTH: usize> {
+pub(crate) struct ACurves3Neon<'a> {
     pub(crate) curve0: Box<[f32; 65536]>,
     pub(crate) curve1: Box<[f32; 65536]>,
     pub(crate) curve2: Box<[f32; 65536]>,
@@ -39,6 +39,7 @@ pub(crate) struct ACurves3Neon<'a, const DEPTH: usize> {
     pub(crate) grid_size: [u8; 3],
     pub(crate) interpolation_method: InterpolationMethod,
     pub(crate) pcs: DataColorSpace,
+    pub(crate) depth: usize,
 }
 
 pub(crate) struct ACurves3OptimizedNeon<'a> {
@@ -48,7 +49,7 @@ pub(crate) struct ACurves3OptimizedNeon<'a> {
     pub(crate) pcs: DataColorSpace,
 }
 
-pub(crate) struct ACurves3InverseNeon<'a, const DEPTH: usize> {
+pub(crate) struct ACurves3InverseNeon<'a> {
     pub(crate) curve0: Box<[f32; 65536]>,
     pub(crate) curve1: Box<[f32; 65536]>,
     pub(crate) curve2: Box<[f32; 65536]>,
@@ -56,15 +57,16 @@ pub(crate) struct ACurves3InverseNeon<'a, const DEPTH: usize> {
     pub(crate) grid_size: [u8; 3],
     pub(crate) interpolation_method: InterpolationMethod,
     pub(crate) pcs: DataColorSpace,
+    pub(crate) depth: usize,
 }
 
-impl<const DEPTH: usize> ACurves3Neon<'_, DEPTH> {
+impl ACurves3Neon<'_> {
     fn transform_impl<Fetch: Fn(f32, f32, f32) -> NeonVector>(
         &self,
         dst: &mut [f32],
         fetch: Fetch,
     ) -> Result<(), CmsError> {
-        let scale_value = (DEPTH - 1) as f32;
+        let scale_value = (self.depth - 1) as f32;
 
         for dst in dst.chunks_exact_mut(3) {
             let a0 = (dst[0] * scale_value).round().min(scale_value) as u16;
@@ -105,7 +107,7 @@ impl ACurves3OptimizedNeon<'_> {
     }
 }
 
-impl<const DEPTH: usize> InPlaceStage for ACurves3Neon<'_, DEPTH> {
+impl InPlaceStage for ACurves3Neon<'_> {
     fn transform(&self, dst: &mut [f32]) -> Result<(), CmsError> {
         let lut = CubeNeon::new(self.clut, self.grid_size, 3);
 
@@ -165,13 +167,13 @@ impl InPlaceStage for ACurves3OptimizedNeon<'_> {
     }
 }
 
-impl<const DEPTH: usize> ACurves3InverseNeon<'_, DEPTH> {
+impl ACurves3InverseNeon<'_> {
     fn transform_impl<Fetch: Fn(f32, f32, f32) -> NeonVector>(
         &self,
         dst: &mut [f32],
         fetch: Fetch,
     ) -> Result<(), CmsError> {
-        let v_scale_value = unsafe { vdupq_n_f32((DEPTH as u32 - 1u32) as f32) };
+        let v_scale_value = unsafe { vdupq_n_f32((self.depth as u32 - 1u32) as f32) };
 
         unsafe {
             for dst in dst.chunks_exact_mut(3) {
@@ -194,7 +196,7 @@ impl<const DEPTH: usize> ACurves3InverseNeon<'_, DEPTH> {
     }
 }
 
-impl<const DEPTH: usize> InPlaceStage for ACurves3InverseNeon<'_, DEPTH> {
+impl InPlaceStage for ACurves3InverseNeon<'_> {
     fn transform(&self, dst: &mut [f32]) -> Result<(), CmsError> {
         let lut = CubeNeon::new(self.clut, self.grid_size, 3);
 

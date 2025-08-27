@@ -223,16 +223,17 @@ impl<const DEPTH: usize> InPlaceStage for ACurves3Inverse<'_, DEPTH> {
     }
 }
 
-pub(crate) struct MCurves3<const DEPTH: usize> {
+pub(crate) struct MCurves3 {
     pub(crate) curve0: Box<[f32; 65536]>,
     pub(crate) curve1: Box<[f32; 65536]>,
     pub(crate) curve2: Box<[f32; 65536]>,
     pub(crate) matrix: Matrix3f,
     pub(crate) bias: Vector3f,
     pub(crate) inverse: bool,
+    pub(crate) depth: usize,
 }
 
-impl<const DEPTH: usize> MCurves3<DEPTH> {
+impl MCurves3 {
     fn execute_matrix_stage(&self, dst: &mut [f32]) {
         let m = self.matrix;
         let b = self.bias;
@@ -250,9 +251,9 @@ impl<const DEPTH: usize> MCurves3<DEPTH> {
     }
 }
 
-impl<const DEPTH: usize> InPlaceStage for MCurves3<DEPTH> {
+impl InPlaceStage for MCurves3 {
     fn transform(&self, dst: &mut [f32]) -> Result<(), CmsError> {
-        let scale_value = (DEPTH - 1) as f32;
+        let scale_value = (self.depth - 1) as f32;
 
         if self.inverse {
             self.execute_matrix_stage(dst);
@@ -356,7 +357,7 @@ pub(crate) fn prepare_mab_3x3(
 
             let [curve0, curve1, curve2] =
                 curves?.try_into().map_err(|_| CmsError::InvalidTrcCurve)?;
-            let a_curves = ACurves3Neon::<DEPTH> {
+            let a_curves = ACurves3Neon {
                 curve0,
                 curve1,
                 curve2,
@@ -364,6 +365,7 @@ pub(crate) fn prepare_mab_3x3(
                 grid_size,
                 interpolation_method: options.interpolation_method,
                 pcs,
+                depth: DEPTH,
             };
             a_curves.transform(lut)?;
         }
@@ -413,7 +415,7 @@ pub(crate) fn prepare_mab_3x3(
 
                         let [curve0, curve1, curve2] =
                             curves?.try_into().map_err(|_| CmsError::InvalidTrcCurve)?;
-                        execution_box = Some(Box::new(ACurves3AvxFma::<DEPTH> {
+                        execution_box = Some(Box::new(ACurves3AvxFma {
                             curve0,
                             curve1,
                             curve2,
@@ -421,6 +423,7 @@ pub(crate) fn prepare_mab_3x3(
                             grid_size,
                             interpolation_method: options.interpolation_method,
                             pcs,
+                            depth: DEPTH,
                         }));
                     }
                 }
@@ -474,13 +477,14 @@ pub(crate) fn prepare_mab_3x3(
                 curves?.try_into().map_err(|_| CmsError::InvalidTrcCurve)?;
             let matrix = mab.matrix.to_f32();
             let bias: Vector3f = mab.bias.cast();
-            let m_curves = MCurves3::<DEPTH> {
+            let m_curves = MCurves3 {
                 curve0,
                 curve1,
                 curve2,
                 matrix,
                 bias,
                 inverse: false,
+                depth: DEPTH,
             };
             m_curves.transform(lut)?;
         }
@@ -576,13 +580,14 @@ pub(crate) fn prepare_mba_3x3(
 
             let matrix = mab.matrix.to_f32();
             let bias: Vector3f = mab.bias.cast();
-            let m_curves = MCurves3::<DEPTH> {
+            let m_curves = MCurves3 {
                 curve0,
                 curve1,
                 curve2,
                 matrix,
                 bias,
                 inverse: true,
+                depth: DEPTH,
             };
             m_curves.transform(lut)?;
         }
@@ -627,7 +632,7 @@ pub(crate) fn prepare_mba_3x3(
 
             let [curve0, curve1, curve2] =
                 curves?.try_into().map_err(|_| CmsError::InvalidTrcCurve)?;
-            let a_curves = ACurves3InverseNeon::<DEPTH> {
+            let a_curves = ACurves3InverseNeon {
                 curve0,
                 curve1,
                 curve2,
@@ -635,6 +640,7 @@ pub(crate) fn prepare_mba_3x3(
                 grid_size,
                 interpolation_method: options.interpolation_method,
                 pcs,
+                depth: DEPTH,
             };
             a_curves.transform(lut)?;
         }
@@ -684,7 +690,7 @@ pub(crate) fn prepare_mba_3x3(
 
                         let [curve0, curve1, curve2] =
                             curves?.try_into().map_err(|_| CmsError::InvalidTrcCurve)?;
-                        execution_box = Some(Box::new(ACurves3InverseAvxFma::<DEPTH> {
+                        execution_box = Some(Box::new(ACurves3InverseAvxFma {
                             curve0,
                             curve1,
                             curve2,
@@ -692,6 +698,7 @@ pub(crate) fn prepare_mba_3x3(
                             grid_size,
                             interpolation_method: options.interpolation_method,
                             pcs,
+                            depth: DEPTH,
                         }));
                     }
                 }

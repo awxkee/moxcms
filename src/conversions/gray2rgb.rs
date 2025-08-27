@@ -31,13 +31,8 @@ use crate::{CmsError, Layout, TransformExecutor};
 use num_traits::AsPrimitive;
 
 #[derive(Clone)]
-struct TransformGray2RgbFusedExecutor<
-    T,
-    const SRC_LAYOUT: u8,
-    const DEST_LAYOUT: u8,
-    const BUCKET: usize,
-> {
-    fused_gamma: Box<[T; BUCKET]>,
+struct TransformGray2RgbFusedExecutor<T, const SRC_LAYOUT: u8, const DEST_LAYOUT: u8> {
+    fused_gamma: Box<[T; 65536]>,
     bit_depth: usize,
 }
 
@@ -59,7 +54,7 @@ where
         return Err(CmsError::UnsupportedProfileConnection);
     }
 
-    let mut fused_gamma = Box::new([T::default(); BUCKET]);
+    let mut fused_gamma = Box::new([T::default(); 65536]);
     let max_lut_size = (gamma_lut - 1) as f32;
     for (&src, dst) in gray_linear.iter().zip(fused_gamma.iter_mut()) {
         let possible_value = ((src * max_lut_size).round() as u32).min(max_lut_size as u32) as u16;
@@ -72,7 +67,6 @@ where
                 T,
                 { Layout::Gray as u8 },
                 { Layout::Rgb as u8 },
-                BUCKET,
             > {
                 fused_gamma,
                 bit_depth,
@@ -81,7 +75,6 @@ where
                 T,
                 { Layout::Gray as u8 },
                 { Layout::Rgba as u8 },
-                BUCKET,
             > {
                 fused_gamma,
                 bit_depth,
@@ -90,7 +83,6 @@ where
                 T,
                 { Layout::Gray as u8 },
                 { Layout::Gray as u8 },
-                BUCKET,
             > {
                 fused_gamma,
                 bit_depth,
@@ -99,7 +91,6 @@ where
                 T,
                 { Layout::Gray as u8 },
                 { Layout::GrayAlpha as u8 },
-                BUCKET,
             > {
                 fused_gamma,
                 bit_depth,
@@ -111,7 +102,6 @@ where
                 T,
                 { Layout::Gray as u8 },
                 { Layout::GrayAlpha as u8 },
-                BUCKET,
             > {
                 fused_gamma,
                 bit_depth,
@@ -120,7 +110,6 @@ where
                 T,
                 { Layout::Gray as u8 },
                 { Layout::Rgba as u8 },
-                BUCKET,
             > {
                 fused_gamma,
                 bit_depth,
@@ -129,7 +118,6 @@ where
                 T,
                 { Layout::Gray as u8 },
                 { Layout::Gray as u8 },
-                BUCKET,
             > {
                 fused_gamma,
                 bit_depth,
@@ -138,7 +126,6 @@ where
                 T,
                 { Layout::GrayAlpha as u8 },
                 { Layout::GrayAlpha as u8 },
-                BUCKET,
             > {
                 fused_gamma,
                 bit_depth,
@@ -153,8 +140,7 @@ impl<
     T: Copy + Default + PointeeSizeExpressible + 'static,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
-    const BUCKET: usize,
-> TransformExecutor<T> for TransformGray2RgbFusedExecutor<T, SRC_LAYOUT, DST_LAYOUT, BUCKET>
+> TransformExecutor<T> for TransformGray2RgbFusedExecutor<T, SRC_LAYOUT, DST_LAYOUT>
 where
     u32: AsPrimitive<T>,
 {
@@ -203,13 +189,8 @@ where
 }
 
 #[derive(Clone)]
-struct TransformGrayToRgbExecutor<
-    T,
-    const SRC_LAYOUT: u8,
-    const DEST_LAYOUT: u8,
-    const BUCKET: usize,
-> {
-    gray_linear: Box<[f32; BUCKET]>,
+struct TransformGrayToRgbExecutor<T, const SRC_LAYOUT: u8, const DEST_LAYOUT: u8> {
+    gray_linear: Box<[f32; 65536]>,
     red_gamma: Box<[T; 65536]>,
     green_gamma: Box<[T; 65536]>,
     blue_gamma: Box<[T; 65536]>,
@@ -224,7 +205,7 @@ pub(crate) fn make_gray_to_unfused<
 >(
     src_layout: Layout,
     dst_layout: Layout,
-    gray_linear: Box<[f32; BUCKET]>,
+    gray_linear: Box<[f32; 65536]>,
     red_gamma: Box<[T; 65536]>,
     green_gamma: Box<[T; 65536]>,
     blue_gamma: Box<[T; 65536]>,
@@ -246,7 +227,6 @@ where
                 T,
                 { Layout::Gray as u8 },
                 { Layout::Rgb as u8 },
-                BUCKET,
             > {
                 gray_linear,
                 red_gamma,
@@ -259,7 +239,6 @@ where
                 T,
                 { Layout::Gray as u8 },
                 { Layout::Rgba as u8 },
-                BUCKET,
             > {
                 gray_linear,
                 red_gamma,
@@ -272,7 +251,6 @@ where
                 T,
                 { Layout::Gray as u8 },
                 { Layout::Gray as u8 },
-                BUCKET,
             > {
                 gray_linear,
                 red_gamma,
@@ -285,7 +263,6 @@ where
                 T,
                 { Layout::Gray as u8 },
                 { Layout::GrayAlpha as u8 },
-                BUCKET,
             > {
                 gray_linear,
                 red_gamma,
@@ -301,7 +278,6 @@ where
                 T,
                 { Layout::Gray as u8 },
                 { Layout::GrayAlpha as u8 },
-                BUCKET,
             > {
                 gray_linear,
                 red_gamma,
@@ -314,7 +290,6 @@ where
                 T,
                 { Layout::Gray as u8 },
                 { Layout::Rgba as u8 },
-                BUCKET,
             > {
                 gray_linear,
                 red_gamma,
@@ -327,7 +302,6 @@ where
                 T,
                 { Layout::Gray as u8 },
                 { Layout::Gray as u8 },
-                BUCKET,
             > {
                 gray_linear,
                 red_gamma,
@@ -340,7 +314,6 @@ where
                 T,
                 { Layout::GrayAlpha as u8 },
                 { Layout::GrayAlpha as u8 },
-                BUCKET,
             > {
                 gray_linear,
                 red_gamma,
@@ -359,8 +332,7 @@ impl<
     T: Copy + Default + PointeeSizeExpressible + 'static,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
-    const BUCKET: usize,
-> TransformExecutor<T> for TransformGrayToRgbExecutor<T, SRC_LAYOUT, DST_LAYOUT, BUCKET>
+> TransformExecutor<T> for TransformGrayToRgbExecutor<T, SRC_LAYOUT, DST_LAYOUT>
 where
     u32: AsPrimitive<T>,
 {

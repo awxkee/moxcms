@@ -31,7 +31,7 @@ use crate::conversions::avx::interpolator::AvxVectorSse;
 use crate::{CmsError, DataColorSpace, InPlaceStage, InterpolationMethod};
 use std::arch::x86_64::*;
 
-pub(crate) struct ACurves3AvxFma<'a, const DEPTH: usize> {
+pub(crate) struct ACurves3AvxFma<'a> {
     pub(crate) curve0: Box<[f32; 65536]>,
     pub(crate) curve1: Box<[f32; 65536]>,
     pub(crate) curve2: Box<[f32; 65536]>,
@@ -39,6 +39,7 @@ pub(crate) struct ACurves3AvxFma<'a, const DEPTH: usize> {
     pub(crate) grid_size: [u8; 3],
     pub(crate) interpolation_method: InterpolationMethod,
     pub(crate) pcs: DataColorSpace,
+    pub(crate) depth: usize,
 }
 
 pub(crate) struct ACurves3OptimizedAvxFma<'a> {
@@ -48,7 +49,7 @@ pub(crate) struct ACurves3OptimizedAvxFma<'a> {
     pub(crate) pcs: DataColorSpace,
 }
 
-pub(crate) struct ACurves3InverseAvxFma<'a, const DEPTH: usize> {
+pub(crate) struct ACurves3InverseAvxFma<'a> {
     pub(crate) curve0: Box<[f32; 65536]>,
     pub(crate) curve1: Box<[f32; 65536]>,
     pub(crate) curve2: Box<[f32; 65536]>,
@@ -56,9 +57,10 @@ pub(crate) struct ACurves3InverseAvxFma<'a, const DEPTH: usize> {
     pub(crate) grid_size: [u8; 3],
     pub(crate) interpolation_method: InterpolationMethod,
     pub(crate) pcs: DataColorSpace,
+    pub(crate) depth: usize,
 }
 
-impl<const DEPTH: usize> ACurves3AvxFma<'_, DEPTH> {
+impl ACurves3AvxFma<'_> {
     #[allow(unused_unsafe)]
     #[target_feature(enable = "avx2", enable = "fma")]
     unsafe fn transform_impl<Fetch: Fn(f32, f32, f32) -> AvxVectorSse>(
@@ -67,7 +69,7 @@ impl<const DEPTH: usize> ACurves3AvxFma<'_, DEPTH> {
         fetch: Fetch,
     ) -> Result<(), CmsError> {
         unsafe {
-            let scale_value = (DEPTH - 1) as f32;
+            let scale_value = (self.depth - 1) as f32;
 
             for dst in dst.chunks_exact_mut(3) {
                 let a0 = (dst[0] * scale_value).round().min(scale_value) as u16;
@@ -109,7 +111,7 @@ impl ACurves3OptimizedAvxFma<'_> {
     }
 }
 
-impl<const DEPTH: usize> InPlaceStage for ACurves3AvxFma<'_, DEPTH> {
+impl InPlaceStage for ACurves3AvxFma<'_> {
     fn transform(&self, dst: &mut [f32]) -> Result<(), CmsError> {
         let lut = CubeAvxFma::new(self.clut, self.grid_size, 3);
 
@@ -173,7 +175,7 @@ impl InPlaceStage for ACurves3OptimizedAvxFma<'_> {
     }
 }
 
-impl<const DEPTH: usize> ACurves3InverseAvxFma<'_, DEPTH> {
+impl ACurves3InverseAvxFma<'_> {
     #[allow(unused_unsafe)]
     #[target_feature(enable = "avx2", enable = "fma")]
     unsafe fn transform_impl<Fetch: Fn(f32, f32, f32) -> AvxVectorSse>(
@@ -182,7 +184,7 @@ impl<const DEPTH: usize> ACurves3InverseAvxFma<'_, DEPTH> {
         fetch: Fetch,
     ) -> Result<(), CmsError> {
         unsafe {
-            let v_scale_value = _mm_set1_ps((DEPTH as u32 - 1u32) as f32);
+            let v_scale_value = _mm_set1_ps((self.depth as u32 - 1u32) as f32);
             for dst in dst.chunks_exact_mut(3) {
                 let mut v = fetch(dst[0], dst[1], dst[2]).v;
                 v = _mm_mul_ps(v, v_scale_value);
@@ -204,7 +206,7 @@ impl<const DEPTH: usize> ACurves3InverseAvxFma<'_, DEPTH> {
     }
 }
 
-impl<const DEPTH: usize> InPlaceStage for ACurves3InverseAvxFma<'_, DEPTH> {
+impl InPlaceStage for ACurves3InverseAvxFma<'_> {
     fn transform(&self, dst: &mut [f32]) -> Result<(), CmsError> {
         let lut = CubeAvxFma::new(self.clut, self.grid_size, 3);
 
