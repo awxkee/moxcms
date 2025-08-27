@@ -280,48 +280,15 @@ fn stage_lut_4x3(
     pcs: DataColorSpace,
 ) -> Result<Box<dyn Stage>, CmsError> {
     let lut = make_lut_4x3(lut, options, pcs)?;
-    #[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
-    {
-        use crate::conversions::neon::Lut4x3Neon;
-        let transform = Lut4x3Neon {
-            linearization: lut.linearization,
-            interpolation_method: lut.interpolation_method,
-            pcs: lut.pcs,
-            clut: lut.clut,
-            grid_size: lut.grid_size,
-            output: lut.output,
-        };
-        Ok(Box::new(transform))
-    }
-    #[cfg(not(all(target_arch = "aarch64", target_feature = "neon", feature = "neon")))]
-    {
-        #[cfg(all(target_arch = "x86_64", feature = "avx"))]
-        {
-            use crate::conversions::avx::Lut4x3AvxFma;
-            if std::arch::is_x86_feature_detected!("avx2")
-                && std::arch::is_x86_feature_detected!("fma")
-            {
-                let transform = Lut4x3AvxFma {
-                    linearization: lut.linearization,
-                    interpolation_method: lut.interpolation_method,
-                    pcs: lut.pcs,
-                    clut: lut.clut,
-                    grid_size: lut.grid_size,
-                    output: lut.output,
-                };
-                return Ok(Box::new(transform));
-            }
-        }
-        let transform = Lut4x3 {
-            linearization: lut.linearization,
-            interpolation_method: lut.interpolation_method,
-            pcs: lut.pcs,
-            clut: lut.clut,
-            grid_size: lut.grid_size,
-            output: lut.output,
-        };
-        Ok(Box::new(transform))
-    }
+    let transform = Lut4x3 {
+        linearization: lut.linearization,
+        interpolation_method: lut.interpolation_method,
+        pcs: lut.pcs,
+        clut: lut.clut,
+        grid_size: lut.grid_size,
+        output: lut.output,
+    };
+    Ok(Box::new(transform))
 }
 
 pub(crate) fn katana_input_stage_lut_4x3<

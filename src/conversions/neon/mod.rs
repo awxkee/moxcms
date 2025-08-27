@@ -26,15 +26,10 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-mod a_curves3;
-mod a_curves4x3;
-mod cube;
-mod hypercube;
 mod interpolator;
 mod interpolator_q0_15;
 mod lut4_to_3;
 mod lut4_to_3_q0_15;
-mod preheat_lut4x3;
 mod rgb_xyz;
 mod rgb_xyz_opt;
 mod rgb_xyz_q1_30_opt;
@@ -43,10 +38,7 @@ mod rgb_xyz_q2_13_opt;
 mod t_lut3_to_3;
 mod t_lut3_to_3_q0_15;
 
-pub(crate) use a_curves3::{ACurves3InverseNeon, ACurves3Neon, ACurves3OptimizedNeon};
-pub(crate) use a_curves4x3::{ACurves4x3Neon, ACurves4x3NeonOptimizedNeon};
 pub(crate) use lut4_to_3::NeonLut4x3Factory;
-pub(crate) use preheat_lut4x3::Lut4x3Neon;
 pub(crate) use rgb_xyz::TransformShaperRgbNeon;
 pub(crate) use rgb_xyz_opt::TransformShaperRgbOptNeon;
 pub(crate) use rgb_xyz_q1_30_opt::TransformShaperQ1_30NeonOpt;
