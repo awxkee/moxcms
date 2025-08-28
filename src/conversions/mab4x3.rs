@@ -34,7 +34,7 @@ use crate::{
 };
 
 #[allow(dead_code)]
-struct ACurves4x3<'a, const DEPTH: usize> {
+struct ACurves4x3<'a> {
     curve0: Box<[f32; 65536]>,
     curve1: Box<[f32; 65536]>,
     curve2: Box<[f32; 65536]>,
@@ -43,6 +43,7 @@ struct ACurves4x3<'a, const DEPTH: usize> {
     grid_size: [u8; 4],
     interpolation_method: InterpolationMethod,
     pcs: DataColorSpace,
+    depth: usize,
 }
 
 #[allow(dead_code)]
@@ -54,14 +55,14 @@ struct ACurves4x3Optimized<'a> {
 }
 
 #[allow(dead_code)]
-impl<const DEPTH: usize> ACurves4x3<'_, DEPTH> {
+impl ACurves4x3<'_> {
     fn transform_impl<Fetch: Fn(f32, f32, f32, f32) -> Vector3f>(
         &self,
         src: &[f32],
         dst: &mut [f32],
         fetch: Fetch,
     ) -> Result<(), CmsError> {
-        let scale_value = (DEPTH - 1) as f32;
+        let scale_value = (self.depth - 1) as f32;
 
         assert_eq!(src.len() / 4, dst.len() / 3);
 
@@ -109,7 +110,7 @@ impl ACurves4x3Optimized<'_> {
     }
 }
 
-impl<const DEPTH: usize> Stage for ACurves4x3<'_, DEPTH> {
+impl Stage for ACurves4x3<'_> {
     fn transform(&self, src: &[f32], dst: &mut [f32]) -> Result<(), CmsError> {
         let lut = Hypercube::new_hypercube(self.clut, self.grid_size);
 
@@ -205,18 +206,15 @@ pub(crate) fn prepare_mab_4x3(
             mab.grid_points[3],
         ];
 
-        #[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
         if all_curves_linear {
-            use crate::conversions::neon::ACurves4x3NeonOptimizedNeon;
-            let a_curves = ACurves4x3NeonOptimizedNeon {
+            let l = ACurves4x3Optimized {
                 clut,
                 grid_size,
                 interpolation_method: options.interpolation_method,
                 pcs,
             };
-            a_curves.transform(lut, &mut new_lut)?;
+            l.transform(lut, &mut new_lut)?;
         } else {
-            use crate::conversions::neon::ACurves4x3Neon;
             let curves: Result<Vec<_>, _> = mab
                 .a_curves
                 .iter()
@@ -228,7 +226,7 @@ pub(crate) fn prepare_mab_4x3(
 
             let [curve0, curve1, curve2, curve3] =
                 curves?.try_into().map_err(|_| CmsError::InvalidTrcCurve)?;
-            let a_curves = ACurves4x3Neon::<DEPTH> {
+            let l = ACurves4x3 {
                 curve0,
                 curve1,
                 curve2,
@@ -237,96 +235,9 @@ pub(crate) fn prepare_mab_4x3(
                 grid_size,
                 interpolation_method: options.interpolation_method,
                 pcs,
+                depth: DEPTH,
             };
-            a_curves.transform(lut, &mut new_lut)?;
-        }
-
-        #[cfg(not(all(target_arch = "aarch64", target_feature = "neon", feature = "neon")))]
-        {
-            let mut execution_box: Option<Box<dyn Stage>> = None;
-
-            if all_curves_linear {
-                #[cfg(all(target_arch = "x86_64", feature = "avx"))]
-                {
-                    use crate::conversions::avx::ACurves4x3AvxFmaOptimized;
-                    if std::arch::is_x86_feature_detected!("avx2")
-                        && std::arch::is_x86_feature_detected!("fma")
-                    {
-                        execution_box = Some(Box::new(ACurves4x3AvxFmaOptimized {
-                            clut,
-                            grid_size,
-                            interpolation_method: options.interpolation_method,
-                            pcs,
-                        }));
-                    }
-                }
-                if execution_box.is_none() {
-                    execution_box = Some(Box::new(ACurves4x3Optimized {
-                        clut,
-                        grid_size,
-                        interpolation_method: options.interpolation_method,
-                        pcs,
-                    }));
-                }
-            } else {
-                #[cfg(all(target_arch = "x86_64", feature = "avx"))]
-                {
-                    use crate::conversions::avx::ACurves4x3AvxFma;
-                    if std::arch::is_x86_feature_detected!("avx2")
-                        && std::arch::is_x86_feature_detected!("fma")
-                    {
-                        let curves: Result<Vec<_>, _> = mab
-                            .a_curves
-                            .iter()
-                            .map(|c| {
-                                c.build_linearize_table::<u16, LERP_DEPTH, BP>()
-                                    .ok_or(CmsError::InvalidTrcCurve)
-                            })
-                            .collect();
-
-                        let [curve0, curve1, curve2, curve3] =
-                            curves?.try_into().map_err(|_| CmsError::InvalidTrcCurve)?;
-                        execution_box = Some(Box::new(ACurves4x3AvxFma::<DEPTH> {
-                            curve0,
-                            curve1,
-                            curve2,
-                            curve3,
-                            clut,
-                            grid_size,
-                            interpolation_method: options.interpolation_method,
-                            pcs,
-                        }));
-                    }
-                }
-
-                if execution_box.is_none() {
-                    let curves: Result<Vec<_>, _> = mab
-                        .a_curves
-                        .iter()
-                        .map(|c| {
-                            c.build_linearize_table::<u16, LERP_DEPTH, BP>()
-                                .ok_or(CmsError::InvalidTrcCurve)
-                        })
-                        .collect();
-
-                    let [curve0, curve1, curve2, curve3] =
-                        curves?.try_into().map_err(|_| CmsError::InvalidTrcCurve)?;
-                    execution_box = Some(Box::new(ACurves4x3::<DEPTH> {
-                        curve0,
-                        curve1,
-                        curve2,
-                        curve3,
-                        clut,
-                        grid_size,
-                        interpolation_method: options.interpolation_method,
-                        pcs,
-                    }));
-                }
-            }
-
-            execution_box
-                .expect("Sampler for Multidimensional 4x3 must be set")
-                .transform(lut, &mut new_lut)?;
+            l.transform(lut, &mut new_lut)?;
         }
     } else {
         // Not supported
@@ -353,13 +264,14 @@ pub(crate) fn prepare_mab_4x3(
 
             let matrix = mab.matrix.to_f32();
             let bias: Vector3f = mab.bias.cast();
-            let m_curves = MCurves3::<DEPTH> {
+            let m_curves = MCurves3 {
                 curve0,
                 curve1,
                 curve2,
                 matrix,
                 bias,
                 inverse: false,
+                depth: DEPTH,
             };
             m_curves.transform(&mut new_lut)?;
         }

@@ -949,16 +949,16 @@ impl TransferCharacteristics {
         T: Default + Copy + 'static + PointeeSizeExpressible,
         const BUCKET: usize,
         const N: usize,
-        const BIT_DEPTH: usize,
     >(
         &self,
+        bit_depth: usize,
     ) -> Box<[T; BUCKET]>
     where
         f32: AsPrimitive<T>,
     {
         let mut table = Box::new([T::default(); BUCKET]);
         let max_range = 1f64 / (N - 1) as f64;
-        let max_value = ((1 << BIT_DEPTH) - 1) as f64;
+        let max_value = ((1 << bit_depth) - 1) as f64;
         if T::FINITE {
             for (v, output) in table.iter_mut().take(N).enumerate() {
                 *output = ((self.gamma(v as f64 * max_range) * max_value) as f32)

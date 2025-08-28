@@ -53,11 +53,11 @@ pub(crate) struct TransformShaperQ2_13Neon<
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
     const LINEAR_CAP: usize,
-    const GAMMA_LUT: usize,
     const PRECISION: i32,
 > {
     pub(crate) profile: TransformMatrixShaperFixedPoint<i16, T, LINEAR_CAP>,
     pub(crate) bit_depth: usize,
+    pub(crate) gamma_lut: usize,
 }
 
 impl<
@@ -65,10 +65,9 @@ impl<
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
     const LINEAR_CAP: usize,
-    const GAMMA_LUT: usize,
     const PRECISION: i32,
 > TransformExecutor<T>
-    for TransformShaperQ2_13Neon<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP, GAMMA_LUT, PRECISION>
+    for TransformShaperQ2_13Neon<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP, PRECISION>
 where
     u32: AsPrimitive<T>,
 {
@@ -99,7 +98,7 @@ where
             let m1 = vld1_s16([t.v[1][0], t.v[1][1], t.v[1][2], 0].as_ptr());
             let m2 = vld1_s16([t.v[2][0], t.v[2][1], t.v[2][2], 0].as_ptr());
 
-            let v_max_value = vdup_n_u16((GAMMA_LUT - 1) as u16);
+            let v_max_value = vdup_n_u16((self.gamma_lut - 1) as u16);
 
             let rnd = vdupq_n_s32(1 << (PRECISION - 1));
 

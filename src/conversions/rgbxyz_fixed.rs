@@ -58,11 +58,11 @@ struct TransformMatrixShaperQ2_13<
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
     const LINEAR_CAP: usize,
-    const GAMMA_LUT: usize,
     const PRECISION: i32,
 > {
     pub(crate) profile: TransformMatrixShaperFixedPoint<i16, T, LINEAR_CAP>,
     pub(crate) bit_depth: usize,
+    pub(crate) gamma_lut: usize,
 }
 
 #[allow(unused)]
@@ -71,11 +71,11 @@ struct TransformMatrixShaperQ2_13Optimized<
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
     const LINEAR_CAP: usize,
-    const GAMMA_LUT: usize,
     const PRECISION: i32,
 > {
     pub(crate) profile: TransformMatrixShaperFixedPointOpt<i16, i16, T, LINEAR_CAP>,
     pub(crate) bit_depth: usize,
+    pub(crate) gamma_lut: usize,
 }
 
 #[allow(unused)]
@@ -84,10 +84,9 @@ impl<
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
     const LINEAR_CAP: usize,
-    const GAMMA_LUT: usize,
     const PRECISION: i32,
 > TransformExecutor<T>
-    for TransformMatrixShaperQ2_13<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP, GAMMA_LUT, PRECISION>
+    for TransformMatrixShaperQ2_13<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP, PRECISION>
 where
     u32: AsPrimitive<T>,
 {
@@ -111,7 +110,7 @@ where
         let max_colors: T = ((1 << self.bit_depth as u32) - 1u32).as_();
         let rnd: i32 = (1i32 << (PRECISION - 1));
 
-        let v_gamma_max = GAMMA_LUT as i32 - 1;
+        let v_gamma_max = self.gamma_lut as i32 - 1;
 
         for (src, dst) in src
             .chunks_exact(src_channels)
@@ -164,17 +163,9 @@ impl<
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
     const LINEAR_CAP: usize,
-    const GAMMA_LUT: usize,
     const PRECISION: i32,
 > TransformExecutor<T>
-    for TransformMatrixShaperQ2_13Optimized<
-        T,
-        SRC_LAYOUT,
-        DST_LAYOUT,
-        LINEAR_CAP,
-        GAMMA_LUT,
-        PRECISION,
-    >
+    for TransformMatrixShaperQ2_13Optimized<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP, PRECISION>
 where
     u32: AsPrimitive<T>,
 {
@@ -198,7 +189,7 @@ where
         let max_colors: T = ((1 << self.bit_depth as u32) - 1u32).as_();
         let rnd: i32 = (1i32 << (PRECISION - 1));
 
-        let v_gamma_max = GAMMA_LUT as i32 - 1;
+        let v_gamma_max = self.gamma_lut as i32 - 1;
 
         for (src, dst) in src
             .chunks_exact(src_channels)
@@ -250,30 +241,30 @@ macro_rules! create_rgb_xyz_dependant_q2_13_executor {
         pub(crate) fn $dep_name<
             T: Clone + Send + Sync + AsPrimitive<usize> + Default + PointeeSizeExpressible,
             const LINEAR_CAP: usize,
-            const GAMMA_LUT: usize,
-            const BIT_DEPTH: usize,
             const PRECISION: i32,
         >(
             src_layout: Layout,
             dst_layout: Layout,
             profile: $shaper<T, LINEAR_CAP>,
+            gamma_lut: usize,
+            bit_depth: usize,
         ) -> Result<Box<dyn TransformExecutor<T> + Send + Sync>, CmsError>
         where
             u32: AsPrimitive<T>,
         {
             let q2_13_profile =
-                profile.to_q2_13_n::<$resolution, PRECISION, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>();
+                profile.to_q2_13_n::<$resolution, PRECISION, LINEAR_CAP>(gamma_lut, bit_depth);
             if (src_layout == Layout::Rgba) && (dst_layout == Layout::Rgba) {
                 return Ok(Box::new($dependant::<
                     T,
                     { Layout::Rgba as u8 },
                     { Layout::Rgba as u8 },
                     LINEAR_CAP,
-                    GAMMA_LUT,
                     PRECISION,
                 > {
                     profile: q2_13_profile,
-                    bit_depth: BIT_DEPTH,
+                    bit_depth,
+                    gamma_lut,
                 }));
             } else if (src_layout == Layout::Rgb) && (dst_layout == Layout::Rgba) {
                 return Ok(Box::new($dependant::<
@@ -281,11 +272,11 @@ macro_rules! create_rgb_xyz_dependant_q2_13_executor {
                     { Layout::Rgb as u8 },
                     { Layout::Rgba as u8 },
                     LINEAR_CAP,
-                    GAMMA_LUT,
                     PRECISION,
                 > {
                     profile: q2_13_profile,
-                    bit_depth: BIT_DEPTH,
+                    bit_depth,
+                    gamma_lut,
                 }));
             } else if (src_layout == Layout::Rgba) && (dst_layout == Layout::Rgb) {
                 return Ok(Box::new($dependant::<
@@ -293,11 +284,11 @@ macro_rules! create_rgb_xyz_dependant_q2_13_executor {
                     { Layout::Rgba as u8 },
                     { Layout::Rgb as u8 },
                     LINEAR_CAP,
-                    GAMMA_LUT,
                     PRECISION,
                 > {
                     profile: q2_13_profile,
-                    bit_depth: BIT_DEPTH,
+                    bit_depth,
+                    gamma_lut,
                 }));
             } else if (src_layout == Layout::Rgb) && (dst_layout == Layout::Rgb) {
                 return Ok(Box::new($dependant::<
@@ -305,11 +296,11 @@ macro_rules! create_rgb_xyz_dependant_q2_13_executor {
                     { Layout::Rgb as u8 },
                     { Layout::Rgb as u8 },
                     LINEAR_CAP,
-                    GAMMA_LUT,
                     PRECISION,
                 > {
                     profile: q2_13_profile,
-                    bit_depth: BIT_DEPTH,
+                    bit_depth,
+                    gamma_lut,
                 }));
             }
             Err(CmsError::UnsupportedProfileConnection)
@@ -323,30 +314,30 @@ macro_rules! create_rgb_xyz_dependant_q1_30_executor {
         pub(crate) fn $dep_name<
             T: Clone + Send + Sync + AsPrimitive<usize> + Default + PointeeSizeExpressible,
             const LINEAR_CAP: usize,
-            const GAMMA_LUT: usize,
-            const BIT_DEPTH: usize,
             const PRECISION: i32,
         >(
             src_layout: Layout,
             dst_layout: Layout,
             profile: $shaper<T, LINEAR_CAP>,
+            gamma_lut: usize,
+            bit_depth: usize,
         ) -> Result<Box<dyn TransformExecutor<T> + Send + Sync>, CmsError>
         where
             u32: AsPrimitive<T>,
         {
             let q1_30_profile =
-                profile.to_q1_30_n::<$resolution, PRECISION, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>();
+                profile.to_q1_30_n::<$resolution, PRECISION, LINEAR_CAP>(gamma_lut, bit_depth);
             if (src_layout == Layout::Rgba) && (dst_layout == Layout::Rgba) {
                 return Ok(Box::new($dependant::<
                     T,
                     { Layout::Rgba as u8 },
                     { Layout::Rgba as u8 },
                     LINEAR_CAP,
-                    GAMMA_LUT,
-                    BIT_DEPTH,
                     PRECISION,
                 > {
                     profile: q1_30_profile,
+                    gamma_lut,
+                    bit_depth,
                 }));
             } else if (src_layout == Layout::Rgb) && (dst_layout == Layout::Rgba) {
                 return Ok(Box::new($dependant::<
@@ -354,11 +345,11 @@ macro_rules! create_rgb_xyz_dependant_q1_30_executor {
                     { Layout::Rgb as u8 },
                     { Layout::Rgba as u8 },
                     LINEAR_CAP,
-                    GAMMA_LUT,
-                    BIT_DEPTH,
                     PRECISION,
                 > {
                     profile: q1_30_profile,
+                    gamma_lut,
+                    bit_depth,
                 }));
             } else if (src_layout == Layout::Rgba) && (dst_layout == Layout::Rgb) {
                 return Ok(Box::new($dependant::<
@@ -366,11 +357,11 @@ macro_rules! create_rgb_xyz_dependant_q1_30_executor {
                     { Layout::Rgba as u8 },
                     { Layout::Rgb as u8 },
                     LINEAR_CAP,
-                    GAMMA_LUT,
-                    BIT_DEPTH,
                     PRECISION,
                 > {
                     profile: q1_30_profile,
+                    gamma_lut,
+                    bit_depth,
                 }));
             } else if (src_layout == Layout::Rgb) && (dst_layout == Layout::Rgb) {
                 return Ok(Box::new($dependant::<
@@ -378,11 +369,11 @@ macro_rules! create_rgb_xyz_dependant_q1_30_executor {
                     { Layout::Rgb as u8 },
                     { Layout::Rgb as u8 },
                     LINEAR_CAP,
-                    GAMMA_LUT,
-                    BIT_DEPTH,
                     PRECISION,
                 > {
                     profile: q1_30_profile,
+                    gamma_lut,
+                    bit_depth,
                 }));
             }
             Err(CmsError::UnsupportedProfileConnection)

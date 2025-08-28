@@ -33,7 +33,7 @@ use crate::{
     MalformedSize, Matrix3d, Stage, TransformOptions, Vector3d, Vector4f,
 };
 
-struct ACurves3x4Inverse<'a, const DEPTH: usize> {
+struct ACurves3x4Inverse<'a> {
     curve0: Box<[f32; 65536]>,
     curve1: Box<[f32; 65536]>,
     curve2: Box<[f32; 65536]>,
@@ -42,6 +42,7 @@ struct ACurves3x4Inverse<'a, const DEPTH: usize> {
     grid_size: [u8; 3],
     interpolation_method: InterpolationMethod,
     pcs: DataColorSpace,
+    depth: usize,
 }
 
 struct ACurves3x4InverseOptimized<'a> {
@@ -51,14 +52,14 @@ struct ACurves3x4InverseOptimized<'a> {
     pcs: DataColorSpace,
 }
 
-impl<const DEPTH: usize> ACurves3x4Inverse<'_, DEPTH> {
+impl ACurves3x4Inverse<'_> {
     fn transform_impl<Fetch: Fn(f32, f32, f32) -> Vector4f>(
         &self,
         src: &[f32],
         dst: &mut [f32],
         fetch: Fetch,
     ) -> Result<(), CmsError> {
-        let scale_value = (DEPTH as u32 - 1u32) as f32;
+        let scale_value = (self.depth as u32 - 1u32) as f32;
 
         assert_eq!(src.len() / 3, dst.len() / 4);
 
@@ -105,7 +106,7 @@ impl ACurves3x4InverseOptimized<'_> {
     }
 }
 
-impl<const DEPTH: usize> Stage for ACurves3x4Inverse<'_, DEPTH> {
+impl Stage for ACurves3x4Inverse<'_> {
     fn transform(&self, src: &[f32], dst: &mut [f32]) -> Result<(), CmsError> {
         let lut = Cube::new_cube(self.clut, self.grid_size);
 
@@ -225,13 +226,14 @@ pub(crate) fn prepare_mba_3x4(
 
             let matrix = mab.matrix.to_f32();
             let bias = mab.bias.cast();
-            let m_curves = MCurves3::<DEPTH> {
+            let m_curves = MCurves3 {
                 curve0,
                 curve1,
                 curve2,
                 matrix,
                 bias,
                 inverse: true,
+                depth: DEPTH,
             };
             m_curves.transform(lut)?;
         }
@@ -278,7 +280,7 @@ pub(crate) fn prepare_mba_3x4(
             let [curve0, curve1, curve2, curve3] =
                 curves?.try_into().map_err(|_| CmsError::InvalidTrcCurve)?;
 
-            let a_curves = ACurves3x4Inverse::<DEPTH> {
+            let a_curves = ACurves3x4Inverse {
                 curve0,
                 curve1,
                 curve2,
@@ -286,6 +288,7 @@ pub(crate) fn prepare_mba_3x4(
                 clut,
                 grid_size,
                 interpolation_method: options.interpolation_method,
+                depth: DEPTH,
                 pcs,
             };
             a_curves.transform(lut, &mut new_lut)?;
