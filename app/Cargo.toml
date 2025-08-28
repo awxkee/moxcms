@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-image = {version = "0.25.5", default-features = false}
+image = {version = "0.25.5", default-features = true}
 moxcms = {path = "../", default-features = false, features = ["neon", "options", "sse", "avx" ,"avx512"]}
 lcms2 = "6.1.0"
 #jxl-oxide = {path = "../../../RustroverProjects/jxl-oxide/crates/jxl-oxide", features = ["moxcms", "lcms2"]}
