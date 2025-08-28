@@ -41,10 +41,10 @@ pub(crate) struct TransformShaperRgbAvx<
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
     const LINEAR_CAP: usize,
-    const GAMMA_LUT: usize,
 > {
     pub(crate) profile: TransformMatrixShaper<T, LINEAR_CAP>,
     pub(crate) bit_depth: usize,
+    pub(crate) gamma_lut: usize,
 }
 
 impl<
@@ -52,8 +52,7 @@ impl<
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
     const LINEAR_CAP: usize,
-    const GAMMA_LUT: usize,
-> TransformShaperRgbAvx<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP, GAMMA_LUT>
+> TransformShaperRgbAvx<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP>
 where
     u32: AsPrimitive<T>,
 {
@@ -82,7 +81,7 @@ where
 
         let t = self.profile.adaptation_matrix.transpose();
 
-        let scale = (GAMMA_LUT - 1) as f32;
+        let scale = (self.gamma_lut - 1) as f32;
         let max_colors: T = ((1 << self.bit_depth) - 1).as_();
 
         unsafe {
@@ -308,8 +307,7 @@ impl<
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
     const LINEAR_CAP: usize,
-    const GAMMA_LUT: usize,
-> TransformExecutor<T> for TransformShaperRgbAvx<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP, GAMMA_LUT>
+> TransformExecutor<T> for TransformShaperRgbAvx<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP>
 where
     u32: AsPrimitive<T>,
 {

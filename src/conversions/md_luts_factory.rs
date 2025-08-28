@@ -87,11 +87,9 @@ where
                 source.pcs,
                 BIT_DEPTH,
             )?,
-            LutWarehouse::Multidimensional(mab) => {
-                katana_multi_dimensional_nx3_to_pcs::<T, BIT_DEPTH>(
-                    src_layout, mab, options, source.pcs,
-                )?
-            }
+            LutWarehouse::Multidimensional(mab) => katana_multi_dimensional_nx3_to_pcs::<T>(
+                src_layout, mab, options, source.pcs, BIT_DEPTH,
+            )?,
         },
     };
 

@@ -38,11 +38,11 @@ pub(crate) struct TransformShaperQ2_13NeonOpt<
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
     const LINEAR_CAP: usize,
-    const GAMMA_LUT: usize,
     const PRECISION: i32,
 > {
     pub(crate) profile: TransformMatrixShaperFixedPointOpt<i16, i16, T, LINEAR_CAP>,
     pub(crate) bit_depth: usize,
+    pub(crate) gamma_lut: usize,
 }
 
 impl<
@@ -50,10 +50,9 @@ impl<
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
     const LINEAR_CAP: usize,
-    const GAMMA_LUT: usize,
     const PRECISION: i32,
 > TransformExecutor<T>
-    for TransformShaperQ2_13NeonOpt<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP, GAMMA_LUT, PRECISION>
+    for TransformShaperQ2_13NeonOpt<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP, PRECISION>
 where
     u32: AsPrimitive<T>,
 {
@@ -84,7 +83,7 @@ where
             let m1 = vld1_s16([t.v[1][0], t.v[1][1], t.v[1][2], 0].as_ptr());
             let m2 = vld1_s16([t.v[2][0], t.v[2][1], t.v[2][2], 0].as_ptr());
 
-            let v_max_value = vdup_n_u16((GAMMA_LUT - 1) as u16);
+            let v_max_value = vdup_n_u16((self.gamma_lut - 1) as u16);
 
             let rnd = vdupq_n_s32(1 << (PRECISION - 1));
 
@@ -100,21 +99,21 @@ where
                 let (mut r3, mut g3, mut b3, mut a3);
 
                 if let (Some(src0), Some(src1)) = (src_iter0.next(), src_iter1.next()) {
-                    let r0p = &self.profile.linear[src0[src_cn.r_i()]._as_usize()];
-                    let g0p = &self.profile.linear[src0[src_cn.g_i()]._as_usize()];
-                    let b0p = &self.profile.linear[src0[src_cn.b_i()]._as_usize()];
+                    let r0p = &self.profile.r_linear[src0[src_cn.r_i()]._as_usize()];
+                    let g0p = &self.profile.g_linear[src0[src_cn.g_i()]._as_usize()];
+                    let b0p = &self.profile.b_linear[src0[src_cn.b_i()]._as_usize()];
 
-                    let r1p = &self.profile.linear[src0[src_cn.r_i() + src_channels]._as_usize()];
-                    let g1p = &self.profile.linear[src0[src_cn.g_i() + src_channels]._as_usize()];
-                    let b1p = &self.profile.linear[src0[src_cn.b_i() + src_channels]._as_usize()];
+                    let r1p = &self.profile.r_linear[src0[src_cn.r_i() + src_channels]._as_usize()];
+                    let g1p = &self.profile.g_linear[src0[src_cn.g_i() + src_channels]._as_usize()];
+                    let b1p = &self.profile.b_linear[src0[src_cn.b_i() + src_channels]._as_usize()];
 
-                    let r2p = &self.profile.linear[src1[src_cn.r_i()]._as_usize()];
-                    let g2p = &self.profile.linear[src1[src_cn.g_i()]._as_usize()];
-                    let b2p = &self.profile.linear[src1[src_cn.b_i()]._as_usize()];
+                    let r2p = &self.profile.r_linear[src1[src_cn.r_i()]._as_usize()];
+                    let g2p = &self.profile.g_linear[src1[src_cn.g_i()]._as_usize()];
+                    let b2p = &self.profile.b_linear[src1[src_cn.b_i()]._as_usize()];
 
-                    let r3p = &self.profile.linear[src1[src_cn.r_i() + src_channels]._as_usize()];
-                    let g3p = &self.profile.linear[src1[src_cn.g_i() + src_channels]._as_usize()];
-                    let b3p = &self.profile.linear[src1[src_cn.b_i() + src_channels]._as_usize()];
+                    let r3p = &self.profile.r_linear[src1[src_cn.r_i() + src_channels]._as_usize()];
+                    let g3p = &self.profile.g_linear[src1[src_cn.g_i() + src_channels]._as_usize()];
+                    let b3p = &self.profile.b_linear[src1[src_cn.b_i() + src_channels]._as_usize()];
 
                     r0 = vld1_dup_s16(r0p);
                     g0 = vld1_dup_s16(g0p);
@@ -204,21 +203,21 @@ where
                     vr2 = vmin_u16(vr2, v_max_value);
                     vr3 = vmin_u16(vr3, v_max_value);
 
-                    let r0p = &self.profile.linear[src0[src_cn.r_i()]._as_usize()];
-                    let g0p = &self.profile.linear[src0[src_cn.g_i()]._as_usize()];
-                    let b0p = &self.profile.linear[src0[src_cn.b_i()]._as_usize()];
+                    let r0p = &self.profile.r_linear[src0[src_cn.r_i()]._as_usize()];
+                    let g0p = &self.profile.g_linear[src0[src_cn.g_i()]._as_usize()];
+                    let b0p = &self.profile.b_linear[src0[src_cn.b_i()]._as_usize()];
 
-                    let r1p = &self.profile.linear[src0[src_cn.r_i() + src_channels]._as_usize()];
-                    let g1p = &self.profile.linear[src0[src_cn.g_i() + src_channels]._as_usize()];
-                    let b1p = &self.profile.linear[src0[src_cn.b_i() + src_channels]._as_usize()];
+                    let r1p = &self.profile.r_linear[src0[src_cn.r_i() + src_channels]._as_usize()];
+                    let g1p = &self.profile.g_linear[src0[src_cn.g_i() + src_channels]._as_usize()];
+                    let b1p = &self.profile.b_linear[src0[src_cn.b_i() + src_channels]._as_usize()];
 
-                    let r2p = &self.profile.linear[src1[src_cn.r_i()]._as_usize()];
-                    let g2p = &self.profile.linear[src1[src_cn.g_i()]._as_usize()];
-                    let b2p = &self.profile.linear[src1[src_cn.b_i()]._as_usize()];
+                    let r2p = &self.profile.r_linear[src1[src_cn.r_i()]._as_usize()];
+                    let g2p = &self.profile.g_linear[src1[src_cn.g_i()]._as_usize()];
+                    let b2p = &self.profile.b_linear[src1[src_cn.b_i()]._as_usize()];
 
-                    let r3p = &self.profile.linear[src1[src_cn.r_i() + src_channels]._as_usize()];
-                    let g3p = &self.profile.linear[src1[src_cn.g_i() + src_channels]._as_usize()];
-                    let b3p = &self.profile.linear[src1[src_cn.b_i() + src_channels]._as_usize()];
+                    let r3p = &self.profile.r_linear[src1[src_cn.r_i() + src_channels]._as_usize()];
+                    let g3p = &self.profile.g_linear[src1[src_cn.g_i() + src_channels]._as_usize()];
+                    let b3p = &self.profile.b_linear[src1[src_cn.b_i() + src_channels]._as_usize()];
 
                     r0 = vld1_dup_s16(r0p);
                     g0 = vld1_dup_s16(g0p);
@@ -364,9 +363,9 @@ where
                 .chunks_exact(src_channels)
                 .zip(dst_remainder.chunks_exact_mut(dst_channels))
             {
-                let rp = &self.profile.linear[src[src_cn.r_i()]._as_usize()];
-                let gp = &self.profile.linear[src[src_cn.g_i()]._as_usize()];
-                let bp = &self.profile.linear[src[src_cn.b_i()]._as_usize()];
+                let rp = &self.profile.r_linear[src[src_cn.r_i()]._as_usize()];
+                let gp = &self.profile.g_linear[src[src_cn.g_i()]._as_usize()];
+                let bp = &self.profile.b_linear[src[src_cn.b_i()]._as_usize()];
                 let r = vld1_dup_s16(rp);
                 let g = vld1_dup_s16(gp);
                 let b = vld1_dup_s16(bp);

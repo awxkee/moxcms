@@ -52,9 +52,9 @@ struct TransformShaperFloatScalar<
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
     const LINEAR_CAP: usize,
-    const BIT_DEPTH: usize,
 > {
     pub(crate) profile: TransformShaperRgbFloat<T, LINEAR_CAP>,
+    pub(crate) bit_depth: usize,
 }
 
 struct TransformShaperRgbFloatInOut<T: Clone, const SRC_LAYOUT: u8, const DST_LAYOUT: u8> {
@@ -65,11 +65,11 @@ struct TransformShaperRgbFloatInOut<T: Clone, const SRC_LAYOUT: u8, const DST_LA
 pub(crate) fn make_rgb_xyz_rgb_transform_float<
     T: Clone + Send + Sync + PointeeSizeExpressible + 'static + Copy + Default,
     const LINEAR_CAP: usize,
-    const BIT_DEPTH: usize,
 >(
     src_layout: Layout,
     dst_layout: Layout,
     profile: TransformShaperRgbFloat<T, LINEAR_CAP>,
+    bit_depth: usize,
 ) -> Result<Box<dyn TransformExecutor<T> + Send + Sync>, CmsError>
 where
     u32: AsPrimitive<T>,
@@ -81,9 +81,9 @@ where
             { Layout::Rgba as u8 },
             { Layout::Rgba as u8 },
             LINEAR_CAP,
-            BIT_DEPTH,
         > {
             profile,
+            bit_depth,
         }));
     } else if (src_layout == Layout::Rgb) && (dst_layout == Layout::Rgba) {
         return Ok(Box::new(TransformShaperFloatScalar::<
@@ -91,9 +91,9 @@ where
             { Layout::Rgb as u8 },
             { Layout::Rgba as u8 },
             LINEAR_CAP,
-            BIT_DEPTH,
         > {
             profile,
+            bit_depth,
         }));
     } else if (src_layout == Layout::Rgba) && (dst_layout == Layout::Rgb) {
         return Ok(Box::new(TransformShaperFloatScalar::<
@@ -101,9 +101,9 @@ where
             { Layout::Rgba as u8 },
             { Layout::Rgb as u8 },
             LINEAR_CAP,
-            BIT_DEPTH,
         > {
             profile,
+            bit_depth,
         }));
     } else if (src_layout == Layout::Rgb) && (dst_layout == Layout::Rgb) {
         return Ok(Box::new(TransformShaperFloatScalar::<
@@ -111,9 +111,9 @@ where
             { Layout::Rgb as u8 },
             { Layout::Rgb as u8 },
             LINEAR_CAP,
-            BIT_DEPTH,
         > {
             profile,
+            bit_depth,
         }));
     }
     Err(CmsError::UnsupportedProfileConnection)
@@ -121,11 +121,11 @@ where
 
 pub(crate) fn make_rgb_xyz_rgb_transform_float_in_out<
     T: Clone + Send + Sync + PointeeSizeExpressible + 'static + Copy + Default + AsPrimitive<f32>,
-    const BIT_DEPTH: usize,
 >(
     src_layout: Layout,
     dst_layout: Layout,
     profile: TransformShaperFloatInOut<T>,
+    bit_depth: usize,
 ) -> Result<Box<dyn TransformExecutor<T> + Send + Sync>, CmsError>
 where
     u32: AsPrimitive<T>,
@@ -138,7 +138,7 @@ where
             { Layout::Rgba as u8 },
         > {
             profile,
-            bit_depth: BIT_DEPTH,
+            bit_depth,
         }));
     } else if (src_layout == Layout::Rgb) && (dst_layout == Layout::Rgba) {
         return Ok(Box::new(TransformShaperRgbFloatInOut::<
@@ -147,7 +147,7 @@ where
             { Layout::Rgba as u8 },
         > {
             profile,
-            bit_depth: BIT_DEPTH,
+            bit_depth,
         }));
     } else if (src_layout == Layout::Rgba) && (dst_layout == Layout::Rgb) {
         return Ok(Box::new(TransformShaperRgbFloatInOut::<
@@ -156,7 +156,7 @@ where
             { Layout::Rgb as u8 },
         > {
             profile,
-            bit_depth: BIT_DEPTH,
+            bit_depth,
         }));
     } else if (src_layout == Layout::Rgb) && (dst_layout == Layout::Rgb) {
         return Ok(Box::new(TransformShaperRgbFloatInOut::<
@@ -165,7 +165,7 @@ where
             { Layout::Rgb as u8 },
         > {
             profile,
-            bit_depth: BIT_DEPTH,
+            bit_depth,
         }));
     }
     Err(CmsError::UnsupportedProfileConnection)
@@ -176,9 +176,7 @@ impl<
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
     const LINEAR_CAP: usize,
-    const BIT_DEPTH: usize,
-> TransformExecutor<T>
-    for TransformShaperFloatScalar<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP, BIT_DEPTH>
+> TransformExecutor<T> for TransformShaperFloatScalar<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP>
 where
     u32: AsPrimitive<T>,
     f32: AsPrimitive<T>,
@@ -201,7 +199,7 @@ where
         }
 
         let transform = self.profile.adaptation_matrix;
-        let max_colors: T = ((1 << BIT_DEPTH) - 1).as_();
+        let max_colors: T = ((1 << self.bit_depth) - 1).as_();
 
         for (src, dst) in src
             .chunks_exact(src_channels)

@@ -52,19 +52,19 @@ impl<T: Clone + PointeeSizeExpressible, const BUCKET: usize> TransformMatrixShap
         R: Copy + 'static + Default,
         const PRECISION: i32,
         const LINEAR_CAP: usize,
-        const GAMMA_LUT: usize,
-        const BIT_DEPTH: usize,
     >(
         &self,
+        gamma_lut: usize,
+        bit_depth: usize,
     ) -> TransformMatrixShaperFixedPoint<R, T, BUCKET>
     where
         f32: AsPrimitive<R>,
     {
         let linear_scale = if T::FINITE {
-            let lut_scale = (GAMMA_LUT - 1) as f32 / ((1 << BIT_DEPTH) - 1) as f32;
-            ((1 << BIT_DEPTH) - 1) as f32 * lut_scale
+            let lut_scale = (gamma_lut - 1) as f32 / ((1 << bit_depth) - 1) as f32;
+            ((1 << bit_depth) - 1) as f32 * lut_scale
         } else {
-            let lut_scale = (GAMMA_LUT - 1) as f32 / (T::NOT_FINITE_LINEAR_TABLE_SIZE - 1) as f32;
+            let lut_scale = (gamma_lut - 1) as f32 / (T::NOT_FINITE_LINEAR_TABLE_SIZE - 1) as f32;
             (T::NOT_FINITE_LINEAR_TABLE_SIZE - 1) as f32 * lut_scale
         };
         let mut new_box_r = Box::new([R::default(); BUCKET]);
@@ -106,19 +106,19 @@ impl<T: Clone + PointeeSizeExpressible, const BUCKET: usize>
         R: Copy + 'static + Default,
         const PRECISION: i32,
         const LINEAR_CAP: usize,
-        const GAMMA_LUT: usize,
-        const BIT_DEPTH: usize,
     >(
         &self,
+        gamma_lut: usize,
+        bit_depth: usize,
     ) -> TransformMatrixShaperFixedPointOpt<R, i16, T, BUCKET>
     where
         f32: AsPrimitive<R>,
     {
         let linear_scale = if T::FINITE {
-            let lut_scale = (GAMMA_LUT - 1) as f32 / ((1 << BIT_DEPTH) - 1) as f32;
-            ((1 << BIT_DEPTH) - 1) as f32 * lut_scale
+            let lut_scale = (gamma_lut - 1) as f32 / ((1 << bit_depth) - 1) as f32;
+            ((1 << bit_depth) - 1) as f32 * lut_scale
         } else {
-            let lut_scale = (GAMMA_LUT - 1) as f32 / (T::NOT_FINITE_LINEAR_TABLE_SIZE - 1) as f32;
+            let lut_scale = (gamma_lut - 1) as f32 / (T::NOT_FINITE_LINEAR_TABLE_SIZE - 1) as f32;
             (T::NOT_FINITE_LINEAR_TABLE_SIZE - 1) as f32 * lut_scale
         };
         let mut new_box_linear = Box::new([R::default(); BUCKET]);
@@ -147,10 +147,10 @@ impl<T: Clone + PointeeSizeExpressible, const BUCKET: usize>
         R: Copy + 'static + Default,
         const PRECISION: i32,
         const LINEAR_CAP: usize,
-        const GAMMA_LUT: usize,
-        const BIT_DEPTH: usize,
     >(
         &self,
+        gamma_lut: usize,
+        bit_depth: usize,
     ) -> TransformMatrixShaperFixedPointOpt<R, i32, T, BUCKET>
     where
         f32: AsPrimitive<R>,
@@ -158,18 +158,18 @@ impl<T: Clone + PointeeSizeExpressible, const BUCKET: usize>
     {
         // It is important to scale 1 bit more to compensate vqrdmlah Q0.31, because we're going to use Q1.30
         let table_size = if T::FINITE {
-            (1 << BIT_DEPTH) - 1
+            (1 << bit_depth) - 1
         } else {
             T::NOT_FINITE_LINEAR_TABLE_SIZE - 1
         };
         let ext_bp = if T::FINITE {
-            BIT_DEPTH as u32 + 1
+            bit_depth as u32 + 1
         } else {
             let bp = (T::NOT_FINITE_LINEAR_TABLE_SIZE - 1).count_ones();
             bp + 1
         };
         let linear_scale = {
-            let lut_scale = (GAMMA_LUT - 1) as f64 / table_size as f64;
+            let lut_scale = (gamma_lut - 1) as f64 / table_size as f64;
             ((1u32 << ext_bp) - 1) as f64 * lut_scale
         };
         let mut new_box_linear = Box::new([R::default(); BUCKET]);
@@ -200,10 +200,10 @@ struct TransformMatrixShaperScalar<
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
     const LINEAR_CAP: usize,
-    const GAMMA_LUT: usize,
-    const BIT_DEPTH: usize,
 > {
     pub(crate) profile: TransformMatrixShaper<T, LINEAR_CAP>,
+    pub(crate) gamma_lut: usize,
+    pub(crate) bit_depth: usize,
 }
 
 #[allow(unused)]
@@ -212,10 +212,10 @@ struct TransformMatrixShaperOptScalar<
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
     const LINEAR_CAP: usize,
-    const GAMMA_LUT: usize,
-    const BIT_DEPTH: usize,
 > {
     pub(crate) profile: TransformMatrixShaperOptimized<T, LINEAR_CAP>,
+    pub(crate) gamma_lut: usize,
+    pub(crate) bit_depth: usize,
 }
 
 #[cfg(any(
@@ -228,12 +228,12 @@ macro_rules! create_rgb_xyz_dependant_executor {
         pub(crate) fn $dep_name<
             T: Clone + Send + Sync + Default + PointeeSizeExpressible + Copy + 'static,
             const LINEAR_CAP: usize,
-            const GAMMA_LUT: usize,
-            const BIT_DEPTH: usize,
         >(
             src_layout: Layout,
             dst_layout: Layout,
             profile: $shaper<T, LINEAR_CAP>,
+            gamma_lut: usize,
+            bit_depth: usize,
         ) -> Result<Box<dyn TransformExecutor<T> + Send + Sync>, CmsError>
         where
             u32: AsPrimitive<T>,
@@ -244,10 +244,10 @@ macro_rules! create_rgb_xyz_dependant_executor {
                     { Layout::Rgba as u8 },
                     { Layout::Rgba as u8 },
                     LINEAR_CAP,
-                    GAMMA_LUT,
                 > {
                     profile,
-                    bit_depth: BIT_DEPTH,
+                    bit_depth,
+                    gamma_lut,
                 }));
             } else if (src_layout == Layout::Rgb) && (dst_layout == Layout::Rgba) {
                 return Ok(Box::new($dependant::<
@@ -255,10 +255,10 @@ macro_rules! create_rgb_xyz_dependant_executor {
                     { Layout::Rgb as u8 },
                     { Layout::Rgba as u8 },
                     LINEAR_CAP,
-                    GAMMA_LUT,
                 > {
                     profile,
-                    bit_depth: BIT_DEPTH,
+                    bit_depth,
+                    gamma_lut,
                 }));
             } else if (src_layout == Layout::Rgba) && (dst_layout == Layout::Rgb) {
                 return Ok(Box::new($dependant::<
@@ -266,10 +266,10 @@ macro_rules! create_rgb_xyz_dependant_executor {
                     { Layout::Rgba as u8 },
                     { Layout::Rgb as u8 },
                     LINEAR_CAP,
-                    GAMMA_LUT,
                 > {
                     profile,
-                    bit_depth: BIT_DEPTH,
+                    bit_depth,
+                    gamma_lut,
                 }));
             } else if (src_layout == Layout::Rgb) && (dst_layout == Layout::Rgb) {
                 return Ok(Box::new($dependant::<
@@ -277,10 +277,10 @@ macro_rules! create_rgb_xyz_dependant_executor {
                     { Layout::Rgb as u8 },
                     { Layout::Rgb as u8 },
                     LINEAR_CAP,
-                    GAMMA_LUT,
                 > {
                     profile,
-                    bit_depth: BIT_DEPTH,
+                    bit_depth,
+                    gamma_lut,
                 }));
             }
             Err(CmsError::UnsupportedProfileConnection)
@@ -336,26 +336,26 @@ create_rgb_xyz_dependant_executor!(
 pub(crate) fn make_rgb_xyz_rgb_transform<
     T: Clone + Send + Sync + PointeeSizeExpressible + 'static + Copy + Default,
     const LINEAR_CAP: usize,
-    const GAMMA_LUT: usize,
-    const BIT_DEPTH: usize,
 >(
     src_layout: Layout,
     dst_layout: Layout,
     profile: TransformMatrixShaper<T, LINEAR_CAP>,
+    gamma_lut: usize,
+    bit_depth: usize,
 ) -> Result<Box<dyn TransformExecutor<T> + Send + Sync>, CmsError>
 where
     u32: AsPrimitive<T>,
 {
     #[cfg(all(feature = "avx", target_arch = "x86_64"))]
     if std::arch::is_x86_feature_detected!("avx2") {
-        return make_rgb_xyz_rgb_transform_avx2::<T, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>(
-            src_layout, dst_layout, profile,
+        return make_rgb_xyz_rgb_transform_avx2::<T, LINEAR_CAP>(
+            src_layout, dst_layout, profile, gamma_lut, bit_depth,
         );
     }
     #[cfg(all(feature = "sse", any(target_arch = "x86", target_arch = "x86_64")))]
     if std::arch::is_x86_feature_detected!("sse4.1") {
-        return make_rgb_xyz_rgb_transform_sse_41::<T, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>(
-            src_layout, dst_layout, profile,
+        return make_rgb_xyz_rgb_transform_sse_41::<T, LINEAR_CAP>(
+            src_layout, dst_layout, profile, gamma_lut, bit_depth,
         );
     }
     if (src_layout == Layout::Rgba) && (dst_layout == Layout::Rgba) {
@@ -364,10 +364,10 @@ where
             { Layout::Rgba as u8 },
             { Layout::Rgba as u8 },
             LINEAR_CAP,
-            GAMMA_LUT,
-            BIT_DEPTH,
         > {
             profile,
+            gamma_lut,
+            bit_depth,
         }));
     } else if (src_layout == Layout::Rgb) && (dst_layout == Layout::Rgba) {
         return Ok(Box::new(TransformMatrixShaperScalar::<
@@ -375,10 +375,10 @@ where
             { Layout::Rgb as u8 },
             { Layout::Rgba as u8 },
             LINEAR_CAP,
-            GAMMA_LUT,
-            BIT_DEPTH,
         > {
             profile,
+            gamma_lut,
+            bit_depth,
         }));
     } else if (src_layout == Layout::Rgba) && (dst_layout == Layout::Rgb) {
         return Ok(Box::new(TransformMatrixShaperScalar::<
@@ -386,10 +386,10 @@ where
             { Layout::Rgba as u8 },
             { Layout::Rgb as u8 },
             LINEAR_CAP,
-            GAMMA_LUT,
-            BIT_DEPTH,
         > {
             profile,
+            gamma_lut,
+            bit_depth,
         }));
     } else if (src_layout == Layout::Rgb) && (dst_layout == Layout::Rgb) {
         return Ok(Box::new(TransformMatrixShaperScalar::<
@@ -397,10 +397,10 @@ where
             { Layout::Rgb as u8 },
             { Layout::Rgb as u8 },
             LINEAR_CAP,
-            GAMMA_LUT,
-            BIT_DEPTH,
         > {
             profile,
+            gamma_lut,
+            bit_depth,
         }));
     }
     Err(CmsError::UnsupportedProfileConnection)
@@ -410,12 +410,12 @@ where
 pub(crate) fn make_rgb_xyz_rgb_transform_opt<
     T: Clone + Send + Sync + PointeeSizeExpressible + 'static + Copy + Default,
     const LINEAR_CAP: usize,
-    const GAMMA_LUT: usize,
-    const BIT_DEPTH: usize,
 >(
     src_layout: Layout,
     dst_layout: Layout,
     profile: TransformMatrixShaperOptimized<T, LINEAR_CAP>,
+    gamma_lut: usize,
+    bit_depth: usize,
 ) -> Result<Box<dyn TransformExecutor<T> + Send + Sync>, CmsError>
 where
     u32: AsPrimitive<T>,
@@ -425,20 +425,20 @@ where
         && std::arch::is_x86_feature_detected!("avx512vl")
         && std::arch::is_x86_feature_detected!("fma")
     {
-        return make_rgb_xyz_rgb_transform_avx512_opt::<T, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>(
-            src_layout, dst_layout, profile,
+        return make_rgb_xyz_rgb_transform_avx512_opt::<T, LINEAR_CAP>(
+            src_layout, dst_layout, profile, gamma_lut, bit_depth,
         );
     }
     #[cfg(all(feature = "avx", target_arch = "x86_64"))]
     if std::arch::is_x86_feature_detected!("avx2") {
-        return make_rgb_xyz_rgb_transform_avx2_opt::<T, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>(
-            src_layout, dst_layout, profile,
+        return make_rgb_xyz_rgb_transform_avx2_opt::<T, LINEAR_CAP>(
+            src_layout, dst_layout, profile, gamma_lut, bit_depth,
         );
     }
     #[cfg(all(feature = "sse", any(target_arch = "x86", target_arch = "x86_64")))]
     if std::arch::is_x86_feature_detected!("sse4.1") {
-        return make_rgb_xyz_rgb_transform_sse_41_opt::<T, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>(
-            src_layout, dst_layout, profile,
+        return make_rgb_xyz_rgb_transform_sse_41_opt::<T, LINEAR_CAP>(
+            src_layout, dst_layout, profile, gamma_lut, bit_depth,
         );
     }
     if (src_layout == Layout::Rgba) && (dst_layout == Layout::Rgba) {
@@ -447,10 +447,10 @@ where
             { Layout::Rgba as u8 },
             { Layout::Rgba as u8 },
             LINEAR_CAP,
-            GAMMA_LUT,
-            BIT_DEPTH,
         > {
             profile,
+            gamma_lut,
+            bit_depth,
         }));
     } else if (src_layout == Layout::Rgb) && (dst_layout == Layout::Rgba) {
         return Ok(Box::new(TransformMatrixShaperOptScalar::<
@@ -458,10 +458,10 @@ where
             { Layout::Rgb as u8 },
             { Layout::Rgba as u8 },
             LINEAR_CAP,
-            GAMMA_LUT,
-            BIT_DEPTH,
         > {
             profile,
+            gamma_lut,
+            bit_depth,
         }));
     } else if (src_layout == Layout::Rgba) && (dst_layout == Layout::Rgb) {
         return Ok(Box::new(TransformMatrixShaperOptScalar::<
@@ -469,10 +469,10 @@ where
             { Layout::Rgba as u8 },
             { Layout::Rgb as u8 },
             LINEAR_CAP,
-            GAMMA_LUT,
-            BIT_DEPTH,
         > {
             profile,
+            gamma_lut,
+            bit_depth,
         }));
     } else if (src_layout == Layout::Rgb) && (dst_layout == Layout::Rgb) {
         return Ok(Box::new(TransformMatrixShaperOptScalar::<
@@ -480,10 +480,10 @@ where
             { Layout::Rgb as u8 },
             { Layout::Rgb as u8 },
             LINEAR_CAP,
-            GAMMA_LUT,
-            BIT_DEPTH,
         > {
             profile,
+            gamma_lut,
+            bit_depth,
         }));
     }
     Err(CmsError::UnsupportedProfileConnection)
@@ -516,10 +516,7 @@ impl<
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
     const LINEAR_CAP: usize,
-    const GAMMA_LUT: usize,
-    const BIT_DEPTH: usize,
-> TransformExecutor<T>
-    for TransformMatrixShaperScalar<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>
+> TransformExecutor<T> for TransformMatrixShaperScalar<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP>
 where
     u32: AsPrimitive<T>,
 {
@@ -541,8 +538,8 @@ where
         }
 
         let transform = self.profile.adaptation_matrix;
-        let scale = (GAMMA_LUT - 1) as f32;
-        let max_colors: T = ((1 << BIT_DEPTH) - 1).as_();
+        let scale = (self.gamma_lut - 1) as f32;
+        let max_colors: T = ((1 << self.bit_depth) - 1).as_();
 
         for (src, dst) in src
             .chunks_exact(src_channels)
@@ -611,10 +608,7 @@ impl<
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
     const LINEAR_CAP: usize,
-    const GAMMA_LUT: usize,
-    const BIT_DEPTH: usize,
-> TransformExecutor<T>
-    for TransformMatrixShaperOptScalar<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP, GAMMA_LUT, BIT_DEPTH>
+> TransformExecutor<T> for TransformMatrixShaperOptScalar<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP>
 where
     u32: AsPrimitive<T>,
 {
@@ -636,8 +630,8 @@ where
         }
 
         let transform = self.profile.adaptation_matrix;
-        let scale = (GAMMA_LUT - 1) as f32;
-        let max_colors: T = ((1 << BIT_DEPTH) - 1).as_();
+        let scale = (self.gamma_lut - 1) as f32;
+        let max_colors: T = ((1 << self.bit_depth) - 1).as_();
 
         for (src, dst) in src
             .chunks_exact(src_channels)

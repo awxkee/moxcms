@@ -522,8 +522,8 @@ impl ColorProfile {
                             adaptation_matrix: transform.to_f32(),
                             phantom_data: PhantomData,
                         };
-                        return make_rgb_xyz_rgb_transform_float_in_out::<T, BIT_DEPTH>(
-                            src_layout, dst_layout, p,
+                        return make_rgb_xyz_rgb_transform_float_in_out::<T>(
+                            src_layout, dst_layout, p, BIT_DEPTH,
                         );
                     }
 
@@ -548,8 +548,8 @@ impl ColorProfile {
                         adaptation_matrix: transform.to_f32(),
                         phantom_data: PhantomData,
                     };
-                    return make_rgb_xyz_rgb_transform_float::<T, LINEAR_CAP, BIT_DEPTH>(
-                        src_layout, dst_layout, p,
+                    return make_rgb_xyz_rgb_transform_float::<T, LINEAR_CAP>(
+                        src_layout, dst_layout, p, BIT_DEPTH,
                     );
                 }
             }
@@ -735,10 +735,15 @@ impl ColorProfile {
                         options.allow_use_cicp_transfer,
                     )?;
 
+                    let mut gray_linear2 = Box::new([0f32; 65536]);
+                    for (dst, src) in gray_linear2.iter_mut().zip(gray_linear.iter()) {
+                        *dst = *src;
+                    }
+
                     make_gray_to_unfused::<T, LINEAR_CAP>(
                         src_layout,
                         dst_layout,
-                        gray_linear,
+                        gray_linear2,
                         red_gamma,
                         green_gamma,
                         blue_gamma,
@@ -808,8 +813,8 @@ impl ColorProfile {
                 gray_gamma: gray_linear,
             };
 
-            Ok(make_rgb_to_gray::<T, LINEAR_CAP, BIT_DEPTH, GAMMA_CAP>(
-                src_layout, dst_layout, trc_box, vector,
+            Ok(make_rgb_to_gray::<T, LINEAR_CAP>(
+                src_layout, dst_layout, trc_box, vector, GAMMA_CAP, BIT_DEPTH,
             ))
         } else if (self.color_space.is_three_channels()
             || self.color_space == DataColorSpace::Cmyk

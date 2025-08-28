@@ -34,7 +34,7 @@ use crate::{
 };
 
 #[allow(unused)]
-struct ACurves3<'a, const DEPTH: usize> {
+struct ACurves3<'a> {
     curve0: Box<[f32; 65536]>,
     curve1: Box<[f32; 65536]>,
     curve2: Box<[f32; 65536]>,
@@ -42,6 +42,7 @@ struct ACurves3<'a, const DEPTH: usize> {
     grid_size: [u8; 3],
     interpolation_method: InterpolationMethod,
     pcs: DataColorSpace,
+    depth: usize,
 }
 
 #[allow(unused)]
@@ -53,13 +54,13 @@ struct ACurves3Optimized<'a> {
 }
 
 #[allow(unused)]
-impl<const DEPTH: usize> ACurves3<'_, DEPTH> {
+impl ACurves3<'_> {
     fn transform_impl<Fetch: Fn(f32, f32, f32) -> Vector3f>(
         &self,
         dst: &mut [f32],
         fetch: Fetch,
     ) -> Result<(), CmsError> {
-        let scale_value = (DEPTH - 1) as f32;
+        let scale_value = (self.depth - 1) as f32;
 
         for dst in dst.chunks_exact_mut(3) {
             let a0 = (dst[0] * scale_value).round().min(scale_value) as u16;
@@ -97,7 +98,7 @@ impl ACurves3Optimized<'_> {
     }
 }
 
-impl<const DEPTH: usize> InPlaceStage for ACurves3<'_, DEPTH> {
+impl InPlaceStage for ACurves3<'_> {
     fn transform(&self, dst: &mut [f32]) -> Result<(), CmsError> {
         let lut = Cube::new_cube(self.clut, self.grid_size);
 
@@ -158,7 +159,7 @@ impl InPlaceStage for ACurves3Optimized<'_> {
 }
 
 #[allow(unused)]
-struct ACurves3Inverse<'a, const DEPTH: usize> {
+struct ACurves3Inverse<'a> {
     curve0: Box<[f32; 65536]>,
     curve1: Box<[f32; 65536]>,
     curve2: Box<[f32; 65536]>,
@@ -166,16 +167,17 @@ struct ACurves3Inverse<'a, const DEPTH: usize> {
     grid_size: [u8; 3],
     interpolation_method: InterpolationMethod,
     pcs: DataColorSpace,
+    depth: usize,
 }
 
 #[allow(unused)]
-impl<const DEPTH: usize> ACurves3Inverse<'_, DEPTH> {
+impl ACurves3Inverse<'_> {
     fn transform_impl<Fetch: Fn(f32, f32, f32) -> Vector3f>(
         &self,
         dst: &mut [f32],
         fetch: Fetch,
     ) -> Result<(), CmsError> {
-        let scale_value = (DEPTH as u32 - 1u32) as f32;
+        let scale_value = (self.depth as u32 - 1u32) as f32;
 
         for dst in dst.chunks_exact_mut(3) {
             let interpolated = fetch(dst[0], dst[1], dst[2]);
@@ -193,7 +195,7 @@ impl<const DEPTH: usize> ACurves3Inverse<'_, DEPTH> {
     }
 }
 
-impl<const DEPTH: usize> InPlaceStage for ACurves3Inverse<'_, DEPTH> {
+impl InPlaceStage for ACurves3Inverse<'_> {
     fn transform(&self, dst: &mut [f32]) -> Result<(), CmsError> {
         let lut = Cube::new_cube(self.clut, self.grid_size);
 
@@ -223,16 +225,17 @@ impl<const DEPTH: usize> InPlaceStage for ACurves3Inverse<'_, DEPTH> {
     }
 }
 
-pub(crate) struct MCurves3<const DEPTH: usize> {
+pub(crate) struct MCurves3 {
     pub(crate) curve0: Box<[f32; 65536]>,
     pub(crate) curve1: Box<[f32; 65536]>,
     pub(crate) curve2: Box<[f32; 65536]>,
     pub(crate) matrix: Matrix3f,
     pub(crate) bias: Vector3f,
     pub(crate) inverse: bool,
+    pub(crate) depth: usize,
 }
 
-impl<const DEPTH: usize> MCurves3<DEPTH> {
+impl MCurves3 {
     fn execute_matrix_stage(&self, dst: &mut [f32]) {
         let m = self.matrix;
         let b = self.bias;
@@ -250,9 +253,9 @@ impl<const DEPTH: usize> MCurves3<DEPTH> {
     }
 }
 
-impl<const DEPTH: usize> InPlaceStage for MCurves3<DEPTH> {
+impl InPlaceStage for MCurves3 {
     fn transform(&self, dst: &mut [f32]) -> Result<(), CmsError> {
-        let scale_value = (DEPTH - 1) as f32;
+        let scale_value = (self.depth - 1) as f32;
 
         if self.inverse {
             self.execute_matrix_stage(dst);
@@ -333,18 +336,15 @@ pub(crate) fn prepare_mab_3x3(
         let all_curves_linear = mab.a_curves.iter().all(|curve| curve.is_linear());
         let grid_size = [mab.grid_points[0], mab.grid_points[1], mab.grid_points[2]];
 
-        #[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
         if all_curves_linear {
-            use crate::conversions::neon::ACurves3OptimizedNeon;
-            let a_curves = ACurves3OptimizedNeon {
+            let l = ACurves3Optimized {
                 clut,
                 grid_size,
                 interpolation_method: options.interpolation_method,
                 pcs,
             };
-            a_curves.transform(lut)?;
+            l.transform(lut)?;
         } else {
-            use crate::conversions::neon::ACurves3Neon;
             let curves: Result<Vec<_>, _> = mab
                 .a_curves
                 .iter()
@@ -356,7 +356,7 @@ pub(crate) fn prepare_mab_3x3(
 
             let [curve0, curve1, curve2] =
                 curves?.try_into().map_err(|_| CmsError::InvalidTrcCurve)?;
-            let a_curves = ACurves3Neon::<DEPTH> {
+            let l = ACurves3 {
                 curve0,
                 curve1,
                 curve2,
@@ -364,94 +364,9 @@ pub(crate) fn prepare_mab_3x3(
                 grid_size,
                 interpolation_method: options.interpolation_method,
                 pcs,
+                depth: DEPTH,
             };
-            a_curves.transform(lut)?;
-        }
-
-        #[cfg(not(all(target_arch = "aarch64", target_feature = "neon", feature = "neon")))]
-        {
-            let mut execution_box: Option<Box<dyn InPlaceStage>> = None;
-
-            if all_curves_linear {
-                #[cfg(all(target_arch = "x86_64", feature = "avx"))]
-                {
-                    use crate::conversions::avx::ACurves3OptimizedAvxFma;
-                    if std::arch::is_x86_feature_detected!("avx2")
-                        && std::arch::is_x86_feature_detected!("fma")
-                    {
-                        execution_box = Some(Box::new(ACurves3OptimizedAvxFma {
-                            clut,
-                            grid_size,
-                            interpolation_method: options.interpolation_method,
-                            pcs,
-                        }));
-                    }
-                }
-                if execution_box.is_none() {
-                    execution_box = Some(Box::new(ACurves3Optimized {
-                        clut,
-                        grid_size,
-                        interpolation_method: options.interpolation_method,
-                        pcs,
-                    }));
-                }
-            } else {
-                #[cfg(all(target_arch = "x86_64", feature = "avx"))]
-                {
-                    use crate::conversions::avx::ACurves3AvxFma;
-                    if std::arch::is_x86_feature_detected!("avx2")
-                        && std::arch::is_x86_feature_detected!("fma")
-                    {
-                        let curves: Result<Vec<_>, _> = mab
-                            .a_curves
-                            .iter()
-                            .map(|c| {
-                                c.build_linearize_table::<u16, LERP_DEPTH, BP>()
-                                    .ok_or(CmsError::InvalidTrcCurve)
-                            })
-                            .collect();
-
-                        let [curve0, curve1, curve2] =
-                            curves?.try_into().map_err(|_| CmsError::InvalidTrcCurve)?;
-                        execution_box = Some(Box::new(ACurves3AvxFma::<DEPTH> {
-                            curve0,
-                            curve1,
-                            curve2,
-                            clut,
-                            grid_size,
-                            interpolation_method: options.interpolation_method,
-                            pcs,
-                        }));
-                    }
-                }
-
-                if execution_box.is_none() {
-                    let curves: Result<Vec<_>, _> = mab
-                        .a_curves
-                        .iter()
-                        .map(|c| {
-                            c.build_linearize_table::<u16, LERP_DEPTH, BP>()
-                                .ok_or(CmsError::InvalidTrcCurve)
-                        })
-                        .collect();
-
-                    let [curve0, curve1, curve2] =
-                        curves?.try_into().map_err(|_| CmsError::InvalidTrcCurve)?;
-                    execution_box = Some(Box::new(ACurves3::<DEPTH> {
-                        curve0,
-                        curve1,
-                        curve2,
-                        clut,
-                        grid_size,
-                        interpolation_method: options.interpolation_method,
-                        pcs,
-                    }));
-                }
-            }
-
-            execution_box
-                .expect("LUT Sampler on Multidimensional 3x3 must be set")
-                .transform(lut)?;
+            l.transform(lut)?;
         }
     }
 
@@ -474,13 +389,14 @@ pub(crate) fn prepare_mab_3x3(
                 curves?.try_into().map_err(|_| CmsError::InvalidTrcCurve)?;
             let matrix = mab.matrix.to_f32();
             let bias: Vector3f = mab.bias.cast();
-            let m_curves = MCurves3::<DEPTH> {
+            let m_curves = MCurves3 {
                 curve0,
                 curve1,
                 curve2,
                 matrix,
                 bias,
                 inverse: false,
+                depth: DEPTH,
             };
             m_curves.transform(lut)?;
         }
@@ -576,13 +492,14 @@ pub(crate) fn prepare_mba_3x3(
 
             let matrix = mab.matrix.to_f32();
             let bias: Vector3f = mab.bias.cast();
-            let m_curves = MCurves3::<DEPTH> {
+            let m_curves = MCurves3 {
                 curve0,
                 curve1,
                 curve2,
                 matrix,
                 bias,
                 inverse: true,
+                depth: DEPTH,
             };
             m_curves.transform(lut)?;
         }
@@ -604,18 +521,15 @@ pub(crate) fn prepare_mba_3x3(
         let all_curves_linear = mab.a_curves.iter().all(|curve| curve.is_linear());
         let grid_size = [mab.grid_points[0], mab.grid_points[1], mab.grid_points[2]];
 
-        #[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
         if all_curves_linear {
-            use crate::conversions::neon::ACurves3OptimizedNeon;
-            let a_curves = ACurves3OptimizedNeon {
+            let l = ACurves3Optimized {
                 clut,
                 grid_size,
                 interpolation_method: options.interpolation_method,
                 pcs,
             };
-            a_curves.transform(lut)?;
+            l.transform(lut)?;
         } else {
-            use crate::conversions::neon::ACurves3InverseNeon;
             let curves: Result<Vec<_>, _> = mab
                 .a_curves
                 .iter()
@@ -627,7 +541,7 @@ pub(crate) fn prepare_mba_3x3(
 
             let [curve0, curve1, curve2] =
                 curves?.try_into().map_err(|_| CmsError::InvalidTrcCurve)?;
-            let a_curves = ACurves3InverseNeon::<DEPTH> {
+            let l = ACurves3Inverse {
                 curve0,
                 curve1,
                 curve2,
@@ -635,94 +549,9 @@ pub(crate) fn prepare_mba_3x3(
                 grid_size,
                 interpolation_method: options.interpolation_method,
                 pcs,
+                depth: DEPTH,
             };
-            a_curves.transform(lut)?;
-        }
-        #[cfg(not(all(target_arch = "aarch64", target_feature = "neon", feature = "neon")))]
-        {
-            let mut execution_box: Option<Box<dyn InPlaceStage>> = None;
-
-            if all_curves_linear {
-                #[cfg(all(target_arch = "x86_64", feature = "avx"))]
-                {
-                    use crate::conversions::avx::ACurves3OptimizedAvxFma;
-                    if std::arch::is_x86_feature_detected!("avx2")
-                        && std::arch::is_x86_feature_detected!("fma")
-                    {
-                        execution_box = Some(Box::new(ACurves3OptimizedAvxFma {
-                            clut,
-                            grid_size,
-                            interpolation_method: options.interpolation_method,
-                            pcs,
-                        }));
-                    }
-                }
-
-                if execution_box.is_none() {
-                    execution_box = Some(Box::new(ACurves3Optimized {
-                        clut,
-                        grid_size,
-                        interpolation_method: options.interpolation_method,
-                        pcs,
-                    }));
-                }
-            } else {
-                #[cfg(all(target_arch = "x86_64", feature = "avx"))]
-                {
-                    use crate::conversions::avx::ACurves3InverseAvxFma;
-                    if std::arch::is_x86_feature_detected!("avx2")
-                        && std::arch::is_x86_feature_detected!("fma")
-                    {
-                        let curves: Result<Vec<_>, _> = mab
-                            .a_curves
-                            .iter()
-                            .map(|c| {
-                                c.build_linearize_table::<u16, LERP_DEPTH, BP>()
-                                    .ok_or(CmsError::InvalidTrcCurve)
-                            })
-                            .collect();
-
-                        let [curve0, curve1, curve2] =
-                            curves?.try_into().map_err(|_| CmsError::InvalidTrcCurve)?;
-                        execution_box = Some(Box::new(ACurves3InverseAvxFma::<DEPTH> {
-                            curve0,
-                            curve1,
-                            curve2,
-                            clut,
-                            grid_size,
-                            interpolation_method: options.interpolation_method,
-                            pcs,
-                        }));
-                    }
-                }
-
-                if execution_box.is_none() {
-                    let curves: Result<Vec<_>, _> = mab
-                        .a_curves
-                        .iter()
-                        .map(|c| {
-                            c.build_linearize_table::<u16, LERP_DEPTH, BP>()
-                                .ok_or(CmsError::InvalidTrcCurve)
-                        })
-                        .collect();
-
-                    let [curve0, curve1, curve2] =
-                        curves?.try_into().map_err(|_| CmsError::InvalidTrcCurve)?;
-                    execution_box = Some(Box::new(ACurves3Inverse::<DEPTH> {
-                        curve0,
-                        curve1,
-                        curve2,
-                        clut,
-                        grid_size,
-                        interpolation_method: options.interpolation_method,
-                        pcs,
-                    }));
-                }
-            }
-
-            execution_box
-                .expect("LUT Sampler on Multidimensional Inverse 3x3 must be set")
-                .transform(lut)?;
+            l.transform(lut)?;
         }
     }
 

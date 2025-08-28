@@ -41,11 +41,11 @@ pub(crate) struct TransformShaperQ2_13Sse<
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
     const LINEAR_CAP: usize,
-    const GAMMA_LUT: usize,
     const PRECISION: i32,
 > {
     pub(crate) profile: TransformMatrixShaperFixedPoint<i32, T, LINEAR_CAP>,
     pub(crate) bit_depth: usize,
+    pub(crate) gamma_lut: usize,
 }
 
 #[inline(always)]
@@ -59,9 +59,8 @@ impl<
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
     const LINEAR_CAP: usize,
-    const GAMMA_LUT: usize,
     const PRECISION: i32,
-> TransformShaperQ2_13Sse<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP, GAMMA_LUT, PRECISION>
+> TransformShaperQ2_13Sse<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP, PRECISION>
 where
     u32: AsPrimitive<T>,
 {
@@ -97,7 +96,7 @@ where
             let rnd_val = ((1i32 << (PRECISION - 1)) as i16).to_ne_bytes();
             let rnd = _mm_set1_epi32(i32::from_ne_bytes([0, 0, rnd_val[0], rnd_val[1]]));
 
-            let v_max_value = _mm_set1_epi32(GAMMA_LUT as i32 - 1);
+            let v_max_value = _mm_set1_epi32(self.gamma_lut as i32 - 1);
 
             for (src, dst) in src
                 .chunks_exact(src_channels)
@@ -154,10 +153,8 @@ impl<
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
     const LINEAR_CAP: usize,
-    const GAMMA_LUT: usize,
     const PRECISION: i32,
-> TransformExecutor<T>
-    for TransformShaperQ2_13Sse<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP, GAMMA_LUT, PRECISION>
+> TransformExecutor<T> for TransformShaperQ2_13Sse<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP, PRECISION>
 where
     u32: AsPrimitive<T>,
 {

@@ -45,23 +45,23 @@ struct TransformRgbToGrayExecutor<
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
     const BUCKET: usize,
-    const GAMMA_LUT: usize,
 > {
     trc_box: ToneReproductionRgbToGray<T, BUCKET>,
     weights: Vector3f,
     bit_depth: usize,
+    gamma_lut: usize,
 }
 
 pub(crate) fn make_rgb_to_gray<
     T: Copy + Default + PointeeSizeExpressible + Send + Sync + 'static,
     const BUCKET: usize,
-    const BIT_DEPTH: usize,
-    const GAMMA_LUT: usize,
 >(
     src_layout: Layout,
     dst_layout: Layout,
     trc: ToneReproductionRgbToGray<T, BUCKET>,
     weights: Vector3f,
+    gamma_lut: usize,
+    bit_depth: usize,
 ) -> Box<dyn TransformExecutor<T> + Send + Sync>
 where
     u32: AsPrimitive<T>,
@@ -75,22 +75,22 @@ where
                 { Layout::Rgb as u8 },
                 { Layout::Gray as u8 },
                 BUCKET,
-                GAMMA_LUT,
             > {
                 trc_box: trc,
                 weights,
-                bit_depth: BIT_DEPTH,
+                bit_depth,
+                gamma_lut,
             }),
             Layout::GrayAlpha => Box::new(TransformRgbToGrayExecutor::<
                 T,
                 { Layout::Rgb as u8 },
                 { Layout::GrayAlpha as u8 },
                 BUCKET,
-                GAMMA_LUT,
             > {
                 trc_box: trc,
                 weights,
-                bit_depth: BIT_DEPTH,
+                bit_depth,
+                gamma_lut,
             }),
             _ => unreachable!(),
         },
@@ -102,22 +102,22 @@ where
                 { Layout::Rgba as u8 },
                 { Layout::Gray as u8 },
                 BUCKET,
-                GAMMA_LUT,
             > {
                 trc_box: trc,
                 weights,
-                bit_depth: BIT_DEPTH,
+                bit_depth,
+                gamma_lut,
             }),
             Layout::GrayAlpha => Box::new(TransformRgbToGrayExecutor::<
                 T,
                 { Layout::Rgba as u8 },
                 { Layout::GrayAlpha as u8 },
                 BUCKET,
-                GAMMA_LUT,
             > {
                 trc_box: trc,
                 weights,
-                bit_depth: BIT_DEPTH,
+                bit_depth,
+                gamma_lut,
             }),
             _ => unreachable!(),
         },
@@ -132,8 +132,7 @@ impl<
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
     const BUCKET: usize,
-    const GAMMA_LUT: usize,
-> TransformExecutor<T> for TransformRgbToGrayExecutor<T, SRC_LAYOUT, DST_LAYOUT, BUCKET, GAMMA_LUT>
+> TransformExecutor<T> for TransformRgbToGrayExecutor<T, SRC_LAYOUT, DST_LAYOUT, BUCKET>
 where
     u32: AsPrimitive<T>,
 {
@@ -153,7 +152,7 @@ where
             return Err(CmsError::LaneMultipleOfChannels);
         }
 
-        let scale_value = (GAMMA_LUT - 1) as f32;
+        let scale_value = (self.gamma_lut - 1) as f32;
         let max_value = ((1u32 << self.bit_depth) - 1).as_();
 
         for (src, dst) in src

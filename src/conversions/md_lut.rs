@@ -152,7 +152,7 @@ where
         + FusedMultiplyNegAdd<T>
         + FusedMultiplyAdd<T>,
 {
-    #[inline(always)]
+    #[inline(never)]
     fn tetra(&self, src: Vector3i, src_next: Vector3i, w: Vector3f) -> T {
         let x = src.v[0];
         let y = src.v[1];
