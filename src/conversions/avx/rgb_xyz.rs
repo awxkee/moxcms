@@ -56,7 +56,7 @@ impl<
 where
     u32: AsPrimitive<T>,
 {
-    #[inline(always)]
+    #[target_feature(enable = "avx2", enable = "fma")]
     unsafe fn transform_impl<const FMA: bool>(
         &self,
         src: &[T],
@@ -290,16 +290,6 @@ where
 
         Ok(())
     }
-
-    #[target_feature(enable = "avx2", enable = "fma")]
-    unsafe fn transform_fma(&self, src: &[T], dst: &mut [T]) -> Result<(), CmsError> {
-        unsafe { self.transform_impl::<true>(src, dst) }
-    }
-
-    #[target_feature(enable = "avx2")]
-    unsafe fn transform_avx(&self, src: &[T], dst: &mut [T]) -> Result<(), CmsError> {
-        unsafe { self.transform_impl::<false>(src, dst) }
-    }
 }
 
 impl<
@@ -313,11 +303,8 @@ where
 {
     fn transform(&self, src: &[T], dst: &mut [T]) -> Result<(), CmsError> {
         unsafe {
-            if std::arch::is_x86_feature_detected!("fma") {
-                self.transform_fma(src, dst)
-            } else {
-                self.transform_avx(src, dst)
-            }
+            assert!(std::arch::is_x86_feature_detected!("fma"));
+            self.transform_impl::<true>(src, dst)
         }
     }
 }

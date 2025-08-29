@@ -347,7 +347,7 @@ where
     u32: AsPrimitive<T>,
 {
     #[cfg(all(feature = "avx", target_arch = "x86_64"))]
-    if std::arch::is_x86_feature_detected!("avx2") {
+    if std::arch::is_x86_feature_detected!("avx2") && std::arch::is_x86_feature_detected!("fma") {
         return make_rgb_xyz_rgb_transform_avx2::<T, LINEAR_CAP>(
             src_layout, dst_layout, profile, gamma_lut, bit_depth,
         );
@@ -430,7 +430,7 @@ where
         );
     }
     #[cfg(all(feature = "avx", target_arch = "x86_64"))]
-    if std::arch::is_x86_feature_detected!("avx2") {
+    if std::arch::is_x86_feature_detected!("avx2") && std::arch::is_x86_feature_detected!("fma") {
         return make_rgb_xyz_rgb_transform_avx2_opt::<T, LINEAR_CAP>(
             src_layout, dst_layout, profile, gamma_lut, bit_depth,
         );
