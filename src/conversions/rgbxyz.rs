@@ -42,11 +42,11 @@ pub(crate) struct TransformMatrixShaper<T: Clone, const BUCKET: usize> {
 impl<T: Clone, const BUCKET: usize> TransformMatrixShaper<T, BUCKET> {
     #[inline(never)]
     #[allow(dead_code)]
-    fn to_v(self) -> TransformMatrixShaperV<T> {
+    fn convert_to_v(self) -> TransformMatrixShaperV<T> {
         TransformMatrixShaperV {
-            r_linear: self.r_linear.iter().map(|&x| x).collect::<Vec<_>>(),
-            g_linear: self.g_linear.iter().map(|&x| x).collect::<Vec<_>>(),
-            b_linear: self.b_linear.iter().map(|&x| x).collect::<Vec<_>>(),
+            r_linear: self.r_linear.iter().copied().collect(),
+            g_linear: self.g_linear.iter().copied().collect(),
+            b_linear: self.b_linear.iter().copied().collect(),
             r_gamma: self.r_gamma,
             g_gamma: self.g_gamma,
             b_gamma: self.b_gamma,
@@ -75,9 +75,9 @@ pub(crate) struct TransformMatrixShaperOptimized<T: Clone, const BUCKET: usize> 
 }
 
 impl<T: Clone, const BUCKET: usize> TransformMatrixShaperOptimized<T, BUCKET> {
-    fn to_v(self) -> TransformMatrixShaperOptimizedV<T> {
+    fn convert_to_v(self) -> TransformMatrixShaperOptimizedV<T> {
         TransformMatrixShaperOptimizedV {
-            linear: self.linear.iter().map(|&x| x).collect::<Vec<_>>(),
+            linear: self.linear.iter().copied().collect::<Vec<_>>(),
             gamma: self.gamma,
             adaptation_matrix: self.adaptation_matrix,
         }
@@ -440,7 +440,7 @@ macro_rules! create_rgb_xyz_dependant_executor_to_v {
         where
             u32: AsPrimitive<T>,
         {
-            let profile = profile.to_v();
+            let profile = profile.convert_to_v();
             if (src_layout == Layout::Rgba) && (dst_layout == Layout::Rgba) {
                 return Ok(Box::new($dependant::<
                     T,
