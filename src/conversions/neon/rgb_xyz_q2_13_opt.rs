@@ -80,6 +80,8 @@ where
             assert!(self.profile.linear.len() >= T::NOT_FINITE_LINEAR_TABLE_SIZE);
         }
 
+        let lut_lin = &self.profile.linear;
+
         let (src_chunks, src_remainder) = split_by_twos(src, src_channels);
         let (dst_chunks, dst_remainder) = split_by_twos_mut(dst, dst_channels);
 
@@ -91,8 +93,6 @@ where
             let v_max_value = vdup_n_u16((self.gamma_lut - 1) as u16);
 
             let rnd = vdupq_n_s32(1 << (PRECISION - 1));
-
-            let lut_lin = &self.profile.linear;
 
             if !src_chunks.is_empty() {
                 let (src0, src1) = src_chunks.split_at(src_chunks.len() / 2);

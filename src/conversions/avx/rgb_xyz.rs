@@ -40,6 +40,7 @@ pub(crate) struct TransformShaperRgbAvx<
     T: Clone + Copy + 'static + PointeeSizeExpressible + Default,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
+    // deleting linear cap is in effective here
     const LINEAR_CAP: usize,
 > {
     pub(crate) profile: TransformMatrixShaper<T, LINEAR_CAP>,

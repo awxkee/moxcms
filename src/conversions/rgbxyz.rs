@@ -74,6 +74,24 @@ pub(crate) struct TransformMatrixShaperOptimized<T: Clone, const BUCKET: usize> 
     pub(crate) adaptation_matrix: Matrix3f,
 }
 
+impl<T: Clone, const BUCKET: usize> TransformMatrixShaperOptimized<T, BUCKET> {
+    fn to_v(self) -> TransformMatrixShaperOptimizedV<T> {
+        TransformMatrixShaperOptimizedV {
+            linear: self.linear.iter().map(|&x| x).collect::<Vec<_>>(),
+            gamma: self.gamma,
+            adaptation_matrix: self.adaptation_matrix,
+        }
+    }
+}
+
+/// Low memory footprint optimized routine for matrix shaper profiles with the same
+/// Gamma and linear curves.
+pub(crate) struct TransformMatrixShaperOptimizedV<T: Clone> {
+    pub(crate) linear: Vec<f32>,
+    pub(crate) gamma: Box<[T; 65536]>,
+    pub(crate) adaptation_matrix: Matrix3f,
+}
+
 impl<T: Clone + PointeeSizeExpressible, const BUCKET: usize> TransformMatrixShaper<T, BUCKET> {
     #[inline(never)]
     #[allow(dead_code)]
@@ -483,7 +501,7 @@ create_rgb_xyz_dependant_executor!(
 );
 
 #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"))]
-create_rgb_xyz_dependant_executor!(
+create_rgb_xyz_dependant_executor_to_v!(
     make_rgb_xyz_rgb_transform_sse_41_opt,
     TransformShaperRgbOptSse,
     TransformMatrixShaperOptimized
@@ -497,7 +515,7 @@ create_rgb_xyz_dependant_executor!(
 );
 
 #[cfg(all(target_arch = "x86_64", feature = "avx"))]
-create_rgb_xyz_dependant_executor!(
+create_rgb_xyz_dependant_executor_to_v!(
     make_rgb_xyz_rgb_transform_avx2_opt,
     TransformShaperRgbOptAvx,
     TransformMatrixShaperOptimized
@@ -686,7 +704,7 @@ create_rgb_xyz_dependant_executor_to_v!(
 );
 
 #[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
-create_rgb_xyz_dependant_executor!(
+create_rgb_xyz_dependant_executor_to_v!(
     make_rgb_xyz_rgb_transform_opt,
     TransformShaperRgbOptNeon,
     TransformMatrixShaperOptimized
