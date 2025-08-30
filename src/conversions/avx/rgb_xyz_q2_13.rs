@@ -27,7 +27,7 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::conversions::avx::rgb_xyz::AvxAlignedU16;
-use crate::conversions::rgbxyz_fixed::TransformMatrixShaperFixedPoint;
+use crate::conversions::rgbxyz_fixed::TransformMatrixShaperFp;
 use crate::transform::PointeeSizeExpressible;
 use crate::{CmsError, Layout, TransformExecutor};
 use num_traits::AsPrimitive;
@@ -37,10 +37,9 @@ pub(crate) struct TransformShaperRgbQ2_13Avx<
     T: Copy,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
-    const LINEAR_CAP: usize,
     const PRECISION: i32,
 > {
-    pub(crate) profile: TransformMatrixShaperFixedPoint<i32, T, LINEAR_CAP>,
+    pub(crate) profile: TransformMatrixShaperFp<i32, T>,
     pub(crate) bit_depth: usize,
     pub(crate) gamma_lut: usize,
 }
@@ -55,9 +54,8 @@ impl<
     T: Copy + PointeeSizeExpressible + 'static,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
-    const LINEAR_CAP: usize,
     const PRECISION: i32,
-> TransformShaperRgbQ2_13Avx<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP, PRECISION>
+> TransformShaperRgbQ2_13Avx<T, SRC_LAYOUT, DST_LAYOUT, PRECISION>
 where
     u32: AsPrimitive<T>,
 {
@@ -83,6 +81,22 @@ where
         let t = self.profile.adaptation_matrix.transpose();
 
         let max_colors = ((1 << self.bit_depth) - 1).as_();
+
+        // safety precondition for linearization table
+        if T::FINITE {
+            let cap = (1 << self.bit_depth) - 1;
+            assert!(self.profile.r_linear.len() >= cap);
+            assert!(self.profile.g_linear.len() >= cap);
+            assert!(self.profile.b_linear.len() >= cap);
+        } else {
+            assert!(self.profile.r_linear.len() >= T::NOT_FINITE_LINEAR_TABLE_SIZE);
+            assert!(self.profile.g_linear.len() >= T::NOT_FINITE_LINEAR_TABLE_SIZE);
+            assert!(self.profile.b_linear.len() >= T::NOT_FINITE_LINEAR_TABLE_SIZE);
+        }
+
+        let r_lin = &self.profile.r_linear;
+        let g_lin = &self.profile.g_linear;
+        let b_lin = &self.profile.b_linear;
 
         unsafe {
             let m0 = _mm256_setr_epi16(
@@ -111,17 +125,17 @@ where
             let (mut r1, mut g1, mut b1, mut a1);
 
             if let Some(src) = src_iter.next() {
-                r0 = _xmm_broadcast_epi32(&self.profile.r_linear[src[src_cn.r_i()]._as_usize()]);
-                g0 = _xmm_broadcast_epi32(&self.profile.g_linear[src[src_cn.g_i()]._as_usize()]);
-                b0 = _xmm_broadcast_epi32(&self.profile.b_linear[src[src_cn.b_i()]._as_usize()]);
+                r0 = _xmm_broadcast_epi32(r_lin.get_unchecked(src[src_cn.r_i()]._as_usize()));
+                g0 = _xmm_broadcast_epi32(g_lin.get_unchecked(src[src_cn.g_i()]._as_usize()));
+                b0 = _xmm_broadcast_epi32(b_lin.get_unchecked(src[src_cn.b_i()]._as_usize()));
                 r1 = _xmm_broadcast_epi32(
-                    &self.profile.r_linear[src[src_cn.r_i() + src_channels]._as_usize()],
+                    r_lin.get_unchecked(src[src_cn.r_i() + src_channels]._as_usize()),
                 );
                 g1 = _xmm_broadcast_epi32(
-                    &self.profile.g_linear[src[src_cn.g_i() + src_channels]._as_usize()],
+                    g_lin.get_unchecked(src[src_cn.g_i() + src_channels]._as_usize()),
                 );
                 b1 = _xmm_broadcast_epi32(
-                    &self.profile.b_linear[src[src_cn.b_i() + src_channels]._as_usize()],
+                    b_lin.get_unchecked(src[src_cn.b_i() + src_channels]._as_usize()),
                 );
                 a0 = if src_channels == 4 {
                     src[src_cn.a_i()]
@@ -164,17 +178,17 @@ where
 
                 _mm256_store_si256(temporary0.0.as_mut_ptr() as *mut _, v0);
 
-                r0 = _xmm_broadcast_epi32(&self.profile.r_linear[src[src_cn.r_i()]._as_usize()]);
-                g0 = _xmm_broadcast_epi32(&self.profile.g_linear[src[src_cn.g_i()]._as_usize()]);
-                b0 = _xmm_broadcast_epi32(&self.profile.b_linear[src[src_cn.b_i()]._as_usize()]);
+                r0 = _xmm_broadcast_epi32(r_lin.get_unchecked(src[src_cn.r_i()]._as_usize()));
+                g0 = _xmm_broadcast_epi32(g_lin.get_unchecked(src[src_cn.g_i()]._as_usize()));
+                b0 = _xmm_broadcast_epi32(b_lin.get_unchecked(src[src_cn.b_i()]._as_usize()));
                 r1 = _xmm_broadcast_epi32(
-                    &self.profile.r_linear[src[src_cn.r_i() + src_channels]._as_usize()],
+                    r_lin.get_unchecked(src[src_cn.r_i() + src_channels]._as_usize()),
                 );
                 g1 = _xmm_broadcast_epi32(
-                    &self.profile.g_linear[src[src_cn.g_i() + src_channels]._as_usize()],
+                    g_lin.get_unchecked(src[src_cn.g_i() + src_channels]._as_usize()),
                 );
                 b1 = _xmm_broadcast_epi32(
-                    &self.profile.b_linear[src[src_cn.b_i() + src_channels]._as_usize()],
+                    b_lin.get_unchecked(src[src_cn.b_i() + src_channels]._as_usize()),
                 );
 
                 dst[dst_cn.r_i()] = self.profile.r_gamma[temporary0.0[0] as usize];
@@ -245,10 +259,10 @@ where
                 .chunks_exact(src_channels)
                 .zip(dst.chunks_exact_mut(dst_channels))
             {
-                let r = _xmm_broadcast_epi32(&self.profile.r_linear[src[src_cn.r_i()]._as_usize()]);
+                let r = _xmm_broadcast_epi32(r_lin.get_unchecked(src[src_cn.r_i()]._as_usize()));
                 let mut g =
-                    _xmm_broadcast_epi32(&self.profile.g_linear[src[src_cn.g_i()]._as_usize()]);
-                let b = _xmm_broadcast_epi32(&self.profile.b_linear[src[src_cn.b_i()]._as_usize()]);
+                    _xmm_broadcast_epi32(g_lin.get_unchecked(src[src_cn.g_i()]._as_usize()));
+                let b = _xmm_broadcast_epi32(b_lin.get_unchecked(src[src_cn.b_i()]._as_usize()));
 
                 g = _mm_slli_epi32::<16>(g);
 
@@ -289,10 +303,8 @@ impl<
     T: Copy + PointeeSizeExpressible + 'static + Default,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
-    const LINEAR_CAP: usize,
     const PRECISION: i32,
-> TransformExecutor<T>
-    for TransformShaperRgbQ2_13Avx<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP, PRECISION>
+> TransformExecutor<T> for TransformShaperRgbQ2_13Avx<T, SRC_LAYOUT, DST_LAYOUT, PRECISION>
 where
     u32: AsPrimitive<T>,
 {

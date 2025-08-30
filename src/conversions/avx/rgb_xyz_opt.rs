@@ -26,8 +26,8 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-use crate::conversions::TransformMatrixShaperOptimized;
 use crate::conversions::avx::rgb_xyz::AvxAlignedU16;
+use crate::conversions::rgbxyz::TransformMatrixShaperOptimizedV;
 use crate::transform::PointeeSizeExpressible;
 use crate::{CmsError, Layout, TransformExecutor};
 use num_traits::AsPrimitive;
@@ -37,9 +37,8 @@ pub(crate) struct TransformShaperRgbOptAvx<
     T: Clone + Copy + 'static + PointeeSizeExpressible + Default,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
-    const LINEAR_CAP: usize,
 > {
-    pub(crate) profile: TransformMatrixShaperOptimized<T, LINEAR_CAP>,
+    pub(crate) profile: TransformMatrixShaperOptimizedV<T>,
     pub(crate) bit_depth: usize,
     pub(crate) gamma_lut: usize,
 }
@@ -48,12 +47,11 @@ impl<
     T: Clone + Copy + 'static + PointeeSizeExpressible + Default,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
-    const LINEAR_CAP: usize,
-> TransformShaperRgbOptAvx<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP>
+> TransformShaperRgbOptAvx<T, SRC_LAYOUT, DST_LAYOUT>
 where
     u32: AsPrimitive<T>,
 {
-    #[inline(always)]
+    #[target_feature(enable = "avx2", enable = "fma")]
     unsafe fn transform_impl<const FMA: bool>(
         &self,
         src: &[T],
@@ -81,6 +79,16 @@ where
         let scale = (self.gamma_lut - 1) as f32;
         let max_colors: T = ((1 << self.bit_depth) - 1).as_();
 
+        // safety precondition for linearization table
+        if T::FINITE {
+            let cap = (1 << self.bit_depth) - 1;
+            assert!(self.profile.linear.len() >= cap);
+        } else {
+            assert!(self.profile.linear.len() >= T::NOT_FINITE_LINEAR_TABLE_SIZE);
+        }
+
+        let lut_lin = &self.profile.linear;
+
         unsafe {
             let m0 = _mm256_setr_ps(
                 t.v[0][0], t.v[0][1], t.v[0][2], 0., t.v[0][0], t.v[0][1], t.v[0][2], 0.,
@@ -106,17 +114,17 @@ where
             let (mut r1, mut g1, mut b1, mut a1);
 
             if let Some(src) = src_iter.next() {
-                r0 = _mm_broadcast_ss(&self.profile.linear[src[src_cn.r_i()]._as_usize()]);
-                g0 = _mm_broadcast_ss(&self.profile.linear[src[src_cn.g_i()]._as_usize()]);
-                b0 = _mm_broadcast_ss(&self.profile.linear[src[src_cn.b_i()]._as_usize()]);
+                r0 = _mm_broadcast_ss(lut_lin.get_unchecked(src[src_cn.r_i()]._as_usize()));
+                g0 = _mm_broadcast_ss(lut_lin.get_unchecked(src[src_cn.g_i()]._as_usize()));
+                b0 = _mm_broadcast_ss(lut_lin.get_unchecked(src[src_cn.b_i()]._as_usize()));
                 r1 = _mm_broadcast_ss(
-                    &self.profile.linear[src[src_cn.r_i() + src_channels]._as_usize()],
+                    lut_lin.get_unchecked(src[src_cn.r_i() + src_channels]._as_usize()),
                 );
                 g1 = _mm_broadcast_ss(
-                    &self.profile.linear[src[src_cn.g_i() + src_channels]._as_usize()],
+                    lut_lin.get_unchecked(src[src_cn.g_i() + src_channels]._as_usize()),
                 );
                 b1 = _mm_broadcast_ss(
-                    &self.profile.linear[src[src_cn.b_i() + src_channels]._as_usize()],
+                    lut_lin.get_unchecked(src[src_cn.b_i() + src_channels]._as_usize()),
                 );
                 a0 = if src_channels == 4 {
                     src[src_cn.a_i()]
@@ -163,17 +171,17 @@ where
                 let zx = _mm256_cvtps_epi32(v);
                 _mm256_store_si256(temporary0.0.as_mut_ptr() as *mut _, zx);
 
-                r0 = _mm_broadcast_ss(&self.profile.linear[src[src_cn.r_i()]._as_usize()]);
-                g0 = _mm_broadcast_ss(&self.profile.linear[src[src_cn.g_i()]._as_usize()]);
-                b0 = _mm_broadcast_ss(&self.profile.linear[src[src_cn.b_i()]._as_usize()]);
+                r0 = _mm_broadcast_ss(lut_lin.get_unchecked(src[src_cn.r_i()]._as_usize()));
+                g0 = _mm_broadcast_ss(lut_lin.get_unchecked(src[src_cn.g_i()]._as_usize()));
+                b0 = _mm_broadcast_ss(lut_lin.get_unchecked(src[src_cn.b_i()]._as_usize()));
                 r1 = _mm_broadcast_ss(
-                    &self.profile.linear[src[src_cn.r_i() + src_channels]._as_usize()],
+                    lut_lin.get_unchecked(src[src_cn.r_i() + src_channels]._as_usize()),
                 );
                 g1 = _mm_broadcast_ss(
-                    &self.profile.linear[src[src_cn.g_i() + src_channels]._as_usize()],
+                    lut_lin.get_unchecked(src[src_cn.g_i() + src_channels]._as_usize()),
                 );
                 b1 = _mm_broadcast_ss(
-                    &self.profile.linear[src[src_cn.b_i() + src_channels]._as_usize()],
+                    lut_lin.get_unchecked(src[src_cn.b_i() + src_channels]._as_usize()),
                 );
 
                 dst[dst_cn.r_i()] = self.profile.gamma[temporary0.0[0] as usize];
@@ -248,9 +256,9 @@ where
                 .chunks_exact(src_channels)
                 .zip(dst.chunks_exact_mut(dst_channels))
             {
-                let r = _mm_broadcast_ss(&self.profile.linear[src[src_cn.r_i()]._as_usize()]);
-                let g = _mm_broadcast_ss(&self.profile.linear[src[src_cn.g_i()]._as_usize()]);
-                let b = _mm_broadcast_ss(&self.profile.linear[src[src_cn.b_i()]._as_usize()]);
+                let r = _mm_broadcast_ss(lut_lin.get_unchecked(src[src_cn.r_i()]._as_usize()));
+                let g = _mm_broadcast_ss(lut_lin.get_unchecked(src[src_cn.g_i()]._as_usize()));
+                let b = _mm_broadcast_ss(lut_lin.get_unchecked(src[src_cn.b_i()]._as_usize()));
                 let a = if src_channels == 4 {
                     src[src_cn.a_i()]
                 } else {
@@ -287,34 +295,20 @@ where
 
         Ok(())
     }
-
-    #[target_feature(enable = "avx2", enable = "fma")]
-    unsafe fn transform_fma(&self, src: &[T], dst: &mut [T]) -> Result<(), CmsError> {
-        unsafe { self.transform_impl::<true>(src, dst) }
-    }
-
-    #[target_feature(enable = "avx2")]
-    unsafe fn transform_avx(&self, src: &[T], dst: &mut [T]) -> Result<(), CmsError> {
-        unsafe { self.transform_impl::<false>(src, dst) }
-    }
 }
 
 impl<
     T: Clone + Copy + 'static + PointeeSizeExpressible + Default,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
-    const LINEAR_CAP: usize,
-> TransformExecutor<T> for TransformShaperRgbOptAvx<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP>
+> TransformExecutor<T> for TransformShaperRgbOptAvx<T, SRC_LAYOUT, DST_LAYOUT>
 where
     u32: AsPrimitive<T>,
 {
     fn transform(&self, src: &[T], dst: &mut [T]) -> Result<(), CmsError> {
         unsafe {
-            if std::arch::is_x86_feature_detected!("fma") {
-                self.transform_fma(src, dst)
-            } else {
-                self.transform_avx(src, dst)
-            }
+            assert!(std::arch::is_x86_feature_detected!("fma"));
+            self.transform_impl::<true>(src, dst)
         }
     }
 }

@@ -28,7 +28,7 @@
  */
 use crate::conversions::neon::rgb_xyz::NeonAlignedU16;
 use crate::conversions::neon::rgb_xyz_q2_13::{split_by_twos, split_by_twos_mut};
-use crate::conversions::rgbxyz::TransformMatrixShaperOptimized;
+use crate::conversions::rgbxyz::TransformMatrixShaperOptimizedV;
 use crate::transform::PointeeSizeExpressible;
 use crate::{CmsError, Layout, TransformExecutor};
 use num_traits::AsPrimitive;
@@ -38,9 +38,8 @@ pub(crate) struct TransformShaperRgbOptNeon<
     T: Clone + PointeeSizeExpressible + Copy + Default + 'static,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
-    const LINEAR_CAP: usize,
 > {
-    pub(crate) profile: TransformMatrixShaperOptimized<T, LINEAR_CAP>,
+    pub(crate) profile: TransformMatrixShaperOptimizedV<T>,
     pub(crate) bit_depth: usize,
     pub(crate) gamma_lut: usize,
 }
@@ -49,8 +48,7 @@ impl<
     T: Clone + PointeeSizeExpressible + Copy + Default + 'static,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
-    const LINEAR_CAP: usize,
-> TransformExecutor<T> for TransformShaperRgbOptNeon<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP>
+> TransformExecutor<T> for TransformShaperRgbOptNeon<T, SRC_LAYOUT, DST_LAYOUT>
 where
     u32: AsPrimitive<T>,
 {
@@ -79,6 +77,16 @@ where
         let scale = (self.gamma_lut - 1) as f32;
         let max_colors: T = ((1 << self.bit_depth) - 1).as_();
 
+        // safety precondition for linearization table
+        if T::FINITE {
+            let cap = (1 << self.bit_depth) - 1;
+            assert!(self.profile.linear.len() >= cap);
+        } else {
+            assert!(self.profile.linear.len() >= T::NOT_FINITE_LINEAR_TABLE_SIZE);
+        }
+
+        let lut_lin = &self.profile.linear;
+
         let (src_chunks, src_remainder) = split_by_twos(src, src_channels);
         let (dst_chunks, dst_remainder) = split_by_twos_mut(dst, dst_channels);
 
@@ -103,21 +111,21 @@ where
                 let (mut r3, mut g3, mut b3, mut a3);
 
                 if let (Some(src0), Some(src1)) = (src_iter0.next(), src_iter1.next()) {
-                    let r0p = &self.profile.linear[src0[src_cn.r_i()]._as_usize()];
-                    let g0p = &self.profile.linear[src0[src_cn.g_i()]._as_usize()];
-                    let b0p = &self.profile.linear[src0[src_cn.b_i()]._as_usize()];
+                    let r0p = lut_lin.get_unchecked(src0[src_cn.r_i()]._as_usize());
+                    let g0p = lut_lin.get_unchecked(src0[src_cn.g_i()]._as_usize());
+                    let b0p = lut_lin.get_unchecked(src0[src_cn.b_i()]._as_usize());
 
-                    let r1p = &self.profile.linear[src0[src_cn.r_i() + src_channels]._as_usize()];
-                    let g1p = &self.profile.linear[src0[src_cn.g_i() + src_channels]._as_usize()];
-                    let b1p = &self.profile.linear[src0[src_cn.b_i() + src_channels]._as_usize()];
+                    let r1p = lut_lin.get_unchecked(src0[src_cn.r_i() + src_channels]._as_usize());
+                    let g1p = lut_lin.get_unchecked(src0[src_cn.g_i() + src_channels]._as_usize());
+                    let b1p = lut_lin.get_unchecked(src0[src_cn.b_i() + src_channels]._as_usize());
 
-                    let r2p = &self.profile.linear[src1[src_cn.r_i()]._as_usize()];
-                    let g2p = &self.profile.linear[src1[src_cn.g_i()]._as_usize()];
-                    let b2p = &self.profile.linear[src1[src_cn.b_i()]._as_usize()];
+                    let r2p = lut_lin.get_unchecked(src1[src_cn.r_i()]._as_usize());
+                    let g2p = lut_lin.get_unchecked(src1[src_cn.g_i()]._as_usize());
+                    let b2p = lut_lin.get_unchecked(src1[src_cn.b_i()]._as_usize());
 
-                    let r3p = &self.profile.linear[src1[src_cn.r_i() + src_channels]._as_usize()];
-                    let g3p = &self.profile.linear[src1[src_cn.g_i() + src_channels]._as_usize()];
-                    let b3p = &self.profile.linear[src1[src_cn.b_i() + src_channels]._as_usize()];
+                    let r3p = lut_lin.get_unchecked(src1[src_cn.r_i() + src_channels]._as_usize());
+                    let g3p = lut_lin.get_unchecked(src1[src_cn.g_i() + src_channels]._as_usize());
+                    let b3p = lut_lin.get_unchecked(src1[src_cn.b_i() + src_channels]._as_usize());
 
                     r0 = vld1q_dup_f32(r0p);
                     g0 = vld1q_dup_f32(g0p);
@@ -216,21 +224,21 @@ where
                     vst1q_u32(temporary2.0.as_mut_ptr() as *mut _, zx2);
                     vst1q_u32(temporary3.0.as_mut_ptr() as *mut _, zx3);
 
-                    let r0p = &self.profile.linear[src0[src_cn.r_i()]._as_usize()];
-                    let g0p = &self.profile.linear[src0[src_cn.g_i()]._as_usize()];
-                    let b0p = &self.profile.linear[src0[src_cn.b_i()]._as_usize()];
+                    let r0p = lut_lin.get_unchecked(src0[src_cn.r_i()]._as_usize());
+                    let g0p = lut_lin.get_unchecked(src0[src_cn.g_i()]._as_usize());
+                    let b0p = lut_lin.get_unchecked(src0[src_cn.b_i()]._as_usize());
 
-                    let r1p = &self.profile.linear[src0[src_cn.r_i() + src_channels]._as_usize()];
-                    let g1p = &self.profile.linear[src0[src_cn.g_i() + src_channels]._as_usize()];
-                    let b1p = &self.profile.linear[src0[src_cn.b_i() + src_channels]._as_usize()];
+                    let r1p = lut_lin.get_unchecked(src0[src_cn.r_i() + src_channels]._as_usize());
+                    let g1p = lut_lin.get_unchecked(src0[src_cn.g_i() + src_channels]._as_usize());
+                    let b1p = lut_lin.get_unchecked(src0[src_cn.b_i() + src_channels]._as_usize());
 
-                    let r2p = &self.profile.linear[src1[src_cn.r_i()]._as_usize()];
-                    let g2p = &self.profile.linear[src1[src_cn.g_i()]._as_usize()];
-                    let b2p = &self.profile.linear[src1[src_cn.b_i()]._as_usize()];
+                    let r2p = lut_lin.get_unchecked(src1[src_cn.r_i()]._as_usize());
+                    let g2p = lut_lin.get_unchecked(src1[src_cn.g_i()]._as_usize());
+                    let b2p = lut_lin.get_unchecked(src1[src_cn.b_i()]._as_usize());
 
-                    let r3p = &self.profile.linear[src1[src_cn.r_i() + src_channels]._as_usize()];
-                    let g3p = &self.profile.linear[src1[src_cn.g_i() + src_channels]._as_usize()];
-                    let b3p = &self.profile.linear[src1[src_cn.b_i() + src_channels]._as_usize()];
+                    let r3p = lut_lin.get_unchecked(src1[src_cn.r_i() + src_channels]._as_usize());
+                    let g3p = lut_lin.get_unchecked(src1[src_cn.g_i() + src_channels]._as_usize());
+                    let b3p = lut_lin.get_unchecked(src1[src_cn.b_i() + src_channels]._as_usize());
 
                     r0 = vld1q_dup_f32(r0p);
                     g0 = vld1q_dup_f32(g0p);
@@ -385,9 +393,9 @@ where
                 .chunks_exact(src_channels)
                 .zip(dst_remainder.chunks_exact_mut(dst_channels))
             {
-                let rp = &self.profile.linear[src[src_cn.r_i()]._as_usize()];
-                let gp = &self.profile.linear[src[src_cn.g_i()]._as_usize()];
-                let bp = &self.profile.linear[src[src_cn.b_i()]._as_usize()];
+                let rp = lut_lin.get_unchecked(src[src_cn.r_i()]._as_usize());
+                let gp = lut_lin.get_unchecked(src[src_cn.g_i()]._as_usize());
+                let bp = lut_lin.get_unchecked(src[src_cn.b_i()]._as_usize());
                 let r = vld1q_dup_f32(rp);
                 let g = vld1q_dup_f32(gp);
                 let b = vld1q_dup_f32(bp);
