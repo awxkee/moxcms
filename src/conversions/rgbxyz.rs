@@ -39,6 +39,33 @@ pub(crate) struct TransformMatrixShaper<T: Clone, const BUCKET: usize> {
     pub(crate) adaptation_matrix: Matrix3f,
 }
 
+impl<T: Clone, const BUCKET: usize> TransformMatrixShaper<T, BUCKET> {
+    #[inline(never)]
+    #[allow(dead_code)]
+    fn to_v(self) -> TransformMatrixShaperV<T> {
+        TransformMatrixShaperV {
+            r_linear: self.r_linear.iter().map(|&x| x).collect::<Vec<_>>(),
+            g_linear: self.g_linear.iter().map(|&x| x).collect::<Vec<_>>(),
+            b_linear: self.b_linear.iter().map(|&x| x).collect::<Vec<_>>(),
+            r_gamma: self.r_gamma,
+            g_gamma: self.g_gamma,
+            b_gamma: self.b_gamma,
+            adaptation_matrix: self.adaptation_matrix,
+        }
+    }
+}
+
+#[allow(dead_code)]
+pub(crate) struct TransformMatrixShaperV<T: Clone> {
+    pub(crate) r_linear: Vec<f32>,
+    pub(crate) g_linear: Vec<f32>,
+    pub(crate) b_linear: Vec<f32>,
+    pub(crate) r_gamma: Box<[T; 65536]>,
+    pub(crate) g_gamma: Box<[T; 65536]>,
+    pub(crate) b_gamma: Box<[T; 65536]>,
+    pub(crate) adaptation_matrix: Matrix3f,
+}
+
 /// Low memory footprint optimized routine for matrix shaper profiles with the same
 /// Gamma and linear curves.
 pub(crate) struct TransformMatrixShaperOptimized<T: Clone, const BUCKET: usize> {
@@ -48,6 +75,8 @@ pub(crate) struct TransformMatrixShaperOptimized<T: Clone, const BUCKET: usize> 
 }
 
 impl<T: Clone + PointeeSizeExpressible, const BUCKET: usize> TransformMatrixShaper<T, BUCKET> {
+    #[inline(never)]
+    #[allow(dead_code)]
     pub(crate) fn to_q2_13_n<
         R: Copy + 'static + Default,
         const PRECISION: i32,
@@ -97,11 +126,62 @@ impl<T: Clone + PointeeSizeExpressible, const BUCKET: usize> TransformMatrixShap
             adaptation_matrix: dst_matrix,
         }
     }
+
+    #[inline(never)]
+    pub(crate) fn to_q2_13_i<R: Copy + 'static + Default, const PRECISION: i32>(
+        &self,
+        gamma_lut: usize,
+        bit_depth: usize,
+    ) -> TransformMatrixShaperFp<R, T>
+    where
+        f32: AsPrimitive<R>,
+    {
+        let linear_scale = if T::FINITE {
+            let lut_scale = (gamma_lut - 1) as f32 / ((1 << bit_depth) - 1) as f32;
+            ((1 << bit_depth) - 1) as f32 * lut_scale
+        } else {
+            let lut_scale = (gamma_lut - 1) as f32 / (T::NOT_FINITE_LINEAR_TABLE_SIZE - 1) as f32;
+            (T::NOT_FINITE_LINEAR_TABLE_SIZE - 1) as f32 * lut_scale
+        };
+        let new_box_r = self
+            .r_linear
+            .iter()
+            .map(|&x| (x * linear_scale).round().as_())
+            .collect::<Vec<R>>();
+        let new_box_g = self
+            .g_linear
+            .iter()
+            .map(|&x| (x * linear_scale).round().as_())
+            .collect::<Vec<R>>();
+        let new_box_b = self
+            .b_linear
+            .iter()
+            .map(|&x| (x * linear_scale).round().as_())
+            .collect::<Vec<_>>();
+        let scale: f32 = (1i32 << PRECISION) as f32;
+        let source_matrix = self.adaptation_matrix;
+        let mut dst_matrix = Matrix3::<i16> { v: [[0i16; 3]; 3] };
+        for i in 0..3 {
+            for j in 0..3 {
+                dst_matrix.v[i][j] = (source_matrix.v[i][j] * scale) as i16;
+            }
+        }
+        TransformMatrixShaperFp {
+            r_linear: new_box_r,
+            g_linear: new_box_g,
+            b_linear: new_box_b,
+            r_gamma: self.r_gamma.clone(),
+            g_gamma: self.g_gamma.clone(),
+            b_gamma: self.b_gamma.clone(),
+            adaptation_matrix: dst_matrix,
+        }
+    }
 }
 
 impl<T: Clone + PointeeSizeExpressible, const BUCKET: usize>
     TransformMatrixShaperOptimized<T, BUCKET>
 {
+    #[allow(dead_code)]
     pub(crate) fn to_q2_13_n<
         R: Copy + 'static + Default,
         const PRECISION: i32,
@@ -142,16 +222,49 @@ impl<T: Clone + PointeeSizeExpressible, const BUCKET: usize>
         }
     }
 
-    #[allow(dead_code)]
-    pub(crate) fn to_q1_30_n<
-        R: Copy + 'static + Default,
-        const PRECISION: i32,
-        const LINEAR_CAP: usize,
-    >(
+    pub(crate) fn to_q2_13_i<R: Copy + 'static + Default, const PRECISION: i32>(
         &self,
         gamma_lut: usize,
         bit_depth: usize,
-    ) -> TransformMatrixShaperFixedPointOpt<R, i32, T, BUCKET>
+    ) -> TransformMatrixShaperFpOptVec<R, i16, T>
+    where
+        f32: AsPrimitive<R>,
+    {
+        let linear_scale = if T::FINITE {
+            let lut_scale = (gamma_lut - 1) as f32 / ((1 << bit_depth) - 1) as f32;
+            ((1 << bit_depth) - 1) as f32 * lut_scale
+        } else {
+            let lut_scale = (gamma_lut - 1) as f32 / (T::NOT_FINITE_LINEAR_TABLE_SIZE - 1) as f32;
+            (T::NOT_FINITE_LINEAR_TABLE_SIZE - 1) as f32 * lut_scale
+        };
+        let new_box_linear = self
+            .linear
+            .iter()
+            .map(|&x| (x * linear_scale).round().as_())
+            .collect::<Vec<R>>();
+        let scale: f32 = (1i32 << PRECISION) as f32;
+        let source_matrix = self.adaptation_matrix;
+        let mut dst_matrix = Matrix3::<i16> {
+            v: [[i16::default(); 3]; 3],
+        };
+        for i in 0..3 {
+            for j in 0..3 {
+                dst_matrix.v[i][j] = (source_matrix.v[i][j] * scale) as i16;
+            }
+        }
+        TransformMatrixShaperFpOptVec {
+            linear: new_box_linear,
+            gamma: self.gamma.clone(),
+            adaptation_matrix: dst_matrix,
+        }
+    }
+
+    #[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
+    pub(crate) fn to_q1_30_n<R: Copy + 'static + Default, const PRECISION: i32>(
+        &self,
+        gamma_lut: usize,
+        bit_depth: usize,
+    ) -> TransformMatrixShaperFpOptVec<R, i32, T>
     where
         f32: AsPrimitive<R>,
         f64: AsPrimitive<R>,
@@ -172,10 +285,11 @@ impl<T: Clone + PointeeSizeExpressible, const BUCKET: usize>
             let lut_scale = (gamma_lut - 1) as f64 / table_size as f64;
             ((1u32 << ext_bp) - 1) as f64 * lut_scale
         };
-        let mut new_box_linear = Box::new([R::default(); BUCKET]);
-        for (dst, &src) in new_box_linear.iter_mut().zip(self.linear.iter()) {
-            *dst = (src as f64 * linear_scale).round().as_();
-        }
+        let new_box_linear = self
+            .linear
+            .iter()
+            .map(|&v| (v as f64 * linear_scale).round().as_())
+            .collect::<Vec<R>>();
         let scale: f64 = (1i64 << PRECISION) as f64;
         let source_matrix = self.adaptation_matrix;
         let mut dst_matrix = Matrix3::<i32> {
@@ -186,7 +300,7 @@ impl<T: Clone + PointeeSizeExpressible, const BUCKET: usize>
                 dst_matrix.v[i][j] = (source_matrix.v[i][j] as f64 * scale) as i32;
             }
         }
-        TransformMatrixShaperFixedPointOpt {
+        TransformMatrixShaperFpOptVec {
             linear: new_box_linear,
             gamma: self.gamma.clone(),
             adaptation_matrix: dst_matrix,
@@ -277,6 +391,73 @@ macro_rules! create_rgb_xyz_dependant_executor {
                     { Layout::Rgb as u8 },
                     { Layout::Rgb as u8 },
                     LINEAR_CAP,
+                > {
+                    profile,
+                    bit_depth,
+                    gamma_lut,
+                }));
+            }
+            Err(CmsError::UnsupportedProfileConnection)
+        }
+    };
+}
+
+#[cfg(any(
+    any(target_arch = "x86", target_arch = "x86_64"),
+    all(target_arch = "aarch64", target_feature = "neon")
+))]
+#[allow(unused)]
+macro_rules! create_rgb_xyz_dependant_executor_to_v {
+    ($dep_name: ident, $dependant: ident, $shaper: ident) => {
+        pub(crate) fn $dep_name<
+            T: Clone + Send + Sync + Default + PointeeSizeExpressible + Copy + 'static,
+            const LINEAR_CAP: usize,
+        >(
+            src_layout: Layout,
+            dst_layout: Layout,
+            profile: $shaper<T, LINEAR_CAP>,
+            gamma_lut: usize,
+            bit_depth: usize,
+        ) -> Result<Box<dyn TransformExecutor<T> + Send + Sync>, CmsError>
+        where
+            u32: AsPrimitive<T>,
+        {
+            let profile = profile.to_v();
+            if (src_layout == Layout::Rgba) && (dst_layout == Layout::Rgba) {
+                return Ok(Box::new($dependant::<
+                    T,
+                    { Layout::Rgba as u8 },
+                    { Layout::Rgba as u8 },
+                > {
+                    profile,
+                    bit_depth,
+                    gamma_lut,
+                }));
+            } else if (src_layout == Layout::Rgb) && (dst_layout == Layout::Rgba) {
+                return Ok(Box::new($dependant::<
+                    T,
+                    { Layout::Rgb as u8 },
+                    { Layout::Rgba as u8 },
+                > {
+                    profile,
+                    bit_depth,
+                    gamma_lut,
+                }));
+            } else if (src_layout == Layout::Rgba) && (dst_layout == Layout::Rgb) {
+                return Ok(Box::new($dependant::<
+                    T,
+                    { Layout::Rgba as u8 },
+                    { Layout::Rgb as u8 },
+                > {
+                    profile,
+                    bit_depth,
+                    gamma_lut,
+                }));
+            } else if (src_layout == Layout::Rgb) && (dst_layout == Layout::Rgb) {
+                return Ok(Box::new($dependant::<
+                    T,
+                    { Layout::Rgb as u8 },
+                    { Layout::Rgb as u8 },
                 > {
                     profile,
                     bit_depth,
@@ -491,13 +672,14 @@ where
 
 #[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
 use crate::conversions::neon::{TransformShaperRgbNeon, TransformShaperRgbOptNeon};
+use crate::conversions::rgbxyz_fixed::TransformMatrixShaperFpOptVec;
 use crate::conversions::rgbxyz_fixed::{
-    TransformMatrixShaperFixedPoint, TransformMatrixShaperFixedPointOpt,
+    TransformMatrixShaperFixedPoint, TransformMatrixShaperFixedPointOpt, TransformMatrixShaperFp,
 };
 use crate::transform::PointeeSizeExpressible;
 
 #[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
-create_rgb_xyz_dependant_executor!(
+create_rgb_xyz_dependant_executor_to_v!(
     make_rgb_xyz_rgb_transform,
     TransformShaperRgbNeon,
     TransformMatrixShaper

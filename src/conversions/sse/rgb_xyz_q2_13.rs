@@ -26,7 +26,7 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-use crate::conversions::rgbxyz_fixed::TransformMatrixShaperFixedPoint;
+use crate::conversions::rgbxyz_fixed::TransformMatrixShaperFp;
 use crate::conversions::sse::rgb_xyz::SseAlignedU16;
 use crate::transform::PointeeSizeExpressible;
 use crate::{CmsError, Layout, TransformExecutor};
@@ -40,10 +40,9 @@ pub(crate) struct TransformShaperQ2_13Sse<
     T: Copy,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
-    const LINEAR_CAP: usize,
     const PRECISION: i32,
 > {
-    pub(crate) profile: TransformMatrixShaperFixedPoint<i32, T, LINEAR_CAP>,
+    pub(crate) profile: TransformMatrixShaperFp<i32, T>,
     pub(crate) bit_depth: usize,
     pub(crate) gamma_lut: usize,
 }
@@ -58,9 +57,8 @@ impl<
     T: Copy + PointeeSizeExpressible + 'static,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
-    const LINEAR_CAP: usize,
     const PRECISION: i32,
-> TransformShaperQ2_13Sse<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP, PRECISION>
+> TransformShaperQ2_13Sse<T, SRC_LAYOUT, DST_LAYOUT, PRECISION>
 where
     u32: AsPrimitive<T>,
 {
@@ -87,6 +85,22 @@ where
 
         let max_colors = ((1 << self.bit_depth) - 1).as_();
 
+        // safety precondition for linearization table
+        if T::FINITE {
+            let cap = (1 << self.bit_depth) - 1;
+            assert!(self.profile.r_linear.len() >= cap);
+            assert!(self.profile.g_linear.len() >= cap);
+            assert!(self.profile.b_linear.len() >= cap);
+        } else {
+            assert!(self.profile.r_linear.len() >= T::NOT_FINITE_LINEAR_TABLE_SIZE);
+            assert!(self.profile.g_linear.len() >= T::NOT_FINITE_LINEAR_TABLE_SIZE);
+            assert!(self.profile.b_linear.len() >= T::NOT_FINITE_LINEAR_TABLE_SIZE);
+        }
+
+        let r_lin = &self.profile.r_linear;
+        let g_lin = &self.profile.g_linear;
+        let b_lin = &self.profile.b_linear;
+
         unsafe {
             let m0 = _mm_setr_epi16(
                 t.v[0][0], t.v[1][0], t.v[0][1], t.v[1][1], t.v[0][2], t.v[1][2], 0, 0,
@@ -102,9 +116,9 @@ where
                 .chunks_exact(src_channels)
                 .zip(dst.chunks_exact_mut(dst_channels))
             {
-                let rp = &self.profile.r_linear[src[src_cn.r_i()]._as_usize()];
-                let gp = &self.profile.g_linear[src[src_cn.g_i()]._as_usize()];
-                let bp = &self.profile.b_linear[src[src_cn.b_i()]._as_usize()];
+                let rp = r_lin.get_unchecked(src[src_cn.r_i()]._as_usize());
+                let gp = g_lin.get_unchecked(src[src_cn.g_i()]._as_usize());
+                let bp = b_lin.get_unchecked(src[src_cn.b_i()]._as_usize());
 
                 let mut r = _xmm_load_epi32(rp);
                 let mut g = _xmm_load_epi32(gp);
@@ -152,9 +166,8 @@ impl<
     T: Copy + PointeeSizeExpressible + 'static + Default,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
-    const LINEAR_CAP: usize,
     const PRECISION: i32,
-> TransformExecutor<T> for TransformShaperQ2_13Sse<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP, PRECISION>
+> TransformExecutor<T> for TransformShaperQ2_13Sse<T, SRC_LAYOUT, DST_LAYOUT, PRECISION>
 where
     u32: AsPrimitive<T>,
 {

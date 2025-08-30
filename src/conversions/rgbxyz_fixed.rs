@@ -44,10 +44,30 @@ pub(crate) struct TransformMatrixShaperFixedPoint<R, T, const LINEAR_CAP: usize>
 }
 
 /// Fixed point conversion Q2.13
+pub(crate) struct TransformMatrixShaperFp<R, T> {
+    pub(crate) r_linear: Vec<R>,
+    pub(crate) g_linear: Vec<R>,
+    pub(crate) b_linear: Vec<R>,
+    pub(crate) r_gamma: Box<[T; 65536]>,
+    pub(crate) g_gamma: Box<[T; 65536]>,
+    pub(crate) b_gamma: Box<[T; 65536]>,
+    pub(crate) adaptation_matrix: Matrix3<i16>,
+}
+
+/// Fixed point conversion Q2.13
 ///
 /// Optimized routine for *all same curves* matrix shaper.
 pub(crate) struct TransformMatrixShaperFixedPointOpt<R, W, T, const LINEAR_CAP: usize> {
     pub(crate) linear: Box<[R; LINEAR_CAP]>,
+    pub(crate) gamma: Box<[T; 65536]>,
+    pub(crate) adaptation_matrix: Matrix3<W>,
+}
+
+/// Fixed point conversion Q2.13
+///
+/// Optimized routine for *all same curves* matrix shaper.
+pub(crate) struct TransformMatrixShaperFpOptVec<R, W, T> {
+    pub(crate) linear: Vec<R>,
     pub(crate) gamma: Box<[T; 65536]>,
     pub(crate) adaptation_matrix: Matrix3<W>,
 }
@@ -236,6 +256,7 @@ where
     }
 }
 
+#[allow(unused_macros)]
 macro_rules! create_rgb_xyz_dependant_q2_13_executor {
     ($dep_name: ident, $dependant: ident, $resolution: ident, $shaper: ident) => {
         pub(crate) fn $dep_name<
@@ -308,6 +329,73 @@ macro_rules! create_rgb_xyz_dependant_q2_13_executor {
     };
 }
 
+macro_rules! create_rgb_xyz_dependant_q2_13_executor_fp {
+    ($dep_name: ident, $dependant: ident, $resolution: ident, $shaper: ident) => {
+        pub(crate) fn $dep_name<
+            T: Clone + Send + Sync + AsPrimitive<usize> + Default + PointeeSizeExpressible,
+            const LINEAR_CAP: usize,
+            const PRECISION: i32,
+        >(
+            src_layout: Layout,
+            dst_layout: Layout,
+            profile: $shaper<T, LINEAR_CAP>,
+            gamma_lut: usize,
+            bit_depth: usize,
+        ) -> Result<Box<dyn TransformExecutor<T> + Send + Sync>, CmsError>
+        where
+            u32: AsPrimitive<T>,
+        {
+            let q2_13_profile = profile.to_q2_13_i::<$resolution, PRECISION>(gamma_lut, bit_depth);
+            if (src_layout == Layout::Rgba) && (dst_layout == Layout::Rgba) {
+                return Ok(Box::new($dependant::<
+                    T,
+                    { Layout::Rgba as u8 },
+                    { Layout::Rgba as u8 },
+                    PRECISION,
+                > {
+                    profile: q2_13_profile,
+                    bit_depth,
+                    gamma_lut,
+                }));
+            } else if (src_layout == Layout::Rgb) && (dst_layout == Layout::Rgba) {
+                return Ok(Box::new($dependant::<
+                    T,
+                    { Layout::Rgb as u8 },
+                    { Layout::Rgba as u8 },
+                    PRECISION,
+                > {
+                    profile: q2_13_profile,
+                    bit_depth,
+                    gamma_lut,
+                }));
+            } else if (src_layout == Layout::Rgba) && (dst_layout == Layout::Rgb) {
+                return Ok(Box::new($dependant::<
+                    T,
+                    { Layout::Rgba as u8 },
+                    { Layout::Rgb as u8 },
+                    PRECISION,
+                > {
+                    profile: q2_13_profile,
+                    bit_depth,
+                    gamma_lut,
+                }));
+            } else if (src_layout == Layout::Rgb) && (dst_layout == Layout::Rgb) {
+                return Ok(Box::new($dependant::<
+                    T,
+                    { Layout::Rgb as u8 },
+                    { Layout::Rgb as u8 },
+                    PRECISION,
+                > {
+                    profile: q2_13_profile,
+                    bit_depth,
+                    gamma_lut,
+                }));
+            }
+            Err(CmsError::UnsupportedProfileConnection)
+        }
+    };
+}
+
 #[cfg(all(target_arch = "aarch64", feature = "neon"))]
 macro_rules! create_rgb_xyz_dependant_q1_30_executor {
     ($dep_name: ident, $dependant: ident, $resolution: ident, $shaper: ident) => {
@@ -325,15 +413,12 @@ macro_rules! create_rgb_xyz_dependant_q1_30_executor {
         where
             u32: AsPrimitive<T>,
         {
-            let q1_30_profile =
-                profile.to_q1_30_n::<$resolution, PRECISION, LINEAR_CAP>(gamma_lut, bit_depth);
+            let q1_30_profile = profile.to_q1_30_n::<$resolution, PRECISION>(gamma_lut, bit_depth);
             if (src_layout == Layout::Rgba) && (dst_layout == Layout::Rgba) {
                 return Ok(Box::new($dependant::<
                     T,
                     { Layout::Rgba as u8 },
                     { Layout::Rgba as u8 },
-                    LINEAR_CAP,
-                    PRECISION,
                 > {
                     profile: q1_30_profile,
                     gamma_lut,
@@ -344,8 +429,6 @@ macro_rules! create_rgb_xyz_dependant_q1_30_executor {
                     T,
                     { Layout::Rgb as u8 },
                     { Layout::Rgba as u8 },
-                    LINEAR_CAP,
-                    PRECISION,
                 > {
                     profile: q1_30_profile,
                     gamma_lut,
@@ -356,8 +439,6 @@ macro_rules! create_rgb_xyz_dependant_q1_30_executor {
                     T,
                     { Layout::Rgba as u8 },
                     { Layout::Rgb as u8 },
-                    LINEAR_CAP,
-                    PRECISION,
                 > {
                     profile: q1_30_profile,
                     gamma_lut,
@@ -368,8 +449,6 @@ macro_rules! create_rgb_xyz_dependant_q1_30_executor {
                     T,
                     { Layout::Rgb as u8 },
                     { Layout::Rgb as u8 },
-                    LINEAR_CAP,
-                    PRECISION,
                 > {
                     profile: q1_30_profile,
                     gamma_lut,
@@ -387,7 +466,7 @@ use crate::conversions::neon::{
 };
 
 #[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
-create_rgb_xyz_dependant_q2_13_executor!(
+create_rgb_xyz_dependant_q2_13_executor_fp!(
     make_rgb_xyz_q2_13,
     TransformShaperQ2_13Neon,
     i16,
@@ -395,7 +474,7 @@ create_rgb_xyz_dependant_q2_13_executor!(
 );
 
 #[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
-create_rgb_xyz_dependant_q2_13_executor!(
+create_rgb_xyz_dependant_q2_13_executor_fp!(
     make_rgb_xyz_q2_13_opt,
     TransformShaperQ2_13NeonOpt,
     i16,
@@ -430,7 +509,7 @@ create_rgb_xyz_dependant_q2_13_executor!(
 use crate::conversions::sse::{TransformShaperQ2_13OptSse, TransformShaperQ2_13Sse};
 
 #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"))]
-create_rgb_xyz_dependant_q2_13_executor!(
+create_rgb_xyz_dependant_q2_13_executor_fp!(
     make_rgb_xyz_q2_13_transform_sse_41,
     TransformShaperQ2_13Sse,
     i32,
@@ -438,7 +517,7 @@ create_rgb_xyz_dependant_q2_13_executor!(
 );
 
 #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"))]
-create_rgb_xyz_dependant_q2_13_executor!(
+create_rgb_xyz_dependant_q2_13_executor_fp!(
     make_rgb_xyz_q2_13_transform_sse_41_opt,
     TransformShaperQ2_13OptSse,
     i32,
@@ -451,7 +530,7 @@ use crate::conversions::rgbxyz::TransformMatrixShaperOptimized;
 use crate::transform::PointeeSizeExpressible;
 
 #[cfg(all(target_arch = "x86_64", feature = "avx"))]
-create_rgb_xyz_dependant_q2_13_executor!(
+create_rgb_xyz_dependant_q2_13_executor_fp!(
     make_rgb_xyz_q2_13_transform_avx2,
     TransformShaperRgbQ2_13Avx,
     i32,
@@ -459,7 +538,7 @@ create_rgb_xyz_dependant_q2_13_executor!(
 );
 
 #[cfg(all(target_arch = "x86_64", feature = "avx"))]
-create_rgb_xyz_dependant_q2_13_executor!(
+create_rgb_xyz_dependant_q2_13_executor_fp!(
     make_rgb_xyz_q2_13_transform_avx2_opt,
     TransformShaperRgbQ2_13OptAvx,
     i32,

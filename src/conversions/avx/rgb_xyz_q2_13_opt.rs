@@ -28,7 +28,7 @@
  */
 use crate::conversions::avx::rgb_xyz::AvxAlignedU16;
 use crate::conversions::avx::rgb_xyz_q2_13::_xmm_broadcast_epi32;
-use crate::conversions::rgbxyz_fixed::TransformMatrixShaperFixedPointOpt;
+use crate::conversions::rgbxyz_fixed::TransformMatrixShaperFpOptVec;
 use crate::transform::PointeeSizeExpressible;
 use crate::{CmsError, Layout, TransformExecutor};
 use num_traits::AsPrimitive;
@@ -38,10 +38,9 @@ pub(crate) struct TransformShaperRgbQ2_13OptAvx<
     T: Copy,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
-    const LINEAR_CAP: usize,
     const PRECISION: i32,
 > {
-    pub(crate) profile: TransformMatrixShaperFixedPointOpt<i32, i16, T, LINEAR_CAP>,
+    pub(crate) profile: TransformMatrixShaperFpOptVec<i32, i16, T>,
     pub(crate) bit_depth: usize,
     pub(crate) gamma_lut: usize,
 }
@@ -50,9 +49,8 @@ impl<
     T: Copy + PointeeSizeExpressible + 'static,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
-    const LINEAR_CAP: usize,
     const PRECISION: i32,
-> TransformShaperRgbQ2_13OptAvx<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP, PRECISION>
+> TransformShaperRgbQ2_13OptAvx<T, SRC_LAYOUT, DST_LAYOUT, PRECISION>
 where
     u32: AsPrimitive<T>,
 {
@@ -79,6 +77,16 @@ where
 
         let max_colors = ((1 << self.bit_depth) - 1).as_();
 
+        // safety precondition for linearization table
+        if T::FINITE {
+            let cap = (1 << self.bit_depth) - 1;
+            assert!(self.profile.linear.len() >= cap);
+        } else {
+            assert!(self.profile.linear.len() >= T::NOT_FINITE_LINEAR_TABLE_SIZE);
+        }
+
+        let lut_lin = &self.profile.linear;
+
         unsafe {
             let m0 = _mm256_setr_epi16(
                 t.v[0][0], t.v[1][0], t.v[0][1], t.v[1][1], t.v[0][2], t.v[1][2], 0, 0, t.v[0][0],
@@ -102,18 +110,18 @@ where
             let mut src_iter = src.chunks_exact(src_channels * 2);
 
             if let Some(src0) = src_iter.next() {
-                r0 = _xmm_broadcast_epi32(&self.profile.linear[src0[src_cn.r_i()]._as_usize()]);
-                g0 = _xmm_broadcast_epi32(&self.profile.linear[src0[src_cn.g_i()]._as_usize()]);
-                b0 = _xmm_broadcast_epi32(&self.profile.linear[src0[src_cn.b_i()]._as_usize()]);
+                r0 = _xmm_broadcast_epi32(lut_lin.get_unchecked(src0[src_cn.r_i()]._as_usize()));
+                g0 = _xmm_broadcast_epi32(lut_lin.get_unchecked(src0[src_cn.g_i()]._as_usize()));
+                b0 = _xmm_broadcast_epi32(lut_lin.get_unchecked(src0[src_cn.b_i()]._as_usize()));
 
                 r1 = _xmm_broadcast_epi32(
-                    &self.profile.linear[src0[src_cn.r_i() + src_channels]._as_usize()],
+                    lut_lin.get_unchecked(src0[src_cn.r_i() + src_channels]._as_usize()),
                 );
                 g1 = _xmm_broadcast_epi32(
-                    &self.profile.linear[src0[src_cn.g_i() + src_channels]._as_usize()],
+                    lut_lin.get_unchecked(src0[src_cn.g_i() + src_channels]._as_usize()),
                 );
                 b1 = _xmm_broadcast_epi32(
-                    &self.profile.linear[src0[src_cn.b_i() + src_channels]._as_usize()],
+                    lut_lin.get_unchecked(src0[src_cn.b_i() + src_channels]._as_usize()),
                 );
 
                 a0 = if src_channels == 4 {
@@ -157,18 +165,18 @@ where
 
                 _mm256_store_si256(temporary0.0.as_mut_ptr() as *mut _, v0);
 
-                r0 = _xmm_broadcast_epi32(&self.profile.linear[src[src_cn.r_i()]._as_usize()]);
-                g0 = _xmm_broadcast_epi32(&self.profile.linear[src[src_cn.g_i()]._as_usize()]);
-                b0 = _xmm_broadcast_epi32(&self.profile.linear[src[src_cn.b_i()]._as_usize()]);
+                r0 = _xmm_broadcast_epi32(lut_lin.get_unchecked(src[src_cn.r_i()]._as_usize()));
+                g0 = _xmm_broadcast_epi32(lut_lin.get_unchecked(src[src_cn.g_i()]._as_usize()));
+                b0 = _xmm_broadcast_epi32(lut_lin.get_unchecked(src[src_cn.b_i()]._as_usize()));
 
                 r1 = _xmm_broadcast_epi32(
-                    &self.profile.linear[src[src_cn.r_i() + src_channels]._as_usize()],
+                    lut_lin.get_unchecked(src[src_cn.r_i() + src_channels]._as_usize()),
                 );
                 g1 = _xmm_broadcast_epi32(
-                    &self.profile.linear[src[src_cn.g_i() + src_channels]._as_usize()],
+                    lut_lin.get_unchecked(src[src_cn.g_i() + src_channels]._as_usize()),
                 );
                 b1 = _xmm_broadcast_epi32(
-                    &self.profile.linear[src[src_cn.b_i() + src_channels]._as_usize()],
+                    lut_lin.get_unchecked(src[src_cn.b_i() + src_channels]._as_usize()),
                 );
 
                 dst[dst_cn.r_i()] = self.profile.gamma[temporary0.0[0] as usize];
@@ -239,10 +247,10 @@ where
                 .chunks_exact(src_channels)
                 .zip(dst.chunks_exact_mut(dst_channels))
             {
-                let r = _xmm_broadcast_epi32(&self.profile.linear[src[src_cn.r_i()]._as_usize()]);
+                let r = _xmm_broadcast_epi32(lut_lin.get_unchecked(src[src_cn.r_i()]._as_usize()));
                 let mut g =
-                    _xmm_broadcast_epi32(&self.profile.linear[src[src_cn.g_i()]._as_usize()]);
-                let b = _xmm_broadcast_epi32(&self.profile.linear[src[src_cn.b_i()]._as_usize()]);
+                    _xmm_broadcast_epi32(lut_lin.get_unchecked(src[src_cn.g_i()]._as_usize()));
+                let b = _xmm_broadcast_epi32(lut_lin.get_unchecked(src[src_cn.b_i()]._as_usize()));
 
                 g = _mm_slli_epi32::<16>(g);
 
@@ -283,10 +291,8 @@ impl<
     T: Copy + PointeeSizeExpressible + 'static + Default,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
-    const LINEAR_CAP: usize,
     const PRECISION: i32,
-> TransformExecutor<T>
-    for TransformShaperRgbQ2_13OptAvx<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP, PRECISION>
+> TransformExecutor<T> for TransformShaperRgbQ2_13OptAvx<T, SRC_LAYOUT, DST_LAYOUT, PRECISION>
 where
     u32: AsPrimitive<T>,
 {
