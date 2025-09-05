@@ -76,11 +76,12 @@ where
     u32: AsPrimitive<T>,
     (): LutBarycentricReduction<T, U>,
 {
-    #[inline(always)]
-    fn transform_chunk<'b, Interpolator: NeonMdInterpolation<'b, GRID_SIZE>>(
+    #[inline(never)]
+    fn transform_chunk<'b>(
         &'b self,
         src: &[T],
         dst: &mut [T],
+        interpolator: Box<dyn NeonMdInterpolation + Send + Sync>,
     ) {
         unsafe {
             let src_cn = Layout::from(SRC_LAYOUT);
@@ -112,8 +113,13 @@ where
                     max_value
                 };
 
-                let tetrahedral = Interpolator::new(&self.lut);
-                let v = tetrahedral.inter3_neon(x, y, z, &self.weights);
+                let v = interpolator.inter3_neon(
+                    &self.lut,
+                    x.as_(),
+                    y.as_(),
+                    z.as_(),
+                    self.weights.as_slice(),
+                );
                 if T::FINITE {
                     let mut r = vfmaq_f32(vdupq_n_f32(0.5f32), v.v, value_scale);
                     r = vminq_f32(r, value_scale);
@@ -182,23 +188,23 @@ where
             || (self.is_linear && self.color_space == DataColorSpace::Rgb)
             || self.color_space == DataColorSpace::Xyz
         {
-            self.transform_chunk::<TrilinearNeon<GRID_SIZE>>(src, dst);
+            self.transform_chunk(src, dst, Box::new(TrilinearNeon::<GRID_SIZE> {}));
         } else {
             match self.interpolation_method {
                 #[cfg(feature = "options")]
                 InterpolationMethod::Tetrahedral => {
-                    self.transform_chunk::<TetrahedralNeon<GRID_SIZE>>(src, dst);
+                    self.transform_chunk(src, dst, Box::new(TetrahedralNeon::<GRID_SIZE> {}));
                 }
                 #[cfg(feature = "options")]
                 InterpolationMethod::Pyramid => {
-                    self.transform_chunk::<PyramidalNeon<GRID_SIZE>>(src, dst);
+                    self.transform_chunk(src, dst, Box::new(PyramidalNeon::<GRID_SIZE> {}));
                 }
                 #[cfg(feature = "options")]
                 InterpolationMethod::Prism => {
-                    self.transform_chunk::<PrismaticNeon<GRID_SIZE>>(src, dst);
+                    self.transform_chunk(src, dst, Box::new(PrismaticNeon::<GRID_SIZE> {}));
                 }
                 InterpolationMethod::Linear => {
-                    self.transform_chunk::<TrilinearNeon<GRID_SIZE>>(src, dst);
+                    self.transform_chunk(src, dst, Box::new(TrilinearNeon::<GRID_SIZE> {}));
                 }
             }
         }
