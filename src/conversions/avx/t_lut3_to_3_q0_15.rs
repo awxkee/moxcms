@@ -81,8 +81,8 @@ where
 {
     #[allow(unused_unsafe)]
     #[target_feature(enable = "avx2")]
-    unsafe fn transform_chunk<'b>(
-        &'b self,
+    unsafe fn transform_chunk(
+        &self,
         src: &[T],
         dst: &mut [T],
         interpolator: Box<dyn AvxMdInterpolationQ0_15 + Send + Sync>,

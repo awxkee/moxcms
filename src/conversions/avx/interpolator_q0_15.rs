@@ -423,9 +423,7 @@ impl<const GRID_SIZE: usize> AvxMdInterpolationQ0_15Double
     }
 }
 
-impl<'a, const GRID_SIZE: usize> AvxMdInterpolationQ0_15Double
-    for TrilinearAvxQ0_15Double<GRID_SIZE>
-{
+impl<const GRID_SIZE: usize> AvxMdInterpolationQ0_15Double for TrilinearAvxQ0_15Double<GRID_SIZE> {
     fn inter3_sse(
         &self,
         table0: &[AvxAlignedI16],
