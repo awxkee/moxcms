@@ -84,10 +84,12 @@ where
 {
     #[allow(unused_unsafe)]
     #[target_feature(enable = "sse4.1")]
-    unsafe fn transform_chunk<'b, Interpolator: SseMdInterpolationQ0_15<'b, GRID_SIZE>>(
-        &'b self,
+    #[inline(never)]
+    unsafe fn transform_chunk(
+        &self,
         src: &[T],
         dst: &mut [T],
+        interpolator: Box<dyn SseMdInterpolationQ0_15 + Send + Sync>,
     ) {
         unsafe {
             let src_cn = Layout::from(SRC_LAYOUT);
@@ -124,8 +126,13 @@ where
                     max_value
                 };
 
-                let tetrahedral = Interpolator::new(&self.lut);
-                let v = tetrahedral.inter3_sse(x, y, z, &self.weights);
+                let v = interpolator.inter3_sse(
+                    &self.lut,
+                    x.as_(),
+                    y.as_(),
+                    z.as_(),
+                    self.weights.as_slice(),
+                );
                 if T::FINITE {
                     let mut o = _mm_max_epi16(v.v, _mm_setzero_si128());
                     o = _mm_min_epi16(o, v_max_scale);
@@ -199,23 +206,27 @@ where
                 || (self.is_linear && self.color_space == DataColorSpace::Rgb)
                 || self.color_space == DataColorSpace::Xyz
             {
-                self.transform_chunk::<TrilinearSseQ0_15<GRID_SIZE>>(src, dst);
+                self.transform_chunk(src, dst, Box::new(TrilinearSseQ0_15::<GRID_SIZE> {}));
             } else {
                 match self.interpolation_method {
                     #[cfg(feature = "options")]
                     InterpolationMethod::Tetrahedral => {
-                        self.transform_chunk::<TetrahedralSseQ0_15<GRID_SIZE>>(src, dst);
+                        self.transform_chunk(
+                            src,
+                            dst,
+                            Box::new(TetrahedralSseQ0_15::<GRID_SIZE> {}),
+                        );
                     }
                     #[cfg(feature = "options")]
                     InterpolationMethod::Pyramid => {
-                        self.transform_chunk::<PyramidalSseQ0_15<GRID_SIZE>>(src, dst);
+                        self.transform_chunk(src, dst, Box::new(PyramidalSseQ0_15::<GRID_SIZE> {}));
                     }
                     #[cfg(feature = "options")]
                     InterpolationMethod::Prism => {
-                        self.transform_chunk::<PrismaticSseQ0_15<GRID_SIZE>>(src, dst);
+                        self.transform_chunk(src, dst, Box::new(PrismaticSseQ0_15::<GRID_SIZE> {}));
                     }
                     InterpolationMethod::Linear => {
-                        self.transform_chunk::<TrilinearSseQ0_15<GRID_SIZE>>(src, dst);
+                        self.transform_chunk(src, dst, Box::new(TrilinearSseQ0_15::<GRID_SIZE> {}));
                     }
                 }
             }

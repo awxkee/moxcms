@@ -69,10 +69,11 @@ where
 {
     #[allow(unused_unsafe)]
     #[target_feature(enable = "avx2")]
-    unsafe fn transform_chunk<'b, Interpolator: AvxMdInterpolationQ0_15Double<'b, GRID_SIZE>>(
-        &'b self,
+    unsafe fn transform_chunk(
+        &self,
         src: &[T],
         dst: &mut [T],
+        interpolator: Box<dyn AvxMdInterpolationQ0_15Double + Send + Sync>,
     ) {
         unsafe {
             let cn = Layout::from(LAYOUT);
@@ -113,8 +114,14 @@ where
                 let table1 = &self.lut[(w * grid_size3) as usize..];
                 let table2 = &self.lut[(w_n * grid_size3) as usize..];
 
-                let interpolator = Interpolator::new(table1, table2);
-                let v = interpolator.inter3_sse(c, m, y, &self.weights);
+                let v = interpolator.inter3_sse(
+                    table1,
+                    table2,
+                    c.as_(),
+                    m.as_(),
+                    y.as_(),
+                    self.weights.as_slice(),
+                );
                 let (a0, b0) = (v.0.v, v.1.v);
 
                 let hp = _mm_mulhrs_epi16(_mm_set1_epi16(t_n), a0);
@@ -180,23 +187,39 @@ where
                 || (self.is_linear && self.color_space == DataColorSpace::Rgb)
                 || self.color_space == DataColorSpace::Xyz
             {
-                self.transform_chunk::<TrilinearAvxQ0_15Double<GRID_SIZE>>(src, dst);
+                self.transform_chunk(src, dst, Box::new(TrilinearAvxQ0_15Double::<GRID_SIZE> {}));
             } else {
                 match self.interpolation_method {
                     #[cfg(feature = "options")]
                     InterpolationMethod::Tetrahedral => {
-                        self.transform_chunk::<TetrahedralAvxQ0_15Double<GRID_SIZE>>(src, dst);
+                        self.transform_chunk(
+                            src,
+                            dst,
+                            Box::new(TetrahedralAvxQ0_15Double::<GRID_SIZE> {}),
+                        );
                     }
                     #[cfg(feature = "options")]
                     InterpolationMethod::Pyramid => {
-                        self.transform_chunk::<PyramidAvxFmaQ0_15Double<GRID_SIZE>>(src, dst);
+                        self.transform_chunk(
+                            src,
+                            dst,
+                            Box::new(PyramidAvxFmaQ0_15Double::<GRID_SIZE> {}),
+                        );
                     }
                     #[cfg(feature = "options")]
                     InterpolationMethod::Prism => {
-                        self.transform_chunk::<PrismaticAvxQ0_15Double<GRID_SIZE>>(src, dst);
+                        self.transform_chunk(
+                            src,
+                            dst,
+                            Box::new(PrismaticAvxQ0_15Double::<GRID_SIZE> {}),
+                        );
                     }
                     InterpolationMethod::Linear => {
-                        self.transform_chunk::<TrilinearAvxQ0_15Double<GRID_SIZE>>(src, dst);
+                        self.transform_chunk(
+                            src,
+                            dst,
+                            Box::new(TrilinearAvxQ0_15Double::<GRID_SIZE> {}),
+                        );
                     }
                 }
             }

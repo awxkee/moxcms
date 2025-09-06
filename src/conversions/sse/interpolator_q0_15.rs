@@ -28,7 +28,6 @@
  */
 use crate::conversions::interpolator::BarycentricWeight;
 use crate::math::FusedMultiplyAdd;
-use num_traits::AsPrimitive;
 #[cfg(target_arch = "x86")]
 use std::arch::x86::*;
 #[cfg(target_arch = "x86_64")]
@@ -39,23 +38,15 @@ use std::ops::{Add, Mul, Sub};
 pub(crate) struct SseAlignedI16x4(pub(crate) [i16; 4]);
 
 #[cfg(feature = "options")]
-pub(crate) struct TetrahedralSseQ0_15<'a, const GRID_SIZE: usize> {
-    pub(crate) cube: &'a [SseAlignedI16x4],
-}
+pub(crate) struct TetrahedralSseQ0_15<const GRID_SIZE: usize> {}
 
 #[cfg(feature = "options")]
-pub(crate) struct PyramidalSseQ0_15<'a, const GRID_SIZE: usize> {
-    pub(crate) cube: &'a [SseAlignedI16x4],
-}
+pub(crate) struct PyramidalSseQ0_15<const GRID_SIZE: usize> {}
 
 #[cfg(feature = "options")]
-pub(crate) struct PrismaticSseQ0_15<'a, const GRID_SIZE: usize> {
-    pub(crate) cube: &'a [SseAlignedI16x4],
-}
+pub(crate) struct PrismaticSseQ0_15<const GRID_SIZE: usize> {}
 
-pub(crate) struct TrilinearSseQ0_15<'a, const GRID_SIZE: usize> {
-    pub(crate) cube: &'a [SseAlignedI16x4],
-}
+pub(crate) struct TrilinearSseQ0_15<const GRID_SIZE: usize> {}
 
 trait Fetcher<T> {
     fn fetch(&self, x: i32, y: i32, z: i32) -> T;
@@ -132,31 +123,31 @@ impl<const GRID_SIZE: usize> Fetcher<SseVector> for TetrahedralSseQ0_15FetchVect
     }
 }
 
-pub(crate) trait SseMdInterpolationQ0_15<'a, const GRID_SIZE: usize> {
-    fn new(table: &'a [SseAlignedI16x4]) -> Self;
-    fn inter3_sse<U: AsPrimitive<usize>, const BINS: usize>(
+pub(crate) trait SseMdInterpolationQ0_15 {
+    fn inter3_sse(
         &self,
-        in_r: U,
-        in_g: U,
-        in_b: U,
-        lut: &[BarycentricWeight<i16>; BINS],
+        cube: &[SseAlignedI16x4],
+        in_r: usize,
+        in_g: usize,
+        in_b: usize,
+        lut: &[BarycentricWeight<i16>],
     ) -> SseVector;
 }
 
 #[cfg(feature = "options")]
-impl<const GRID_SIZE: usize> TetrahedralSseQ0_15<'_, GRID_SIZE> {
-    #[inline(always)]
-    fn interpolate<U: AsPrimitive<usize>, const BINS: usize>(
+impl<const GRID_SIZE: usize> TetrahedralSseQ0_15<GRID_SIZE> {
+    #[target_feature(enable = "sse4.1")]
+    unsafe fn interpolate(
         &self,
-        in_r: U,
-        in_g: U,
-        in_b: U,
-        lut: &[BarycentricWeight<i16>; BINS],
+        in_r: usize,
+        in_g: usize,
+        in_b: usize,
+        lut: &[BarycentricWeight<i16>],
         r: impl Fetcher<SseVector>,
     ) -> SseVector {
-        let lut_r = lut[in_r.as_()];
-        let lut_g = lut[in_g.as_()];
-        let lut_b = lut[in_b.as_()];
+        let lut_r = unsafe { *lut.get_unchecked(in_r) };
+        let lut_g = unsafe { *lut.get_unchecked(in_g) };
+        let lut_b = unsafe { *lut.get_unchecked(in_b) };
 
         let x: i32 = lut_r.x;
         let y: i32 = lut_g.x;
@@ -216,29 +207,24 @@ impl<const GRID_SIZE: usize> TetrahedralSseQ0_15<'_, GRID_SIZE> {
 
 macro_rules! define_inter_sse {
     ($interpolator: ident) => {
-        impl<'a, const GRID_SIZE: usize> SseMdInterpolationQ0_15<'a, GRID_SIZE>
-            for $interpolator<'a, GRID_SIZE>
-        {
-            #[inline]
-            fn new(table: &'a [SseAlignedI16x4]) -> Self {
-                Self { cube: table }
-            }
-
-            #[inline(always)]
-            fn inter3_sse<U: AsPrimitive<usize>, const BINS: usize>(
+        impl<const GRID_SIZE: usize> SseMdInterpolationQ0_15 for $interpolator<GRID_SIZE> {
+            fn inter3_sse(
                 &self,
-                in_r: U,
-                in_g: U,
-                in_b: U,
-                lut: &[BarycentricWeight<i16>; BINS],
+                table: &[SseAlignedI16x4],
+                in_r: usize,
+                in_g: usize,
+                in_b: usize,
+                lut: &[BarycentricWeight<i16>],
             ) -> SseVector {
-                self.interpolate(
-                    in_r,
-                    in_g,
-                    in_b,
-                    lut,
-                    TetrahedralSseQ0_15FetchVector::<GRID_SIZE> { cube: self.cube },
-                )
+                unsafe {
+                    self.interpolate(
+                        in_r,
+                        in_g,
+                        in_b,
+                        lut,
+                        TetrahedralSseQ0_15FetchVector::<GRID_SIZE> { cube: table },
+                    )
+                }
             }
         }
     };
@@ -253,19 +239,19 @@ define_inter_sse!(PrismaticSseQ0_15);
 define_inter_sse!(TrilinearSseQ0_15);
 
 #[cfg(feature = "options")]
-impl<const GRID_SIZE: usize> PyramidalSseQ0_15<'_, GRID_SIZE> {
-    #[inline(always)]
-    fn interpolate<U: AsPrimitive<usize>, const BINS: usize>(
+impl<const GRID_SIZE: usize> PyramidalSseQ0_15<GRID_SIZE> {
+    #[target_feature(enable = "sse4.1")]
+    unsafe fn interpolate(
         &self,
-        in_r: U,
-        in_g: U,
-        in_b: U,
-        lut: &[BarycentricWeight<i16>; BINS],
+        in_r: usize,
+        in_g: usize,
+        in_b: usize,
+        lut: &[BarycentricWeight<i16>],
         r: impl Fetcher<SseVector>,
     ) -> SseVector {
-        let lut_r = lut[in_r.as_()];
-        let lut_g = lut[in_g.as_()];
-        let lut_b = lut[in_b.as_()];
+        let lut_r = unsafe { *lut.get_unchecked(in_r) };
+        let lut_g = unsafe { *lut.get_unchecked(in_g) };
+        let lut_b = unsafe { *lut.get_unchecked(in_b) };
 
         let x: i32 = lut_r.x;
         let y: i32 = lut_g.x;
@@ -331,19 +317,19 @@ impl<const GRID_SIZE: usize> PyramidalSseQ0_15<'_, GRID_SIZE> {
 }
 
 #[cfg(feature = "options")]
-impl<const GRID_SIZE: usize> PrismaticSseQ0_15<'_, GRID_SIZE> {
-    #[inline(always)]
-    fn interpolate<U: AsPrimitive<usize>, const BINS: usize>(
+impl<const GRID_SIZE: usize> PrismaticSseQ0_15<GRID_SIZE> {
+    #[target_feature(enable = "sse4.1")]
+    unsafe fn interpolate(
         &self,
-        in_r: U,
-        in_g: U,
-        in_b: U,
-        lut: &[BarycentricWeight<i16>; BINS],
+        in_r: usize,
+        in_g: usize,
+        in_b: usize,
+        lut: &[BarycentricWeight<i16>],
         r: impl Fetcher<SseVector>,
     ) -> SseVector {
-        let lut_r = lut[in_r.as_()];
-        let lut_g = lut[in_g.as_()];
-        let lut_b = lut[in_b.as_()];
+        let lut_r = unsafe { *lut.get_unchecked(in_r) };
+        let lut_g = unsafe { *lut.get_unchecked(in_g) };
+        let lut_b = unsafe { *lut.get_unchecked(in_b) };
 
         let x: i32 = lut_r.x;
         let y: i32 = lut_g.x;
@@ -399,19 +385,19 @@ impl<const GRID_SIZE: usize> PrismaticSseQ0_15<'_, GRID_SIZE> {
     }
 }
 
-impl<const GRID_SIZE: usize> TrilinearSseQ0_15<'_, GRID_SIZE> {
-    #[inline(always)]
-    fn interpolate<U: AsPrimitive<usize>, const BINS: usize>(
+impl<const GRID_SIZE: usize> TrilinearSseQ0_15<GRID_SIZE> {
+    #[target_feature(enable = "sse4.1")]
+    unsafe fn interpolate(
         &self,
-        in_r: U,
-        in_g: U,
-        in_b: U,
-        lut: &[BarycentricWeight<i16>; BINS],
+        in_r: usize,
+        in_g: usize,
+        in_b: usize,
+        lut: &[BarycentricWeight<i16>],
         r: impl Fetcher<SseVector>,
     ) -> SseVector {
-        let lut_r = lut[in_r.as_()];
-        let lut_g = lut[in_g.as_()];
-        let lut_b = lut[in_b.as_()];
+        let lut_r = unsafe { *lut.get_unchecked(in_r) };
+        let lut_g = unsafe { *lut.get_unchecked(in_g) };
+        let lut_b = unsafe { *lut.get_unchecked(in_b) };
 
         let x: i32 = lut_r.x;
         let y: i32 = lut_g.x;

@@ -75,10 +75,11 @@ where
 {
     #[allow(unused_unsafe)]
     #[target_feature(enable = "avx2", enable = "fma")]
-    unsafe fn transform_chunk<'b, Interpolator: AvxMdInterpolationDouble<'b, GRID_SIZE>>(
-        &'b self,
+    unsafe fn transform_chunk(
+        &self,
         src: &[T],
         dst: &mut [T],
+        interpolator: Box<dyn AvxMdInterpolationDouble + Send + Sync>,
     ) {
         let cn = Layout::from(LAYOUT);
         let channels = cn.channels();
@@ -111,8 +112,14 @@ where
             let table1 = &self.lut[(w * grid_size3) as usize..];
             let table2 = &self.lut[(w_n * grid_size3) as usize..];
 
-            let interpolator = Interpolator::new(table1, table2);
-            let v = interpolator.inter3_sse(c, m, y, &self.weights);
+            let v = interpolator.inter3_sse(
+                table1,
+                table2,
+                c.as_(),
+                m.as_(),
+                y.as_(),
+                self.weights.as_slice(),
+            );
             let (a0, b0) = (v.0.v, v.1.v);
 
             if T::FINITE {
@@ -185,23 +192,39 @@ where
                 || (self.is_linear && self.color_space == DataColorSpace::Rgb)
                 || self.color_space == DataColorSpace::Xyz
             {
-                self.transform_chunk::<TrilinearAvxFmaDouble<GRID_SIZE>>(src, dst);
+                self.transform_chunk(src, dst, Box::new(TrilinearAvxFmaDouble::<GRID_SIZE> {}));
             } else {
                 match self.interpolation_method {
                     #[cfg(feature = "options")]
                     InterpolationMethod::Tetrahedral => {
-                        self.transform_chunk::<TetrahedralAvxFmaDouble<GRID_SIZE>>(src, dst);
+                        self.transform_chunk(
+                            src,
+                            dst,
+                            Box::new(TetrahedralAvxFmaDouble::<GRID_SIZE> {}),
+                        );
                     }
                     #[cfg(feature = "options")]
                     InterpolationMethod::Pyramid => {
-                        self.transform_chunk::<PyramidAvxFmaDouble<GRID_SIZE>>(src, dst);
+                        self.transform_chunk(
+                            src,
+                            dst,
+                            Box::new(PyramidAvxFmaDouble::<GRID_SIZE> {}),
+                        );
                     }
                     #[cfg(feature = "options")]
                     InterpolationMethod::Prism => {
-                        self.transform_chunk::<PrismaticAvxFmaDouble<GRID_SIZE>>(src, dst);
+                        self.transform_chunk(
+                            src,
+                            dst,
+                            Box::new(PrismaticAvxFmaDouble::<GRID_SIZE> {}),
+                        );
                     }
                     InterpolationMethod::Linear => {
-                        self.transform_chunk::<TrilinearAvxFmaDouble<GRID_SIZE>>(src, dst);
+                        self.transform_chunk(
+                            src,
+                            dst,
+                            Box::new(TrilinearAvxFmaDouble::<GRID_SIZE> {}),
+                        );
                     }
                 }
             }
@@ -288,7 +311,7 @@ impl Lut4x3Factory for AvxLut4x3Factory {
         }
         assert!(
             std::arch::is_x86_feature_detected!("fma"),
-            "Internal configuration error, this might not be called without `fma` feature"
+            "Internal configuration error, this feature might not be called without `fma` feature"
         );
         let lut = lut
             .chunks_exact(3)
