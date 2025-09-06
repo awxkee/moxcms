@@ -77,10 +77,11 @@ where
 {
     #[allow(unused_unsafe)]
     #[target_feature(enable = "avx2", enable = "fma")]
-    unsafe fn transform_chunk<'b, Interpolator: AvxMdInterpolation<'b, GRID_SIZE>>(
+    unsafe fn transform_chunk<'b>(
         &'b self,
         src: &[T],
         dst: &mut [T],
+        interpolator: Box<dyn AvxMdInterpolation + Send + Sync>,
     ) {
         let src_cn = Layout::from(SRC_LAYOUT);
         let src_channels = src_cn.channels();
@@ -111,8 +112,13 @@ where
                 max_value
             };
 
-            let tetrahedral = Interpolator::new(&self.lut);
-            let v = tetrahedral.inter3_sse(x, y, z, &self.weights);
+            let v = interpolator.inter3_sse(
+                &self.lut,
+                x.as_(),
+                y.as_(),
+                z.as_(),
+                self.weights.as_slice(),
+            );
             if T::FINITE {
                 unsafe {
                     let mut r = _mm_mul_ps(v.v, value_scale);
@@ -190,23 +196,23 @@ where
                 || (self.is_linear && self.color_space == DataColorSpace::Rgb)
                 || self.color_space == DataColorSpace::Xyz
             {
-                self.transform_chunk::<TrilinearAvxFma<GRID_SIZE>>(src, dst);
+                self.transform_chunk(src, dst, Box::new(TrilinearAvxFma::<GRID_SIZE> {}));
             } else {
                 match self.interpolation_method {
                     #[cfg(feature = "options")]
                     InterpolationMethod::Tetrahedral => {
-                        self.transform_chunk::<TetrahedralAvxFma<GRID_SIZE>>(src, dst);
+                        self.transform_chunk(src, dst, Box::new(TetrahedralAvxFma::<GRID_SIZE> {}));
                     }
                     #[cfg(feature = "options")]
                     InterpolationMethod::Pyramid => {
-                        self.transform_chunk::<PyramidalAvxFma<GRID_SIZE>>(src, dst);
+                        self.transform_chunk(src, dst, Box::new(PyramidalAvxFma::<GRID_SIZE> {}));
                     }
                     #[cfg(feature = "options")]
                     InterpolationMethod::Prism => {
-                        self.transform_chunk::<PrismaticAvxFma<GRID_SIZE>>(src, dst);
+                        self.transform_chunk(src, dst, Box::new(PrismaticAvxFma::<GRID_SIZE> {}));
                     }
                     InterpolationMethod::Linear => {
-                        self.transform_chunk::<TrilinearAvxFma<GRID_SIZE>>(src, dst);
+                        self.transform_chunk(src, dst, Box::new(TrilinearAvxFma::<GRID_SIZE> {}));
                     }
                 }
             }
