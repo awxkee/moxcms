@@ -78,8 +78,8 @@ where
 {
     #[allow(unused_unsafe)]
     #[target_feature(enable = "sse4.1")]
-    unsafe fn transform_chunk<'b>(
-        &'b self,
+    unsafe fn transform_chunk(
+        &self,
         src: &[T],
         dst: &mut [T],
         interpolator: Box<dyn SseMdInterpolation + Send + Sync>,

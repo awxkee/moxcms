@@ -76,8 +76,8 @@ where
 {
     #[allow(unused_unsafe)]
     #[inline(never)]
-    fn transform_chunk<'b>(
-        &'b self,
+    fn transform_chunk(
+        &self,
         src: &[T],
         dst: &mut [T],
         interpolator: Box<dyn NeonMdInterpolationDouble + Send + Sync>,

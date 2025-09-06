@@ -77,8 +77,8 @@ where
     (): LutBarycentricReduction<T, U>,
 {
     #[inline(never)]
-    fn transform_chunk<'b>(
-        &'b self,
+    fn transform_chunk(
+        &self,
         src: &[T],
         dst: &mut [T],
         interpolator: Box<dyn NeonMdInterpolation + Send + Sync>,

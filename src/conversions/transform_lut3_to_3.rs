@@ -72,11 +72,12 @@ where
     u32: AsPrimitive<T>,
     (): LutBarycentricReduction<T, U>,
 {
-    #[inline(always)]
-    fn transform_chunk<'b, Tetrahedral: MultidimensionalInterpolation<'b, GRID_SIZE>>(
-        &'b self,
+    #[inline(never)]
+    fn transform_chunk(
+        &self,
         src: &[T],
         dst: &mut [T],
+        interpolator: Box<dyn MultidimensionalInterpolation + Send + Sync>,
     ) {
         let src_cn = Layout::from(SRC_LAYOUT);
         let src_channels = src_cn.channels();
@@ -107,8 +108,12 @@ where
                 max_value
             };
 
-            let tetrahedral = Tetrahedral::new(&self.lut);
-            let v = tetrahedral.inter3(x, y, z, &self.weights);
+            let v = interpolator.inter3(
+                &self.lut,
+                &self.weights[x.as_()],
+                &self.weights[y.as_()],
+                &self.weights[z.as_()],
+            );
             if T::FINITE {
                 let r = v * value_scale + 0.5;
                 dst[dst_cn.r_i()] = r.v[0].min(value_scale).max(0.).as_();
@@ -168,27 +173,27 @@ where
             || self.color_space == DataColorSpace::Xyz
         {
             use crate::conversions::interpolator::Trilinear;
-            self.transform_chunk::<Trilinear<GRID_SIZE>>(src, dst);
+            self.transform_chunk(src, dst, Box::new(Trilinear::<GRID_SIZE> {}));
         } else {
             match self.interpolation_method {
                 #[cfg(feature = "options")]
                 InterpolationMethod::Tetrahedral => {
                     use crate::conversions::interpolator::Tetrahedral;
-                    self.transform_chunk::<Tetrahedral<GRID_SIZE>>(src, dst);
+                    self.transform_chunk(src, dst, Box::new(Tetrahedral::<GRID_SIZE> {}));
                 }
                 #[cfg(feature = "options")]
                 InterpolationMethod::Pyramid => {
                     use crate::conversions::interpolator::Pyramidal;
-                    self.transform_chunk::<Pyramidal<GRID_SIZE>>(src, dst);
+                    self.transform_chunk(src, dst, Box::new(Pyramidal::<GRID_SIZE> {}));
                 }
                 #[cfg(feature = "options")]
                 InterpolationMethod::Prism => {
                     use crate::conversions::interpolator::Prismatic;
-                    self.transform_chunk::<Prismatic<GRID_SIZE>>(src, dst);
+                    self.transform_chunk(src, dst, Box::new(Prismatic::<GRID_SIZE> {}));
                 }
                 InterpolationMethod::Linear => {
                     use crate::conversions::interpolator::Trilinear;
-                    self.transform_chunk::<Trilinear<GRID_SIZE>>(src, dst);
+                    self.transform_chunk(src, dst, Box::new(Trilinear::<GRID_SIZE> {}));
                 }
             }
         }

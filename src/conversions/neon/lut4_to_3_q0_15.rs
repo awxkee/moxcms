@@ -70,8 +70,8 @@ where
     #[allow(unused_unsafe)]
     #[target_feature(enable = "rdm")]
     #[inline(never)]
-    unsafe fn transform_chunk<'b>(
-        &'b self,
+    unsafe fn transform_chunk(
+        &self,
         src: &[T],
         dst: &mut [T],
         interpolator: Box<dyn NeonMdInterpolationQ0_15Double + Send + Sync>,

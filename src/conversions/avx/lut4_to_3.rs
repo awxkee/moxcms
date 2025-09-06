@@ -75,8 +75,8 @@ where
 {
     #[allow(unused_unsafe)]
     #[target_feature(enable = "avx2", enable = "fma")]
-    unsafe fn transform_chunk<'b>(
-        &'b self,
+    unsafe fn transform_chunk(
+        &self,
         src: &[T],
         dst: &mut [T],
         interpolator: Box<dyn AvxMdInterpolationDouble + Send + Sync>,
@@ -311,7 +311,7 @@ impl Lut4x3Factory for AvxLut4x3Factory {
         }
         assert!(
             std::arch::is_x86_feature_detected!("fma"),
-            "Internal configuration error, this might not be called without `fma` feature"
+            "Internal configuration error, this feature might not be called without `fma` feature"
         );
         let lut = lut
             .chunks_exact(3)
