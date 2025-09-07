@@ -255,148 +255,74 @@ fn main() {
     //     moxcms::ColorProfile::new_from_slice(&decoder.icc_profile().unwrap().unwrap()).unwrap();
     // let custom_profile = Profile::new_icc(&decoder.icc_profile().unwrap().unwrap()).unwrap();
 
-    let gray_icc = fs::read("./assets/FOGRA55.icc").unwrap();
-    let md_icc_v4 = fs::read("./assets/us_swop_coated.icc").unwrap();
-    let gray_target = ColorProfile::new_bt2020(); // ColorProfile::new_from_slice(&md_icc_v4).unwrap();
+    let fogra_icc = fs::read("./assets/us_swop_coated.icc").unwrap();
 
     // Curve first point must be 0 and last 65535.
     // let mut new_curve = vec![0u16; 4096];
     let srgb = ColorProfile::new_srgb();
+    let fogra_profile = ColorProfile::new_from_slice(&fogra_icc).unwrap();
 
     // let gamma_table = srgb.build_gamma_table(&srgb.red_trc, true).unwrap();
 
     // gray_profile.gray_trc = Some(ToneReprCurve::Lut(new_curve));
     // gray_profile.gray_trc = srgb.red_trc.clone();
 
-    let gray_profile = encode_gray_lut();
-
-    let encode = gray_profile.encode().unwrap();
-    fs::write("./gray.icc", encode).unwrap();
+    // let gray_profile = encode_gray_lut();
+    //
+    // let encode = gray_profile.encode().unwrap();
+    // fs::write("./gray.icc", encode).unwrap();
 
     let img = DynamicImage::from_decoder(decoder).unwrap();
     let rgb_f32 = img.to_rgb8();
 
-    let srgb_value = TransferCharacteristics::Srgb.linearize(1.);
-    let rgb = Rgb::new(0.0, 0.0, srgb_value as f32);
+    let srgb = moxcms::ColorProfile::new_srgb();
 
-    let sum = rgb.r * 0.2126729 + rgb.g * 0.7151522 + rgb.b * 0.0721750;
-    println!("sum {:?}, v {}", sum, sum * 255.);
-    let gammoized = TransferCharacteristics::Srgb.gamma(sum as f64);
-    println!("{:?}, {}", gammoized, gammoized * 255.);
-    println!(
-        "sum1 {:?}, sum2 {:?}",
-        TransferCharacteristics::Srgb.gamma(0.06851903),
-        TransferCharacteristics::Srgb.gamma(0.06851903) * 255.
-    );
-
-    let mut dst = vec![0u8; img.width() as usize * img.height() as usize];
-    let mut dst2 = vec![0u8; img.width() as usize * img.height() as usize * 4];
-
-    let cvt = srgb
+    let transform = srgb
         .create_transform_8bit(
-            Layout::Rgb,
-            &gray_profile,
-            Layout::Gray,
+            moxcms::Layout::Rgb,
+            &fogra_profile,
+            moxcms::Layout::Rgba,
             TransformOptions {
-                allow_extended_range_rgb_xyz: true,
+                prefer_fixed_point: true,
                 ..Default::default()
             },
         )
         .unwrap();
-    cvt.transform(&rgb_f32, &mut dst).unwrap();
 
-    let bvt = gray_profile
+    let mut new_img_bytes = vec![0; (img.as_bytes().len() / 3) * 4];
+    transform.transform(&rgb_f32, &mut new_img_bytes).unwrap();
+
+    let inverse_transform = fogra_profile
         .create_transform_8bit(
-            Layout::Gray,
+            moxcms::Layout::Rgba,
             &srgb,
-            Layout::Rgba,
+            moxcms::Layout::Rgb,
             TransformOptions {
-                allow_extended_range_rgb_xyz: true,
+                prefer_fixed_point: true,
+                rendering_intent: RenderingIntent::RelativeColorimetric,
                 ..Default::default()
             },
         )
         .unwrap();
 
-    bvt.transform(&dst, &mut dst2).unwrap();
+    let mut new_img_bytes2 = vec![0; img.as_bytes().len()];
+    let instant = Instant::now();
+    inverse_transform
+        .transform(&new_img_bytes, &mut new_img_bytes2)
+        .unwrap();
+    println!("moxcms inverse {:?}", instant.elapsed());
 
-    let new_img = DynamicImage::ImageRgba8(
-        image::RgbaImage::from_raw(img.width(), img.height(), dst2).unwrap(),
+    let recollected = new_img_bytes2
+        .iter()
+        .map(|&x| x )
+        // .map(|&x| (x * 255.).round() as u8)
+        // .map(|&x| (x >> 8).min(255).max(0) as u8)
+        .collect::<Vec<_>>();
+
+    let new_img = DynamicImage::ImageRgb8(
+        image::RgbImage::from_raw(img.width(), img.height(), recollected).unwrap(),
     );
-    new_img.save("converted_gray.png").unwrap();
-
-    // let mut profile_clone = gray_target.clone();
-    // profile_clone.lut_a_to_b_colorimetric = to_lut_v4(&profile_clone.lut_a_to_b_colorimetric, true);
-    // profile_clone.lut_a_to_b_perceptual = to_lut_v4(&profile_clone.lut_a_to_b_perceptual, true);
-    // profile_clone.lut_a_to_b_saturation = to_lut_v4(&profile_clone.lut_a_to_b_saturation, true);
-    //
-    // profile_clone.lut_b_to_a_perceptual = to_lut_v4(&profile_clone.lut_b_to_a_perceptual, false);
-    // profile_clone.lut_b_to_a_colorimetric =
-    //     to_lut_v4(&profile_clone.lut_b_to_a_colorimetric, false);
-    // profile_clone.lut_b_to_a_saturation = to_lut_v4(&profile_clone.lut_b_to_a_saturation, false);
-
-    // let encoded = profile_clone.encode().unwrap();
-    // fs::write("./assets/FOGRA55_v4.icc", encoded).unwrap();
-
-    //
-    // let srgb = moxcms::ColorProfile::new_srgb();
-    //
-    // let transform = srgb
-    //     .create_transform_16bit(
-    //         moxcms::Layout::Rgb,
-    //         &gray_target,
-    //         moxcms::Layout::Rgba,
-    //         TransformOptions {
-    //             prefer_fixed_point: false,
-    //             ..Default::default()
-    //         },
-    //     )
-    //     .unwrap();
-    //
-    // let mut new_img_bytes = vec![0u16; (img.as_bytes().len() / 3) * 4];
-    // transform.transform(&rgb_f32, &mut new_img_bytes).unwrap();
-    //
-    // // let profile = lcms2::Profile::new_icc(&md_icc_v4).unwrap();
-    // // let srgb_lcms = lcms2::Profile::new_srgb();
-    // // let transform = lcms2::Transform::new(
-    // //     &srgb_lcms,
-    // //     lcms2::PixelFormat::RGB_8,
-    // //     &profile,
-    // //     lcms2::PixelFormat::CMYK_8,
-    // //     lcms2::Intent::RelativeColorimetric,
-    // // )
-    // // .unwrap();
-    //
-    // // transform.transform_pixels(img.as_bytes(), &mut new_img_bytes);
-    //
-    // let inverse_transform = gray_target
-    //     .create_transform_16bit(
-    //         moxcms::Layout::Rgba,
-    //         &srgb,
-    //         moxcms::Layout::Rgb,
-    //         TransformOptions {
-    //             prefer_fixed_point: false,
-    //             rendering_intent: RenderingIntent::RelativeColorimetric,
-    //             ..Default::default()
-    //         },
-    //     )
-    //     .unwrap();
-    //
-    // let mut new_img_bytes2 = vec![0u16; img.as_bytes().len()];
-    // let instant = Instant::now();
-    // inverse_transform
-    //     .transform(&new_img_bytes, &mut new_img_bytes2)
-    //     .unwrap();
-    // println!("moxcms inverse {:?}", instant.elapsed());
-    //
-    // let recollected = new_img_bytes2
-    //     .iter()
-    //     .map(|&x| (x >> 8).min(255).max(0) as u8)
-    //     .collect::<Vec<_>>();
-    //
-    // let new_img = DynamicImage::ImageRgb8(
-    //     image::RgbImage::from_raw(img.width(), img.height(), recollected).unwrap(),
-    // );
-    // new_img.save("converted.png").unwrap();
+    new_img.save("converted.png").unwrap();
     //
     // // let profile = lcms2::Profile::new_icc(&gray_icc).unwrap();
     // // let srgb = lcms2::Profile::new_srgb();

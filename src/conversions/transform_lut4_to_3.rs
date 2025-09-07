@@ -115,15 +115,12 @@ where
     u32: AsPrimitive<T>,
     (): LutBarycentricReduction<T, U>,
 {
-    #[inline(always)]
-    fn transform_chunk<
-        'k,
-        Tetrahedral: MultidimensionalInterpolation<'k, GRID_SIZE>,
-        Interpolation: Vector3fCmykLerp,
-    >(
-        &'k self,
+    #[inline(never)]
+    fn transform_chunk<Interpolation: Vector3fCmykLerp>(
+        &self,
         src: &[T],
         dst: &mut [T],
+        interpolator: Box<dyn MultidimensionalInterpolation + Send + Sync>,
     ) {
         let cn = Layout::from(LAYOUT);
         let channels = cn.channels();
@@ -156,10 +153,18 @@ where
             let table1 = &self.lut[(w * grid_size3 * 3) as usize..];
             let table2 = &self.lut[(w_n * grid_size3 * 3) as usize..];
 
-            let tetrahedral1 = Tetrahedral::new(table1);
-            let tetrahedral2 = Tetrahedral::new(table2);
-            let r1 = tetrahedral1.inter3(c, m, y, &self.weights);
-            let r2 = tetrahedral2.inter3(c, m, y, &self.weights);
+            let r1 = interpolator.inter3(
+                table1,
+                &self.weights[c.as_()],
+                &self.weights[m.as_()],
+                &self.weights[y.as_()],
+            );
+            let r2 = interpolator.inter3(
+                table2,
+                &self.weights[c.as_()],
+                &self.weights[m.as_()],
+                &self.weights[y.as_()],
+            );
             let r = Interpolation::interpolate(r1, r2, t, value_scale);
             dst[cn.r_i()] = r.v[0].as_();
             dst[cn.g_i()] = r.v[1].as_();
@@ -207,50 +212,80 @@ where
             || self.color_space == DataColorSpace::Xyz
         {
             if T::FINITE {
-                self.transform_chunk::<Trilinear<GRID_SIZE>, DefaultVector3fLerp>(src, dst);
+                self.transform_chunk::<DefaultVector3fLerp>(
+                    src,
+                    dst,
+                    Box::new(Trilinear::<GRID_SIZE> {}),
+                );
             } else {
-                self.transform_chunk::<Trilinear<GRID_SIZE>, NonFiniteVector3fLerp>(src, dst);
+                self.transform_chunk::<NonFiniteVector3fLerp>(
+                    src,
+                    dst,
+                    Box::new(Trilinear::<GRID_SIZE> {}),
+                );
             }
         } else {
             match self.interpolation_method {
                 #[cfg(feature = "options")]
                 InterpolationMethod::Tetrahedral => {
                     if T::FINITE {
-                        self.transform_chunk::<Tetrahedral<GRID_SIZE>, DefaultVector3fLerp>(
-                            src, dst,
+                        self.transform_chunk::<DefaultVector3fLerp>(
+                            src,
+                            dst,
+                            Box::new(Tetrahedral::<GRID_SIZE> {}),
                         );
                     } else {
-                        self.transform_chunk::<Tetrahedral<GRID_SIZE>, NonFiniteVector3fLerp>(
-                            src, dst,
+                        self.transform_chunk::<NonFiniteVector3fLerp>(
+                            src,
+                            dst,
+                            Box::new(Tetrahedral::<GRID_SIZE> {}),
                         );
                     }
                 }
                 #[cfg(feature = "options")]
                 InterpolationMethod::Pyramid => {
                     if T::FINITE {
-                        self.transform_chunk::<Pyramidal<GRID_SIZE>, DefaultVector3fLerp>(src, dst);
+                        self.transform_chunk::<DefaultVector3fLerp>(
+                            src,
+                            dst,
+                            Box::new(Pyramidal::<GRID_SIZE> {}),
+                        );
                     } else {
-                        self.transform_chunk::<Pyramidal<GRID_SIZE>, NonFiniteVector3fLerp>(
-                            src, dst,
+                        self.transform_chunk::<NonFiniteVector3fLerp>(
+                            src,
+                            dst,
+                            Box::new(Pyramidal::<GRID_SIZE> {}),
                         );
                     }
                 }
                 #[cfg(feature = "options")]
                 InterpolationMethod::Prism => {
                     if T::FINITE {
-                        self.transform_chunk::<Prismatic<GRID_SIZE>, DefaultVector3fLerp>(src, dst);
+                        self.transform_chunk::<DefaultVector3fLerp>(
+                            src,
+                            dst,
+                            Box::new(Prismatic::<GRID_SIZE> {}),
+                        );
                     } else {
-                        self.transform_chunk::<Prismatic<GRID_SIZE>, NonFiniteVector3fLerp>(
-                            src, dst,
+                        self.transform_chunk::<NonFiniteVector3fLerp>(
+                            src,
+                            dst,
+                            Box::new(Prismatic::<GRID_SIZE> {}),
                         );
                     }
                 }
                 InterpolationMethod::Linear => {
                     if T::FINITE {
-                        self.transform_chunk::<Trilinear<GRID_SIZE>, DefaultVector3fLerp>(src, dst);
+                        self.transform_chunk::<DefaultVector3fLerp>(
+                            src,
+                            dst,
+                            Box::new(Trilinear::<GRID_SIZE> {}),
+                        );
                     } else {
-                        self.transform_chunk::<Trilinear<GRID_SIZE>, NonFiniteVector3fLerp>(
-                            src, dst,
+                        self.transform_chunk::<NonFiniteVector3fLerp>(
+                            src,
+                            dst,
+                            Box::new(Trilinear::<GRID_SIZE> {}),
                         );
                     }
                 }

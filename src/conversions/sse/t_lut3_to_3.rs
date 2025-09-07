@@ -80,10 +80,11 @@ where
 {
     #[allow(unused_unsafe)]
     #[target_feature(enable = "sse4.1")]
-    unsafe fn transform_chunk<'b, Interpolator: SseMdInterpolation<'b, GRID_SIZE>>(
-        &'b self,
+    unsafe fn transform_chunk(
+        &self,
         src: &[T],
         dst: &mut [T],
+        interpolator: Box<dyn SseMdInterpolation + Send + Sync>,
     ) {
         let src_cn = Layout::from(SRC_LAYOUT);
         let src_channels = src_cn.channels();
@@ -114,8 +115,13 @@ where
                 max_value
             };
 
-            let tetrahedral = Interpolator::new(&self.lut);
-            let v = tetrahedral.inter3_sse(x, y, z, &self.weights);
+            let v = interpolator.inter3_sse(
+                &self.lut,
+                x.as_(),
+                y.as_(),
+                z.as_(),
+                self.weights.as_slice(),
+            );
             if T::FINITE {
                 unsafe {
                     let mut r = _mm_mul_ps(v.v, value_scale);
@@ -193,23 +199,23 @@ where
                 || (self.is_linear && self.color_space == DataColorSpace::Rgb)
                 || self.color_space == DataColorSpace::Xyz
             {
-                self.transform_chunk::<TrilinearSse<GRID_SIZE>>(src, dst);
+                self.transform_chunk(src, dst, Box::new(TrilinearSse::<GRID_SIZE> {}));
             } else {
                 match self.interpolation_method {
                     #[cfg(feature = "options")]
                     InterpolationMethod::Tetrahedral => {
-                        self.transform_chunk::<TetrahedralSse<GRID_SIZE>>(src, dst);
+                        self.transform_chunk(src, dst, Box::new(TetrahedralSse::<GRID_SIZE> {}));
                     }
                     #[cfg(feature = "options")]
                     InterpolationMethod::Pyramid => {
-                        self.transform_chunk::<PyramidalSse<GRID_SIZE>>(src, dst);
+                        self.transform_chunk(src, dst, Box::new(PyramidalSse::<GRID_SIZE> {}));
                     }
                     #[cfg(feature = "options")]
                     InterpolationMethod::Prism => {
-                        self.transform_chunk::<PrismaticSse<GRID_SIZE>>(src, dst);
+                        self.transform_chunk(src, dst, Box::new(PrismaticSse::<GRID_SIZE> {}));
                     }
                     InterpolationMethod::Linear => {
-                        self.transform_chunk::<TrilinearSse<GRID_SIZE>>(src, dst);
+                        self.transform_chunk(src, dst, Box::new(TrilinearSse::<GRID_SIZE> {}));
                     }
                 }
             }
