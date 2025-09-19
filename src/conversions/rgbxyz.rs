@@ -74,6 +74,7 @@ pub(crate) struct TransformMatrixShaperOptimized<T: Clone, const BUCKET: usize> 
     pub(crate) adaptation_matrix: Matrix3f,
 }
 
+#[allow(dead_code)]
 impl<T: Clone, const BUCKET: usize> TransformMatrixShaperOptimized<T, BUCKET> {
     fn convert_to_v(self) -> TransformMatrixShaperOptimizedV<T> {
         TransformMatrixShaperOptimizedV {
@@ -86,6 +87,7 @@ impl<T: Clone, const BUCKET: usize> TransformMatrixShaperOptimized<T, BUCKET> {
 
 /// Low memory footprint optimized routine for matrix shaper profiles with the same
 /// Gamma and linear curves.
+#[allow(dead_code)]
 pub(crate) struct TransformMatrixShaperOptimizedV<T: Clone> {
     pub(crate) linear: Vec<f32>,
     pub(crate) gamma: Box<[T; 65536]>,
@@ -146,6 +148,7 @@ impl<T: Clone + PointeeSizeExpressible, const BUCKET: usize> TransformMatrixShap
     }
 
     #[inline(never)]
+    #[allow(dead_code)]
     pub(crate) fn to_q2_13_i<R: Copy + 'static + Default, const PRECISION: i32>(
         &self,
         gamma_lut: usize,
@@ -240,6 +243,7 @@ impl<T: Clone + PointeeSizeExpressible, const BUCKET: usize>
         }
     }
 
+    #[allow(dead_code)]
     pub(crate) fn to_q2_13_i<R: Copy + 'static + Default, const PRECISION: i32>(
         &self,
         gamma_lut: usize,
