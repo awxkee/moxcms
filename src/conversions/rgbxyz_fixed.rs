@@ -44,6 +44,7 @@ pub(crate) struct TransformMatrixShaperFixedPoint<R, T, const LINEAR_CAP: usize>
 }
 
 /// Fixed point conversion Q2.13
+#[allow(dead_code)]
 pub(crate) struct TransformMatrixShaperFp<R, T> {
     pub(crate) r_linear: Vec<R>,
     pub(crate) g_linear: Vec<R>,
@@ -66,6 +67,7 @@ pub(crate) struct TransformMatrixShaperFixedPointOpt<R, W, T, const LINEAR_CAP: 
 /// Fixed point conversion Q2.13
 ///
 /// Optimized routine for *all same curves* matrix shaper.
+#[allow(dead_code)]
 pub(crate) struct TransformMatrixShaperFpOptVec<R, W, T> {
     pub(crate) linear: Vec<R>,
     pub(crate) gamma: Box<[T; 65536]>,
@@ -329,6 +331,7 @@ macro_rules! create_rgb_xyz_dependant_q2_13_executor {
     };
 }
 
+#[allow(unused_macros)]
 macro_rules! create_rgb_xyz_dependant_q2_13_executor_fp {
     ($dep_name: ident, $dependant: ident, $resolution: ident, $shaper: ident) => {
         pub(crate) fn $dep_name<

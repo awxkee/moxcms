@@ -314,7 +314,7 @@ fn main() {
 
     let recollected = new_img_bytes2
         .iter()
-        .map(|&x| x )
+        .map(|&x| x)
         // .map(|&x| (x * 255.).round() as u8)
         // .map(|&x| (x >> 8).min(255).max(0) as u8)
         .collect::<Vec<_>>();
