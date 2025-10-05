@@ -27,6 +27,7 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::conversions::katana::KatanaInitialStage;
+use crate::err::try_vec;
 use crate::profile::LutDataType;
 use crate::safe_math::{SafeMul, SafePowi};
 use crate::trc::lut_interp_linear_float;
@@ -144,7 +145,7 @@ impl<T: Copy + PointeeSizeExpressible + AsPrimitive<f32>> KatanaLut4x3<T> {
         } else {
             1.0
         };
-        let mut dst = vec![0.; (input.len() / 4) * 3];
+        let mut dst = try_vec![0.; (input.len() / 4) * 3];
         let linearization_0 = &self.linearization[0];
         let linearization_1 = &self.linearization[1];
         let linearization_2 = &self.linearization[2];
@@ -351,7 +352,7 @@ pub(crate) fn create_lut4<const SAMPLES: usize>(
     let lut_size: u32 = (4 * SAMPLES * SAMPLES * SAMPLES * SAMPLES) as u32;
 
     let src = create_lut4_norm_samples::<SAMPLES>();
-    let mut dest = vec![0.; (lut_size as usize) / 4 * 3];
+    let mut dest = try_vec![0.; (lut_size as usize) / 4 * 3];
 
     let lut_stage = stage_lut_4x3(lut, options, pcs)?;
     lut_stage.transform(&src, &mut dest)?;

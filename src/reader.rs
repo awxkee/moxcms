@@ -26,6 +26,7 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+use crate::err::try_vec;
 use crate::helpers::{read_matrix_3d, read_vector_3d};
 use crate::profile::LutDataType;
 use crate::safe_math::{SafeAdd, SafeMul, SafePowi};
@@ -70,12 +71,12 @@ pub(crate) fn uint8_number_to_float_fast(a: u8) -> f32 {
     a as f32 * (1. / 255.0)
 }
 
-fn utf16be_to_utf16(slice: &[u8]) -> Vec<u16> {
-    let mut vec = vec![0u16; slice.len() / 2];
+fn utf16be_to_utf16(slice: &[u8]) -> Result<Vec<u16>, CmsError> {
+    let mut vec = try_vec![0u16; slice.len() / 2];
     for (dst, chunk) in vec.iter_mut().zip(slice.chunks_exact(2)) {
         *dst = u16::from_be_bytes([chunk[0], chunk[1]]);
     }
-    vec
+    Ok(vec)
 }
 
 impl ColorProfile {
@@ -195,7 +196,7 @@ impl ColorProfile {
 
             let resliced =
                 &tag[first_record_offset..first_record_offset + first_string_record_length];
-            let cvt = utf16be_to_utf16(resliced);
+            let cvt = utf16be_to_utf16(resliced)?;
             let string_record = String::from_utf16_lossy(&cvt);
 
             let mut records = vec![LocalizableString {
@@ -227,7 +228,7 @@ impl ColorProfile {
                     return Ok(None);
                 }
                 let resliced = &tag[string_offset..string_offset + record_length];
-                let cvt = utf16be_to_utf16(resliced);
+                let cvt = utf16be_to_utf16(resliced)?;
                 let string_record = String::from_utf16_lossy(&cvt);
                 records.push(LocalizableString {
                     country: country_code,
@@ -261,7 +262,7 @@ impl ColorProfile {
 
             last_position += 8;
             let uc = &tag[last_position..last_position + unicode_length];
-            let wc = utf16be_to_utf16(uc);
+            let wc = utf16be_to_utf16(uc)?;
             let unicode_string = String::from_utf16_lossy(&wc).to_string();
 
             // last_position += unicode_length;
@@ -293,21 +294,20 @@ impl ColorProfile {
         Ok(None)
     }
 
-    #[must_use]
     #[inline]
-    fn read_lut_table_f32(table: &[u8], lut_type: LutType) -> LutStore {
+    fn read_lut_table_f32(table: &[u8], lut_type: LutType) -> Result<LutStore, CmsError> {
         if lut_type == LutType::Lut16 {
-            let mut clut = vec![0u16; table.len() / 2];
+            let mut clut = try_vec![0u16; table.len() / 2];
             for (src, dst) in table.chunks_exact(2).zip(clut.iter_mut()) {
                 *dst = u16::from_be_bytes([src[0], src[1]]);
             }
-            LutStore::Store16(clut)
+            Ok(LutStore::Store16(clut))
         } else if lut_type == LutType::Lut8 {
-            let mut clut = vec![0u8; table.len()];
+            let mut clut = try_vec![0u8; table.len()];
             for (&src, dst) in table.iter().zip(clut.iter_mut()) {
                 *dst = src;
             }
-            LutStore::Store8(clut)
+            Ok(LutStore::Store8(clut))
         } else {
             unreachable!("This should never happen, report to https://github.com/awxkee/moxcms")
         }
@@ -445,7 +445,7 @@ impl ColorProfile {
                 } else {
                     LutType::Lut16
                 },
-            ))
+            )?)
         } else {
             None
         };
@@ -593,7 +593,7 @@ impl ColorProfile {
             return Err(CmsError::InvalidProfile);
         }
         let shaped_input_table = &tag[input_offset..linearization_table_end];
-        let linearization_table = Self::read_lut_table_f32(shaped_input_table, lut_type);
+        let linearization_table = Self::read_lut_table_f32(shaped_input_table, lut_type)?;
 
         let clut_offset = linearization_table_end;
 
@@ -606,7 +606,7 @@ impl ColorProfile {
         }
 
         let shaped_clut_table = &tag[clut_offset..clut_offset + clut_data_size];
-        let clut_table = Self::read_lut_table_f32(shaped_clut_table, lut_type);
+        let clut_table = Self::read_lut_table_f32(shaped_clut_table, lut_type)?;
 
         let output_offset = clut_offset.safe_add(clut_data_size)?;
 
@@ -614,7 +614,7 @@ impl ColorProfile {
 
         let shaped_output_table =
             &tag[output_offset..output_offset.safe_add(output_size.safe_mul(entry_size)?)?];
-        let gamma_table = Self::read_lut_table_f32(shaped_output_table, lut_type);
+        let gamma_table = Self::read_lut_table_f32(shaped_output_table, lut_type)?;
 
         let wh = LutWarehouse::Lut(LutDataType {
             num_input_table_entries,
@@ -711,7 +711,7 @@ impl ColorProfile {
                 ));
             }
             let curve_sliced = &tag[12..curve_end];
-            let mut curve_values = vec![0u16; entry_count];
+            let mut curve_values = try_vec![0u16; entry_count];
             for (value, curve_value) in curve_sliced.chunks_exact(2).zip(curve_values.iter_mut()) {
                 let gamma_s15 = u16::from_be_bytes([value[0], value[1]]);
                 *curve_value = gamma_s15;
@@ -734,7 +734,7 @@ impl ColorProfile {
                 ));
             }
             let curve_sliced = &tag[12..12 + COUNT_TO_LENGTH[entry_count] * size_of::<u32>()];
-            let mut params = vec![0f32; COUNT_TO_LENGTH[entry_count]];
+            let mut params = try_vec![0f32; COUNT_TO_LENGTH[entry_count]];
             for (value, param_value) in curve_sliced.chunks_exact(4).zip(params.iter_mut()) {
                 let parametric_value = i32::from_be_bytes([value[0], value[1], value[2], value[3]]);
                 *param_value = s15_fixed16_number_to_float(parametric_value);

@@ -27,6 +27,7 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::conversions::mab::{BCurves3, MCurves3};
+use crate::err::try_vec;
 use crate::safe_math::SafeMul;
 use crate::{
     CmsError, DataColorSpace, Hypercube, InPlaceStage, InterpolationMethod,
@@ -182,7 +183,7 @@ pub(crate) fn prepare_mab_4x3(
     if mab.num_input_channels != 4 && mab.num_output_channels != 3 {
         return Err(CmsError::UnsupportedProfileConnection);
     }
-    let mut new_lut = vec![0f32; (lut.len() / 4) * 3];
+    let mut new_lut = try_vec![0f32; (lut.len() / 4) * 3];
     if mab.a_curves.len() == 4 && mab.clut.is_some() {
         let clut = &mab.clut.as_ref().map(|x| x.to_clut_f32()).unwrap();
 

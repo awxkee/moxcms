@@ -63,6 +63,7 @@ pub enum CmsError {
     MalformedCurveLutTable(MalformedSize),
     InvalidInksCountForProfile,
     MalformedTrcCurve(String),
+    OutOfMemory(usize),
 }
 
 impl Display for CmsError {
@@ -115,8 +116,26 @@ impl Display for CmsError {
                 f.write_str("Invalid inks count for profile was provided")
             }
             CmsError::MalformedTrcCurve(str) => f.write_str(str),
+            CmsError::OutOfMemory(capacity) => f.write_fmt(format_args!(
+                "There is no enough memory to allocate {capacity} bytes"
+            )),
         }
     }
 }
 
 impl Error for CmsError {}
+
+macro_rules! try_vec {
+    () => {
+        Vec::new()
+    };
+    ($elem:expr; $n:expr) => {{
+        let mut v = Vec::new();
+        v.try_reserve_exact($n)
+            .map_err(|_| crate::err::CmsError::OutOfMemory($n))?;
+        v.resize($n, $elem);
+        v
+    }};
+}
+
+pub(crate) use try_vec;

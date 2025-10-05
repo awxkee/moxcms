@@ -28,6 +28,7 @@
  */
 use crate::conversions::katana::pcs_stages::KatanaMatrixStage;
 use crate::conversions::katana::{KatanaInitialStage, KatanaIntermediateStage};
+use crate::err::try_vec;
 use crate::{CmsError, ColorProfile, Layout, Matrix3f, PointeeSizeExpressible, TransformOptions};
 use num_traits::AsPrimitive;
 use std::marker::PhantomData;
@@ -52,7 +53,7 @@ impl<
         if input.len() % src_layout.channels() != 0 {
             return Err(CmsError::LaneMultipleOfChannels);
         }
-        let mut dst = vec![0.; input.len() / src_layout.channels() * 3];
+        let mut dst = try_vec![0.; input.len() / src_layout.channels() * 3];
 
         let scale = if T::FINITE {
             (self.linear_cap as f32 - 1.) / ((1 << self.bit_depth) - 1) as f32
