@@ -27,6 +27,7 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::conversions::lut3x4::create_lut3_samples;
+use crate::err::try_vec;
 use crate::mlaf::mlaf;
 use crate::trc::ToneCurveEvaluator;
 use crate::{
@@ -226,7 +227,7 @@ where
         bit_depth: BIT_DEPTH,
     };
 
-    let mut lut = vec![0f32; lut_origins.len()];
+    let mut lut = try_vec![0f32; lut_origins.len()];
     lin_stage.transform(&lut_origins, &mut lut)?;
 
     let xyz_to_rgb = source.rgb_to_xyz_matrix();

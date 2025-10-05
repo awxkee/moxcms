@@ -26,6 +26,7 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+use crate::err::try_vec;
 use crate::profile::LutDataType;
 use crate::safe_math::{SafeMul, SafePowi};
 use crate::trc::lut_interp_linear_float;
@@ -240,7 +241,7 @@ pub(crate) fn create_lut3x4(
         return Err(CmsError::UnsupportedProfileConnection);
     }
 
-    let mut dest = vec![0.; (src.len() / 3) * 4];
+    let mut dest = try_vec![0.; (src.len() / 3) * 4];
 
     let lut_stage = stage_lut_3x4(lut, options, pcs)?;
     lut_stage.transform(src, &mut dest)?;

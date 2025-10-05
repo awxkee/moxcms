@@ -27,6 +27,7 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::conversions::mab::{BCurves3, MCurves3};
+use crate::err::try_vec;
 use crate::safe_math::SafeMul;
 use crate::{
     CmsError, Cube, DataColorSpace, InPlaceStage, InterpolationMethod, LutMultidimensionalType,
@@ -239,7 +240,7 @@ pub(crate) fn prepare_mba_3x4(
         }
     }
 
-    let mut new_lut = vec![0f32; (lut.len() / 3) * 4];
+    let mut new_lut = try_vec![0f32; (lut.len() / 3) * 4];
 
     if mab.a_curves.len() == 4 && mab.clut.is_some() {
         let clut = &mab.clut.as_ref().map(|x| x.to_clut_f32()).unwrap();

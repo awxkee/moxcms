@@ -27,7 +27,7 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::conversions::katana::{KatanaFinalStage, KatanaInitialStage};
-use crate::err::MalformedSize;
+use crate::err::{MalformedSize, try_vec};
 use crate::profile::LutDataType;
 use crate::safe_math::{SafeMul, SafePowi};
 use crate::trc::lut_interp_linear_float;
@@ -271,7 +271,7 @@ where
         } else {
             1.0
         };
-        let mut dst = vec![0.; input.len()];
+        let mut dst = try_vec![0.; input.len()];
         let linearization_0 = &self.input[0];
         let linearization_1 = &self.input[1];
         let linearization_2 = &self.input[2];
@@ -420,7 +420,7 @@ pub(crate) fn create_lut3x3(
         return Err(CmsError::UnsupportedProfileConnection);
     }
 
-    let mut dest = vec![0.; src.len()];
+    let mut dest = try_vec![0.; src.len()];
 
     let lut_stage = stage_lut_3x3(lut, options, pcs)?;
     lut_stage.transform(src, &mut dest)?;
