@@ -858,7 +858,7 @@ impl ColorProfile {
         if def != TagTypeDefinition::Measurement {
             return Ok(None);
         }
-        if 36 > slice.len() {
+        if 36 + entry > slice.len() {
             return Err(CmsError::InvalidProfile);
         }
         let tag = &slice[entry..entry + 36];

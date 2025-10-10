@@ -120,3 +120,4 @@ jobs:
       - uses: dtolnay/rust-toolchain@nightly
       - run: cargo install cargo-fuzz
       - run: cargo fuzz run safe_read --no-default-features -- -max_total_time=20 -max_len=512000
+      - run: cargo fuzz run safe_read_create --no-default-features -- -max_total_time=20 -max_len=512000
