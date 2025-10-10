@@ -2,7 +2,7 @@ workspace = { members = ["app", "fuzz"] }
 
 [package]
 name = "moxcms"
-version = "0.7.6"
+version = "0.7.7"
 edition = "2024"
 description = "Simple Color Management in Rust"
 readme = "./README.md"
@@ -25,7 +25,7 @@ rand = "0.9"
 
 [features]
 # If no unsafe intrinsics active then `forbid(unsafe)` will be used.
-default = ["avx", "sse", "neon"]
+default = ["avx", "sse", "neon", "any_to_any"]
 # Enables AVX2 acceleration where possible
 avx = []
 # Enables SSE4.1 acceleration where possible
@@ -37,6 +37,8 @@ avx512 = []
 # Allows configuring interpolation methods and LUT weights precision.
 # Disabled by default to prevent binary bloat.
 options = []
+# Use this if you need to support more than 4 channels, or 1,2 channels LUTs
+any_to_any = []
 
 [package.metadata.docs.rs]
 # To build locally:

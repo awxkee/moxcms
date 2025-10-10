@@ -26,11 +26,11 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-use crate::conversions::lut3x3::{
-    create_lut3x3, katana_input_stage_lut_3x3, katana_output_stage_lut_3x3,
-};
+use crate::conversions::lut3x3::create_lut3x3;
+#[cfg(feature = "any_to_any")]
+use crate::conversions::lut3x3::{katana_input_stage_lut_3x3, katana_output_stage_lut_3x3};
 use crate::conversions::lut3x4::{create_lut3_samples_norm, create_lut3x4};
-use crate::conversions::lut4::{create_lut4, create_lut4_norm_samples, katana_input_stage_lut_4x3};
+use crate::conversions::lut4::*;
 use crate::conversions::mab::{prepare_mab_3x3, prepare_mba_3x3};
 use crate::conversions::transform_lut3_to_4::make_transform_3x4;
 use crate::mlaf::mlaf;
@@ -294,6 +294,7 @@ make_transform_3x3_fn!(make_transformer_3x3_sse41, SseLut3x3Factory);
 #[cfg(all(target_arch = "x86_64", feature = "avx"))]
 use crate::conversions::avx::AvxLut4x3Factory;
 use crate::conversions::interpolator::LutBarycentricReduction;
+#[cfg(feature = "any_to_any")]
 use crate::conversions::katana::{
     Katana, KatanaDefaultIntermediate, KatanaInitialStage, KatanaPostFinalizationStage,
     KatanaStageLabToXyz, KatanaStageXyzToLab, katana_create_rgb_lin_lut, katana_pcs_lab_v2_to_v4,
@@ -302,6 +303,7 @@ use crate::conversions::katana::{
 };
 use crate::conversions::mab4x3::prepare_mab_4x3;
 use crate::conversions::mba3x4::prepare_mba_3x4;
+#[cfg(feature = "any_to_any")]
 use crate::conversions::md_luts_factory::{do_any_to_any, prepare_alpha_finalizer};
 // use crate::conversions::bpc::compensate_bpc_in_lut;
 
@@ -370,6 +372,7 @@ where
 
         const GRID_SIZE: usize = 17;
 
+        #[cfg(feature = "any_to_any")]
         let is_katana_required_for_source = source
             .get_device_to_pcs(options.rendering_intent)
             .ok_or(CmsError::UnsupportedLutRenderingIntent(
@@ -377,6 +380,7 @@ where
             ))
             .map(|x| x.is_katana_required())?;
 
+        #[cfg(feature = "any_to_any")]
         let is_katana_required_for_destination =
             if dest.is_matrix_shaper() || dest.pcs == DataColorSpace::Xyz {
                 false
@@ -388,6 +392,7 @@ where
                 return Err(CmsError::UnsupportedProfileConnection);
             };
 
+        #[cfg(feature = "any_to_any")]
         if is_katana_required_for_source || is_katana_required_for_destination {
             let initial_stage: Box<dyn KatanaInitialStage<f32, T> + Send + Sync> =
                 match source.get_device_to_pcs(options.rendering_intent).ok_or(
@@ -614,6 +619,7 @@ where
 
         const GRID_SIZE: usize = 33;
 
+        #[cfg(feature = "any_to_any")]
         let is_katana_required_for_source = if source.is_matrix_shaper() {
             false
         } else {
@@ -625,6 +631,7 @@ where
                 .map(|x| x.is_katana_required())?
         };
 
+        #[cfg(feature = "any_to_any")]
         let is_katana_required_for_destination =
             if source.is_matrix_shaper() || dest.pcs == DataColorSpace::Xyz {
                 false
@@ -636,9 +643,11 @@ where
                 return Err(CmsError::UnsupportedProfileConnection);
             };
 
+        #[cfg(feature = "any_to_any")]
         let mut stages: Vec<Box<KatanaDefaultIntermediate>> = Vec::new();
 
         // Slow and accurate fallback if anything not acceptable is detected by curve analysis
+        #[cfg(feature = "any_to_any")]
         if is_katana_required_for_source || is_katana_required_for_destination {
             let source_stage: Box<dyn KatanaInitialStage<f32, T> + Send + Sync> =
                 if source.is_matrix_shaper() {
@@ -795,8 +804,15 @@ where
             is_dest_linear_profile,
         ))
     } else {
-        do_any_to_any::<T, BIT_DEPTH, LINEAR_CAP, GAMMA_LUT>(
-            src_layout, source, dst_layout, dest, options,
-        )
+        #[cfg(feature = "any_to_any")]
+        {
+            do_any_to_any::<T, BIT_DEPTH, LINEAR_CAP, GAMMA_LUT>(
+                src_layout, source, dst_layout, dest, options,
+            )
+        }
+        #[cfg(not(feature = "any_to_any"))]
+        {
+            Err(CmsError::UnsupportedProfileConnection)
+        }
     }
 }

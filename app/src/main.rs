@@ -305,6 +305,32 @@ fn main() {
         )
         .unwrap();
 
+    _ = fogra_profile
+        .create_transform_16bit(
+            moxcms::Layout::Rgba,
+            &srgb,
+            moxcms::Layout::Rgb,
+            TransformOptions {
+                prefer_fixed_point: true,
+                rendering_intent: RenderingIntent::RelativeColorimetric,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+
+    _ = fogra_profile
+        .create_transform_f32(
+            moxcms::Layout::Rgba,
+            &srgb,
+            moxcms::Layout::Rgb,
+            TransformOptions {
+                prefer_fixed_point: true,
+                rendering_intent: RenderingIntent::RelativeColorimetric,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+
     let mut new_img_bytes2 = vec![0; img.as_bytes().len()];
     let instant = Instant::now();
     inverse_transform

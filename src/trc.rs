@@ -1015,6 +1015,7 @@ fn invert_lut_boxed<const N: usize>(table: &[u16; N], out_length: usize) -> Vec<
 }
 
 impl ToneReprCurve {
+    #[cfg(feature = "any_to_any")]
     pub(crate) fn to_clut(&self) -> Result<Vec<f32>, CmsError> {
         match self {
             ToneReprCurve::Lut(lut) => {

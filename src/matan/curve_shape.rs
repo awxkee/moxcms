@@ -39,6 +39,7 @@ pub(crate) fn is_curve_linear16(curve: &[u16]) -> bool {
     true
 }
 
+#[cfg(feature = "any_to_any")]
 pub(crate) fn is_curve_descending<T: PartialOrd>(v: &[T]) -> bool {
     if v.is_empty() {
         return false;
@@ -59,6 +60,7 @@ pub(crate) fn is_curve_ascending<T: PartialOrd>(v: &[T]) -> bool {
     v[0] < v[v.len() - 1]
 }
 
+#[cfg(feature = "any_to_any")]
 pub(crate) fn is_curve_linear8(curve: &[u8]) -> bool {
     let scale = 1. / (curve.len() - 1) as f32 * 255.;
     for (index, &value) in curve.iter().enumerate() {

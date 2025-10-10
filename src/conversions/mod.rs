@@ -34,6 +34,7 @@ mod bpc;
 mod gray2rgb;
 mod gray2rgb_extended;
 mod interpolator;
+#[cfg(feature = "any_to_any")]
 mod katana;
 mod lut3x3;
 mod lut3x4;
@@ -42,7 +43,9 @@ mod lut_transforms;
 mod mab;
 mod mab4x3;
 mod mba3x4;
+#[cfg(feature = "any_to_any")]
 mod md_lut;
+#[cfg(feature = "any_to_any")]
 mod md_luts_factory;
 #[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
 mod neon;

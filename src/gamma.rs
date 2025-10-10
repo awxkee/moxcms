@@ -79,7 +79,6 @@ fn srgb_from_linear(linear: f64) -> f64 {
     }
 }
 
-#[inline]
 /// Gamma transfer function for sRGB
 pub(crate) fn srgb_from_linear_extended(linear: f32) -> f32 {
     if linear < 0.0030412825601275209f32 {
@@ -138,7 +137,6 @@ fn rec709_from_linear(linear: f64) -> f64 {
     }
 }
 
-#[inline]
 /// Gamma transfer function for Rec.709
 fn rec709_from_linearf_extended(linear: f32) -> f32 {
     if linear < 0.018053968510807 {
@@ -152,35 +150,30 @@ fn rec709_from_linearf_extended(linear: f32) -> f32 {
     }
 }
 
-#[inline]
 /// Linear transfer function for Smpte 428
 pub(crate) fn smpte428_to_linear(gamma: f64) -> f64 {
     const SCALE: f64 = 1. / 0.91655527974030934f64;
     f_pow(gamma.max(0.).min(1f64), 2.6f64) * SCALE
 }
 
-#[inline]
 /// Linear transfer function for Smpte 428
 pub(crate) fn smpte428_to_linearf_extended(gamma: f32) -> f32 {
     const SCALE: f32 = 1. / 0.91655527974030934;
     dirty_powf(gamma.max(0.), 2.6) * SCALE
 }
 
-#[inline]
 /// Gamma transfer function for Smpte 428
 fn smpte428_from_linear(linear: f64) -> f64 {
     const POWER_VALUE: f64 = 1.0f64 / 2.6f64;
     f_pow(0.91655527974030934f64 * linear.max(0.), POWER_VALUE)
 }
 
-#[inline]
 /// Gamma transfer function for Smpte 428
 fn smpte428_from_linearf(linear: f32) -> f32 {
     const POWER_VALUE: f32 = 1.0 / 2.6;
     dirty_powf(0.91655527974030934 * linear.max(0.), POWER_VALUE)
 }
 
-#[inline]
 /// Linear transfer function for Smpte 240
 pub(crate) fn smpte240_to_linear(gamma: f64) -> f64 {
     if gamma < 0.0 {
@@ -194,7 +187,6 @@ pub(crate) fn smpte240_to_linear(gamma: f64) -> f64 {
     }
 }
 
-#[inline]
 /// Linear transfer function for Smpte 240
 pub(crate) fn smpte240_to_linearf_extended(gamma: f32) -> f32 {
     if gamma < 4.0 * 0.022821585529445 {
@@ -204,7 +196,6 @@ pub(crate) fn smpte240_to_linearf_extended(gamma: f32) -> f32 {
     }
 }
 
-#[inline]
 /// Gamma transfer function for Smpte 240
 fn smpte240_from_linear(linear: f64) -> f64 {
     if linear < 0.0 {
@@ -218,7 +209,6 @@ fn smpte240_from_linear(linear: f64) -> f64 {
     }
 }
 
-#[inline]
 /// Gamma transfer function for Smpte 240
 fn smpte240_from_linearf_extended(linear: f32) -> f32 {
     if linear < 0.022821585529445 {
@@ -238,7 +228,6 @@ fn log100_from_linear(linear: f64) -> f64 {
     }
 }
 
-#[inline]
 /// Gamma transfer function for Log100
 fn log100_from_linearf(linear: f32) -> f32 {
     if linear <= 0.01 {
@@ -248,7 +237,6 @@ fn log100_from_linearf(linear: f32) -> f32 {
     }
 }
 
-#[inline]
 /// Linear transfer function for Log100
 pub(crate) fn log100_to_linear(gamma: f64) -> f64 {
     // The function is non-bijective so choose the middle of [0, 0.00316227766f].
@@ -260,7 +248,6 @@ pub(crate) fn log100_to_linear(gamma: f64) -> f64 {
     }
 }
 
-#[inline]
 /// Linear transfer function for Log100
 pub(crate) fn log100_to_linearf(gamma: f32) -> f32 {
     // The function is non-bijective so choose the middle of [0, 0.00316227766f].
@@ -284,7 +271,6 @@ pub(crate) fn log100_sqrt10_to_linear(gamma: f64) -> f64 {
     }
 }
 
-#[inline]
 /// Linear transfer function for Log100Sqrt10
 pub(crate) fn log100_sqrt10_to_linearf(gamma: f32) -> f32 {
     // The function is non-bijective so choose the middle of [0, 0.00316227766f].
@@ -296,7 +282,6 @@ pub(crate) fn log100_sqrt10_to_linearf(gamma: f32) -> f32 {
     }
 }
 
-#[inline]
 /// Gamma transfer function for Log100Sqrt10
 fn log100_sqrt10_from_linear(linear: f64) -> f64 {
     if linear <= 0.00316227766 {
@@ -306,7 +291,6 @@ fn log100_sqrt10_from_linear(linear: f64) -> f64 {
     }
 }
 
-#[inline]
 /// Gamma transfer function for Log100Sqrt10
 fn log100_sqrt10_from_linearf(linear: f32) -> f32 {
     if linear <= 0.00316227766 {
@@ -316,7 +300,6 @@ fn log100_sqrt10_from_linearf(linear: f32) -> f32 {
     }
 }
 
-#[inline]
 /// Gamma transfer function for Bt.1361
 fn bt1361_from_linear(linear: f64) -> f64 {
     if linear < -0.25 {
@@ -336,7 +319,6 @@ fn bt1361_from_linear(linear: f64) -> f64 {
     }
 }
 
-#[inline]
 /// Gamma transfer function for Bt.1361
 fn bt1361_from_linearf(linear: f32) -> f32 {
     if linear < -0.25 {
@@ -360,7 +342,6 @@ fn bt1361_from_linearf(linear: f32) -> f32 {
     }
 }
 
-#[inline]
 /// Linear transfer function for Bt.1361
 pub(crate) fn bt1361_to_linear(gamma: f64) -> f64 {
     if gamma < -0.25f64 {
@@ -379,7 +360,6 @@ pub(crate) fn bt1361_to_linear(gamma: f64) -> f64 {
     }
 }
 
-#[inline]
 /// Linear transfer function for Bt.1361
 fn bt1361_to_linearf(gamma: f32) -> f32 {
     if gamma < -0.25 {
@@ -413,7 +393,6 @@ fn pure_gamma_function_f(x: f32, gamma: f32) -> f32 {
     if x <= 0. { 0. } else { dirty_powf(x, gamma) }
 }
 
-#[inline]
 pub(crate) fn iec61966_to_linear(gamma: f64) -> f64 {
     if gamma < -4.5f64 * 0.018053968510807f64 {
         f_pow(
@@ -430,7 +409,6 @@ pub(crate) fn iec61966_to_linear(gamma: f64) -> f64 {
     }
 }
 
-#[inline]
 fn iec61966_to_linearf(gamma: f32) -> f32 {
     if gamma < -4.5 * 0.018053968510807 {
         dirty_powf((-gamma + 0.09929682680944) / -1.09929682680944, 1.0 / 0.45)
@@ -441,7 +419,6 @@ fn iec61966_to_linearf(gamma: f32) -> f32 {
     }
 }
 
-#[inline]
 fn iec61966_from_linear(v: f64) -> f64 {
     if v < -0.018053968510807f64 {
         fmla(-1.09929682680944f64, f_pow(-v, 0.45), 0.09929682680944f64)
@@ -452,7 +429,6 @@ fn iec61966_from_linear(v: f64) -> f64 {
     }
 }
 
-#[inline]
 fn iec61966_from_linearf(v: f32) -> f32 {
     if v < -0.018053968510807 {
         fmla(-1.09929682680944, dirty_powf(-v, 0.45), 0.09929682680944)
@@ -524,7 +500,6 @@ pub(crate) fn pq_to_linear(gamma: f64) -> f64 {
     }
 }
 
-#[inline]
 /// Linear transfer function for PQ
 pub(crate) fn pq_to_linearf(gamma: f32) -> f32 {
     if gamma > 0.0 {
@@ -537,7 +512,6 @@ pub(crate) fn pq_to_linearf(gamma: f32) -> f32 {
     }
 }
 
-#[inline]
 /// Gamma transfer function for PQ
 fn pq_from_linear(linear: f64) -> f64 {
     if linear > 0.0 {
@@ -581,7 +555,6 @@ pub(crate) fn hlg_to_linear(gamma: f64) -> f64 {
     }
 }
 
-#[inline]
 /// Linear transfer function for HLG
 pub(crate) fn hlg_to_linearf(gamma: f32) -> f32 {
     if gamma < 0.0 {
@@ -597,7 +570,6 @@ pub(crate) fn hlg_to_linearf(gamma: f32) -> f32 {
     }
 }
 
-#[inline]
 /// Gamma transfer function for HLG
 fn hlg_from_linear(linear: f64) -> f64 {
     // Scale from extended SDR range to [0.0, 1.0].
@@ -617,7 +589,6 @@ fn hlg_from_linear(linear: f64) -> f64 {
     }
 }
 
-#[inline]
 /// Gamma transfer function for HLG
 fn hlg_from_linearf(linear: f32) -> f32 {
     // Scale from extended SDR range to [0.0, 1.0].
@@ -639,7 +610,6 @@ fn trc_linear(v: f64) -> f64 {
 }
 
 impl TransferCharacteristics {
-    #[inline]
     pub fn linearize(self, v: f64) -> f64 {
         match self {
             TransferCharacteristics::Reserved => 0f64,
@@ -663,7 +633,6 @@ impl TransferCharacteristics {
         }
     }
 
-    #[inline]
     pub fn gamma(self, v: f64) -> f64 {
         match self {
             TransferCharacteristics::Reserved => 0f64,

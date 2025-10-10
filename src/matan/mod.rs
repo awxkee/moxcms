@@ -27,14 +27,21 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 mod curve_shape;
+#[cfg(feature = "any_to_any")]
 mod degeneration;
+#[cfg(feature = "any_to_any")]
 mod discontinuity;
+#[cfg(feature = "any_to_any")]
 mod monotonic;
+#[cfg(feature = "any_to_any")]
 mod slope_limit;
 
-pub(crate) use curve_shape::{
-    is_curve_ascending, is_curve_descending, is_curve_linear8, is_curve_linear16,
-};
+pub(crate) use curve_shape::{is_curve_ascending, is_curve_linear16};
+#[cfg(feature = "any_to_any")]
+pub(crate) use curve_shape::{is_curve_descending, is_curve_linear8};
+#[cfg(feature = "any_to_any")]
 pub(crate) use degeneration::is_curve_degenerated;
+#[cfg(feature = "any_to_any")]
 pub(crate) use discontinuity::does_curve_have_discontinuity;
+#[cfg(feature = "any_to_any")]
 pub(crate) use monotonic::is_curve_monotonic;

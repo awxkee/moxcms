@@ -255,6 +255,7 @@ impl Layout {
         }
     }
 
+    #[cfg(feature = "any_to_any")]
     pub(crate) fn from_inks(inks: usize) -> Self {
         match inks {
             1 => Layout::Gray,
