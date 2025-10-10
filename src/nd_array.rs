@@ -97,9 +97,9 @@ impl Hypercube<'_> {
     }
 
     pub fn new_hypercube(array: &[f32], grid_size: [u8; 4]) -> Hypercube<'_> {
-        let z_stride = grid_size[2] as u32;
-        let y_stride = z_stride * grid_size[1] as u32;
-        let x_stride = y_stride * grid_size[0] as u32;
+        let z_stride = grid_size[3] as u32;
+        let y_stride = z_stride * grid_size[2] as u32;
+        let x_stride = y_stride * grid_size[1] as u32;
         Hypercube {
             array,
             x_stride,
@@ -815,8 +815,8 @@ impl Cube<'_> {
     }
 
     pub fn new_cube(array: &[f32], grid_size: [u8; 3]) -> Cube<'_> {
-        let y_stride = grid_size[1] as u32;
-        let x_stride = y_stride * grid_size[0] as u32;
+        let y_stride = grid_size[2] as u32;
+        let x_stride = y_stride * grid_size[1] as u32;
         Cube {
             array,
             x_stride,
