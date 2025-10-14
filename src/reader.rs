@@ -410,9 +410,9 @@ impl ColorProfile {
 
             let mut clut_size = 1u32;
             for &i in grid_points.iter().take(in_channels as usize) {
-                clut_size *= i as u32;
+                clut_size = clut_size.safe_mul(i as u32)?;
             }
-            clut_size *= out_channels as u32;
+            clut_size = clut_size.safe_mul(out_channels as u32)?;
 
             if clut_size == 0 {
                 return Err(CmsError::InvalidProfile);
