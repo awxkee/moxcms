@@ -176,9 +176,7 @@ impl Lab {
         if self.a < amin || self.a > amax || self.b < bmin || self.b > bmax {
             if self.a == 0.0 {
                 // Is hue exactly 90?
-
                 // atan will not work, so clamp here
-                new_lab.b = if new_lab.b < bmin { bmin } else { bmax };
                 return Lab::new(self.l, self.a, self.b);
             }
 
