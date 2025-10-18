@@ -50,16 +50,16 @@ pub(crate) fn make_rgb_to_gray_extended<
     gamma_eval: Box<dyn ToneCurveEvaluator + Send + Sync>,
     weights: Vector3f,
     bit_depth: usize,
-) -> Box<dyn TransformExecutor<T> + Send + Sync>
+) -> Result<Box<dyn TransformExecutor<T> + Send + Sync>, CmsError>
 where
     u32: AsPrimitive<T>,
     f32: AsPrimitive<T>,
 {
     match src_layout {
         Layout::Rgb => match dst_layout {
-            Layout::Rgb => unreachable!(),
-            Layout::Rgba => unreachable!(),
-            Layout::Gray => Box::new(TransformRgbToGrayExtendedExecutor::<
+            Layout::Rgb => Err(CmsError::UnsupportedProfileConnection),
+            Layout::Rgba => Err(CmsError::UnsupportedProfileConnection),
+            Layout::Gray => Ok(Box::new(TransformRgbToGrayExtendedExecutor::<
                 T,
                 { Layout::Rgb as u8 },
                 { Layout::Gray as u8 },
@@ -69,8 +69,8 @@ where
                 weights,
                 _phantom: PhantomData,
                 bit_depth,
-            }),
-            Layout::GrayAlpha => Box::new(TransformRgbToGrayExtendedExecutor::<
+            })),
+            Layout::GrayAlpha => Ok(Box::new(TransformRgbToGrayExtendedExecutor::<
                 T,
                 { Layout::Rgb as u8 },
                 { Layout::GrayAlpha as u8 },
@@ -80,13 +80,13 @@ where
                 weights,
                 _phantom: PhantomData,
                 bit_depth,
-            }),
-            _ => unreachable!(),
+            })),
+            _ => Err(CmsError::UnsupportedProfileConnection),
         },
         Layout::Rgba => match dst_layout {
-            Layout::Rgb => unreachable!(),
-            Layout::Rgba => unreachable!(),
-            Layout::Gray => Box::new(TransformRgbToGrayExtendedExecutor::<
+            Layout::Rgb => Err(CmsError::UnsupportedProfileConnection),
+            Layout::Rgba => Err(CmsError::UnsupportedProfileConnection),
+            Layout::Gray => Ok(Box::new(TransformRgbToGrayExtendedExecutor::<
                 T,
                 { Layout::Rgba as u8 },
                 { Layout::Gray as u8 },
@@ -96,8 +96,8 @@ where
                 weights,
                 _phantom: PhantomData,
                 bit_depth,
-            }),
-            Layout::GrayAlpha => Box::new(TransformRgbToGrayExtendedExecutor::<
+            })),
+            Layout::GrayAlpha => Ok(Box::new(TransformRgbToGrayExtendedExecutor::<
                 T,
                 { Layout::Rgba as u8 },
                 { Layout::GrayAlpha as u8 },
@@ -107,12 +107,12 @@ where
                 weights,
                 _phantom: PhantomData,
                 bit_depth,
-            }),
-            _ => unreachable!(),
+            })),
+            _ => Err(CmsError::UnsupportedProfileConnection),
         },
-        Layout::Gray => unreachable!(),
-        Layout::GrayAlpha => unreachable!(),
-        _ => unreachable!(),
+        Layout::Gray => Err(CmsError::UnsupportedProfileConnection),
+        Layout::GrayAlpha => Err(CmsError::UnsupportedProfileConnection),
+        _ => Err(CmsError::UnsupportedProfileConnection),
     }
 }
 
