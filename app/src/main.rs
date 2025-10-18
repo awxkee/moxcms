@@ -255,7 +255,7 @@ fn main() {
     //     moxcms::ColorProfile::new_from_slice(&decoder.icc_profile().unwrap().unwrap()).unwrap();
     // let custom_profile = Profile::new_icc(&decoder.icc_profile().unwrap().unwrap()).unwrap();
 
-    let fogra_icc = fs::read("./assets/out.icc").unwrap();
+    let fogra_icc = fs::read("./assets/prophoto_rgb.icc").unwrap();
 
     // Curve first point must be 0 and last 65535.
     // let mut new_curve = vec![0u16; 4096];

@@ -612,8 +612,12 @@ impl ColorProfile {
 
         let output_size = (num_output_table_entries as usize).safe_mul(out_chan as usize)?;
 
-        let shaped_output_table =
-            &tag[output_offset..output_offset.safe_add(output_size.safe_mul(entry_size)?)?];
+        let shaped_output = output_offset.safe_add(output_size.safe_mul(entry_size)?)?;
+        if tag.len() < shaped_output {
+            return Err(CmsError::InvalidProfile);
+        }
+
+        let shaped_output_table = &tag[output_offset..shaped_output];
         let gamma_table = Self::read_lut_table_f32(shaped_output_table, lut_type)?;
 
         let wh = LutWarehouse::Lut(LutDataType {
