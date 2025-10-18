@@ -780,14 +780,14 @@ impl ColorProfile {
                 if let Some(gamma_evaluator) = dst_pr.try_extended_gamma_evaluator() {
                     if let Some(linear_evaluator) = self.try_extended_linearizing_evaluator() {
                         use crate::conversions::make_rgb_to_gray_extended;
-                        return Ok(make_rgb_to_gray_extended::<T>(
+                        return make_rgb_to_gray_extended::<T>(
                             src_layout,
                             dst_layout,
                             linear_evaluator,
                             gamma_evaluator,
                             vector,
                             BIT_DEPTH,
-                        ));
+                        );
                     }
                 }
             }
@@ -813,9 +813,9 @@ impl ColorProfile {
                 gray_gamma: gray_linear,
             };
 
-            Ok(make_rgb_to_gray::<T, LINEAR_CAP>(
+            make_rgb_to_gray::<T, LINEAR_CAP>(
                 src_layout, dst_layout, trc_box, vector, GAMMA_CAP, BIT_DEPTH,
-            ))
+            )
         } else if (self.color_space.is_three_channels()
             || self.color_space == DataColorSpace::Cmyk
             || self.color_space == DataColorSpace::Color4)

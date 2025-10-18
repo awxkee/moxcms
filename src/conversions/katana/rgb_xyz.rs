@@ -132,11 +132,11 @@ where
                 },
             )
         }
-        Layout::Gray => unimplemented!("Gray should not be called on Rgb/Rgba execution path"),
+        Layout::Gray => return Err(CmsError::UnsupportedProfileConnection),
         Layout::GrayAlpha => {
-            unimplemented!("GrayAlpha should not be called on Rgb/Rgba execution path")
+            return Err(CmsError::UnsupportedProfileConnection);
         }
-        _ => unreachable!(),
+        _ => return Err(CmsError::UnsupportedProfileConnection),
     };
 
     let xyz_to_rgb = source.rgb_to_xyz_matrix();
