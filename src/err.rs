@@ -64,6 +64,7 @@ pub enum CmsError {
     InvalidInksCountForProfile,
     MalformedTrcCurve(String),
     OutOfMemory(usize),
+    IncorrectlyFormedLut(String),
 }
 
 impl Display for CmsError {
@@ -119,6 +120,7 @@ impl Display for CmsError {
             CmsError::OutOfMemory(capacity) => f.write_fmt(format_args!(
                 "There is no enough memory to allocate {capacity} bytes"
             )),
+            CmsError::IncorrectlyFormedLut(str) => f.write_str(str),
         }
     }
 }

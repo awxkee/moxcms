@@ -28,7 +28,8 @@
  */
 use crate::math::{FusedMultiplyAdd, FusedMultiplyNegAdd};
 use crate::mlaf::{mlaf, neg_mlaf};
-use crate::{Vector3f, Vector4f};
+use crate::safe_math::{SafeAdd, SafeMul};
+use crate::{CmsError, MalformedSize, Vector3f, Vector4f};
 use std::ops::{Add, Mul, Sub};
 
 impl FusedMultiplyAdd<f32> for f32 {
@@ -96,10 +97,78 @@ impl Hypercube<'_> {
         }
     }
 
+    pub(crate) fn new_checked(
+        array: &[f32],
+        grid_size: usize,
+        channels: usize,
+    ) -> Result<Hypercube<'_>, CmsError> {
+        let z_stride = grid_size as u32;
+        let y_stride = z_stride * z_stride;
+        let x_stride = z_stride * z_stride * z_stride;
+
+        let last_index = (grid_size - 1)
+            .safe_mul(x_stride as usize)?
+            .safe_add((grid_size - 1).safe_mul(y_stride as usize)?)?
+            .safe_add((grid_size - 1).safe_mul(z_stride as usize)?)?
+            .safe_add(grid_size - 1)?
+            .safe_mul(channels)?;
+
+        if last_index >= array.len() {
+            return Err(CmsError::MalformedClut(MalformedSize {
+                size: array.len(),
+                expected: last_index,
+            }));
+        }
+
+        Ok(Hypercube {
+            array,
+            x_stride,
+            y_stride,
+            z_stride,
+            grid_size: [
+                grid_size as u8,
+                grid_size as u8,
+                grid_size as u8,
+                grid_size as u8,
+            ],
+        })
+    }
+
+    pub(crate) fn new_checked_hypercube(
+        array: &[f32],
+        grid_size: [u8; 4],
+        channels: usize,
+    ) -> Result<Hypercube<'_>, CmsError> {
+        let z_stride = grid_size[2] as u32;
+        let y_stride = z_stride * grid_size[1] as u32;
+        let x_stride = y_stride * grid_size[0] as u32;
+        let last_index = (grid_size[0] as usize - 1)
+            .safe_mul(x_stride as usize)?
+            .safe_add((grid_size[1] as usize - 1).safe_mul(y_stride as usize)?)?
+            .safe_add((grid_size[2] as usize - 1).safe_mul(z_stride as usize)?)?
+            .safe_add(grid_size[3] as usize - 1)?
+            .safe_mul(channels)?;
+
+        if last_index >= array.len() {
+            return Err(CmsError::MalformedClut(MalformedSize {
+                size: array.len(),
+                expected: last_index,
+            }));
+        }
+
+        Ok(Hypercube {
+            array,
+            x_stride,
+            y_stride,
+            z_stride,
+            grid_size,
+        })
+    }
+
     pub fn new_hypercube(array: &[f32], grid_size: [u8; 4]) -> Hypercube<'_> {
-        let z_stride = grid_size[3] as u32;
-        let y_stride = z_stride * grid_size[2] as u32;
-        let x_stride = y_stride * grid_size[1] as u32;
+        let z_stride = grid_size[2] as u32;
+        let y_stride = z_stride * grid_size[1] as u32;
+        let x_stride = y_stride * grid_size[0] as u32;
         Hypercube {
             array,
             x_stride,
@@ -814,6 +883,35 @@ impl Cube<'_> {
         }
     }
 
+    pub(crate) fn new_checked(
+        array: &[f32],
+        grid_size: usize,
+        channels: usize,
+    ) -> Result<Cube<'_>, CmsError> {
+        let y_stride = grid_size;
+        let x_stride = y_stride * y_stride;
+
+        let last_index = (grid_size - 1)
+            .safe_mul(x_stride)?
+            .safe_add((grid_size - 1).safe_mul(y_stride)?)?
+            .safe_add(grid_size - 1)?
+            .safe_mul(channels)?;
+
+        if last_index >= array.len() {
+            return Err(CmsError::MalformedClut(MalformedSize {
+                size: array.len(),
+                expected: last_index,
+            }));
+        }
+
+        Ok(Cube {
+            array,
+            x_stride: x_stride as u32,
+            y_stride: y_stride as u32,
+            grid_size: [grid_size as u8, grid_size as u8, grid_size as u8],
+        })
+    }
+
     pub fn new_cube(array: &[f32], grid_size: [u8; 3]) -> Cube<'_> {
         let y_stride = grid_size[2] as u32;
         let x_stride = y_stride * grid_size[1] as u32;
@@ -823,6 +921,34 @@ impl Cube<'_> {
             y_stride,
             grid_size,
         }
+    }
+
+    pub(crate) fn new_checked_cube(
+        array: &[f32],
+        grid_size: [u8; 3],
+        channels: usize,
+    ) -> Result<Cube<'_>, CmsError> {
+        let y_stride = grid_size[2] as u32;
+        let x_stride = y_stride * grid_size[1] as u32;
+        let last_index = (grid_size[0] as usize - 1)
+            .safe_mul(x_stride as usize)?
+            .safe_add((grid_size[1] as usize - 1).safe_mul(y_stride as usize)?)?
+            .safe_add(grid_size[2] as usize - 1)?
+            .safe_mul(channels)?;
+
+        if last_index >= array.len() {
+            return Err(CmsError::MalformedClut(MalformedSize {
+                size: array.len(),
+                expected: last_index,
+            }));
+        }
+
+        Ok(Cube {
+            array,
+            x_stride,
+            y_stride,
+            grid_size,
+        })
     }
 
     #[inline(always)]
