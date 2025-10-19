@@ -109,7 +109,7 @@ impl ACurves3x4InverseOptimized<'_> {
 
 impl Stage for ACurves3x4Inverse<'_> {
     fn transform(&self, src: &[f32], dst: &mut [f32]) -> Result<(), CmsError> {
-        let lut = Cube::new_cube(self.clut, self.grid_size);
+        let lut = Cube::new_checked_cube(self.clut, self.grid_size, 4)?;
 
         // If PCS is LAB then linear interpolation should be used
         if self.pcs == DataColorSpace::Lab || self.pcs == DataColorSpace::Xyz {
@@ -139,7 +139,7 @@ impl Stage for ACurves3x4Inverse<'_> {
 
 impl Stage for ACurves3x4InverseOptimized<'_> {
     fn transform(&self, src: &[f32], dst: &mut [f32]) -> Result<(), CmsError> {
-        let lut = Cube::new_cube(self.clut, self.grid_size);
+        let lut = Cube::new_checked_cube(self.clut, self.grid_size, 4)?;
 
         // If PCS is LAB then linear interpolation should be used
         if self.pcs == DataColorSpace::Lab || self.pcs == DataColorSpace::Xyz {
@@ -173,7 +173,7 @@ pub(crate) fn prepare_mba_3x4(
     options: TransformOptions,
     pcs: DataColorSpace,
 ) -> Result<Vec<f32>, CmsError> {
-    if mab.num_input_channels != 3 && mab.num_output_channels != 4 {
+    if mab.num_input_channels != 3 || mab.num_output_channels != 4 {
         return Err(CmsError::UnsupportedProfileConnection);
     }
 

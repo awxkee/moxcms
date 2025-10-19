@@ -100,7 +100,7 @@ impl ACurves3Optimized<'_> {
 
 impl InPlaceStage for ACurves3<'_> {
     fn transform(&self, dst: &mut [f32]) -> Result<(), CmsError> {
-        let lut = Cube::new_cube(self.clut, self.grid_size);
+        let lut = Cube::new_checked_cube(self.clut, self.grid_size, 3)?;
 
         // If PCS is LAB then linear interpolation should be used
         if self.pcs == DataColorSpace::Lab || self.pcs == DataColorSpace::Xyz {
@@ -130,7 +130,7 @@ impl InPlaceStage for ACurves3<'_> {
 
 impl InPlaceStage for ACurves3Optimized<'_> {
     fn transform(&self, dst: &mut [f32]) -> Result<(), CmsError> {
-        let lut = Cube::new_cube(self.clut, self.grid_size);
+        let lut = Cube::new_checked_cube(self.clut, self.grid_size, 3)?;
 
         // If PCS is LAB then linear interpolation should be used
         if self.pcs == DataColorSpace::Lab {
@@ -197,7 +197,7 @@ impl ACurves3Inverse<'_> {
 
 impl InPlaceStage for ACurves3Inverse<'_> {
     fn transform(&self, dst: &mut [f32]) -> Result<(), CmsError> {
-        let lut = Cube::new_cube(self.clut, self.grid_size);
+        let lut = Cube::new_checked_cube(self.clut, self.grid_size, 3)?;
 
         // If PCS is LAB then linear interpolation should be used
         if self.pcs == DataColorSpace::Lab || self.pcs == DataColorSpace::Xyz {
@@ -317,7 +317,7 @@ pub(crate) fn prepare_mab_3x3(
     const BP: usize = 13;
     const DEPTH: usize = 8192;
 
-    if mab.num_input_channels != 3 && mab.num_output_channels != 3 {
+    if mab.num_input_channels != 3 || mab.num_output_channels != 3 {
         return Err(CmsError::UnsupportedProfileConnection);
     }
     if mab.a_curves.len() == 3 && mab.clut.is_some() {
@@ -440,7 +440,7 @@ pub(crate) fn prepare_mba_3x3(
     options: TransformOptions,
     pcs: DataColorSpace,
 ) -> Result<(), CmsError> {
-    if mab.num_input_channels != 3 && mab.num_output_channels != 3 {
+    if mab.num_input_channels != 3 || mab.num_output_channels != 3 {
         return Err(CmsError::UnsupportedProfileConnection);
     }
     const LERP_DEPTH: usize = 65536;

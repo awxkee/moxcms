@@ -308,7 +308,7 @@ fn main() {
     //     moxcms::ColorProfile::new_from_slice(&decoder.icc_profile().unwrap().unwrap()).unwrap();
     // let custom_profile = Profile::new_icc(&decoder.icc_profile().unwrap().unwrap()).unwrap();
 
-    let fogra_icc = fs::read("./assets/out.icc").unwrap();
+    let fogra_icc = fs::read("./assets/FOGRA51.icc").unwrap();
 
     // Curve first point must be 0 and last 65535.
     // let mut new_curve = vec![0u16; 4096];
@@ -330,11 +330,11 @@ fn main() {
 
     let srgb = moxcms::ColorProfile::new_srgb();
 
-    let transform = fogra_profile
+    let transform = srgb
         .create_transform_8bit(
             moxcms::Layout::Rgb,
-            &srgb,
-            moxcms::Layout::Rgb,
+            &fogra_profile,
+            moxcms::Layout::Rgba,
             TransformOptions {
                 prefer_fixed_point: true,
                 ..Default::default()
