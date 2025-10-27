@@ -301,14 +301,14 @@ fn check_fuzzer_path(path: &str) {
 }
 
 fn main() {
-    check_fuzzer_path("./assets/out.icc");
+    // check_fuzzer_path("./assets/сheck.icc");
     let reader = image::ImageReader::open("./assets/bench.jpg").unwrap();
     let mut decoder = reader.into_decoder().unwrap();
     // let icc_profile =
     //     moxcms::ColorProfile::new_from_slice(&decoder.icc_profile().unwrap().unwrap()).unwrap();
     // let custom_profile = Profile::new_icc(&decoder.icc_profile().unwrap().unwrap()).unwrap();
 
-    let fogra_icc = fs::read("./assets/FOGRA51.icc").unwrap();
+    let fogra_icc = fs::read("./assets/fogra39_coated.icc").unwrap();
 
     // Curve first point must be 0 and last 65535.
     // let mut new_curve = vec![0u16; 4096];

@@ -102,6 +102,15 @@ impl Hypercube<'_> {
         grid_size: usize,
         channels: usize,
     ) -> Result<Hypercube<'_>, CmsError> {
+        if array.is_empty() || grid_size == 0 {
+            return Ok(Hypercube {
+                array,
+                x_stride: 0,
+                y_stride: 0,
+                z_stride: 0,
+                grid_size: [0, 0, 0, 0],
+            });
+        }
         let z_stride = grid_size as u32;
         let y_stride = z_stride * z_stride;
         let x_stride = z_stride * z_stride * z_stride;
@@ -139,6 +148,20 @@ impl Hypercube<'_> {
         grid_size: [u8; 4],
         channels: usize,
     ) -> Result<Hypercube<'_>, CmsError> {
+        if array.is_empty()
+            || grid_size[0] == 0
+            || grid_size[1] == 0
+            || grid_size[2] == 0
+            || grid_size[3] == 0
+        {
+            return Ok(Hypercube {
+                array,
+                x_stride: 0,
+                y_stride: 0,
+                z_stride: 0,
+                grid_size,
+            });
+        }
         let z_stride = grid_size[2] as u32;
         let y_stride = z_stride * grid_size[1] as u32;
         let x_stride = y_stride * grid_size[0] as u32;
@@ -888,6 +911,14 @@ impl Cube<'_> {
         grid_size: usize,
         channels: usize,
     ) -> Result<Cube<'_>, CmsError> {
+        if array.is_empty() || grid_size == 0 {
+            return Ok(Cube {
+                array,
+                x_stride: 0,
+                y_stride: 0,
+                grid_size: [0, 0, 0],
+            });
+        }
         let y_stride = grid_size;
         let x_stride = y_stride * y_stride;
 
@@ -928,6 +959,14 @@ impl Cube<'_> {
         grid_size: [u8; 3],
         channels: usize,
     ) -> Result<Cube<'_>, CmsError> {
+        if array.is_empty() || grid_size[0] == 0 || grid_size[1] == 0 || grid_size[2] == 0 {
+            return Ok(Cube {
+                array,
+                x_stride: 0,
+                y_stride: 0,
+                grid_size,
+            });
+        }
         let y_stride = grid_size[2] as u32;
         let x_stride = y_stride * grid_size[1] as u32;
         let last_index = (grid_size[0] as usize - 1)
