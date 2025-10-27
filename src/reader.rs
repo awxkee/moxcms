@@ -437,7 +437,9 @@ impl ColorProfile {
                             "One of grid dimensions is zero".to_string(),
                         ));
                     }
-                    let l = match (dim_usize - 1)
+                    let l = match dim_usize
+                        .checked_sub(1)
+                        .ok_or(CmsError::OverflowingError)?
                         .safe_mul(grid_stride)
                         .and_then(|x| x.safe_add(last_index))
                     {
