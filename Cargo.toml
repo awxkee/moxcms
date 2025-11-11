@@ -19,6 +19,7 @@ rust-version = "1.88.0"
 [dependencies]
 num-traits = "0.2"
 pxfm = "^0.1.1"
+safe_unaligned_simd = "0.2.3"
 
 [dev-dependencies]
 rand = "0.9"
