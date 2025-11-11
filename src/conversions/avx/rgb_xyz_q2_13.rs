@@ -44,10 +44,14 @@ pub(crate) struct TransformShaperRgbQ2_13Avx<
     pub(crate) gamma_lut: usize,
 }
 
-#[inline(always)]
-pub(crate) unsafe fn _xmm_broadcast_epi32(f: &i32) -> __m128i {
-    let float_ref: &f32 = unsafe { &*(f as *const i32 as *const f32) };
-    unsafe { _mm_castps_si128(_mm_broadcast_ss(float_ref)) }
+#[inline]
+#[target_feature(enable = "avx2")]
+pub(crate) fn _xmm_broadcast_epi32(f: &i32) -> __m128i {
+    // safe transmute would require `bytemuck` dependency,
+    // but this optimizes into the same code as a transmute:
+    // https://rust.godbolt.org/z/Pfqb7YG7c
+    let float_ref = f32::from_ne_bytes(f.to_ne_bytes());
+    _mm_castps_si128(_mm_broadcast_ss(&float_ref))
 }
 
 impl<
