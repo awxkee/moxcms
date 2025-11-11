@@ -30,6 +30,7 @@ use crate::conversions::TransformMatrixShaper;
 use crate::transform::PointeeSizeExpressible;
 use crate::{CmsError, Layout, TransformExecutor};
 use num_traits::AsPrimitive;
+use safe_unaligned_simd::x86_64::{_mm_storeu_si128, _mm256_storeu_si256};
 use std::arch::x86_64::*;
 
 #[repr(align(32), C)]
@@ -85,7 +86,7 @@ where
         let scale = (self.gamma_lut - 1) as f32;
         let max_colors: T = ((1 << self.bit_depth) - 1).as_();
 
-        unsafe {
+        {
             let m0 = _mm256_setr_ps(
                 t.v[0][0], t.v[0][1], t.v[0][2], 0., t.v[0][0], t.v[0][1], t.v[0][2], 0.,
             );
@@ -165,7 +166,7 @@ where
                 v = _mm256_min_ps(v, v_scale);
 
                 let zx = _mm256_cvtps_epi32(v);
-                _mm256_store_si256(temporary0.0.as_mut_ptr() as *mut _, zx);
+                _mm256_storeu_si256(&mut temporary0.0, zx);
 
                 r0 = _mm_broadcast_ss(&self.profile.r_linear[src[src_cn.r_i()]._as_usize()]);
                 g0 = _mm_broadcast_ss(&self.profile.g_linear[src[src_cn.g_i()]._as_usize()]);
@@ -228,7 +229,7 @@ where
                 v = _mm256_min_ps(v, v_scale);
 
                 let zx = _mm256_cvtps_epi32(v);
-                _mm256_store_si256(temporary0.0.as_mut_ptr() as *mut _, zx);
+                _mm256_storeu_si256(&mut temporary0.0, zx);
 
                 dst[dst_cn.r_i()] = self.profile.r_gamma[temporary0.0[0] as usize];
                 dst[dst_cn.g_i()] = self.profile.g_gamma[temporary0.0[2] as usize];
@@ -278,7 +279,9 @@ where
                 v = _mm_min_ps(v, _mm256_castps256_ps128(v_scale));
 
                 let zx = _mm_cvtps_epi32(v);
-                _mm_store_si128(temporary0.0.as_mut_ptr() as *mut _, zx);
+                let temporary_first_half: &mut [u16; 8] =
+                    &mut temporary0.0[..8].try_into().unwrap();
+                _mm_storeu_si128(temporary_first_half, zx);
 
                 dst[dst_cn.r_i()] = self.profile.r_gamma[temporary0.0[0] as usize];
                 dst[dst_cn.g_i()] = self.profile.g_gamma[temporary0.0[2] as usize];
