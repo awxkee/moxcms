@@ -14,7 +14,7 @@ categories = ["multimedia::images"]
 homepage = "https://github.com/awxkee/moxcms"
 repository = "https://github.com/awxkee/moxcms.git"
 exclude = ["*.jpg", "../../assets/*", "*.png", "*.icc", "./assets/*"]
-rust-version = "1.88.0"
+rust-version = "1.90.0"
 
 [dependencies]
 num-traits = "0.2"
