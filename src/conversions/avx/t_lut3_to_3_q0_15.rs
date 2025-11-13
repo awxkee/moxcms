@@ -79,15 +79,13 @@ where
     u32: AsPrimitive<T>,
     (): LutBarycentricReduction<T, U>,
 {
-    #[allow(unused_unsafe)]
     #[target_feature(enable = "avx2")]
-    unsafe fn transform_chunk(
+    fn transform_chunk(
         &self,
         src: &[T],
         dst: &mut [T],
         interpolator: Box<dyn AvxMdInterpolationQ0_15 + Send + Sync>,
     ) {
-        unsafe {
             let src_cn = Layout::from(SRC_LAYOUT);
             let src_channels = src_cn.channels();
 
@@ -150,7 +148,6 @@ where
                     dst[dst_cn.a_i()] = a;
                 }
             }
-        }
     }
 }
 
