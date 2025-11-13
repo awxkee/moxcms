@@ -67,15 +67,13 @@ where
     u32: AsPrimitive<T>,
     (): LutBarycentricReduction<T, U>,
 {
-    #[allow(unused_unsafe)]
     #[target_feature(enable = "avx2")]
-    unsafe fn transform_chunk(
+    fn transform_chunk(
         &self,
         src: &[T],
         dst: &mut [T],
         interpolator: Box<dyn AvxMdInterpolationQ0_15Double + Send + Sync>,
     ) {
-        unsafe {
             let cn = Layout::from(LAYOUT);
             let channels = cn.channels();
             let grid_size = GRID_SIZE as i32;
@@ -148,7 +146,6 @@ where
                     dst[cn.a_i()] = max_value;
                 }
             }
-        }
     }
 }
 
