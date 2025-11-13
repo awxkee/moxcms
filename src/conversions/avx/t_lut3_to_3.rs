@@ -75,9 +75,8 @@ where
     u32: AsPrimitive<T>,
     (): LutBarycentricReduction<T, U>,
 {
-    #[allow(unused_unsafe)]
     #[target_feature(enable = "avx2,fma")]
-    unsafe fn transform_chunk(
+    fn transform_chunk(
         &self,
         src: &[T],
         dst: &mut [T],
@@ -89,7 +88,7 @@ where
         let dst_cn = Layout::from(DST_LAYOUT);
         let dst_channels = dst_cn.channels();
 
-        let value_scale = unsafe { _mm_set1_ps(((1 << BIT_DEPTH) - 1) as f32) };
+        let value_scale = _mm_set1_ps(((1 << BIT_DEPTH) - 1) as f32);
         let max_value = ((1u32 << BIT_DEPTH) - 1).as_();
 
         for (src, dst) in src
@@ -120,7 +119,6 @@ where
                 self.weights.as_slice(),
             );
             if T::FINITE {
-                unsafe {
                     let mut r = _mm_mul_ps(v.v, value_scale);
                     r = _mm_max_ps(r, _mm_setzero_ps());
                     r = _mm_min_ps(r, value_scale);
@@ -133,13 +131,10 @@ where
                     dst[dst_cn.r_i()] = (x as u32).as_();
                     dst[dst_cn.g_i()] = (y as u32).as_();
                     dst[dst_cn.b_i()] = (z as u32).as_();
-                }
             } else {
-                unsafe {
                     dst[dst_cn.r_i()] = f32::from_bits(_mm_extract_ps::<0>(v.v) as u32).as_();
                     dst[dst_cn.g_i()] = f32::from_bits(_mm_extract_ps::<1>(v.v) as u32).as_();
                     dst[dst_cn.b_i()] = f32::from_bits(_mm_extract_ps::<2>(v.v) as u32).as_();
-                }
             }
             if dst_channels == 4 {
                 dst[dst_cn.a_i()] = a;
