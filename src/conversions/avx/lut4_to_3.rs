@@ -73,9 +73,8 @@ where
     u32: AsPrimitive<T>,
     (): LutBarycentricReduction<T, U>,
 {
-    #[allow(unused_unsafe)]
     #[target_feature(enable = "avx2,fma")]
-    unsafe fn transform_chunk(
+    fn transform_chunk(
         &self,
         src: &[T],
         dst: &mut [T],
@@ -86,7 +85,7 @@ where
         let grid_size = GRID_SIZE as i32;
         let grid_size3 = grid_size * grid_size * grid_size;
 
-        let value_scale = unsafe { _mm_set1_ps(((1 << BIT_DEPTH) - 1) as f32) };
+        let value_scale = _mm_set1_ps(((1 << BIT_DEPTH) - 1) as f32);
         let max_value = ((1 << BIT_DEPTH) - 1u32).as_();
 
         for (src, dst) in src.chunks_exact(4).zip(dst.chunks_exact_mut(channels)) {
@@ -123,7 +122,7 @@ where
             let (a0, b0) = (v.0.v, v.1.v);
 
             if T::FINITE {
-                unsafe {
+                {
                     let t0 = _mm_set1_ps(t);
                     let hp = _mm_fnmadd_ps(a0, t0, a0);
                     let mut v = _mm_fmadd_ps(b0, t0, hp);
@@ -141,7 +140,7 @@ where
                     dst[cn.b_i()] = (z as u32).as_();
                 }
             } else {
-                unsafe {
+                {
                     let t0 = _mm_set1_ps(t);
                     let hp = _mm_fnmadd_ps(a0, t0, a0);
                     let v = _mm_fmadd_ps(b0, t0, hp);
