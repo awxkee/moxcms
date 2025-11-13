@@ -51,7 +51,7 @@ impl<
 where
     u32: AsPrimitive<T>,
 {
-    #[target_feature(enable = "avx2", enable = "fma")]
+    #[target_feature(enable = "avx2,fma")]
     unsafe fn transform_impl<const FMA: bool>(
         &self,
         src: &[T],

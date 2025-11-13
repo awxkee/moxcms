@@ -59,7 +59,7 @@ impl<
 where
     u32: AsPrimitive<T>,
 {
-    #[target_feature(enable = "avx2", enable = "fma")]
+    #[target_feature(enable = "avx2,fma")]
     fn transform_impl<const FMA: bool>(&self, src: &[T], dst: &mut [T]) -> Result<(), CmsError> {
         let src_cn = Layout::from(SRC_LAYOUT);
         let dst_cn = Layout::from(DST_LAYOUT);

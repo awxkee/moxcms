@@ -76,7 +76,7 @@ where
     (): LutBarycentricReduction<T, U>,
 {
     #[allow(unused_unsafe)]
-    #[target_feature(enable = "avx2", enable = "fma")]
+    #[target_feature(enable = "avx2,fma")]
     unsafe fn transform_chunk(
         &self,
         src: &[T],
