@@ -31,6 +31,7 @@ use crate::conversions::rgbxyz::TransformMatrixShaperOptimizedV;
 use crate::transform::PointeeSizeExpressible;
 use crate::{CmsError, Layout, TransformExecutor};
 use num_traits::AsPrimitive;
+use safe_unaligned_simd::x86_64::{_mm_storeu_si128, _mm256_storeu_si256};
 use std::arch::x86_64::*;
 
 pub(crate) struct TransformShaperRgbOptAvx<
@@ -169,7 +170,7 @@ where
                 v = _mm256_min_ps(v, v_scale);
 
                 let zx = _mm256_cvtps_epi32(v);
-                _mm256_store_si256(temporary0.0.as_mut_ptr() as *mut _, zx);
+                _mm256_storeu_si256(&mut temporary0.0, zx);
 
                 r0 = _mm_broadcast_ss(lut_lin.get_unchecked(src[src_cn.r_i()]._as_usize()));
                 g0 = _mm_broadcast_ss(lut_lin.get_unchecked(src[src_cn.g_i()]._as_usize()));
@@ -232,7 +233,7 @@ where
                 v = _mm256_min_ps(v, v_scale);
 
                 let zx = _mm256_cvtps_epi32(v);
-                _mm256_store_si256(temporary0.0.as_mut_ptr() as *mut _, zx);
+                _mm256_storeu_si256(&mut temporary0.0, zx);
 
                 dst[dst_cn.r_i()] = self.profile.gamma[temporary0.0[0] as usize];
                 dst[dst_cn.g_i()] = self.profile.gamma[temporary0.0[2] as usize];
@@ -282,7 +283,9 @@ where
                 v = _mm_min_ps(v, _mm256_castps256_ps128(v_scale));
 
                 let zx = _mm_cvtps_epi32(v);
-                _mm_store_si128(temporary0.0.as_mut_ptr() as *mut _, zx);
+                let temporary_first_half: &mut [u16; 8] =
+                    (&mut temporary0.0[..8]).try_into().unwrap();
+                _mm_storeu_si128(temporary_first_half, zx);
 
                 dst[dst_cn.r_i()] = self.profile.gamma[temporary0.0[0] as usize];
                 dst[dst_cn.g_i()] = self.profile.gamma[temporary0.0[2] as usize];
