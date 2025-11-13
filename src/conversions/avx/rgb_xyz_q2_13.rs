@@ -31,8 +31,8 @@ use crate::conversions::rgbxyz_fixed::TransformMatrixShaperFp;
 use crate::transform::PointeeSizeExpressible;
 use crate::{CmsError, Layout, TransformExecutor};
 use num_traits::AsPrimitive;
-use safe_unaligned_simd::x86_64::{_mm_storeu_si128, _mm256_storeu_si256};
 use safe_unaligned_simd::x86_64::_mm_broadcast_ss; // can be replaced with std version once MSRV is >1.90
+use safe_unaligned_simd::x86_64::{_mm_storeu_si128, _mm256_storeu_si256};
 use std::arch::x86_64::*;
 
 pub(crate) struct TransformShaperRgbQ2_13Avx<
