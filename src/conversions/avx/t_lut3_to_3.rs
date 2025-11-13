@@ -119,22 +119,22 @@ where
                 self.weights.as_slice(),
             );
             if T::FINITE {
-                    let mut r = _mm_mul_ps(v.v, value_scale);
-                    r = _mm_max_ps(r, _mm_setzero_ps());
-                    r = _mm_min_ps(r, value_scale);
-                    let jvz = _mm_cvtps_epi32(r);
+                let mut r = _mm_mul_ps(v.v, value_scale);
+                r = _mm_max_ps(r, _mm_setzero_ps());
+                r = _mm_min_ps(r, value_scale);
+                let jvz = _mm_cvtps_epi32(r);
 
-                    let x = _mm_extract_epi32::<0>(jvz);
-                    let y = _mm_extract_epi32::<1>(jvz);
-                    let z = _mm_extract_epi32::<2>(jvz);
+                let x = _mm_extract_epi32::<0>(jvz);
+                let y = _mm_extract_epi32::<1>(jvz);
+                let z = _mm_extract_epi32::<2>(jvz);
 
-                    dst[dst_cn.r_i()] = (x as u32).as_();
-                    dst[dst_cn.g_i()] = (y as u32).as_();
-                    dst[dst_cn.b_i()] = (z as u32).as_();
+                dst[dst_cn.r_i()] = (x as u32).as_();
+                dst[dst_cn.g_i()] = (y as u32).as_();
+                dst[dst_cn.b_i()] = (z as u32).as_();
             } else {
-                    dst[dst_cn.r_i()] = f32::from_bits(_mm_extract_ps::<0>(v.v) as u32).as_();
-                    dst[dst_cn.g_i()] = f32::from_bits(_mm_extract_ps::<1>(v.v) as u32).as_();
-                    dst[dst_cn.b_i()] = f32::from_bits(_mm_extract_ps::<2>(v.v) as u32).as_();
+                dst[dst_cn.r_i()] = f32::from_bits(_mm_extract_ps::<0>(v.v) as u32).as_();
+                dst[dst_cn.g_i()] = f32::from_bits(_mm_extract_ps::<1>(v.v) as u32).as_();
+                dst[dst_cn.b_i()] = f32::from_bits(_mm_extract_ps::<2>(v.v) as u32).as_();
             }
             if dst_channels == 4 {
                 dst[dst_cn.a_i()] = a;
