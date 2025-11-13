@@ -40,15 +40,6 @@
     not(any(feature = "avx", feature = "sse", feature = "avx512", feature = "neon")),
     forbid(unsafe_code)
 )]
-#![cfg_attr(all(feature = "avx512", target_arch = "x86_64"), feature(cfg_version))]
-#![cfg_attr(
-    all(feature = "avx512", target_arch = "x86_64"),
-    feature(avx512_target_feature)
-)]
-#![cfg_attr(
-    all(feature = "avx512", target_arch = "x86_64"),
-    feature(stdarch_x86_avx512)
-)]
 mod chad;
 mod cicp;
 mod conversions;
