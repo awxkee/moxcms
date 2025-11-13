@@ -122,32 +122,28 @@ where
             let (a0, b0) = (v.0.v, v.1.v);
 
             if T::FINITE {
-                {
-                    let t0 = _mm_set1_ps(t);
-                    let hp = _mm_fnmadd_ps(a0, t0, a0);
-                    let mut v = _mm_fmadd_ps(b0, t0, hp);
-                    v = _mm_max_ps(v, _mm_setzero_ps());
-                    v = _mm_mul_ps(v, value_scale);
-                    v = _mm_min_ps(v, value_scale);
-                    let jvz = _mm_cvtps_epi32(v);
+                let t0 = _mm_set1_ps(t);
+                let hp = _mm_fnmadd_ps(a0, t0, a0);
+                let mut v = _mm_fmadd_ps(b0, t0, hp);
+                v = _mm_max_ps(v, _mm_setzero_ps());
+                v = _mm_mul_ps(v, value_scale);
+                v = _mm_min_ps(v, value_scale);
+                let jvz = _mm_cvtps_epi32(v);
 
-                    let x = _mm_extract_epi32::<0>(jvz);
-                    let y = _mm_extract_epi32::<1>(jvz);
-                    let z = _mm_extract_epi32::<2>(jvz);
+                let x = _mm_extract_epi32::<0>(jvz);
+                let y = _mm_extract_epi32::<1>(jvz);
+                let z = _mm_extract_epi32::<2>(jvz);
 
-                    dst[cn.r_i()] = (x as u32).as_();
-                    dst[cn.g_i()] = (y as u32).as_();
-                    dst[cn.b_i()] = (z as u32).as_();
-                }
+                dst[cn.r_i()] = (x as u32).as_();
+                dst[cn.g_i()] = (y as u32).as_();
+                dst[cn.b_i()] = (z as u32).as_();
             } else {
-                {
-                    let t0 = _mm_set1_ps(t);
-                    let hp = _mm_fnmadd_ps(a0, t0, a0);
-                    let v = _mm_fmadd_ps(b0, t0, hp);
-                    dst[cn.r_i()] = f32::from_bits(_mm_extract_ps::<0>(v) as u32).as_();
-                    dst[cn.g_i()] = f32::from_bits(_mm_extract_ps::<1>(v) as u32).as_();
-                    dst[cn.b_i()] = f32::from_bits(_mm_extract_ps::<2>(v) as u32).as_();
-                }
+                let t0 = _mm_set1_ps(t);
+                let hp = _mm_fnmadd_ps(a0, t0, a0);
+                let v = _mm_fmadd_ps(b0, t0, hp);
+                dst[cn.r_i()] = f32::from_bits(_mm_extract_ps::<0>(v) as u32).as_();
+                dst[cn.g_i()] = f32::from_bits(_mm_extract_ps::<1>(v) as u32).as_();
+                dst[cn.b_i()] = f32::from_bits(_mm_extract_ps::<2>(v) as u32).as_();
             }
             if channels == 4 {
                 dst[cn.a_i()] = max_value;
