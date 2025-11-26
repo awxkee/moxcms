@@ -671,9 +671,10 @@ impl ColorProfile {
             );
             base_offset += entry_size;
         }
-        if self.white_point != Xyzd::default() {
+        
+        if let Some(media_wp) = self.media_white_point {
             write_tag_entry(&mut tags, Tag::MediaWhitePoint, base_offset, 20);
-            write_xyz_tag_value(&mut entries, self.white_point);
+            write_xyz_tag_value(&mut entries, media_wp);
             base_offset += 20;
         }
 
