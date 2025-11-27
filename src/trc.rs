@@ -36,7 +36,7 @@ use crate::{CmsError, ColorProfile, DataColorSpace, Rgb, TransferCharacteristics
 use num_traits::AsPrimitive;
 use pxfm::{dirty_powf, f_pow, f_powf};
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum ToneReprCurve {
     Lut(Vec<u16>),
     Parametric(Vec<f32>),

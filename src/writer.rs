@@ -32,7 +32,7 @@ use crate::trc::ToneReprCurve;
 use crate::{
     CicpProfile, CmsError, ColorDateTime, ColorProfile, DataColorSpace, LocalizableString,
     LutMultidimensionalType, LutStore, LutType, LutWarehouse, Matrix3d, ProfileClass,
-    ProfileSignature, ProfileText, ProfileVersion, Vector3d, Xyzd,
+    ProfileSignature, ProfileText, ProfileVersion, Vector3d, ViewingConditions, Xyz, Xyzd,
 };
 
 pub(crate) trait FloatToFixedS15Fixed16 {
@@ -201,6 +201,30 @@ fn write_tag_entry(into: &mut Vec<u8>, tag: Tag, tag_entry: usize, tag_size: usi
     write_u32_be(into, tag_value);
     write_u32_be(into, tag_entry as u32);
     write_u32_be(into, tag_size as u32);
+}
+
+#[inline]
+fn write_xyz(into: &mut Vec<u8>, xyz: Xyz) {
+    let x_fixed = xyz.x.to_s15_fixed16();
+    write_i32_be(into, x_fixed);
+    let y_fixed = xyz.y.to_s15_fixed16();
+    write_i32_be(into, y_fixed);
+    let z_fixed = xyz.z.to_s15_fixed16();
+    write_i32_be(into, z_fixed);
+}
+
+#[inline]
+fn write_viewing_conditions_value(
+    into: &mut Vec<u8>,
+    viewing_conditions: &ViewingConditions,
+) -> usize {
+    let tag_definition: u32 = TagTypeDefinition::DefViewingConditions.into();
+    write_u32_be(into, tag_definition);
+    write_u32_be(into, 0);
+    write_xyz(into, viewing_conditions.illuminant);
+    write_xyz(into, viewing_conditions.surround);
+    write_u32_be(into, viewing_conditions.observer.into());
+    36
 }
 
 fn write_trc_entry(into: &mut Vec<u8>, trc: &ToneReprCurve) -> Result<usize, CmsError> {
@@ -592,6 +616,9 @@ impl ColorProfile {
                 tags_count += 1;
             }
         }
+        if self.viewing_conditions.is_some() {
+            tags_count += 1;
+        }
         if let Some(vd) = &self.viewing_conditions_description {
             if vd.has_values() {
                 tags_count += 1;
@@ -671,9 +698,10 @@ impl ColorProfile {
             );
             base_offset += entry_size;
         }
-        if self.white_point != Xyzd::default() {
+
+        if let Some(media_wp) = self.media_white_point {
             write_tag_entry(&mut tags, Tag::MediaWhitePoint, base_offset, 20);
-            write_xyz_tag_value(&mut entries, self.white_point);
+            write_xyz_tag_value(&mut entries, media_wp);
             base_offset += 20;
         }
 
@@ -790,6 +818,12 @@ impl ColorProfile {
             }
         }
 
+        if let Some(vc) = &self.viewing_conditions {
+            let entry_size = write_viewing_conditions_value(&mut entries, vc);
+            write_tag_entry(&mut tags, Tag::ObserverConditions, base_offset, entry_size);
+            base_offset += entry_size;
+        }
+
         if let Some(vd) = &self.viewing_conditions_description {
             if vd.has_values() {
                 let entry_size = write_string_value(&mut entries, vd);
@@ -829,8 +863,10 @@ impl ColorProfile {
             cmm_type: 0,
             version: if has_cicp {
                 ProfileVersion::V4_3
-            } else {
+            } else if self.version_internal < ProfileVersion::V4_0 {
                 ProfileVersion::V4_0
+            } else {
+                self.version_internal
             },
             data_color_space: self.color_space,
             creation_date_time: ColorDateTime::now(),

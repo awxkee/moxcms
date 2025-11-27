@@ -256,7 +256,7 @@ impl From<ProfileClass> for u32 {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum LutStore {
     Store8(Vec<u8>),
     Store16(Vec<u16>),
@@ -489,7 +489,17 @@ pub enum LutWarehouse {
     Multidimensional(LutMultidimensionalType),
 }
 
-#[derive(Debug, Clone)]
+impl PartialEq for LutWarehouse {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (LutWarehouse::Lut(a), LutWarehouse::Lut(b)) => a == b,
+            (LutWarehouse::Multidimensional(a), LutWarehouse::Multidimensional(b)) => a == b,
+            _ => false, // Different variants are not equal
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct LutDataType {
     // used by lut8Type/lut16Type (mft2) only
     pub num_input_channels: u8,
@@ -521,7 +531,7 @@ impl LutDataType {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct LutMultidimensionalType {
     pub num_input_channels: u8,
     pub num_output_channels: u8,
@@ -750,6 +760,16 @@ impl From<u32> for StandardObserver {
             return StandardObserver::D65;
         }
         StandardObserver::Unknown
+    }
+}
+
+impl From<StandardObserver> for u32 {
+    fn from(value: StandardObserver) -> Self {
+        match value {
+            StandardObserver::D50 => 1,
+            StandardObserver::D65 => 2,
+            StandardObserver::Unknown => 0,
+        }
     }
 }
 
