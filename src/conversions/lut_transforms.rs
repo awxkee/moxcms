@@ -116,7 +116,7 @@ pub(crate) trait Lut4x3Factory {
 
 fn pcs_lab_v4_to_v2(profile: &ColorProfile, lut: &mut [f32]) {
     if profile.pcs == DataColorSpace::Lab
-        && profile.version_internal <= ProfileVersion::V4_0
+        && profile.version_internal < ProfileVersion::V4_0
         && lut.len() % 3 == 0
     {
         assert_eq!(
@@ -139,7 +139,7 @@ fn pcs_lab_v4_to_v2(profile: &ColorProfile, lut: &mut [f32]) {
 
 fn pcs_lab_v2_to_v4(profile: &ColorProfile, lut: &mut [f32]) {
     if profile.pcs == DataColorSpace::Lab
-        && profile.version_internal <= ProfileVersion::V4_0
+        && profile.version_internal < ProfileVersion::V4_0
         && lut.len() % 3 == 0
     {
         assert_eq!(
