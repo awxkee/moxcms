@@ -26,6 +26,7 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+#![cfg(feature = "sse_luts")]
 use crate::conversions::LutBarycentricReduction;
 use crate::conversions::interpolator::BarycentricWeight;
 use crate::conversions::lut_transforms::Lut3x3Factory;

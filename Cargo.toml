@@ -26,14 +26,63 @@ rand = "0.9"
 [features]
 # If no unsafe intrinsics active then `forbid(unsafe)` will be used.
 default = ["avx", "sse", "neon"]
-# Enables AVX2 acceleration where possible
-avx = []
-# Enables SSE4.1 acceleration where possible
-sse = []
-# Enables NEON intrinsics where possible
-neon = []
+
 # Enables AVX-512 acceleration where possible. This will work only from 1.89 on stable.
 avx512 = []
+# Enables optimize matrix shaper AVX512 paths where all TRC are the same
+avx512_shaper_optimized_paths = ["avx512"]
+# Enables optimize matrix shaper AVX512 fixed point paths
+avx512_shaper_fixed_point_paths = ["avx512"]
+
+# Enables AVX2 acceleration where possible
+avx = []
+# Enables common matrix shaper AVX paths
+avx_shaper_paths = ["avx"]
+# Enables optimize matrix shaper AVX paths where all TRC are the same
+avx_shaper_optimized_paths = ["avx"]
+# Enables optimize matrix shaper AVX fixed point paths
+avx_shaper_fixed_point_paths = ["avx"]
+# Enables AVX optimized LUT paths
+avx_luts = ["lut", "avx"]
+
+# Enables SSE4.1 acceleration where possible
+sse = []
+# Enables common matrix shaper SSE paths
+sse_shaper_paths = ["sse"]
+# Enables optimize matrix shaper SSE paths where all TRC are the same
+sse_shaper_optimized_paths = ["sse"]
+# Enables optimize matrix shaper SSE fixed point paths
+sse_shaper_fixed_point_paths = ["sse"]
+# Enables SSE optimized LUT paths
+sse_luts = ["lut", "sse"]
+
+# Enables NEON intrinsics where possible
+neon = []
+# Enables common matrix shaper NEON paths
+neon_shaper_paths = ["neon"]
+# Enables optimize matrix shaper NEON paths where all TRC are the same
+neon_shaper_optimized_paths = ["neon"]
+# Enables optimize matrix shaper NEON fixed point paths
+neon_shaper_fixed_point_paths = ["neon"]
+# Enables NEON optimized LUT paths
+neon_luts = ["lut", "neon"]
+
+# This is a placeholder for upcoming SVE implementation. Currently, does nothing.
+# Nightly only implementation might appear without any prior notice if enabled.
+sve = []
+# This is a placeholder for upcoming SVE implementation. Currently, does nothing.
+# Nightly only implementation might appear without any prior notice if enabled.
+sve_shaper_paths = ["sve"]
+# This is a placeholder for upcoming SVE implementation. Currently, does nothing.
+# Nightly only implementation might appear without any prior notice if enabled.
+sve_shaper_optimized_paths = ["sve"]
+# This is a placeholder for upcoming SVE implementation. Currently, does nothing.
+# Nightly only implementation might appear without any prior notice if enabled.
+sve_shaper_fixed_point_paths = ["sve"]
+# This is a placeholder for upcoming SVE implementation. Currently, does nothing.
+# Nightly only implementation might appear without any prior notice if enabled.
+sve_luts = ["lut", "sve"]
+
 # Allows configuring interpolation methods and LUT weights precision.
 # Disabled by default to prevent binary bloat.
 options = []

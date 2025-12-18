@@ -272,27 +272,27 @@ macro_rules! make_transform_4x3_fn {
     };
 }
 
-#[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
+#[cfg(all(target_arch = "aarch64", feature = "neon_luts"))]
 use crate::conversions::neon::NeonLut3x3Factory;
-#[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
+#[cfg(all(target_arch = "aarch64", feature = "neon_luts"))]
 make_transform_3x3_fn!(make_transformer_3x3, NeonLut3x3Factory);
 
-#[cfg(not(all(target_arch = "aarch64", target_feature = "neon", feature = "neon")))]
+#[cfg(not(all(target_arch = "aarch64", feature = "neon_luts")))]
 use crate::conversions::transform_lut3_to_3::DefaultLut3x3Factory;
-#[cfg(not(all(target_arch = "aarch64", target_feature = "neon", feature = "neon")))]
+#[cfg(not(all(target_arch = "aarch64", feature = "neon_luts")))]
 make_transform_3x3_fn!(make_transformer_3x3, DefaultLut3x3Factory);
 
-#[cfg(all(target_arch = "x86_64", feature = "avx"))]
+#[cfg(all(target_arch = "x86_64", feature = "avx_luts"))]
 use crate::conversions::avx::AvxLut3x3Factory;
-#[cfg(all(target_arch = "x86_64", feature = "avx"))]
+#[cfg(all(target_arch = "x86_64", feature = "avx_luts"))]
 make_transform_3x3_fn!(make_transformer_3x3_avx_fma, AvxLut3x3Factory);
 
-#[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"))]
+#[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse_luts"))]
 use crate::conversions::sse::SseLut3x3Factory;
-#[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"))]
+#[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse_luts"))]
 make_transform_3x3_fn!(make_transformer_3x3_sse41, SseLut3x3Factory);
 
-#[cfg(all(target_arch = "x86_64", feature = "avx"))]
+#[cfg(all(target_arch = "x86_64", feature = "avx_luts"))]
 use crate::conversions::avx::AvxLut4x3Factory;
 use crate::conversions::interpolator::LutBarycentricReduction;
 #[cfg(feature = "any_to_any")]
@@ -308,28 +308,28 @@ use crate::conversions::mba3x4::prepare_mba_3x4;
 use crate::conversions::md_luts_factory::{do_any_to_any, prepare_alpha_finalizer};
 // use crate::conversions::bpc::compensate_bpc_in_lut;
 
-#[cfg(all(target_arch = "x86_64", feature = "avx"))]
+#[cfg(all(target_arch = "x86_64", feature = "avx_luts"))]
 make_transform_4x3_fn!(make_transformer_4x3_avx_fma, AvxLut4x3Factory);
 
-#[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"))]
+#[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse_luts"))]
 use crate::conversions::sse::SseLut4x3Factory;
-#[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"))]
+#[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse_luts"))]
 make_transform_4x3_fn!(make_transformer_4x3_sse41, SseLut4x3Factory);
 
-#[cfg(not(all(target_arch = "aarch64", target_feature = "neon", feature = "neon")))]
+#[cfg(not(all(target_arch = "aarch64", feature = "neon_luts")))]
 use crate::conversions::transform_lut4_to_3::DefaultLut4x3Factory;
 
-#[cfg(not(all(target_arch = "aarch64", target_feature = "neon", feature = "neon")))]
+#[cfg(not(all(target_arch = "aarch64", feature = "neon_luts")))]
 make_transform_4x3_fn!(make_transformer_4x3, DefaultLut4x3Factory);
 
-#[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
-use crate::conversions::neon::NeonLut4x3Factory;
 use crate::conversions::prelude_lut_xyz_rgb::{create_rgb_lin_lut, prepare_inverse_lut_rgb_xyz};
 use crate::conversions::xyz_lab::{StageLabToXyz, StageXyzToLab};
 use crate::transform::PointeeSizeExpressible;
 use crate::trc::GammaLutInterpolate;
 
-#[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
+#[cfg(all(target_arch = "aarch64", feature = "neon_luts"))]
+use crate::conversions::neon::NeonLut4x3Factory;
+#[cfg(all(target_arch = "aarch64", feature = "neon_luts"))]
 make_transform_4x3_fn!(make_transformer_4x3, NeonLut4x3Factory);
 
 #[inline(never)]
@@ -517,7 +517,7 @@ where
             && dest.is_matrix_shaper()
             && dest.is_linear_matrix_shaper();
 
-        #[cfg(all(target_arch = "x86_64", feature = "avx"))]
+        #[cfg(all(target_arch = "x86_64", feature = "avx_luts"))]
         if std::arch::is_x86_feature_detected!("avx2") && std::arch::is_x86_feature_detected!("fma")
         {
             return Ok(make_transformer_4x3_avx_fma::<T, GRID_SIZE, BIT_DEPTH>(
@@ -528,7 +528,7 @@ where
                 is_dest_linear_profile,
             ));
         }
-        #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"))]
+        #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse_luts"))]
         if std::arch::is_x86_feature_detected!("sse4.1") {
             return Ok(make_transformer_4x3_sse41::<T, GRID_SIZE, BIT_DEPTH>(
                 dst_layout,
@@ -773,7 +773,7 @@ where
             && dest.is_matrix_shaper()
             && dest.is_linear_matrix_shaper();
 
-        #[cfg(all(feature = "avx", target_arch = "x86_64"))]
+        #[cfg(all(feature = "avx_luts", target_arch = "x86_64"))]
         if std::arch::is_x86_feature_detected!("avx2") && std::is_x86_feature_detected!("fma") {
             return Ok(make_transformer_3x3_avx_fma::<T, GRID_SIZE, BIT_DEPTH>(
                 src_layout,
@@ -784,7 +784,7 @@ where
                 is_dest_linear_profile,
             ));
         }
-        #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"))]
+        #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse_luts"))]
         if std::arch::is_x86_feature_detected!("sse4.1") {
             return Ok(make_transformer_3x3_sse41::<T, GRID_SIZE, BIT_DEPTH>(
                 src_layout,
@@ -796,14 +796,28 @@ where
             ));
         }
 
-        Ok(make_transformer_3x3::<T, GRID_SIZE, BIT_DEPTH>(
-            src_layout,
-            dst_layout,
-            lut,
-            options,
-            dest.color_space,
-            is_dest_linear_profile,
-        ))
+        #[cfg(all(target_arch = "aarch64", feature = "neon_luts"))]
+        {
+            Ok(make_transformer_3x3::<T, GRID_SIZE, BIT_DEPTH>(
+                src_layout,
+                dst_layout,
+                lut,
+                options,
+                dest.color_space,
+                is_dest_linear_profile,
+            ))
+        }
+        #[cfg(not(all(target_arch = "aarch64", feature = "neon_luts")))]
+        {
+            Ok(make_transformer_3x3::<T, GRID_SIZE, BIT_DEPTH>(
+                src_layout,
+                dst_layout,
+                lut,
+                options,
+                dest.color_space,
+                is_dest_linear_profile,
+            ))
+        }
     } else {
         #[cfg(feature = "any_to_any")]
         {

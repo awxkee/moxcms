@@ -47,7 +47,7 @@ mod mba3x4;
 mod md_lut;
 #[cfg(feature = "any_to_any")]
 mod md_luts_factory;
-#[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
+#[cfg(all(target_arch = "aarch64", feature = "neon"))]
 mod neon;
 mod prelude_lut_xyz_rgb;
 mod rgb2gray;

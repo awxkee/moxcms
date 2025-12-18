@@ -26,6 +26,7 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+#![cfg(feature = "avx512_shaper_optimized_paths")]
 use crate::conversions::TransformMatrixShaperOptimized;
 use crate::conversions::avx512::rgb_xyz_q2_13_opt::{
     AvxAlignedU16, split_by_twos, split_by_twos_mut,

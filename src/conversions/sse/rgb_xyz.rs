@@ -26,7 +26,9 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+#![cfg(feature = "sse_shaper_paths")]
 use crate::conversions::TransformMatrixShaper;
+use crate::conversions::sse::SseAlignedU16;
 use crate::transform::PointeeSizeExpressible;
 use crate::{CmsError, Layout, TransformExecutor};
 use num_traits::AsPrimitive;
@@ -34,9 +36,6 @@ use num_traits::AsPrimitive;
 use std::arch::x86::*;
 #[cfg(target_arch = "x86_64")]
 use std::arch::x86_64::*;
-
-#[repr(align(16), C)]
-pub(crate) struct SseAlignedU16(pub(crate) [u16; 8]);
 
 pub(crate) struct TransformShaperRgbSse<
     T: Clone + Copy + 'static + PointeeSizeExpressible + Default,

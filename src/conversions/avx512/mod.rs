@@ -29,5 +29,7 @@
 mod rgb_xyz_opt;
 mod rgb_xyz_q2_13_opt;
 
+#[cfg(feature = "avx512_shaper_optimized_paths")]
 pub(crate) use rgb_xyz_opt::TransformShaperRgbOptAvx512;
+#[cfg(feature = "avx512_shaper_fixed_point_paths")]
 pub(crate) use rgb_xyz_q2_13_opt::TransformShaperRgbQ2_13OptAvx512;

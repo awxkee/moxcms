@@ -400,7 +400,7 @@ macro_rules! create_rgb_xyz_dependant_q2_13_executor_fp {
     };
 }
 
-#[cfg(all(target_arch = "aarch64", feature = "neon"))]
+#[cfg(all(target_arch = "aarch64", feature = "neon_shaper_fixed_point_paths"))]
 macro_rules! create_rgb_xyz_dependant_q1_30_executor {
     ($dep_name: ident, $dependant: ident, $resolution: ident, $shaper: ident) => {
         pub(crate) fn $dep_name<
@@ -464,12 +464,12 @@ macro_rules! create_rgb_xyz_dependant_q1_30_executor {
     };
 }
 
-#[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
+#[cfg(all(target_arch = "aarch64", feature = "neon_shaper_fixed_point_paths"))]
 use crate::conversions::neon::{
     TransformShaperQ1_30NeonOpt, TransformShaperQ2_13Neon, TransformShaperQ2_13NeonOpt,
 };
 
-#[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
+#[cfg(all(target_arch = "aarch64", feature = "neon_shaper_fixed_point_paths"))]
 create_rgb_xyz_dependant_q2_13_executor_fp!(
     make_rgb_xyz_q2_13,
     TransformShaperQ2_13Neon,
@@ -477,7 +477,7 @@ create_rgb_xyz_dependant_q2_13_executor_fp!(
     TransformMatrixShaper
 );
 
-#[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
+#[cfg(all(target_arch = "aarch64", feature = "neon_shaper_fixed_point_paths"))]
 create_rgb_xyz_dependant_q2_13_executor_fp!(
     make_rgb_xyz_q2_13_opt,
     TransformShaperQ2_13NeonOpt,
@@ -485,7 +485,7 @@ create_rgb_xyz_dependant_q2_13_executor_fp!(
     TransformMatrixShaperOptimized
 );
 
-#[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
+#[cfg(all(target_arch = "aarch64", feature = "neon_shaper_fixed_point_paths"))]
 create_rgb_xyz_dependant_q1_30_executor!(
     make_rgb_xyz_q1_30_opt,
     TransformShaperQ1_30NeonOpt,
@@ -493,7 +493,7 @@ create_rgb_xyz_dependant_q1_30_executor!(
     TransformMatrixShaperOptimized
 );
 
-#[cfg(not(all(target_arch = "aarch64", target_feature = "neon", feature = "neon")))]
+#[cfg(not(all(target_arch = "aarch64", feature = "neon_shaper_fixed_point_paths")))]
 create_rgb_xyz_dependant_q2_13_executor!(
     make_rgb_xyz_q2_13,
     TransformMatrixShaperQ2_13,
@@ -501,7 +501,7 @@ create_rgb_xyz_dependant_q2_13_executor!(
     TransformMatrixShaper
 );
 
-#[cfg(not(all(target_arch = "aarch64", target_feature = "neon", feature = "neon")))]
+#[cfg(not(all(target_arch = "aarch64", feature = "neon_shaper_fixed_point_paths")))]
 create_rgb_xyz_dependant_q2_13_executor!(
     make_rgb_xyz_q2_13_opt,
     TransformMatrixShaperQ2_13Optimized,
@@ -509,10 +509,16 @@ create_rgb_xyz_dependant_q2_13_executor!(
     TransformMatrixShaperOptimized
 );
 
-#[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"))]
+#[cfg(all(
+    any(target_arch = "x86", target_arch = "x86_64"),
+    feature = "sse_shaper_fixed_point_paths"
+))]
 use crate::conversions::sse::{TransformShaperQ2_13OptSse, TransformShaperQ2_13Sse};
 
-#[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"))]
+#[cfg(all(
+    any(target_arch = "x86", target_arch = "x86_64"),
+    feature = "sse_shaper_fixed_point_paths"
+))]
 create_rgb_xyz_dependant_q2_13_executor_fp!(
     make_rgb_xyz_q2_13_transform_sse_41,
     TransformShaperQ2_13Sse,
@@ -520,7 +526,10 @@ create_rgb_xyz_dependant_q2_13_executor_fp!(
     TransformMatrixShaper
 );
 
-#[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"))]
+#[cfg(all(
+    any(target_arch = "x86", target_arch = "x86_64"),
+    feature = "sse_shaper_fixed_point_paths"
+))]
 create_rgb_xyz_dependant_q2_13_executor_fp!(
     make_rgb_xyz_q2_13_transform_sse_41_opt,
     TransformShaperQ2_13OptSse,
@@ -528,12 +537,12 @@ create_rgb_xyz_dependant_q2_13_executor_fp!(
     TransformMatrixShaperOptimized
 );
 
-#[cfg(all(target_arch = "x86_64", feature = "avx"))]
+#[cfg(all(target_arch = "x86_64", feature = "avx_shaper_fixed_point_paths"))]
 use crate::conversions::avx::{TransformShaperRgbQ2_13Avx, TransformShaperRgbQ2_13OptAvx};
 use crate::conversions::rgbxyz::TransformMatrixShaperOptimized;
 use crate::transform::PointeeSizeExpressible;
 
-#[cfg(all(target_arch = "x86_64", feature = "avx"))]
+#[cfg(all(target_arch = "x86_64", feature = "avx_shaper_fixed_point_paths"))]
 create_rgb_xyz_dependant_q2_13_executor_fp!(
     make_rgb_xyz_q2_13_transform_avx2,
     TransformShaperRgbQ2_13Avx,
@@ -541,7 +550,7 @@ create_rgb_xyz_dependant_q2_13_executor_fp!(
     TransformMatrixShaper
 );
 
-#[cfg(all(target_arch = "x86_64", feature = "avx"))]
+#[cfg(all(target_arch = "x86_64", feature = "avx_shaper_fixed_point_paths"))]
 create_rgb_xyz_dependant_q2_13_executor_fp!(
     make_rgb_xyz_q2_13_transform_avx2_opt,
     TransformShaperRgbQ2_13OptAvx,
@@ -549,10 +558,10 @@ create_rgb_xyz_dependant_q2_13_executor_fp!(
     TransformMatrixShaperOptimized
 );
 
-#[cfg(all(target_arch = "x86_64", feature = "avx512"))]
+#[cfg(all(target_arch = "x86_64", feature = "avx512_shaper_fixed_point_paths"))]
 use crate::conversions::avx512::TransformShaperRgbQ2_13OptAvx512;
 
-#[cfg(all(target_arch = "x86_64", feature = "avx512"))]
+#[cfg(all(target_arch = "x86_64", feature = "avx512_shaper_fixed_point_paths"))]
 create_rgb_xyz_dependant_q2_13_executor!(
     make_rgb_xyz_q2_13_transform_avx512_opt,
     TransformShaperRgbQ2_13OptAvx512,

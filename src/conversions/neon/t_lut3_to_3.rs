@@ -26,12 +26,13 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+#![cfg(feature = "neon_luts")]
 use crate::conversions::LutBarycentricReduction;
 use crate::conversions::interpolator::BarycentricWeight;
 use crate::conversions::lut_transforms::Lut3x3Factory;
+use crate::conversions::neon::NeonAlignedF32;
 use crate::conversions::neon::interpolator::*;
 use crate::conversions::neon::interpolator_q0_15::NeonAlignedI16x4;
-use crate::conversions::neon::rgb_xyz::NeonAlignedF32;
 use crate::conversions::neon::t_lut3_to_3_q0_15::TransformLut3x3NeonQ0_15;
 use crate::transform::PointeeSizeExpressible;
 use crate::{
