@@ -893,6 +893,7 @@ pub struct ColorProfile {
     pub viewing_conditions_description: Option<ProfileText>,
     pub technology: Option<TechnologySignatures>,
     pub calibration_date: Option<ColorDateTime>,
+    pub creation_date_time: ColorDateTime,
     /// Version for internal and viewing purposes only.
     /// On encoding added value to profile will always be V4.
     pub(crate) version_internal: ProfileVersion,
@@ -951,6 +952,7 @@ impl ColorProfile {
             color_space: header.data_color_space,
             white_point: header.illuminant.to_xyzd(),
             version_internal: header.version,
+            creation_date_time: header.creation_date_time,
             ..Default::default()
         };
         let color_space = profile.color_space;
