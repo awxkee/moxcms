@@ -25,7 +25,7 @@ rand = "0.9"
 
 [features]
 # If no unsafe intrinsics active then `forbid(unsafe)` will be used.
-default = ["avx_shaper_fixed_point_paths", "avx_luts", "sse_shaper_fixed_point_paths", "sse_luts", "neon_shaper_fixed_point_paths", "neon_luts"]
+default = ["avx_shaper_fixed_point_paths", "avx_luts", "sse_shaper_fixed_point_paths", "sse_luts", "neon_shaper_fixed_point_paths", "neon_luts", "lut"]
 
 # Enables AVX-512 acceleration where possible. This will work only from 1.89 on stable.
 avx512 = []
