@@ -26,6 +26,7 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+#![cfg(feature = "lut")]
 use crate::conversions::mab::{BCurves3, MCurves3};
 use crate::err::try_vec;
 use crate::safe_math::SafeMul;
@@ -109,7 +110,7 @@ impl ACurves3x4InverseOptimized<'_> {
 
 impl Stage for ACurves3x4Inverse<'_> {
     fn transform(&self, src: &[f32], dst: &mut [f32]) -> Result<(), CmsError> {
-        let lut = Cube::new_checked_cube(self.clut, self.grid_size, 4)?;
+        let lut = Cube::new_cube(self.clut, self.grid_size, 4)?;
 
         // If PCS is LAB then linear interpolation should be used
         if self.pcs == DataColorSpace::Lab || self.pcs == DataColorSpace::Xyz {
@@ -139,7 +140,7 @@ impl Stage for ACurves3x4Inverse<'_> {
 
 impl Stage for ACurves3x4InverseOptimized<'_> {
     fn transform(&self, src: &[f32], dst: &mut [f32]) -> Result<(), CmsError> {
-        let lut = Cube::new_checked_cube(self.clut, self.grid_size, 4)?;
+        let lut = Cube::new_cube(self.clut, self.grid_size, 4)?;
 
         // If PCS is LAB then linear interpolation should be used
         if self.pcs == DataColorSpace::Lab || self.pcs == DataColorSpace::Xyz {

@@ -27,6 +27,7 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#[allow(unused)]
 pub(crate) fn is_curve_linear16(curve: &[u16]) -> bool {
     let scale = 1. / (curve.len() - 1) as f32 * 65535.;
     for (index, &value) in curve.iter().enumerate() {

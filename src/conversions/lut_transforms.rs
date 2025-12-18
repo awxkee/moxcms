@@ -26,6 +26,7 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+#![cfg(feature = "lut")]
 use crate::conversions::lut3x3::create_lut3x3;
 #[cfg(feature = "any_to_any")]
 use crate::conversions::lut3x3::{katana_input_stage_lut_3x3, katana_output_stage_lut_3x3};
@@ -292,9 +293,9 @@ use crate::conversions::sse::SseLut3x3Factory;
 #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse_luts"))]
 make_transform_3x3_fn!(make_transformer_3x3_sse41, SseLut3x3Factory);
 
+use crate::conversions::LutBarycentricReduction;
 #[cfg(all(target_arch = "x86_64", feature = "avx_luts"))]
 use crate::conversions::avx::AvxLut4x3Factory;
-use crate::conversions::interpolator::LutBarycentricReduction;
 #[cfg(feature = "any_to_any")]
 use crate::conversions::katana::{
     Katana, KatanaDefaultIntermediate, KatanaInitialStage, KatanaPostFinalizationStage,

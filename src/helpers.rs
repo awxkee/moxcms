@@ -116,6 +116,7 @@ impl LutStore {
 }
 
 impl ToneReprCurve {
+    #[cfg(feature = "lut")]
     pub(crate) fn is_linear(&self) -> bool {
         match &self {
             ToneReprCurve::Lut(lut) => {

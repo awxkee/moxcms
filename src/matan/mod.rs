@@ -36,6 +36,7 @@ mod monotonic;
 #[cfg(feature = "any_to_any")]
 mod slope_limit;
 
+#[allow(unused)]
 pub(crate) use curve_shape::{is_curve_ascending, is_curve_linear16};
 #[cfg(feature = "any_to_any")]
 pub(crate) use curve_shape::{is_curve_descending, is_curve_linear8};

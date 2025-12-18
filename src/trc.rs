@@ -27,7 +27,6 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::cicp::create_rec709_parametric;
-use crate::matan::is_curve_linear16;
 use crate::math::m_clamp;
 use crate::mlaf::{mlaf, neg_mlaf};
 use crate::transform::PointeeSizeExpressible;
@@ -287,6 +286,7 @@ impl ParametricCurve {
         }
     }
 
+    #[cfg(feature = "lut")]
     fn is_linear(&self) -> bool {
         (self.g - 1.0).abs() < 1e-5
             && (self.a - 1.0).abs() < 1e-5
@@ -1411,6 +1411,7 @@ impl ColorProfile {
         false
     }
 
+    #[cfg(feature = "lut")]
     /// Checks if profile is matrix shaper, have same TRC and TRC is linear.
     pub(crate) fn is_linear_matrix_shaper(&self) -> bool {
         if !self.is_matrix_shaper() {
@@ -1425,6 +1426,7 @@ impl ColorProfile {
                     if lut.is_empty() {
                         return true;
                     }
+                    use crate::matan::is_curve_linear16;
                     if is_curve_linear16(lut) {
                         return true;
                     }

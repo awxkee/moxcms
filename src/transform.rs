@@ -26,11 +26,7 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-use crate::conversions::{
-    LutBarycentricReduction, RgbXyzFactory, RgbXyzFactoryOpt, ToneReproductionRgbToGray,
-    TransformMatrixShaper, make_gray_to_unfused, make_gray_to_x, make_lut_transform,
-    make_rgb_to_gray,
-};
+use crate::conversions::*;
 use crate::err::CmsError;
 use crate::interceptors::{FromCmykaInterceptor, ToCmykaInterceptor};
 use crate::trc::GammaLutInterpolate;
@@ -603,6 +599,7 @@ impl ColorProfile {
                 return Err(CmsError::InvalidLayout);
             }
 
+            #[cfg(feature = "lut")]
             if self.has_device_to_pcs_lut() || dst_pr.has_pcs_to_device_lut() {
                 return make_lut_transform::<T, BIT_DEPTH, LINEAR_CAP, GAMMA_CAP>(
                     src_layout, self, dst_layout, dst_pr, options,
@@ -731,6 +728,7 @@ impl ColorProfile {
                 return Err(CmsError::InvalidLayout);
             }
 
+            #[cfg(feature = "lut")]
             if self.has_device_to_pcs_lut() || dst_pr.has_pcs_to_device_lut() {
                 return make_lut_transform::<T, BIT_DEPTH, LINEAR_CAP, GAMMA_CAP>(
                     src_layout, self, dst_layout, dst_pr, options,
@@ -871,6 +869,7 @@ impl ColorProfile {
                 return Err(CmsError::InvalidLayout);
             }
 
+            #[cfg(feature = "lut")]
             if self.has_device_to_pcs_lut() || dst_pr.has_pcs_to_device_lut() {
                 return make_lut_transform::<T, BIT_DEPTH, LINEAR_CAP, GAMMA_CAP>(
                     src_layout, self, dst_layout, dst_pr, options,
@@ -933,19 +932,33 @@ impl ColorProfile {
             && (dst_pr.pcs == DataColorSpace::Xyz || dst_pr.pcs == DataColorSpace::Lab)
             && (self.pcs == DataColorSpace::Xyz || self.pcs == DataColorSpace::Lab)
         {
-            if src_layout == Layout::Gray || src_layout == Layout::GrayAlpha {
-                return Err(CmsError::InvalidLayout);
+            #[cfg(feature = "lut")]
+            {
+                if src_layout == Layout::Gray || src_layout == Layout::GrayAlpha {
+                    return Err(CmsError::InvalidLayout);
+                }
+                if dst_layout == Layout::Gray || dst_layout == Layout::GrayAlpha {
+                    return Err(CmsError::InvalidLayout);
+                }
+                make_lut_transform::<T, BIT_DEPTH, LINEAR_CAP, GAMMA_CAP>(
+                    src_layout, self, dst_layout, dst_pr, options,
+                )
             }
-            if dst_layout == Layout::Gray || dst_layout == Layout::GrayAlpha {
-                return Err(CmsError::InvalidLayout);
+            #[cfg(not(feature = "lut"))]
+            {
+                return Err(CmsError::UnsupportedProfileConnection);
             }
-            make_lut_transform::<T, BIT_DEPTH, LINEAR_CAP, GAMMA_CAP>(
-                src_layout, self, dst_layout, dst_pr, options,
-            )
         } else {
-            make_lut_transform::<T, BIT_DEPTH, LINEAR_CAP, GAMMA_CAP>(
-                src_layout, self, dst_layout, dst_pr, options,
-            )
+            #[cfg(feature = "lut")]
+            {
+                make_lut_transform::<T, BIT_DEPTH, LINEAR_CAP, GAMMA_CAP>(
+                    src_layout, self, dst_layout, dst_pr, options,
+                )
+            }
+            #[cfg(not(feature = "lut"))]
+            {
+                return Err(CmsError::UnsupportedProfileConnection);
+            }
         }
     }
 
@@ -961,6 +974,7 @@ impl ColorProfile {
         self.create_transform_nbit::<u8, 8, 256, 4096>(src_layout, dst_pr, dst_layout, options)
     }
 
+    #[allow(unused)]
     pub(crate) fn get_device_to_pcs(&self, intent: RenderingIntent) -> Option<&LutWarehouse> {
         match intent {
             RenderingIntent::AbsoluteColorimetric => self.lut_a_to_b_colorimetric.as_ref(),
@@ -970,6 +984,7 @@ impl ColorProfile {
         }
     }
 
+    #[allow(unused)]
     pub(crate) fn get_pcs_to_device(&self, intent: RenderingIntent) -> Option<&LutWarehouse> {
         match intent {
             RenderingIntent::AbsoluteColorimetric => self.lut_b_to_a_colorimetric.as_ref(),

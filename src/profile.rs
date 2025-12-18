@@ -1303,12 +1303,14 @@ impl ColorProfile {
         Some((det / 6.0f64) as f32)
     }
 
+    #[allow(unused)]
     pub(crate) fn has_device_to_pcs_lut(&self) -> bool {
         self.lut_a_to_b_perceptual.is_some()
             || self.lut_a_to_b_saturation.is_some()
             || self.lut_a_to_b_colorimetric.is_some()
     }
 
+    #[allow(unused)]
     pub(crate) fn has_pcs_to_device_lut(&self) -> bool {
         self.lut_b_to_a_perceptual.is_some()
             || self.lut_b_to_a_saturation.is_some()

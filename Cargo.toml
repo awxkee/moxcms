@@ -92,7 +92,7 @@ options = []
 # That places a requirement that curves in profile should be monothonic and continious, and do not have long
 # degenerations at boundaries. Many CMYK have curves that do not fall under those requiremenent, so if accurate
 # color reproduction is neccessary for broad amount of LUT profiles, this feature is mandatory.
-any_to_any = []
+any_to_any = ["lut"]
 # All LUT are gated by this feature
 lut = []
 # This allows extended range on `f32`/`f64` to work with HDR/WideGamut if neccessary

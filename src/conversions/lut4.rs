@@ -26,6 +26,7 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+#![cfg(feature = "lut")]
 #[cfg(feature = "any_to_any")]
 use crate::conversions::katana::KatanaInitialStage;
 use crate::err::try_vec;
@@ -99,7 +100,7 @@ macro_rules! define_lut4_dispatch {
     ($dispatcher: ident) => {
         impl Stage for $dispatcher {
             fn transform(&self, src: &[f32], dst: &mut [f32]) -> Result<(), CmsError> {
-                let l_tbl = Hypercube::new_checked(&self.clut, self.grid_size as usize, 3)?;
+                let l_tbl = Hypercube::new(&self.clut, self.grid_size as usize, 3)?;
 
                 // If Source PCS is LAB trilinear should be used
                 if self.pcs == DataColorSpace::Lab || self.pcs == DataColorSpace::Xyz {
@@ -179,7 +180,7 @@ impl<T: Copy + PointeeSizeExpressible + AsPrimitive<f32>> KatanaInitialStage<f32
         if input.len() % 4 != 0 {
             return Err(CmsError::LaneMultipleOfChannels);
         }
-        let l_tbl = Hypercube::new_checked(&self.clut, self.grid_size as usize, 3)?;
+        let l_tbl = Hypercube::new(&self.clut, self.grid_size as usize, 3)?;
 
         // If Source PCS is LAB trilinear should be used
         if self.pcs == DataColorSpace::Lab || self.pcs == DataColorSpace::Xyz {

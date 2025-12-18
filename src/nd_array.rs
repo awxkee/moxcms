@@ -79,25 +79,7 @@ trait Fetcher4<T> {
 }
 
 impl Hypercube<'_> {
-    pub fn new(array: &[f32], grid_size: usize) -> Hypercube<'_> {
-        let z_stride = grid_size as u32;
-        let y_stride = z_stride * z_stride;
-        let x_stride = z_stride * z_stride * z_stride;
-        Hypercube {
-            array,
-            x_stride,
-            y_stride,
-            z_stride,
-            grid_size: [
-                grid_size as u8,
-                grid_size as u8,
-                grid_size as u8,
-                grid_size as u8,
-            ],
-        }
-    }
-
-    pub(crate) fn new_checked(
+    pub fn new(
         array: &[f32],
         grid_size: usize,
         channels: usize,
@@ -143,7 +125,7 @@ impl Hypercube<'_> {
         })
     }
 
-    pub(crate) fn new_checked_hypercube(
+    pub fn new_hypercube(
         array: &[f32],
         grid_size: [u8; 4],
         channels: usize,
@@ -186,19 +168,6 @@ impl Hypercube<'_> {
             z_stride,
             grid_size,
         })
-    }
-
-    pub fn new_hypercube(array: &[f32], grid_size: [u8; 4]) -> Hypercube<'_> {
-        let z_stride = grid_size[2] as u32;
-        let y_stride = z_stride * grid_size[1] as u32;
-        let x_stride = y_stride * grid_size[0] as u32;
-        Hypercube {
-            array,
-            x_stride,
-            y_stride,
-            z_stride,
-            grid_size,
-        }
     }
 }
 
@@ -895,22 +864,7 @@ impl ArrayFetch<Vector4f> for ArrayFetchVector4f<'_> {
 }
 
 impl Cube<'_> {
-    pub fn new(array: &[f32], grid_size: usize) -> Cube<'_> {
-        let y_stride = grid_size;
-        let x_stride = y_stride * y_stride;
-        Cube {
-            array,
-            x_stride: x_stride as u32,
-            y_stride: y_stride as u32,
-            grid_size: [grid_size as u8, grid_size as u8, grid_size as u8],
-        }
-    }
-
-    pub(crate) fn new_checked(
-        array: &[f32],
-        grid_size: usize,
-        channels: usize,
-    ) -> Result<Cube<'_>, CmsError> {
+    pub fn new(array: &[f32], grid_size: usize, channels: usize) -> Result<Cube<'_>, CmsError> {
         if array.is_empty() || grid_size == 0 {
             return Ok(Cube {
                 array,
@@ -943,18 +897,7 @@ impl Cube<'_> {
         })
     }
 
-    pub fn new_cube(array: &[f32], grid_size: [u8; 3]) -> Cube<'_> {
-        let y_stride = grid_size[2] as u32;
-        let x_stride = y_stride * grid_size[1] as u32;
-        Cube {
-            array,
-            x_stride,
-            y_stride,
-            grid_size,
-        }
-    }
-
-    pub(crate) fn new_checked_cube(
+    pub fn new_cube(
         array: &[f32],
         grid_size: [u8; 3],
         channels: usize,
