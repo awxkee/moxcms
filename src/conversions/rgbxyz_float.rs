@@ -26,6 +26,7 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+#![cfg(feature = "extended_range")]
 use crate::trc::ToneCurveEvaluator;
 use crate::{CmsError, Layout, Matrix3f, PointeeSizeExpressible, Rgb, TransformExecutor};
 use num_traits::AsPrimitive;
@@ -41,6 +42,7 @@ pub(crate) struct TransformShaperRgbFloat<T: Clone, const BUCKET: usize> {
     pub(crate) phantom_data: PhantomData<T>,
 }
 
+#[cfg(feature = "extended_range")]
 pub(crate) struct TransformShaperFloatInOut<T: Clone> {
     pub(crate) linear_evaluator: Box<dyn ToneCurveEvaluator + Send + Sync>,
     pub(crate) gamma_evaluator: Box<dyn ToneCurveEvaluator + Send + Sync>,

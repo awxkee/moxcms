@@ -26,9 +26,10 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+#![cfg(feature = "extended_range")]
 use crate::transform::PointeeSizeExpressible;
 use crate::trc::ToneCurveEvaluator;
-use crate::{CmsError, Layout, Rgb, TransformExecutor};
+use crate::*;
 use num_traits::AsPrimitive;
 use std::marker::PhantomData;
 use std::sync::Arc;
@@ -319,6 +320,7 @@ where
     }
 }
 
+#[cfg(feature = "extended_range")]
 impl<
     T: Copy + Default + PointeeSizeExpressible + 'static + AsPrimitive<f32>,
     const SRC_LAYOUT: u8,

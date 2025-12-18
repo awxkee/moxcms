@@ -64,13 +64,16 @@ mod transform_lut4_to_3;
 mod xyz_lab;
 
 pub(crate) use gray2rgb::{make_gray_to_unfused, make_gray_to_x};
+#[cfg(feature = "extended_range")]
 pub(crate) use gray2rgb_extended::{make_gray_to_one_trc_extended, make_gray_to_rgb_extended};
 pub(crate) use interpolator::LutBarycentricReduction;
 pub(crate) use lut_transforms::make_lut_transform;
 pub(crate) use rgb_xyz_factory::{RgbXyzFactory, RgbXyzFactoryOpt};
 pub(crate) use rgb2gray::{ToneReproductionRgbToGray, make_rgb_to_gray};
+#[cfg(feature = "extended_range")]
 pub(crate) use rgb2gray_extended::make_rgb_to_gray_extended;
 pub(crate) use rgbxyz::{TransformMatrixShaper, TransformMatrixShaperOptimized};
+#[cfg(feature = "extended_range")]
 pub(crate) use rgbxyz_float::{
     TransformShaperFloatInOut, TransformShaperRgbFloat, make_rgb_xyz_rgb_transform_float,
     make_rgb_xyz_rgb_transform_float_in_out,

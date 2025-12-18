@@ -1290,6 +1290,7 @@ impl ColorProfile {
             .ok_or(CmsError::BuildTransferFunction)
     }
 
+    #[cfg(feature = "extended_range")]
     /// Checks if profile gamma can work in extended precision and we have implementation for this
     pub(crate) fn try_extended_gamma_evaluator(
         &self,
@@ -1316,6 +1317,7 @@ impl ColorProfile {
         None
     }
 
+    #[cfg(feature = "extended_range")]
     fn make_gamma_evaluator_all_the_same(
         red_trc: &ToneReprCurve,
     ) -> Option<Box<dyn ToneCurveEvaluator + Send + Sync>> {
@@ -1340,6 +1342,7 @@ impl ColorProfile {
                         *dst = *src;
                     }
 
+                    #[cfg(feature = "extended_range")]
                     if compare_parametric(lc_params.as_slice(), srgb_params.as_slice()) {
                         return Some(Box::new(ToneCurveCicpEvaluator {
                             rgb_trc: TransferCharacteristics::Srgb.extended_gamma_tristimulus(),
@@ -1347,6 +1350,7 @@ impl ColorProfile {
                         }));
                     }
 
+                    #[cfg(feature = "extended_range")]
                     if compare_parametric(lc_params.as_slice(), rec709_params.as_slice()) {
                         return Some(Box::new(ToneCurveCicpEvaluator {
                             rgb_trc: TransferCharacteristics::Bt709.extended_gamma_tristimulus(),
@@ -1437,6 +1441,7 @@ impl ColorProfile {
         false
     }
 
+    #[cfg(feature = "extended_range")]
     /// Checks if profile linearization can work in extended precision and we have implementation for this
     pub(crate) fn try_extended_linearizing_evaluator(
         &self,
@@ -1465,6 +1470,7 @@ impl ColorProfile {
         None
     }
 
+    #[cfg(feature = "extended_range")]
     fn make_linear_curve_evaluator_all_the_same(
         evaluator_curve: &ToneReprCurve,
     ) -> Option<Option<Box<dyn ToneCurveEvaluator + Send + Sync>>> {
@@ -1515,6 +1521,7 @@ impl ColorProfile {
     }
 }
 
+#[cfg(feature = "extended_range")]
 pub(crate) struct ToneCurveCicpEvaluator {
     rgb_trc: fn(Rgb<f32>) -> Rgb<f32>,
     trc: fn(f32) -> f32,
@@ -1530,6 +1537,7 @@ pub(crate) struct ToneCurveEvaluatorPureGamma {
 
 pub(crate) struct ToneCurveEvaluatorLinear {}
 
+#[cfg(feature = "extended_range")]
 impl ToneCurveEvaluator for ToneCurveCicpEvaluator {
     fn evaluate_tristimulus(&self, rgb: Rgb<f32>) -> Rgb<f32> {
         (self.rgb_trc)(rgb)

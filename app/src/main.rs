@@ -129,7 +129,6 @@ fn check_gray() {
                 prefer_fixed_point: true,
                 interpolation_method: InterpolationMethod::Linear,
                 barycentric_weight_scale: BarycentricWeightScale::Low,
-                allow_extended_range_rgb_xyz: false,
             },
         )
         .unwrap();
