@@ -316,7 +316,7 @@ impl ColorPrimaries {
                 [red_xyz.z, green_xyz.z, blue_xyz.z],
             ],
         };
-        ColorProfile::rgb_to_xyz_static(xyz_matrix, white_point.to_xyy().to_xyz())
+        ColorProfile::rgb_to_xyz(xyz_matrix, white_point.to_xyy().to_xyz())
     }
 }
 

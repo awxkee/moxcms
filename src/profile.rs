@@ -1246,16 +1246,7 @@ impl ColorProfile {
         false
     }
 
-    pub const fn rgb_to_xyz(&self, xyz_matrix: Matrix3f, wp: Xyz) -> Matrix3f {
-        let xyz_inverse = xyz_matrix.inverse();
-        let s = xyz_inverse.mul_vector(wp.to_vector());
-        let mut v = xyz_matrix.mul_row_vector::<0>(s);
-        v = v.mul_row_vector::<1>(s);
-        v.mul_row_vector::<2>(s)
-    }
-
-    ///TODO: make primary instead of [rgb_to_xyz] in the next major version
-    pub(crate) const fn rgb_to_xyz_static(xyz_matrix: Matrix3f, wp: Xyz) -> Matrix3f {
+    pub const fn rgb_to_xyz(xyz_matrix: Matrix3f, wp: Xyz) -> Matrix3f {
         let xyz_inverse = xyz_matrix.inverse();
         let s = xyz_inverse.mul_vector(wp.to_vector());
         let mut v = xyz_matrix.mul_row_vector::<0>(s);
