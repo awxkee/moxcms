@@ -80,76 +80,73 @@ where
     u32: AsPrimitive<T>,
     (): LutBarycentricReduction<T, U>,
 {
-    #[allow(unused_unsafe)]
     #[target_feature(enable = "avx2")]
-    unsafe fn transform_chunk(
+    fn transform_chunk(
         &self,
         src: &[T],
         dst: &mut [T],
         interpolator: Box<dyn AvxMdInterpolationQ0_15 + Send + Sync>,
     ) {
-        unsafe {
-            let src_cn = Layout::from(SRC_LAYOUT);
-            let src_channels = src_cn.channels();
+        let src_cn = Layout::from(SRC_LAYOUT);
+        let src_channels = src_cn.channels();
 
-            let dst_cn = Layout::from(DST_LAYOUT);
-            let dst_channels = dst_cn.channels();
+        let dst_cn = Layout::from(DST_LAYOUT);
+        let dst_channels = dst_cn.channels();
 
-            let f_value_scale = _mm_set1_ps(1. / ((1 << 14i32) - 1) as f32);
-            let max_value = ((1u32 << BIT_DEPTH) - 1).as_();
-            let v_max_scale = if T::FINITE {
-                _mm_set1_epi16(((1i32 << BIT_DEPTH) - 1) as i16)
+        let f_value_scale = _mm_set1_ps(1. / ((1 << 14i32) - 1) as f32);
+        let max_value = ((1u32 << BIT_DEPTH) - 1).as_();
+        let v_max_scale = if T::FINITE {
+            _mm_set1_epi16(((1i32 << BIT_DEPTH) - 1) as i16)
+        } else {
+            _mm_set1_epi16(((1i32 << 14i32) - 1) as i16)
+        };
+
+        for (src, dst) in src
+            .chunks_exact(src_channels)
+            .zip(dst.chunks_exact_mut(dst_channels))
+        {
+            let x = <() as LutBarycentricReduction<T, U>>::reduce::<BIT_DEPTH, BARYCENTRIC_BINS>(
+                src[src_cn.r_i()],
+            );
+            let y = <() as LutBarycentricReduction<T, U>>::reduce::<BIT_DEPTH, BARYCENTRIC_BINS>(
+                src[src_cn.g_i()],
+            );
+            let z = <() as LutBarycentricReduction<T, U>>::reduce::<BIT_DEPTH, BARYCENTRIC_BINS>(
+                src[src_cn.b_i()],
+            );
+
+            let a = if src_channels == 4 {
+                src[src_cn.a_i()]
             } else {
-                _mm_set1_epi16(((1i32 << 14i32) - 1) as i16)
+                max_value
             };
 
-            for (src, dst) in src
-                .chunks_exact(src_channels)
-                .zip(dst.chunks_exact_mut(dst_channels))
-            {
-                let x = <() as LutBarycentricReduction<T, U>>::reduce::<BIT_DEPTH, BARYCENTRIC_BINS>(
-                    src[src_cn.r_i()],
-                );
-                let y = <() as LutBarycentricReduction<T, U>>::reduce::<BIT_DEPTH, BARYCENTRIC_BINS>(
-                    src[src_cn.g_i()],
-                );
-                let z = <() as LutBarycentricReduction<T, U>>::reduce::<BIT_DEPTH, BARYCENTRIC_BINS>(
-                    src[src_cn.b_i()],
-                );
+            let v = interpolator.inter3_sse(
+                &self.lut,
+                x.as_(),
+                y.as_(),
+                z.as_(),
+                self.weights.as_slice(),
+            );
+            if T::FINITE {
+                let mut o = _mm_max_epi16(v.v, _mm_setzero_si128());
+                o = _mm_min_epi16(o, v_max_scale);
+                let x = _mm_extract_epi16::<0>(o);
+                let y = _mm_extract_epi16::<1>(o);
+                let z = _mm_extract_epi16::<2>(o);
 
-                let a = if src_channels == 4 {
-                    src[src_cn.a_i()]
-                } else {
-                    max_value
-                };
-
-                let v = interpolator.inter3_sse(
-                    &self.lut,
-                    x.as_(),
-                    y.as_(),
-                    z.as_(),
-                    self.weights.as_slice(),
-                );
-                if T::FINITE {
-                    let mut o = _mm_max_epi16(v.v, _mm_setzero_si128());
-                    o = _mm_min_epi16(o, v_max_scale);
-                    let x = _mm_extract_epi16::<0>(o);
-                    let y = _mm_extract_epi16::<1>(o);
-                    let z = _mm_extract_epi16::<2>(o);
-
-                    dst[dst_cn.r_i()] = (x as u32).as_();
-                    dst[dst_cn.g_i()] = (y as u32).as_();
-                    dst[dst_cn.b_i()] = (z as u32).as_();
-                } else {
-                    let mut r = _mm_cvtepi32_ps(_mm_cvtepi16_epi32(v.v));
-                    r = _mm_mul_ps(r, f_value_scale);
-                    dst[dst_cn.r_i()] = f32::from_bits(_mm_extract_ps::<0>(r) as u32).as_();
-                    dst[dst_cn.g_i()] = f32::from_bits(_mm_extract_ps::<1>(r) as u32).as_();
-                    dst[dst_cn.b_i()] = f32::from_bits(_mm_extract_ps::<2>(r) as u32).as_();
-                }
-                if dst_channels == 4 {
-                    dst[dst_cn.a_i()] = a;
-                }
+                dst[dst_cn.r_i()] = (x as u32).as_();
+                dst[dst_cn.g_i()] = (y as u32).as_();
+                dst[dst_cn.b_i()] = (z as u32).as_();
+            } else {
+                let mut r = _mm_cvtepi32_ps(_mm_cvtepi16_epi32(v.v));
+                r = _mm_mul_ps(r, f_value_scale);
+                dst[dst_cn.r_i()] = f32::from_bits(_mm_extract_ps::<0>(r) as u32).as_();
+                dst[dst_cn.g_i()] = f32::from_bits(_mm_extract_ps::<1>(r) as u32).as_();
+                dst[dst_cn.b_i()] = f32::from_bits(_mm_extract_ps::<2>(r) as u32).as_();
+            }
+            if dst_channels == 4 {
+                dst[dst_cn.a_i()] = a;
             }
         }
     }

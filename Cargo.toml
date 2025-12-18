@@ -14,11 +14,12 @@ categories = ["multimedia::images"]
 homepage = "https://github.com/awxkee/moxcms"
 repository = "https://github.com/awxkee/moxcms.git"
 exclude = ["*.jpg", "../../assets/*", "*.png", "*.icc", "./assets/*"]
-rust-version = "1.85.0"
+rust-version = "1.88.0"
 
 [dependencies]
 num-traits = "0.2"
 pxfm = "^0.1.1"
+safe_unaligned_simd = "0.2.3"
 
 [dev-dependencies]
 rand = "0.9"

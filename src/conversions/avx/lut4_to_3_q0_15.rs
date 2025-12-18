@@ -68,86 +68,83 @@ where
     u32: AsPrimitive<T>,
     (): LutBarycentricReduction<T, U>,
 {
-    #[allow(unused_unsafe)]
     #[target_feature(enable = "avx2")]
-    unsafe fn transform_chunk(
+    fn transform_chunk(
         &self,
         src: &[T],
         dst: &mut [T],
         interpolator: Box<dyn AvxMdInterpolationQ0_15Double + Send + Sync>,
     ) {
-        unsafe {
-            let cn = Layout::from(LAYOUT);
-            let channels = cn.channels();
-            let grid_size = GRID_SIZE as i32;
-            let grid_size3 = grid_size * grid_size * grid_size;
+        let cn = Layout::from(LAYOUT);
+        let channels = cn.channels();
+        let grid_size = GRID_SIZE as i32;
+        let grid_size3 = grid_size * grid_size * grid_size;
 
-            let f_value_scale = _mm_set1_ps(1. / ((1 << 14i32) - 1) as f32);
-            let max_value = ((1u32 << BIT_DEPTH) - 1).as_();
-            let v_max_scale = if T::FINITE {
-                _mm_set1_epi16(((1i32 << BIT_DEPTH) - 1) as i16)
+        let f_value_scale = _mm_set1_ps(1. / ((1 << 14i32) - 1) as f32);
+        let max_value = ((1u32 << BIT_DEPTH) - 1).as_();
+        let v_max_scale = if T::FINITE {
+            _mm_set1_epi16(((1i32 << BIT_DEPTH) - 1) as i16)
+        } else {
+            _mm_set1_epi16(((1i32 << 14i32) - 1) as i16)
+        };
+
+        for (src, dst) in src.chunks_exact(4).zip(dst.chunks_exact_mut(channels)) {
+            let c = <() as LutBarycentricReduction<T, U>>::reduce::<BIT_DEPTH, BARYCENTRIC_BINS>(
+                src[0],
+            );
+            let m = <() as LutBarycentricReduction<T, U>>::reduce::<BIT_DEPTH, BARYCENTRIC_BINS>(
+                src[1],
+            );
+            let y = <() as LutBarycentricReduction<T, U>>::reduce::<BIT_DEPTH, BARYCENTRIC_BINS>(
+                src[2],
+            );
+            let k = <() as LutBarycentricReduction<T, U>>::reduce::<BIT_DEPTH, BARYCENTRIC_BINS>(
+                src[3],
+            );
+
+            let k_weights = self.weights[k.as_()];
+
+            let w: i32 = k_weights.x;
+            let w_n: i32 = k_weights.x_n;
+            const Q: i16 = ((1i32 << 15) - 1) as i16;
+            let t: i16 = k_weights.w;
+            let t_n: i16 = Q - t;
+
+            let table1 = &self.lut[(w * grid_size3) as usize..];
+            let table2 = &self.lut[(w_n * grid_size3) as usize..];
+
+            let v = interpolator.inter3_sse(
+                table1,
+                table2,
+                c.as_(),
+                m.as_(),
+                y.as_(),
+                self.weights.as_slice(),
+            );
+            let (a0, b0) = (v.0.v, v.1.v);
+
+            let hp = _mm_mulhrs_epi16(_mm_set1_epi16(t_n), a0);
+            let v = _mm_add_epi16(hp, _mm_mulhrs_epi16(b0, _mm_set1_epi16(t)));
+
+            if T::FINITE {
+                let mut o = _mm_max_epi16(v, _mm_setzero_si128());
+                o = _mm_min_epi16(o, v_max_scale);
+                let x = _mm_extract_epi16::<0>(o);
+                let y = _mm_extract_epi16::<1>(o);
+                let z = _mm_extract_epi16::<2>(o);
+
+                dst[cn.r_i()] = (x as u32).as_();
+                dst[cn.g_i()] = (y as u32).as_();
+                dst[cn.b_i()] = (z as u32).as_();
             } else {
-                _mm_set1_epi16(((1i32 << 14i32) - 1) as i16)
-            };
-
-            for (src, dst) in src.chunks_exact(4).zip(dst.chunks_exact_mut(channels)) {
-                let c = <() as LutBarycentricReduction<T, U>>::reduce::<BIT_DEPTH, BARYCENTRIC_BINS>(
-                    src[0],
-                );
-                let m = <() as LutBarycentricReduction<T, U>>::reduce::<BIT_DEPTH, BARYCENTRIC_BINS>(
-                    src[1],
-                );
-                let y = <() as LutBarycentricReduction<T, U>>::reduce::<BIT_DEPTH, BARYCENTRIC_BINS>(
-                    src[2],
-                );
-                let k = <() as LutBarycentricReduction<T, U>>::reduce::<BIT_DEPTH, BARYCENTRIC_BINS>(
-                    src[3],
-                );
-
-                let k_weights = self.weights[k.as_()];
-
-                let w: i32 = k_weights.x;
-                let w_n: i32 = k_weights.x_n;
-                const Q: i16 = ((1i32 << 15) - 1) as i16;
-                let t: i16 = k_weights.w;
-                let t_n: i16 = Q - t;
-
-                let table1 = &self.lut[(w * grid_size3) as usize..];
-                let table2 = &self.lut[(w_n * grid_size3) as usize..];
-
-                let v = interpolator.inter3_sse(
-                    table1,
-                    table2,
-                    c.as_(),
-                    m.as_(),
-                    y.as_(),
-                    self.weights.as_slice(),
-                );
-                let (a0, b0) = (v.0.v, v.1.v);
-
-                let hp = _mm_mulhrs_epi16(_mm_set1_epi16(t_n), a0);
-                let v = _mm_add_epi16(hp, _mm_mulhrs_epi16(b0, _mm_set1_epi16(t)));
-
-                if T::FINITE {
-                    let mut o = _mm_max_epi16(v, _mm_setzero_si128());
-                    o = _mm_min_epi16(o, v_max_scale);
-                    let x = _mm_extract_epi16::<0>(o);
-                    let y = _mm_extract_epi16::<1>(o);
-                    let z = _mm_extract_epi16::<2>(o);
-
-                    dst[cn.r_i()] = (x as u32).as_();
-                    dst[cn.g_i()] = (y as u32).as_();
-                    dst[cn.b_i()] = (z as u32).as_();
-                } else {
-                    let mut r = _mm_cvtepi32_ps(_mm_cvtepi16_epi32(v));
-                    r = _mm_mul_ps(r, f_value_scale);
-                    dst[cn.r_i()] = f32::from_bits(_mm_extract_ps::<0>(r) as u32).as_();
-                    dst[cn.g_i()] = f32::from_bits(_mm_extract_ps::<1>(r) as u32).as_();
-                    dst[cn.b_i()] = f32::from_bits(_mm_extract_ps::<2>(r) as u32).as_();
-                }
-                if channels == 4 {
-                    dst[cn.a_i()] = max_value;
-                }
+                let mut r = _mm_cvtepi32_ps(_mm_cvtepi16_epi32(v));
+                r = _mm_mul_ps(r, f_value_scale);
+                dst[cn.r_i()] = f32::from_bits(_mm_extract_ps::<0>(r) as u32).as_();
+                dst[cn.g_i()] = f32::from_bits(_mm_extract_ps::<1>(r) as u32).as_();
+                dst[cn.b_i()] = f32::from_bits(_mm_extract_ps::<2>(r) as u32).as_();
+            }
+            if channels == 4 {
+                dst[cn.a_i()] = max_value;
             }
         }
     }
