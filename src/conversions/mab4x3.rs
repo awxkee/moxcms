@@ -26,6 +26,7 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+#![cfg(feature = "lut")]
 use crate::conversions::mab::{BCurves3, MCurves3};
 use crate::err::try_vec;
 use crate::safe_math::SafeMul;
@@ -113,7 +114,7 @@ impl ACurves4x3Optimized<'_> {
 
 impl Stage for ACurves4x3<'_> {
     fn transform(&self, src: &[f32], dst: &mut [f32]) -> Result<(), CmsError> {
-        let lut = Hypercube::new_checked_hypercube(self.clut, self.grid_size, 3)?;
+        let lut = Hypercube::new_hypercube(self.clut, self.grid_size, 3)?;
 
         // If PCS is LAB then linear interpolation should be used
         if self.pcs == DataColorSpace::Lab || self.pcs == DataColorSpace::Xyz {
@@ -143,7 +144,7 @@ impl Stage for ACurves4x3<'_> {
 
 impl Stage for ACurves4x3Optimized<'_> {
     fn transform(&self, src: &[f32], dst: &mut [f32]) -> Result<(), CmsError> {
-        let lut = Hypercube::new_checked_hypercube(self.clut, self.grid_size, 3)?;
+        let lut = Hypercube::new_hypercube(self.clut, self.grid_size, 3)?;
 
         // If PCS is LAB then linear interpolation should be used
         if self.pcs == DataColorSpace::Lab || self.pcs == DataColorSpace::Xyz {

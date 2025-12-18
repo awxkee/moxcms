@@ -26,6 +26,7 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+#![cfg(feature = "lut")]
 #![allow(dead_code)]
 use crate::conversions::LutBarycentricReduction;
 use crate::conversions::interpolator::{BarycentricWeight, MultidimensionalInterpolation};
@@ -37,6 +38,7 @@ use crate::{
 };
 use num_traits::AsPrimitive;
 use std::marker::PhantomData;
+use std::sync::Arc;
 
 pub(crate) struct TransformLut3x3<
     T,
@@ -216,7 +218,7 @@ impl Lut3x3Factory for DefaultLut3x3Factory {
         options: TransformOptions,
         color_space: DataColorSpace,
         is_linear: bool,
-    ) -> Box<dyn TransformExecutor<T> + Send + Sync>
+    ) -> Arc<dyn TransformExecutor<T> + Send + Sync>
     where
         f32: AsPrimitive<T>,
         u32: AsPrimitive<T>,
@@ -224,7 +226,7 @@ impl Lut3x3Factory for DefaultLut3x3Factory {
         (): LutBarycentricReduction<T, u16>,
     {
         match options.barycentric_weight_scale {
-            BarycentricWeightScale::Low => Box::new(TransformLut3x3::<
+            BarycentricWeightScale::Low => Arc::new(TransformLut3x3::<
                 T,
                 u8,
                 SRC_LAYOUT,
@@ -243,7 +245,7 @@ impl Lut3x3Factory for DefaultLut3x3Factory {
                 is_linear,
             }),
             #[cfg(feature = "options")]
-            BarycentricWeightScale::High => Box::new(TransformLut3x3::<
+            BarycentricWeightScale::High => Arc::new(TransformLut3x3::<
                 T,
                 u16,
                 SRC_LAYOUT,

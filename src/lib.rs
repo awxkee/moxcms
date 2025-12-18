@@ -74,6 +74,7 @@ mod yrg;
 mod chromaticity;
 mod dt_ucs;
 mod helpers;
+mod interceptors;
 mod lut_hint;
 mod matan;
 mod srlab2;
@@ -116,8 +117,8 @@ pub use rgb::{FusedExp, FusedExp2, FusedExp10, FusedLog, FusedLog2, FusedLog10, 
 pub use srlab2::Srlab2;
 pub use transform::{
     BarycentricWeightScale, InPlaceStage, InterpolationMethod, Layout, PointeeSizeExpressible,
-    Stage, Transform8BitExecutor, Transform16BitExecutor, TransformExecutor,
-    TransformF32BitExecutor, TransformF64BitExecutor, TransformOptions,
+    Stage, Transform8BitExecutor, Transform16BitExecutor, TransformExecutor, TransformF32Executor,
+    TransformF64Executor, TransformOptions,
 };
 pub use trc::{GammaLutInterpolate, ToneCurveEvaluator, ToneReprCurve, curve_from_gamma};
 pub use xyy::{XyY, XyYRepresentable};

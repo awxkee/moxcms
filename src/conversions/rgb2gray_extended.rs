@@ -26,12 +26,14 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+#![cfg(feature = "extended_range")]
 use crate::mlaf::mlaf;
 use crate::transform::PointeeSizeExpressible;
 use crate::trc::ToneCurveEvaluator;
 use crate::{CmsError, Layout, Rgb, TransformExecutor, Vector3f};
 use num_traits::AsPrimitive;
 use std::marker::PhantomData;
+use std::sync::Arc;
 
 struct TransformRgbToGrayExtendedExecutor<T, const SRC_LAYOUT: u8, const DST_LAYOUT: u8> {
     linear_eval: Box<dyn ToneCurveEvaluator + Send + Sync>,
@@ -50,7 +52,7 @@ pub(crate) fn make_rgb_to_gray_extended<
     gamma_eval: Box<dyn ToneCurveEvaluator + Send + Sync>,
     weights: Vector3f,
     bit_depth: usize,
-) -> Result<Box<dyn TransformExecutor<T> + Send + Sync>, CmsError>
+) -> Result<Arc<dyn TransformExecutor<T> + Send + Sync>, CmsError>
 where
     u32: AsPrimitive<T>,
     f32: AsPrimitive<T>,
@@ -59,7 +61,7 @@ where
         Layout::Rgb => match dst_layout {
             Layout::Rgb => Err(CmsError::UnsupportedProfileConnection),
             Layout::Rgba => Err(CmsError::UnsupportedProfileConnection),
-            Layout::Gray => Ok(Box::new(TransformRgbToGrayExtendedExecutor::<
+            Layout::Gray => Ok(Arc::new(TransformRgbToGrayExtendedExecutor::<
                 T,
                 { Layout::Rgb as u8 },
                 { Layout::Gray as u8 },
@@ -70,7 +72,7 @@ where
                 _phantom: PhantomData,
                 bit_depth,
             })),
-            Layout::GrayAlpha => Ok(Box::new(TransformRgbToGrayExtendedExecutor::<
+            Layout::GrayAlpha => Ok(Arc::new(TransformRgbToGrayExtendedExecutor::<
                 T,
                 { Layout::Rgb as u8 },
                 { Layout::GrayAlpha as u8 },
@@ -86,7 +88,7 @@ where
         Layout::Rgba => match dst_layout {
             Layout::Rgb => Err(CmsError::UnsupportedProfileConnection),
             Layout::Rgba => Err(CmsError::UnsupportedProfileConnection),
-            Layout::Gray => Ok(Box::new(TransformRgbToGrayExtendedExecutor::<
+            Layout::Gray => Ok(Arc::new(TransformRgbToGrayExtendedExecutor::<
                 T,
                 { Layout::Rgba as u8 },
                 { Layout::Gray as u8 },
@@ -97,7 +99,7 @@ where
                 _phantom: PhantomData,
                 bit_depth,
             })),
-            Layout::GrayAlpha => Ok(Box::new(TransformRgbToGrayExtendedExecutor::<
+            Layout::GrayAlpha => Ok(Arc::new(TransformRgbToGrayExtendedExecutor::<
                 T,
                 { Layout::Rgba as u8 },
                 { Layout::GrayAlpha as u8 },

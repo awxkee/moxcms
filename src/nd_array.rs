@@ -79,25 +79,7 @@ trait Fetcher4<T> {
 }
 
 impl Hypercube<'_> {
-    pub fn new(array: &[f32], grid_size: usize) -> Hypercube<'_> {
-        let z_stride = grid_size as u32;
-        let y_stride = z_stride * z_stride;
-        let x_stride = z_stride * z_stride * z_stride;
-        Hypercube {
-            array,
-            x_stride,
-            y_stride,
-            z_stride,
-            grid_size: [
-                grid_size as u8,
-                grid_size as u8,
-                grid_size as u8,
-                grid_size as u8,
-            ],
-        }
-    }
-
-    pub(crate) fn new_checked(
+    pub fn new(
         array: &[f32],
         grid_size: usize,
         channels: usize,
@@ -143,7 +125,7 @@ impl Hypercube<'_> {
         })
     }
 
-    pub(crate) fn new_checked_hypercube(
+    pub fn new_hypercube(
         array: &[f32],
         grid_size: [u8; 4],
         channels: usize,
@@ -186,19 +168,6 @@ impl Hypercube<'_> {
             z_stride,
             grid_size,
         })
-    }
-
-    pub fn new_hypercube(array: &[f32], grid_size: [u8; 4]) -> Hypercube<'_> {
-        let z_stride = grid_size[2] as u32;
-        let y_stride = z_stride * grid_size[1] as u32;
-        let x_stride = y_stride * grid_size[0] as u32;
-        Hypercube {
-            array,
-            x_stride,
-            y_stride,
-            z_stride,
-            grid_size,
-        }
     }
 }
 
@@ -264,25 +233,25 @@ impl Hypercube<'_> {
         lin_w: f32,
         r: impl Fetcher4<T>,
     ) -> T {
-        let lin_x = lin_x.max(0.0).min(1.0);
-        let lin_y = lin_y.max(0.0).min(1.0);
-        let lin_z = lin_z.max(0.0).min(1.0);
-        let lin_w = lin_w.max(0.0).min(1.0);
+        let lin_x = lin_x.max(0.0);
+        let lin_y = lin_y.max(0.0);
+        let lin_z = lin_z.max(0.0);
+        let lin_w = lin_w.max(0.0);
 
         let scale_x = (self.grid_size[0] as i32 - 1) as f32;
         let scale_y = (self.grid_size[1] as i32 - 1) as f32;
         let scale_z = (self.grid_size[2] as i32 - 1) as f32;
         let scale_w = (self.grid_size[3] as i32 - 1) as f32;
 
-        let x = (lin_x * scale_x).floor() as i32;
-        let y = (lin_y * scale_y).floor() as i32;
-        let z = (lin_z * scale_z).floor() as i32;
-        let w = (lin_w * scale_w).floor() as i32;
+        let x = (lin_x * scale_x).floor().min(scale_x) as i32;
+        let y = (lin_y * scale_y).floor().min(scale_y) as i32;
+        let z = (lin_z * scale_z).floor().min(scale_z) as i32;
+        let w = (lin_w * scale_w).floor().min(scale_w) as i32;
 
-        let x_n = (lin_x * scale_x).ceil() as i32;
-        let y_n = (lin_y * scale_y).ceil() as i32;
-        let z_n = (lin_z * scale_z).ceil() as i32;
-        let w_n = (lin_w * scale_w).ceil() as i32;
+        let x_n = (lin_x * scale_x).ceil().min(scale_x) as i32;
+        let y_n = (lin_y * scale_y).ceil().min(scale_y) as i32;
+        let z_n = (lin_z * scale_z).ceil().min(scale_z) as i32;
+        let w_n = (lin_w * scale_w).ceil().min(scale_w) as i32;
 
         let x_d = T::from(lin_x * scale_x - x as f32);
         let y_d = T::from(lin_y * scale_y - y as f32);
@@ -358,25 +327,25 @@ impl Hypercube<'_> {
         lin_w: f32,
         r: impl Fetcher4<T>,
     ) -> T {
-        let lin_x = lin_x.max(0.0).min(1.0);
-        let lin_y = lin_y.max(0.0).min(1.0);
-        let lin_z = lin_z.max(0.0).min(1.0);
-        let lin_w = lin_w.max(0.0).min(1.0);
+        let lin_x = lin_x.max(0.0);
+        let lin_y = lin_y.max(0.0);
+        let lin_z = lin_z.max(0.0);
+        let lin_w = lin_w.max(0.0);
 
         let scale_x = (self.grid_size[0] as i32 - 1) as f32;
         let scale_y = (self.grid_size[1] as i32 - 1) as f32;
         let scale_z = (self.grid_size[2] as i32 - 1) as f32;
         let scale_w = (self.grid_size[3] as i32 - 1) as f32;
 
-        let x = (lin_x * scale_x).floor() as i32;
-        let y = (lin_y * scale_y).floor() as i32;
-        let z = (lin_z * scale_z).floor() as i32;
-        let w = (lin_w * scale_w).floor() as i32;
+        let x = (lin_x * scale_x).floor().min(scale_x) as i32;
+        let y = (lin_y * scale_y).floor().min(scale_y) as i32;
+        let z = (lin_z * scale_z).floor().min(scale_z) as i32;
+        let w = (lin_w * scale_w).floor().min(scale_w) as i32;
 
-        let x_n = (lin_x * scale_x).ceil() as i32;
-        let y_n = (lin_y * scale_y).ceil() as i32;
-        let z_n = (lin_z * scale_z).ceil() as i32;
-        let w_n = (lin_w * scale_w).ceil() as i32;
+        let x_n = (lin_x * scale_x).ceil().min(scale_x) as i32;
+        let y_n = (lin_y * scale_y).ceil().min(scale_y) as i32;
+        let z_n = (lin_z * scale_z).ceil().min(scale_z) as i32;
+        let w_n = (lin_w * scale_w).ceil().min(scale_w) as i32;
 
         let dr = lin_x * scale_x - x as f32;
         let dg = lin_y * scale_y - y as f32;
@@ -538,25 +507,25 @@ impl Hypercube<'_> {
         lin_w: f32,
         r: impl Fetcher4<T>,
     ) -> T {
-        let lin_x = lin_x.max(0.0).min(1.0);
-        let lin_y = lin_y.max(0.0).min(1.0);
-        let lin_z = lin_z.max(0.0).min(1.0);
-        let lin_w = lin_w.max(0.0).min(1.0);
+        let lin_x = lin_x.max(0.0);
+        let lin_y = lin_y.max(0.0);
+        let lin_z = lin_z.max(0.0);
+        let lin_w = lin_w.max(0.0);
 
         let scale_x = (self.grid_size[0] as i32 - 1) as f32;
         let scale_y = (self.grid_size[1] as i32 - 1) as f32;
         let scale_z = (self.grid_size[2] as i32 - 1) as f32;
         let scale_w = (self.grid_size[3] as i32 - 1) as f32;
 
-        let x = (lin_x * scale_x).floor() as i32;
-        let y = (lin_y * scale_y).floor() as i32;
-        let z = (lin_z * scale_z).floor() as i32;
-        let w = (lin_w * scale_w).floor() as i32;
+        let x = (lin_x * scale_x).floor().min(scale_x) as i32;
+        let y = (lin_y * scale_y).floor().min(scale_y) as i32;
+        let z = (lin_z * scale_z).floor().min(scale_z) as i32;
+        let w = (lin_w * scale_w).floor().min(scale_w) as i32;
 
-        let x_n = (lin_x * scale_x).ceil() as i32;
-        let y_n = (lin_y * scale_y).ceil() as i32;
-        let z_n = (lin_z * scale_z).ceil() as i32;
-        let w_n = (lin_w * scale_w).ceil() as i32;
+        let x_n = (lin_x * scale_x).ceil().min(scale_x) as i32;
+        let y_n = (lin_y * scale_y).ceil().min(scale_y) as i32;
+        let z_n = (lin_z * scale_z).ceil().min(scale_z) as i32;
+        let w_n = (lin_w * scale_w).ceil().min(scale_w) as i32;
 
         let dr = lin_x * scale_x - x as f32;
         let dg = lin_y * scale_y - y as f32;
@@ -700,25 +669,25 @@ impl Hypercube<'_> {
         lin_w: f32,
         r: impl Fetcher4<T>,
     ) -> T {
-        let lin_x = lin_x.max(0.0).min(1.0);
-        let lin_y = lin_y.max(0.0).min(1.0);
-        let lin_z = lin_z.max(0.0).min(1.0);
-        let lin_w = lin_w.max(0.0).min(1.0);
+        let lin_x = lin_x.max(0.0);
+        let lin_y = lin_y.max(0.0);
+        let lin_z = lin_z.max(0.0);
+        let lin_w = lin_w.max(0.0);
 
         let scale_x = (self.grid_size[0] as i32 - 1) as f32;
         let scale_y = (self.grid_size[1] as i32 - 1) as f32;
         let scale_z = (self.grid_size[2] as i32 - 1) as f32;
         let scale_w = (self.grid_size[3] as i32 - 1) as f32;
 
-        let x = (lin_x * scale_x).floor() as i32;
-        let y = (lin_y * scale_y).floor() as i32;
-        let z = (lin_z * scale_z).floor() as i32;
-        let w = (lin_w * scale_w).floor() as i32;
+        let x = (lin_x * scale_x).floor().min(scale_x) as i32;
+        let y = (lin_y * scale_y).floor().min(scale_y) as i32;
+        let z = (lin_z * scale_z).floor().min(scale_z) as i32;
+        let w = (lin_w * scale_w).floor().min(scale_w) as i32;
 
-        let x_n = (lin_x * scale_x).ceil() as i32;
-        let y_n = (lin_y * scale_y).ceil() as i32;
-        let z_n = (lin_z * scale_z).ceil() as i32;
-        let w_n = (lin_w * scale_w).ceil() as i32;
+        let x_n = (lin_x * scale_x).ceil().min(scale_x) as i32;
+        let y_n = (lin_y * scale_y).ceil().min(scale_y) as i32;
+        let z_n = (lin_z * scale_z).ceil().min(scale_z) as i32;
+        let w_n = (lin_w * scale_w).ceil().min(scale_w) as i32;
 
         let rx = lin_x * scale_x - x as f32;
         let ry = lin_y * scale_y - y as f32;
@@ -895,22 +864,7 @@ impl ArrayFetch<Vector4f> for ArrayFetchVector4f<'_> {
 }
 
 impl Cube<'_> {
-    pub fn new(array: &[f32], grid_size: usize) -> Cube<'_> {
-        let y_stride = grid_size;
-        let x_stride = y_stride * y_stride;
-        Cube {
-            array,
-            x_stride: x_stride as u32,
-            y_stride: y_stride as u32,
-            grid_size: [grid_size as u8, grid_size as u8, grid_size as u8],
-        }
-    }
-
-    pub(crate) fn new_checked(
-        array: &[f32],
-        grid_size: usize,
-        channels: usize,
-    ) -> Result<Cube<'_>, CmsError> {
+    pub fn new(array: &[f32], grid_size: usize, channels: usize) -> Result<Cube<'_>, CmsError> {
         if array.is_empty() || grid_size == 0 {
             return Ok(Cube {
                 array,
@@ -943,18 +897,7 @@ impl Cube<'_> {
         })
     }
 
-    pub fn new_cube(array: &[f32], grid_size: [u8; 3]) -> Cube<'_> {
-        let y_stride = grid_size[2] as u32;
-        let x_stride = y_stride * grid_size[1] as u32;
-        Cube {
-            array,
-            x_stride,
-            y_stride,
-            grid_size,
-        }
-    }
-
-    pub(crate) fn new_checked_cube(
+    pub fn new_cube(
         array: &[f32],
         grid_size: [u8; 3],
         channels: usize,
@@ -1006,21 +949,21 @@ impl Cube<'_> {
         lin_z: f32,
         fetch: impl ArrayFetch<T>,
     ) -> T {
-        let lin_x = lin_x.max(0.0).min(1.0);
-        let lin_y = lin_y.max(0.0).min(1.0);
-        let lin_z = lin_z.max(0.0).min(1.0);
+        let lin_x = lin_x.max(0.0);
+        let lin_y = lin_y.max(0.0);
+        let lin_z = lin_z.max(0.0);
 
         let scale_x = (self.grid_size[0] as i32 - 1) as f32;
         let scale_y = (self.grid_size[1] as i32 - 1) as f32;
         let scale_z = (self.grid_size[2] as i32 - 1) as f32;
 
-        let x = (lin_x * scale_x).floor() as i32;
-        let y = (lin_y * scale_y).floor() as i32;
-        let z = (lin_z * scale_z).floor() as i32;
+        let x = (lin_x * scale_x).floor().min(scale_x) as i32;
+        let y = (lin_y * scale_y).floor().min(scale_y) as i32;
+        let z = (lin_z * scale_z).floor().min(scale_z) as i32;
 
-        let x_n = (lin_x * scale_x).ceil() as i32;
-        let y_n = (lin_y * scale_y).ceil() as i32;
-        let z_n = (lin_z * scale_z).ceil() as i32;
+        let x_n = (lin_x * scale_x).ceil().min(scale_x) as i32;
+        let y_n = (lin_y * scale_y).ceil().min(scale_y) as i32;
+        let z_n = (lin_z * scale_z).ceil().min(scale_z) as i32;
 
         let x_d = T::from(lin_x * scale_x - x as f32);
         let y_d = T::from(lin_y * scale_y - y as f32);
@@ -1062,21 +1005,21 @@ impl Cube<'_> {
         lin_z: f32,
         fetch: impl ArrayFetch<T>,
     ) -> T {
-        let lin_x = lin_x.max(0.0).min(1.0);
-        let lin_y = lin_y.max(0.0).min(1.0);
-        let lin_z = lin_z.max(0.0).min(1.0);
+        let lin_x = lin_x.max(0.0);
+        let lin_y = lin_y.max(0.0);
+        let lin_z = lin_z.max(0.0);
 
         let scale_x = (self.grid_size[0] as i32 - 1) as f32;
         let scale_y = (self.grid_size[1] as i32 - 1) as f32;
         let scale_z = (self.grid_size[2] as i32 - 1) as f32;
 
-        let x = (lin_x * scale_x).floor() as i32;
-        let y = (lin_y * scale_y).floor() as i32;
-        let z = (lin_z * scale_z).floor() as i32;
+        let x = (lin_x * scale_x).floor().min(scale_x) as i32;
+        let y = (lin_y * scale_y).floor().min(scale_y) as i32;
+        let z = (lin_z * scale_z).floor().min(scale_z) as i32;
 
-        let x_n = (lin_x * scale_x).ceil() as i32;
-        let y_n = (lin_y * scale_y).ceil() as i32;
-        let z_n = (lin_z * scale_z).ceil() as i32;
+        let x_n = (lin_x * scale_x).ceil().min(scale_x) as i32;
+        let y_n = (lin_y * scale_y).ceil().min(scale_y) as i32;
+        let z_n = (lin_z * scale_z).ceil().min(scale_z) as i32;
 
         let dr = lin_x * scale_x - x as f32;
         let dg = lin_y * scale_y - y as f32;
@@ -1148,21 +1091,21 @@ impl Cube<'_> {
         lin_z: f32,
         fetch: impl ArrayFetch<T>,
     ) -> T {
-        let lin_x = lin_x.max(0.0).min(1.0);
-        let lin_y = lin_y.max(0.0).min(1.0);
-        let lin_z = lin_z.max(0.0).min(1.0);
+        let lin_x = lin_x.max(0.0);
+        let lin_y = lin_y.max(0.0);
+        let lin_z = lin_z.max(0.0);
 
         let scale_x = (self.grid_size[0] as i32 - 1) as f32;
         let scale_y = (self.grid_size[1] as i32 - 1) as f32;
         let scale_z = (self.grid_size[2] as i32 - 1) as f32;
 
-        let x = (lin_x * scale_x).floor() as i32;
-        let y = (lin_y * scale_y).floor() as i32;
-        let z = (lin_z * scale_z).floor() as i32;
+        let x = (lin_x * scale_x).floor().min(scale_x) as i32;
+        let y = (lin_y * scale_y).floor().min(scale_y) as i32;
+        let z = (lin_z * scale_z).floor().min(scale_z) as i32;
 
-        let x_n = (lin_x * scale_x).ceil() as i32;
-        let y_n = (lin_y * scale_y).ceil() as i32;
-        let z_n = (lin_z * scale_z).ceil() as i32;
+        let x_n = (lin_x * scale_x).ceil().min(scale_x) as i32;
+        let y_n = (lin_y * scale_y).ceil().min(scale_y) as i32;
+        let z_n = (lin_z * scale_z).ceil().min(scale_z) as i32;
 
         let rx = lin_x * scale_x - x as f32;
         let ry = lin_y * scale_y - y as f32;
@@ -1226,21 +1169,21 @@ impl Cube<'_> {
         lin_z: f32,
         fetch: impl ArrayFetch<T>,
     ) -> T {
-        let lin_x = lin_x.max(0.0).min(1.0);
-        let lin_y = lin_y.max(0.0).min(1.0);
-        let lin_z = lin_z.max(0.0).min(1.0);
+        let lin_x = lin_x.max(0.0);
+        let lin_y = lin_y.max(0.0);
+        let lin_z = lin_z.max(0.0);
 
         let scale_x = (self.grid_size[0] as i32 - 1) as f32;
         let scale_y = (self.grid_size[1] as i32 - 1) as f32;
         let scale_z = (self.grid_size[2] as i32 - 1) as f32;
 
-        let x = (lin_x * scale_x).floor() as i32;
-        let y = (lin_y * scale_y).floor() as i32;
-        let z = (lin_z * scale_z).floor() as i32;
+        let x = (lin_x * scale_x).floor().min(scale_x) as i32;
+        let y = (lin_y * scale_y).floor().min(scale_y) as i32;
+        let z = (lin_z * scale_z).floor().min(scale_z) as i32;
 
-        let x_n = (lin_x * scale_x).ceil() as i32;
-        let y_n = (lin_y * scale_y).ceil() as i32;
-        let z_n = (lin_z * scale_z).ceil() as i32;
+        let x_n = (lin_x * scale_x).ceil().min(scale_x) as i32;
+        let y_n = (lin_y * scale_y).ceil().min(scale_y) as i32;
+        let z_n = (lin_z * scale_z).ceil().min(scale_z) as i32;
 
         let dr = lin_x * scale_x - x as f32;
         let dg = lin_y * scale_y - y as f32;

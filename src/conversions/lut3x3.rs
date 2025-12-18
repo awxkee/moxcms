@@ -26,15 +26,15 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+#![cfg(feature = "lut")]
+#[cfg(feature = "any_to_any")]
 use crate::conversions::katana::{KatanaFinalStage, KatanaInitialStage};
 use crate::err::{MalformedSize, try_vec};
 use crate::profile::LutDataType;
 use crate::safe_math::{SafeMul, SafePowi};
 use crate::trc::lut_interp_linear_float;
-use crate::{
-    CmsError, Cube, DataColorSpace, InterpolationMethod, PointeeSizeExpressible, Stage,
-    TransformOptions, Vector3f,
-};
+use crate::*;
+#[cfg(feature = "any_to_any")]
 use num_traits::AsPrimitive;
 
 #[derive(Default)]
@@ -47,6 +47,7 @@ struct Lut3x3 {
     pcs: DataColorSpace,
 }
 
+#[cfg(feature = "any_to_any")]
 #[derive(Default)]
 struct KatanaLut3x3<T: Copy + Default> {
     input: [Vec<f32>; 3],
@@ -141,6 +142,7 @@ fn stage_lut_3x3(
     Ok(Box::new(transform))
 }
 
+#[cfg(feature = "any_to_any")]
 pub(crate) fn katana_input_stage_lut_3x3<
     T: Copy + Default + AsPrimitive<f32> + PointeeSizeExpressible + Send + Sync,
 >(
@@ -168,6 +170,7 @@ where
     Ok(Box::new(transform))
 }
 
+#[cfg(feature = "any_to_any")]
 pub(crate) fn katana_output_stage_lut_3x3<
     T: Copy + Default + AsPrimitive<f32> + PointeeSizeExpressible + Send + Sync,
 >(
@@ -226,7 +229,7 @@ impl Lut3x3 {
 
 impl Stage for Lut3x3 {
     fn transform(&self, src: &[f32], dst: &mut [f32]) -> Result<(), CmsError> {
-        let l_tbl = Cube::new_checked(&self.clut, self.grid_size as usize, 3)?;
+        let l_tbl = Cube::new(&self.clut, self.grid_size as usize, 3)?;
 
         // If PCS is LAB then linear interpolation should be used
         if self.pcs == DataColorSpace::Lab || self.pcs == DataColorSpace::Xyz {
@@ -254,6 +257,7 @@ impl Stage for Lut3x3 {
     }
 }
 
+#[cfg(feature = "any_to_any")]
 impl<T: Copy + Default + PointeeSizeExpressible + AsPrimitive<f32>> KatanaLut3x3<T>
 where
     f32: AsPrimitive<T>,
@@ -344,13 +348,14 @@ where
     }
 }
 
+#[cfg(feature = "any_to_any")]
 impl<T: Copy + Default + PointeeSizeExpressible + AsPrimitive<f32>> KatanaInitialStage<f32, T>
     for KatanaLut3x3<T>
 where
     f32: AsPrimitive<T>,
 {
     fn to_pcs(&self, input: &[T]) -> Result<Vec<f32>, CmsError> {
-        let l_tbl = Cube::new_checked(&self.clut, self.grid_size as usize, 3)?;
+        let l_tbl = Cube::new(&self.clut, self.grid_size as usize, 3)?;
 
         // If PCS is LAB then linear interpolation should be used
         if self.pcs == DataColorSpace::Lab || self.pcs == DataColorSpace::Xyz {
@@ -377,13 +382,14 @@ where
     }
 }
 
+#[cfg(feature = "any_to_any")]
 impl<T: Copy + Default + PointeeSizeExpressible + AsPrimitive<f32>> KatanaFinalStage<f32, T>
     for KatanaLut3x3<T>
 where
     f32: AsPrimitive<T>,
 {
     fn to_output(&self, src: &mut [f32], dst: &mut [T]) -> Result<(), CmsError> {
-        let l_tbl = Cube::new_checked(&self.clut, self.grid_size as usize, 3)?;
+        let l_tbl = Cube::new(&self.clut, self.grid_size as usize, 3)?;
 
         // If PCS is LAB then linear interpolation should be used
         if self.pcs == DataColorSpace::Lab || self.pcs == DataColorSpace::Xyz {

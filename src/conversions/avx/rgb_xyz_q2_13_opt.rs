@@ -26,7 +26,8 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-use crate::conversions::avx::rgb_xyz::AvxAlignedU16;
+#![cfg(feature = "avx_shaper_fixed_point_paths")]
+use crate::conversions::avx::AvxAlignedU16;
 use crate::conversions::avx::rgb_xyz_q2_13::_xmm_broadcast_epi32;
 use crate::conversions::rgbxyz_fixed::TransformMatrixShaperFpOptVec;
 use crate::transform::PointeeSizeExpressible;

@@ -28,11 +28,9 @@
  */
 use crate::mlaf::{fmla, mlaf};
 use crate::transform::PointeeSizeExpressible;
-use crate::{Rgb, TransferCharacteristics};
+use crate::*;
 use num_traits::AsPrimitive;
-use pxfm::{
-    dirty_powf, f_exp, f_exp10, f_exp10f, f_expf, f_log, f_log10, f_log10f, f_logf, f_pow, f_powf,
-};
+use pxfm::*;
 
 #[inline]
 /// Linear transfer function for sRGB
@@ -52,6 +50,7 @@ fn srgb_to_linear(gamma: f64) -> f64 {
 }
 
 #[inline]
+#[cfg(feature = "extended_range")]
 /// Linear transfer function for sRGB
 fn srgb_to_linearf_extended(gamma: f32) -> f32 {
     if gamma < 12.92 * 0.0030412825601275209 {
@@ -79,8 +78,8 @@ fn srgb_from_linear(linear: f64) -> f64 {
     }
 }
 
-#[inline]
 /// Gamma transfer function for sRGB
+#[cfg(feature = "extended_range")]
 pub(crate) fn srgb_from_linear_extended(linear: f32) -> f32 {
     if linear < 0.0030412825601275209f32 {
         linear * 12.92f32
@@ -111,6 +110,7 @@ fn rec709_to_linear(gamma: f64) -> f64 {
 }
 
 #[inline]
+#[cfg(feature = "extended_range")]
 /// Linear transfer function for Rec.709
 fn rec709_to_linearf_extended(gamma: f32) -> f32 {
     if gamma < 4.5 * 0.018053968510807 {
@@ -138,8 +138,8 @@ fn rec709_from_linear(linear: f64) -> f64 {
     }
 }
 
-#[inline]
 /// Gamma transfer function for Rec.709
+#[cfg(feature = "extended_range")]
 fn rec709_from_linearf_extended(linear: f32) -> f32 {
     if linear < 0.018053968510807 {
         linear * 4.5
@@ -152,35 +152,32 @@ fn rec709_from_linearf_extended(linear: f32) -> f32 {
     }
 }
 
-#[inline]
 /// Linear transfer function for Smpte 428
 pub(crate) fn smpte428_to_linear(gamma: f64) -> f64 {
     const SCALE: f64 = 1. / 0.91655527974030934f64;
     f_pow(gamma.max(0.).min(1f64), 2.6f64) * SCALE
 }
 
-#[inline]
+#[cfg(feature = "extended_range")]
 /// Linear transfer function for Smpte 428
 pub(crate) fn smpte428_to_linearf_extended(gamma: f32) -> f32 {
     const SCALE: f32 = 1. / 0.91655527974030934;
     dirty_powf(gamma.max(0.), 2.6) * SCALE
 }
 
-#[inline]
 /// Gamma transfer function for Smpte 428
 fn smpte428_from_linear(linear: f64) -> f64 {
     const POWER_VALUE: f64 = 1.0f64 / 2.6f64;
     f_pow(0.91655527974030934f64 * linear.max(0.), POWER_VALUE)
 }
 
-#[inline]
+#[cfg(feature = "extended_range")]
 /// Gamma transfer function for Smpte 428
 fn smpte428_from_linearf(linear: f32) -> f32 {
     const POWER_VALUE: f32 = 1.0 / 2.6;
     dirty_powf(0.91655527974030934 * linear.max(0.), POWER_VALUE)
 }
 
-#[inline]
 /// Linear transfer function for Smpte 240
 pub(crate) fn smpte240_to_linear(gamma: f64) -> f64 {
     if gamma < 0.0 {
@@ -194,7 +191,7 @@ pub(crate) fn smpte240_to_linear(gamma: f64) -> f64 {
     }
 }
 
-#[inline]
+#[cfg(feature = "extended_range")]
 /// Linear transfer function for Smpte 240
 pub(crate) fn smpte240_to_linearf_extended(gamma: f32) -> f32 {
     if gamma < 4.0 * 0.022821585529445 {
@@ -204,7 +201,6 @@ pub(crate) fn smpte240_to_linearf_extended(gamma: f32) -> f32 {
     }
 }
 
-#[inline]
 /// Gamma transfer function for Smpte 240
 fn smpte240_from_linear(linear: f64) -> f64 {
     if linear < 0.0 {
@@ -218,7 +214,7 @@ fn smpte240_from_linear(linear: f64) -> f64 {
     }
 }
 
-#[inline]
+#[cfg(feature = "extended_range")]
 /// Gamma transfer function for Smpte 240
 fn smpte240_from_linearf_extended(linear: f32) -> f32 {
     if linear < 0.022821585529445 {
@@ -238,7 +234,7 @@ fn log100_from_linear(linear: f64) -> f64 {
     }
 }
 
-#[inline]
+#[cfg(feature = "extended_range")]
 /// Gamma transfer function for Log100
 fn log100_from_linearf(linear: f32) -> f32 {
     if linear <= 0.01 {
@@ -248,7 +244,6 @@ fn log100_from_linearf(linear: f32) -> f32 {
     }
 }
 
-#[inline]
 /// Linear transfer function for Log100
 pub(crate) fn log100_to_linear(gamma: f64) -> f64 {
     // The function is non-bijective so choose the middle of [0, 0.00316227766f].
@@ -260,7 +255,7 @@ pub(crate) fn log100_to_linear(gamma: f64) -> f64 {
     }
 }
 
-#[inline]
+#[cfg(feature = "extended_range")]
 /// Linear transfer function for Log100
 pub(crate) fn log100_to_linearf(gamma: f32) -> f32 {
     // The function is non-bijective so choose the middle of [0, 0.00316227766f].
@@ -284,7 +279,7 @@ pub(crate) fn log100_sqrt10_to_linear(gamma: f64) -> f64 {
     }
 }
 
-#[inline]
+#[cfg(feature = "extended_range")]
 /// Linear transfer function for Log100Sqrt10
 pub(crate) fn log100_sqrt10_to_linearf(gamma: f32) -> f32 {
     // The function is non-bijective so choose the middle of [0, 0.00316227766f].
@@ -296,7 +291,6 @@ pub(crate) fn log100_sqrt10_to_linearf(gamma: f32) -> f32 {
     }
 }
 
-#[inline]
 /// Gamma transfer function for Log100Sqrt10
 fn log100_sqrt10_from_linear(linear: f64) -> f64 {
     if linear <= 0.00316227766 {
@@ -306,7 +300,7 @@ fn log100_sqrt10_from_linear(linear: f64) -> f64 {
     }
 }
 
-#[inline]
+#[cfg(feature = "extended_range")]
 /// Gamma transfer function for Log100Sqrt10
 fn log100_sqrt10_from_linearf(linear: f32) -> f32 {
     if linear <= 0.00316227766 {
@@ -316,7 +310,6 @@ fn log100_sqrt10_from_linearf(linear: f32) -> f32 {
     }
 }
 
-#[inline]
 /// Gamma transfer function for Bt.1361
 fn bt1361_from_linear(linear: f64) -> f64 {
     if linear < -0.25 {
@@ -336,7 +329,7 @@ fn bt1361_from_linear(linear: f64) -> f64 {
     }
 }
 
-#[inline]
+#[cfg(feature = "extended_range")]
 /// Gamma transfer function for Bt.1361
 fn bt1361_from_linearf(linear: f32) -> f32 {
     if linear < -0.25 {
@@ -360,7 +353,6 @@ fn bt1361_from_linearf(linear: f32) -> f32 {
     }
 }
 
-#[inline]
 /// Linear transfer function for Bt.1361
 pub(crate) fn bt1361_to_linear(gamma: f64) -> f64 {
     if gamma < -0.25f64 {
@@ -379,7 +371,7 @@ pub(crate) fn bt1361_to_linear(gamma: f64) -> f64 {
     }
 }
 
-#[inline]
+#[cfg(feature = "extended_range")]
 /// Linear transfer function for Bt.1361
 fn bt1361_to_linearf(gamma: f32) -> f32 {
     if gamma < -0.25 {
@@ -407,13 +399,13 @@ fn pure_gamma_function(x: f64, gamma: f64) -> f64 {
     }
 }
 
+#[cfg(feature = "extended_range")]
 #[inline(always)]
 /// Pure gamma transfer function for gamma 2.2
 fn pure_gamma_function_f(x: f32, gamma: f32) -> f32 {
     if x <= 0. { 0. } else { dirty_powf(x, gamma) }
 }
 
-#[inline]
 pub(crate) fn iec61966_to_linear(gamma: f64) -> f64 {
     if gamma < -4.5f64 * 0.018053968510807f64 {
         f_pow(
@@ -430,7 +422,7 @@ pub(crate) fn iec61966_to_linear(gamma: f64) -> f64 {
     }
 }
 
-#[inline]
+#[cfg(feature = "extended_range")]
 fn iec61966_to_linearf(gamma: f32) -> f32 {
     if gamma < -4.5 * 0.018053968510807 {
         dirty_powf((-gamma + 0.09929682680944) / -1.09929682680944, 1.0 / 0.45)
@@ -441,7 +433,6 @@ fn iec61966_to_linearf(gamma: f32) -> f32 {
     }
 }
 
-#[inline]
 fn iec61966_from_linear(v: f64) -> f64 {
     if v < -0.018053968510807f64 {
         fmla(-1.09929682680944f64, f_pow(-v, 0.45), 0.09929682680944f64)
@@ -452,7 +443,7 @@ fn iec61966_from_linear(v: f64) -> f64 {
     }
 }
 
-#[inline]
+#[cfg(feature = "extended_range")]
 fn iec61966_from_linearf(v: f32) -> f32 {
     if v < -0.018053968510807 {
         fmla(-1.09929682680944, dirty_powf(-v, 0.45), 0.09929682680944)
@@ -469,6 +460,7 @@ fn gamma2p2_from_linear(linear: f64) -> f64 {
     pure_gamma_function(linear, 1f64 / 2.2f64)
 }
 
+#[cfg(feature = "extended_range")]
 #[inline]
 /// Pure gamma transfer function for gamma 2.2
 fn gamma2p2_from_linear_f(linear: f32) -> f32 {
@@ -481,6 +473,7 @@ fn gamma2p2_to_linear(gamma: f64) -> f64 {
     pure_gamma_function(gamma, 2.2f64)
 }
 
+#[cfg(feature = "extended_range")]
 #[inline]
 /// Linear transfer function for gamma 2.2
 fn gamma2p2_to_linear_f(gamma: f32) -> f32 {
@@ -493,6 +486,7 @@ fn gamma2p8_from_linear(linear: f64) -> f64 {
     pure_gamma_function(linear, 1f64 / 2.8f64)
 }
 
+#[cfg(feature = "extended_range")]
 #[inline]
 /// Pure gamma transfer function for gamma 2.8
 fn gamma2p8_from_linear_f(linear: f32) -> f32 {
@@ -505,6 +499,7 @@ fn gamma2p8_to_linear(gamma: f64) -> f64 {
     pure_gamma_function(gamma, 2.8f64)
 }
 
+#[cfg(feature = "extended_range")]
 #[inline]
 /// Linear transfer function for gamma 2.8
 fn gamma2p8_to_linear_f(gamma: f32) -> f32 {
@@ -524,7 +519,6 @@ pub(crate) fn pq_to_linear(gamma: f64) -> f64 {
     }
 }
 
-#[inline]
 /// Linear transfer function for PQ
 pub(crate) fn pq_to_linearf(gamma: f32) -> f32 {
     if gamma > 0.0 {
@@ -537,7 +531,6 @@ pub(crate) fn pq_to_linearf(gamma: f32) -> f32 {
     }
 }
 
-#[inline]
 /// Gamma transfer function for PQ
 fn pq_from_linear(linear: f64) -> f64 {
     if linear > 0.0 {
@@ -581,7 +574,7 @@ pub(crate) fn hlg_to_linear(gamma: f64) -> f64 {
     }
 }
 
-#[inline]
+#[cfg(feature = "extended_range")]
 /// Linear transfer function for HLG
 pub(crate) fn hlg_to_linearf(gamma: f32) -> f32 {
     if gamma < 0.0 {
@@ -597,7 +590,6 @@ pub(crate) fn hlg_to_linearf(gamma: f32) -> f32 {
     }
 }
 
-#[inline]
 /// Gamma transfer function for HLG
 fn hlg_from_linear(linear: f64) -> f64 {
     // Scale from extended SDR range to [0.0, 1.0].
@@ -617,7 +609,7 @@ fn hlg_from_linear(linear: f64) -> f64 {
     }
 }
 
-#[inline]
+#[cfg(feature = "extended_range")]
 /// Gamma transfer function for HLG
 fn hlg_from_linearf(linear: f32) -> f32 {
     // Scale from extended SDR range to [0.0, 1.0].
@@ -639,7 +631,6 @@ fn trc_linear(v: f64) -> f64 {
 }
 
 impl TransferCharacteristics {
-    #[inline]
     pub fn linearize(self, v: f64) -> f64 {
         match self {
             TransferCharacteristics::Reserved => 0f64,
@@ -663,7 +654,6 @@ impl TransferCharacteristics {
         }
     }
 
-    #[inline]
     pub fn gamma(self, v: f64) -> f64 {
         match self {
             TransferCharacteristics::Reserved => 0f64,
@@ -687,6 +677,7 @@ impl TransferCharacteristics {
         }
     }
 
+    #[cfg(feature = "extended_range")]
     pub(crate) fn extended_gamma_tristimulus(self) -> fn(Rgb<f32>) -> Rgb<f32> {
         match self {
             TransferCharacteristics::Reserved => |x| Rgb::new(x.r, x.g, x.b),
@@ -782,6 +773,7 @@ impl TransferCharacteristics {
         }
     }
 
+    #[cfg(feature = "extended_range")]
     pub(crate) fn extended_gamma_single(self) -> fn(f32) -> f32 {
         match self {
             TransferCharacteristics::Reserved => |x| x,
@@ -805,6 +797,7 @@ impl TransferCharacteristics {
         }
     }
 
+    #[cfg(feature = "extended_range")]
     pub(crate) fn extended_linear_tristimulus(self) -> fn(Rgb<f32>) -> Rgb<f32> {
         match self {
             TransferCharacteristics::Reserved => |x| Rgb::new(x.r, x.g, x.b),
@@ -896,6 +889,7 @@ impl TransferCharacteristics {
         }
     }
 
+    #[cfg(feature = "extended_range")]
     pub(crate) fn extended_linear_single(self) -> fn(f32) -> f32 {
         match self {
             TransferCharacteristics::Reserved => |x| x,
@@ -1027,6 +1021,7 @@ mod tests {
         assert!((0.5 - srgb_1).abs() < 1e-9f64);
     }
 
+    #[cfg(feature = "extended_range")]
     #[test]
     fn rec709f_test() {
         let srgb_0 = rec709_to_linearf_extended(0.5);
@@ -1034,6 +1029,7 @@ mod tests {
         assert!((0.5 - srgb_1).abs() < 1e-5f32);
     }
 
+    #[cfg(feature = "extended_range")]
     #[test]
     fn srgbf_test() {
         let srgb_0 = srgb_to_linearf_extended(0.5);

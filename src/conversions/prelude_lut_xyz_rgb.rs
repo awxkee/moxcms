@@ -26,10 +26,10 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+#![cfg(feature = "lut")]
 use crate::conversions::lut3x4::create_lut3_samples;
 use crate::err::try_vec;
 use crate::mlaf::mlaf;
-use crate::trc::ToneCurveEvaluator;
 use crate::{
     CmsError, ColorProfile, GammaLutInterpolate, InPlaceStage, Matrix3f, PointeeSizeExpressible,
     RenderingIntent, Rgb, TransformOptions, filmlike_clip,
@@ -108,12 +108,17 @@ impl<T: Clone + AsPrimitive<f32>> InPlaceStage for XyzToRgbStage<T> {
     }
 }
 
+#[cfg(feature = "extended_range")]
+use crate::trc::ToneCurveEvaluator;
+
+#[cfg(feature = "extended_range")]
 pub(crate) struct XyzToRgbStageExtended<T: Clone> {
     pub(crate) gamma_evaluator: Box<dyn ToneCurveEvaluator>,
     pub(crate) matrices: Vec<Matrix3f>,
     pub(crate) phantom_data: PhantomData<T>,
 }
 
+#[cfg(feature = "extended_range")]
 impl<T: Clone + AsPrimitive<f32>> InPlaceStage for XyzToRgbStageExtended<T> {
     fn transform(&self, dst: &mut [f32]) -> Result<(), CmsError> {
         if !self.matrices.is_empty() {
@@ -268,7 +273,8 @@ where
     f32: AsPrimitive<T>,
     u32: AsPrimitive<T>,
 {
-    if !T::FINITE {
+    #[cfg(feature = "extended_range")]
+    if !T::FINITE && options.allow_extended_range_rgb_xyz {
         if let Some(extended_gamma) = dest.try_extended_gamma_evaluator() {
             let xyz_to_rgb = dest.rgb_to_xyz_matrix().inverse();
 

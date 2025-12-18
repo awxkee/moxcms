@@ -159,7 +159,7 @@ impl<T: Copy + Default + AsPrimitive<f32> + PointeeSizeExpressible + Send + Sync
         }
         let fixed_new_clut = Vec::new();
         let new_clut = self.clut.as_ref().unwrap_or(&fixed_new_clut);
-        let lut = Hypercube::new_checked_hypercube(new_clut, self.grid_size, 3)?;
+        let lut = Hypercube::new_hypercube(new_clut, self.grid_size, 3)?;
 
         let mut new_dst = vec![0f32; (input.len() / 4) * 3];
 

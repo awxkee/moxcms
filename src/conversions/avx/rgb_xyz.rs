@@ -26,15 +26,13 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+#![cfg(feature = "avx_shaper_paths")]
 use crate::conversions::TransformMatrixShaper;
+use crate::conversions::avx::AvxAlignedU16;
 use crate::transform::PointeeSizeExpressible;
 use crate::{CmsError, Layout, TransformExecutor};
 use num_traits::AsPrimitive;
 use std::arch::x86_64::*;
-
-#[repr(align(32), C)]
-#[derive(Debug)]
-pub(crate) struct AvxAlignedU16(pub(crate) [u16; 16]);
 
 pub(crate) struct TransformShaperRgbAvx<
     T: Clone + Copy + 'static + PointeeSizeExpressible + Default,

@@ -26,13 +26,14 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+#![cfg(feature = "neon_luts")]
 use crate::conversions::LutBarycentricReduction;
 use crate::conversions::interpolator::BarycentricWeight;
 use crate::conversions::lut_transforms::Lut4x3Factory;
+use crate::conversions::neon::NeonAlignedF32;
 use crate::conversions::neon::interpolator::*;
 use crate::conversions::neon::interpolator_q0_15::NeonAlignedI16x4;
 use crate::conversions::neon::lut4_to_3_q0_15::TransformLut4To3NeonQ0_15;
-use crate::conversions::neon::rgb_xyz::NeonAlignedF32;
 use crate::transform::PointeeSizeExpressible;
 use crate::{
     BarycentricWeightScale, CmsError, DataColorSpace, InterpolationMethod, Layout,
@@ -41,6 +42,7 @@ use crate::{
 use num_traits::AsPrimitive;
 use std::arch::aarch64::*;
 use std::marker::PhantomData;
+use std::sync::Arc;
 
 struct TransformLut4To3Neon<
     T,
@@ -227,7 +229,7 @@ impl Lut4x3Factory for NeonLut4x3Factory {
         options: TransformOptions,
         color_space: DataColorSpace,
         is_linear: bool,
-    ) -> Box<dyn TransformExecutor<T> + Sync + Send>
+    ) -> Arc<dyn TransformExecutor<T> + Sync + Send>
     where
         f32: AsPrimitive<T>,
         u32: AsPrimitive<T>,
@@ -255,7 +257,7 @@ impl Lut4x3Factory for NeonLut4x3Factory {
                 })
                 .collect::<Vec<_>>();
             return match options.barycentric_weight_scale {
-                BarycentricWeightScale::Low => Box::new(TransformLut4To3NeonQ0_15::<
+                BarycentricWeightScale::Low => Arc::new(TransformLut4To3NeonQ0_15::<
                     T,
                     u8,
                     LAYOUT,
@@ -273,7 +275,7 @@ impl Lut4x3Factory for NeonLut4x3Factory {
                     is_linear,
                 }),
                 #[cfg(feature = "options")]
-                BarycentricWeightScale::High => Box::new(TransformLut4To3NeonQ0_15::<
+                BarycentricWeightScale::High => Arc::new(TransformLut4To3NeonQ0_15::<
                     T,
                     u16,
                     LAYOUT,
@@ -298,7 +300,7 @@ impl Lut4x3Factory for NeonLut4x3Factory {
             .collect::<Vec<_>>();
         match options.barycentric_weight_scale {
             BarycentricWeightScale::Low => {
-                Box::new(
+                Arc::new(
                     TransformLut4To3Neon::<T, u8, LAYOUT, GRID_SIZE, BIT_DEPTH, 256, 256> {
                         lut,
                         _phantom: PhantomData,
@@ -312,7 +314,7 @@ impl Lut4x3Factory for NeonLut4x3Factory {
             }
             #[cfg(feature = "options")]
             BarycentricWeightScale::High => {
-                Box::new(
+                Arc::new(
                     TransformLut4To3Neon::<T, u16, LAYOUT, GRID_SIZE, BIT_DEPTH, 65536, 65536> {
                         lut,
                         _phantom: PhantomData,

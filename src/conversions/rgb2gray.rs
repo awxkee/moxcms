@@ -30,6 +30,7 @@ use crate::mlaf::mlaf;
 use crate::transform::PointeeSizeExpressible;
 use crate::{CmsError, Layout, TransformExecutor, Vector3f};
 use num_traits::AsPrimitive;
+use std::sync::Arc;
 
 #[derive(Clone)]
 pub(crate) struct ToneReproductionRgbToGray<T, const BUCKET: usize> {
@@ -62,7 +63,7 @@ pub(crate) fn make_rgb_to_gray<
     weights: Vector3f,
     gamma_lut: usize,
     bit_depth: usize,
-) -> Result<Box<dyn TransformExecutor<T> + Send + Sync>, CmsError>
+) -> Result<Arc<dyn TransformExecutor<T> + Send + Sync>, CmsError>
 where
     u32: AsPrimitive<T>,
 {
@@ -70,7 +71,7 @@ where
         Layout::Rgb => match dst_layout {
             Layout::Rgb => Err(CmsError::UnsupportedProfileConnection),
             Layout::Rgba => Err(CmsError::UnsupportedProfileConnection),
-            Layout::Gray => Ok(Box::new(TransformRgbToGrayExecutor::<
+            Layout::Gray => Ok(Arc::new(TransformRgbToGrayExecutor::<
                 T,
                 { Layout::Rgb as u8 },
                 { Layout::Gray as u8 },
@@ -81,7 +82,7 @@ where
                 bit_depth,
                 gamma_lut,
             })),
-            Layout::GrayAlpha => Ok(Box::new(TransformRgbToGrayExecutor::<
+            Layout::GrayAlpha => Ok(Arc::new(TransformRgbToGrayExecutor::<
                 T,
                 { Layout::Rgb as u8 },
                 { Layout::GrayAlpha as u8 },
@@ -97,7 +98,7 @@ where
         Layout::Rgba => match dst_layout {
             Layout::Rgb => Err(CmsError::UnsupportedProfileConnection),
             Layout::Rgba => Err(CmsError::UnsupportedProfileConnection),
-            Layout::Gray => Ok(Box::new(TransformRgbToGrayExecutor::<
+            Layout::Gray => Ok(Arc::new(TransformRgbToGrayExecutor::<
                 T,
                 { Layout::Rgba as u8 },
                 { Layout::Gray as u8 },
@@ -108,7 +109,7 @@ where
                 bit_depth,
                 gamma_lut,
             })),
-            Layout::GrayAlpha => Ok(Box::new(TransformRgbToGrayExecutor::<
+            Layout::GrayAlpha => Ok(Arc::new(TransformRgbToGrayExecutor::<
                 T,
                 { Layout::Rgba as u8 },
                 { Layout::GrayAlpha as u8 },

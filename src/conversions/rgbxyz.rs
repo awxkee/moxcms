@@ -28,6 +28,7 @@
  */
 use crate::{CmsError, Layout, Matrix3, Matrix3f, TransformExecutor};
 use num_traits::AsPrimitive;
+use std::sync::Arc;
 
 pub(crate) struct TransformMatrixShaper<T: Clone, const BUCKET: usize> {
     pub(crate) r_linear: Box<[f32; BUCKET]>,
@@ -281,7 +282,7 @@ impl<T: Clone + PointeeSizeExpressible, const BUCKET: usize>
         }
     }
 
-    #[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
+    #[cfg(all(target_arch = "aarch64", feature = "neon_shaper_fixed_point_paths"))]
     pub(crate) fn to_q1_30_n<R: Copy + 'static + Default, const PRECISION: i32>(
         &self,
         gamma_lut: usize,
@@ -356,7 +357,7 @@ struct TransformMatrixShaperOptScalar<
 
 #[cfg(any(
     any(target_arch = "x86", target_arch = "x86_64"),
-    all(target_arch = "aarch64", target_feature = "neon")
+    target_arch = "aarch64"
 ))]
 #[allow(unused)]
 macro_rules! create_rgb_xyz_dependant_executor {
@@ -370,12 +371,12 @@ macro_rules! create_rgb_xyz_dependant_executor {
             profile: $shaper<T, LINEAR_CAP>,
             gamma_lut: usize,
             bit_depth: usize,
-        ) -> Result<Box<dyn TransformExecutor<T> + Send + Sync>, CmsError>
+        ) -> Result<Arc<dyn TransformExecutor<T> + Send + Sync>, CmsError>
         where
             u32: AsPrimitive<T>,
         {
             if (src_layout == Layout::Rgba) && (dst_layout == Layout::Rgba) {
-                return Ok(Box::new($dependant::<
+                return Ok(Arc::new($dependant::<
                     T,
                     { Layout::Rgba as u8 },
                     { Layout::Rgba as u8 },
@@ -386,7 +387,7 @@ macro_rules! create_rgb_xyz_dependant_executor {
                     gamma_lut,
                 }));
             } else if (src_layout == Layout::Rgb) && (dst_layout == Layout::Rgba) {
-                return Ok(Box::new($dependant::<
+                return Ok(Arc::new($dependant::<
                     T,
                     { Layout::Rgb as u8 },
                     { Layout::Rgba as u8 },
@@ -397,7 +398,7 @@ macro_rules! create_rgb_xyz_dependant_executor {
                     gamma_lut,
                 }));
             } else if (src_layout == Layout::Rgba) && (dst_layout == Layout::Rgb) {
-                return Ok(Box::new($dependant::<
+                return Ok(Arc::new($dependant::<
                     T,
                     { Layout::Rgba as u8 },
                     { Layout::Rgb as u8 },
@@ -408,7 +409,7 @@ macro_rules! create_rgb_xyz_dependant_executor {
                     gamma_lut,
                 }));
             } else if (src_layout == Layout::Rgb) && (dst_layout == Layout::Rgb) {
-                return Ok(Box::new($dependant::<
+                return Ok(Arc::new($dependant::<
                     T,
                     { Layout::Rgb as u8 },
                     { Layout::Rgb as u8 },
@@ -426,7 +427,7 @@ macro_rules! create_rgb_xyz_dependant_executor {
 
 #[cfg(any(
     any(target_arch = "x86", target_arch = "x86_64"),
-    all(target_arch = "aarch64", target_feature = "neon")
+    target_arch = "aarch64"
 ))]
 #[allow(unused)]
 macro_rules! create_rgb_xyz_dependant_executor_to_v {
@@ -440,13 +441,13 @@ macro_rules! create_rgb_xyz_dependant_executor_to_v {
             profile: $shaper<T, LINEAR_CAP>,
             gamma_lut: usize,
             bit_depth: usize,
-        ) -> Result<Box<dyn TransformExecutor<T> + Send + Sync>, CmsError>
+        ) -> Result<Arc<dyn TransformExecutor<T> + Send + Sync>, CmsError>
         where
             u32: AsPrimitive<T>,
         {
             let profile = profile.convert_to_v();
             if (src_layout == Layout::Rgba) && (dst_layout == Layout::Rgba) {
-                return Ok(Box::new($dependant::<
+                return Ok(Arc::new($dependant::<
                     T,
                     { Layout::Rgba as u8 },
                     { Layout::Rgba as u8 },
@@ -456,7 +457,7 @@ macro_rules! create_rgb_xyz_dependant_executor_to_v {
                     gamma_lut,
                 }));
             } else if (src_layout == Layout::Rgb) && (dst_layout == Layout::Rgba) {
-                return Ok(Box::new($dependant::<
+                return Ok(Arc::new($dependant::<
                     T,
                     { Layout::Rgb as u8 },
                     { Layout::Rgba as u8 },
@@ -466,7 +467,7 @@ macro_rules! create_rgb_xyz_dependant_executor_to_v {
                     gamma_lut,
                 }));
             } else if (src_layout == Layout::Rgba) && (dst_layout == Layout::Rgb) {
-                return Ok(Box::new($dependant::<
+                return Ok(Arc::new($dependant::<
                     T,
                     { Layout::Rgba as u8 },
                     { Layout::Rgb as u8 },
@@ -476,7 +477,7 @@ macro_rules! create_rgb_xyz_dependant_executor_to_v {
                     gamma_lut,
                 }));
             } else if (src_layout == Layout::Rgb) && (dst_layout == Layout::Rgb) {
-                return Ok(Box::new($dependant::<
+                return Ok(Arc::new($dependant::<
                     T,
                     { Layout::Rgb as u8 },
                     { Layout::Rgb as u8 },
@@ -491,51 +492,68 @@ macro_rules! create_rgb_xyz_dependant_executor_to_v {
     };
 }
 
-#[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"))]
-use crate::conversions::sse::{TransformShaperRgbOptSse, TransformShaperRgbSse};
+#[cfg(all(
+    any(target_arch = "x86", target_arch = "x86_64"),
+    feature = "sse_shaper_optimized_paths"
+))]
+use crate::conversions::sse::TransformShaperRgbOptSse;
 
-#[cfg(all(target_arch = "x86_64", feature = "avx"))]
-use crate::conversions::avx::{TransformShaperRgbAvx, TransformShaperRgbOptAvx};
+#[cfg(all(
+    any(target_arch = "x86", target_arch = "x86_64"),
+    feature = "sse_shaper_paths"
+))]
+use crate::conversions::sse::TransformShaperRgbSse;
 
-#[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"))]
+#[cfg(all(target_arch = "x86_64", feature = "avx_shaper_paths"))]
+use crate::conversions::avx::TransformShaperRgbAvx;
+#[cfg(all(target_arch = "x86_64", feature = "avx_shaper_optimized_paths"))]
+use crate::conversions::avx::TransformShaperRgbOptAvx;
+
+#[cfg(all(
+    any(target_arch = "x86", target_arch = "x86_64"),
+    feature = "sse_shaper_paths"
+))]
 create_rgb_xyz_dependant_executor!(
     make_rgb_xyz_rgb_transform_sse_41,
     TransformShaperRgbSse,
     TransformMatrixShaper
 );
 
-#[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"))]
+#[cfg(all(
+    any(target_arch = "x86", target_arch = "x86_64"),
+    feature = "sse_shaper_optimized_paths"
+))]
 create_rgb_xyz_dependant_executor_to_v!(
     make_rgb_xyz_rgb_transform_sse_41_opt,
     TransformShaperRgbOptSse,
     TransformMatrixShaperOptimized
 );
 
-#[cfg(all(target_arch = "x86_64", feature = "avx"))]
+#[cfg(all(target_arch = "x86_64", feature = "avx_shaper_paths"))]
 create_rgb_xyz_dependant_executor!(
     make_rgb_xyz_rgb_transform_avx2,
     TransformShaperRgbAvx,
     TransformMatrixShaper
 );
 
-#[cfg(all(target_arch = "x86_64", feature = "avx"))]
+#[cfg(all(target_arch = "x86_64", feature = "avx_shaper_optimized_paths"))]
 create_rgb_xyz_dependant_executor_to_v!(
     make_rgb_xyz_rgb_transform_avx2_opt,
     TransformShaperRgbOptAvx,
     TransformMatrixShaperOptimized
 );
 
-#[cfg(all(target_arch = "x86_64", feature = "avx512"))]
+#[cfg(all(target_arch = "x86_64", feature = "avx512_shaper_optimized_paths"))]
 use crate::conversions::avx512::TransformShaperRgbOptAvx512;
 
-#[cfg(all(target_arch = "x86_64", feature = "avx512"))]
+#[cfg(all(target_arch = "x86_64", feature = "avx512_shaper_optimized_paths"))]
 create_rgb_xyz_dependant_executor!(
     make_rgb_xyz_rgb_transform_avx512_opt,
     TransformShaperRgbOptAvx512,
     TransformMatrixShaperOptimized
 );
 
-#[cfg(not(all(target_arch = "aarch64", target_feature = "neon", feature = "neon")))]
+#[cfg(not(all(target_arch = "aarch64", feature = "neon_shaper_paths")))]
 pub(crate) fn make_rgb_xyz_rgb_transform<
     T: Clone + Send + Sync + PointeeSizeExpressible + 'static + Copy + Default,
     const LINEAR_CAP: usize,
@@ -545,24 +563,27 @@ pub(crate) fn make_rgb_xyz_rgb_transform<
     profile: TransformMatrixShaper<T, LINEAR_CAP>,
     gamma_lut: usize,
     bit_depth: usize,
-) -> Result<Box<dyn TransformExecutor<T> + Send + Sync>, CmsError>
+) -> Result<Arc<dyn TransformExecutor<T> + Send + Sync>, CmsError>
 where
     u32: AsPrimitive<T>,
 {
-    #[cfg(all(feature = "avx", target_arch = "x86_64"))]
+    #[cfg(all(feature = "avx_shaper_paths", target_arch = "x86_64"))]
     if std::arch::is_x86_feature_detected!("avx2") && std::arch::is_x86_feature_detected!("fma") {
         return make_rgb_xyz_rgb_transform_avx2::<T, LINEAR_CAP>(
             src_layout, dst_layout, profile, gamma_lut, bit_depth,
         );
     }
-    #[cfg(all(feature = "sse", any(target_arch = "x86", target_arch = "x86_64")))]
+    #[cfg(all(
+        feature = "sse_shaper_paths",
+        any(target_arch = "x86", target_arch = "x86_64")
+    ))]
     if std::arch::is_x86_feature_detected!("sse4.1") {
         return make_rgb_xyz_rgb_transform_sse_41::<T, LINEAR_CAP>(
             src_layout, dst_layout, profile, gamma_lut, bit_depth,
         );
     }
     if (src_layout == Layout::Rgba) && (dst_layout == Layout::Rgba) {
-        return Ok(Box::new(TransformMatrixShaperScalar::<
+        return Ok(Arc::new(TransformMatrixShaperScalar::<
             T,
             { Layout::Rgba as u8 },
             { Layout::Rgba as u8 },
@@ -573,7 +594,7 @@ where
             bit_depth,
         }));
     } else if (src_layout == Layout::Rgb) && (dst_layout == Layout::Rgba) {
-        return Ok(Box::new(TransformMatrixShaperScalar::<
+        return Ok(Arc::new(TransformMatrixShaperScalar::<
             T,
             { Layout::Rgb as u8 },
             { Layout::Rgba as u8 },
@@ -584,7 +605,7 @@ where
             bit_depth,
         }));
     } else if (src_layout == Layout::Rgba) && (dst_layout == Layout::Rgb) {
-        return Ok(Box::new(TransformMatrixShaperScalar::<
+        return Ok(Arc::new(TransformMatrixShaperScalar::<
             T,
             { Layout::Rgba as u8 },
             { Layout::Rgb as u8 },
@@ -595,7 +616,7 @@ where
             bit_depth,
         }));
     } else if (src_layout == Layout::Rgb) && (dst_layout == Layout::Rgb) {
-        return Ok(Box::new(TransformMatrixShaperScalar::<
+        return Ok(Arc::new(TransformMatrixShaperScalar::<
             T,
             { Layout::Rgb as u8 },
             { Layout::Rgb as u8 },
@@ -609,7 +630,7 @@ where
     Err(CmsError::UnsupportedProfileConnection)
 }
 
-#[cfg(not(all(target_arch = "aarch64", target_feature = "neon", feature = "neon")))]
+#[cfg(not(all(target_arch = "aarch64", feature = "neon_shaper_optimized_paths")))]
 pub(crate) fn make_rgb_xyz_rgb_transform_opt<
     T: Clone + Send + Sync + PointeeSizeExpressible + 'static + Copy + Default,
     const LINEAR_CAP: usize,
@@ -619,11 +640,11 @@ pub(crate) fn make_rgb_xyz_rgb_transform_opt<
     profile: TransformMatrixShaperOptimized<T, LINEAR_CAP>,
     gamma_lut: usize,
     bit_depth: usize,
-) -> Result<Box<dyn TransformExecutor<T> + Send + Sync>, CmsError>
+) -> Result<Arc<dyn TransformExecutor<T> + Send + Sync>, CmsError>
 where
     u32: AsPrimitive<T>,
 {
-    #[cfg(all(feature = "avx512", target_arch = "x86_64"))]
+    #[cfg(all(feature = "avx512_shaper_optimized_paths", target_arch = "x86_64"))]
     if std::arch::is_x86_feature_detected!("avx512bw")
         && std::arch::is_x86_feature_detected!("avx512vl")
         && std::arch::is_x86_feature_detected!("fma")
@@ -632,20 +653,23 @@ where
             src_layout, dst_layout, profile, gamma_lut, bit_depth,
         );
     }
-    #[cfg(all(feature = "avx", target_arch = "x86_64"))]
+    #[cfg(all(feature = "avx_shaper_optimized_paths", target_arch = "x86_64"))]
     if std::arch::is_x86_feature_detected!("avx2") && std::arch::is_x86_feature_detected!("fma") {
         return make_rgb_xyz_rgb_transform_avx2_opt::<T, LINEAR_CAP>(
             src_layout, dst_layout, profile, gamma_lut, bit_depth,
         );
     }
-    #[cfg(all(feature = "sse", any(target_arch = "x86", target_arch = "x86_64")))]
+    #[cfg(all(
+        feature = "sse_shaper_optimized_paths",
+        any(target_arch = "x86", target_arch = "x86_64")
+    ))]
     if std::arch::is_x86_feature_detected!("sse4.1") {
         return make_rgb_xyz_rgb_transform_sse_41_opt::<T, LINEAR_CAP>(
             src_layout, dst_layout, profile, gamma_lut, bit_depth,
         );
     }
     if (src_layout == Layout::Rgba) && (dst_layout == Layout::Rgba) {
-        return Ok(Box::new(TransformMatrixShaperOptScalar::<
+        return Ok(Arc::new(TransformMatrixShaperOptScalar::<
             T,
             { Layout::Rgba as u8 },
             { Layout::Rgba as u8 },
@@ -656,7 +680,7 @@ where
             bit_depth,
         }));
     } else if (src_layout == Layout::Rgb) && (dst_layout == Layout::Rgba) {
-        return Ok(Box::new(TransformMatrixShaperOptScalar::<
+        return Ok(Arc::new(TransformMatrixShaperOptScalar::<
             T,
             { Layout::Rgb as u8 },
             { Layout::Rgba as u8 },
@@ -667,7 +691,7 @@ where
             bit_depth,
         }));
     } else if (src_layout == Layout::Rgba) && (dst_layout == Layout::Rgb) {
-        return Ok(Box::new(TransformMatrixShaperOptScalar::<
+        return Ok(Arc::new(TransformMatrixShaperOptScalar::<
             T,
             { Layout::Rgba as u8 },
             { Layout::Rgb as u8 },
@@ -678,7 +702,7 @@ where
             bit_depth,
         }));
     } else if (src_layout == Layout::Rgb) && (dst_layout == Layout::Rgb) {
-        return Ok(Box::new(TransformMatrixShaperOptScalar::<
+        return Ok(Arc::new(TransformMatrixShaperOptScalar::<
             T,
             { Layout::Rgb as u8 },
             { Layout::Rgb as u8 },
@@ -692,22 +716,24 @@ where
     Err(CmsError::UnsupportedProfileConnection)
 }
 
-#[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
-use crate::conversions::neon::{TransformShaperRgbNeon, TransformShaperRgbOptNeon};
+#[cfg(all(target_arch = "aarch64", feature = "neon_shaper_paths"))]
+use crate::conversions::neon::TransformShaperRgbNeon;
+#[cfg(all(target_arch = "aarch64", feature = "neon_shaper_optimized_paths"))]
+use crate::conversions::neon::TransformShaperRgbOptNeon;
 use crate::conversions::rgbxyz_fixed::TransformMatrixShaperFpOptVec;
 use crate::conversions::rgbxyz_fixed::{
     TransformMatrixShaperFixedPoint, TransformMatrixShaperFixedPointOpt, TransformMatrixShaperFp,
 };
 use crate::transform::PointeeSizeExpressible;
 
-#[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
+#[cfg(all(target_arch = "aarch64", feature = "neon_shaper_paths"))]
 create_rgb_xyz_dependant_executor_to_v!(
     make_rgb_xyz_rgb_transform,
     TransformShaperRgbNeon,
     TransformMatrixShaper
 );
 
-#[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
+#[cfg(all(target_arch = "aarch64", feature = "neon_shaper_optimized_paths"))]
 create_rgb_xyz_dependant_executor_to_v!(
     make_rgb_xyz_rgb_transform_opt,
     TransformShaperRgbOptNeon,

@@ -26,8 +26,9 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+#![cfg(feature = "sse_shaper_fixed_point_paths")]
 use crate::conversions::rgbxyz_fixed::TransformMatrixShaperFpOptVec;
-use crate::conversions::sse::rgb_xyz::SseAlignedU16;
+use crate::conversions::sse::SseAlignedU16;
 use crate::conversions::sse::rgb_xyz_q2_13::_xmm_load_epi32;
 use crate::transform::PointeeSizeExpressible;
 use crate::{CmsError, Layout, TransformExecutor};

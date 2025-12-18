@@ -27,8 +27,9 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 #![allow(dead_code)]
+#![cfg(feature = "neon_luts")]
 use crate::conversions::interpolator::BarycentricWeight;
-use crate::conversions::neon::rgb_xyz::NeonAlignedF32;
+use crate::conversions::neon::NeonAlignedF32;
 use crate::math::{FusedMultiplyAdd, FusedMultiplyNegAdd};
 use std::arch::aarch64::*;
 use std::ops::{Add, Mul, Sub};

@@ -26,6 +26,7 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+#![cfg(feature = "avx_luts")]
 use crate::conversions::interpolator::BarycentricWeight;
 use crate::math::{FusedMultiplyAdd, FusedMultiplyNegAdd};
 use std::arch::x86_64::*;

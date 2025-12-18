@@ -33,6 +33,7 @@ use crate::conversions::rgbxyz::{
 use crate::conversions::rgbxyz_fixed::{make_rgb_xyz_q2_13, make_rgb_xyz_q2_13_opt};
 use crate::{CmsError, Layout, TransformExecutor, TransformOptions};
 use num_traits::AsPrimitive;
+use std::sync::Arc;
 
 const FIXED_POINT_SCALE: i32 = 13; // Q2.13;
 
@@ -42,7 +43,7 @@ pub(crate) trait RgbXyzFactory<T: Clone + AsPrimitive<usize> + Default> {
         dst_layout: Layout,
         profile: TransformMatrixShaper<T, LINEAR_CAP>,
         transform_options: TransformOptions,
-    ) -> Result<Box<dyn TransformExecutor<T> + Send + Sync>, CmsError>;
+    ) -> Result<Arc<dyn TransformExecutor<T> + Send + Sync>, CmsError>;
 }
 
 pub(crate) trait RgbXyzFactoryOpt<T: Clone + AsPrimitive<usize> + Default> {
@@ -55,7 +56,7 @@ pub(crate) trait RgbXyzFactoryOpt<T: Clone + AsPrimitive<usize> + Default> {
         dst_layout: Layout,
         profile: TransformMatrixShaperOptimized<T, LINEAR_CAP>,
         transform_options: TransformOptions,
-    ) -> Result<Box<dyn TransformExecutor<T> + Send + Sync>, CmsError>;
+    ) -> Result<Arc<dyn TransformExecutor<T> + Send + Sync>, CmsError>;
 }
 
 impl RgbXyzFactory<u16> for u16 {
@@ -64,9 +65,9 @@ impl RgbXyzFactory<u16> for u16 {
         dst_layout: Layout,
         profile: TransformMatrixShaper<u16, LINEAR_CAP>,
         transform_options: TransformOptions,
-    ) -> Result<Box<dyn TransformExecutor<u16> + Send + Sync>, CmsError> {
+    ) -> Result<Arc<dyn TransformExecutor<u16> + Send + Sync>, CmsError> {
         if BIT_DEPTH < 16 && transform_options.prefer_fixed_point {
-            #[cfg(all(target_arch = "x86_64", feature = "avx"))]
+            #[cfg(all(target_arch = "x86_64", feature = "avx_shaper_fixed_point_paths"))]
             {
                 use crate::conversions::rgbxyz_fixed::make_rgb_xyz_q2_13_transform_avx2;
                 if std::arch::is_x86_feature_detected!("avx2") {
@@ -75,7 +76,10 @@ impl RgbXyzFactory<u16> for u16 {
                     );
                 }
             }
-            #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"))]
+            #[cfg(all(
+                any(target_arch = "x86", target_arch = "x86_64"),
+                feature = "sse_shaper_fixed_point_paths"
+            ))]
             {
                 use crate::conversions::rgbxyz_fixed::make_rgb_xyz_q2_13_transform_sse_41;
                 if std::arch::is_x86_feature_detected!("sse4.1") {
@@ -84,7 +88,7 @@ impl RgbXyzFactory<u16> for u16 {
                     );
                 }
             }
-            #[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
+            #[cfg(all(target_arch = "aarch64", feature = "neon"))]
             {
                 return make_rgb_xyz_q2_13::<u16, LINEAR_CAP, FIXED_POINT_SCALE>(
                     src_layout, dst_layout, profile, GAMMA_LUT, BIT_DEPTH,
@@ -103,9 +107,9 @@ impl RgbXyzFactory<f32> for f32 {
         dst_layout: Layout,
         profile: TransformMatrixShaper<f32, LINEAR_CAP>,
         transform_options: TransformOptions,
-    ) -> Result<Box<dyn TransformExecutor<f32> + Send + Sync>, CmsError> {
+    ) -> Result<Arc<dyn TransformExecutor<f32> + Send + Sync>, CmsError> {
         if transform_options.prefer_fixed_point {
-            #[cfg(all(target_arch = "x86_64", feature = "avx"))]
+            #[cfg(all(target_arch = "x86_64", feature = "avx_shaper_fixed_point_paths"))]
             {
                 use crate::conversions::rgbxyz_fixed::make_rgb_xyz_q2_13_transform_avx2;
                 if std::arch::is_x86_feature_detected!("avx2") {
@@ -114,7 +118,10 @@ impl RgbXyzFactory<f32> for f32 {
                     );
                 }
             }
-            #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"))]
+            #[cfg(all(
+                any(target_arch = "x86", target_arch = "x86_64"),
+                feature = "sse_shaper_fixed_point_paths"
+            ))]
             {
                 use crate::conversions::rgbxyz_fixed::make_rgb_xyz_q2_13_transform_sse_41;
                 if std::arch::is_x86_feature_detected!("sse4.1") {
@@ -123,7 +130,7 @@ impl RgbXyzFactory<f32> for f32 {
                     );
                 }
             }
-            #[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
+            #[cfg(all(target_arch = "aarch64", feature = "neon"))]
             {
                 return make_rgb_xyz_q2_13::<f32, LINEAR_CAP, FIXED_POINT_SCALE>(
                     src_layout, dst_layout, profile, GAMMA_LUT, BIT_DEPTH,
@@ -142,7 +149,7 @@ impl RgbXyzFactory<f64> for f64 {
         dst_layout: Layout,
         profile: TransformMatrixShaper<f64, LINEAR_CAP>,
         _: TransformOptions,
-    ) -> Result<Box<dyn TransformExecutor<f64> + Send + Sync>, CmsError> {
+    ) -> Result<Arc<dyn TransformExecutor<f64> + Send + Sync>, CmsError> {
         make_rgb_xyz_rgb_transform::<f64, LINEAR_CAP>(
             src_layout, dst_layout, profile, GAMMA_LUT, BIT_DEPTH,
         )
@@ -155,9 +162,9 @@ impl RgbXyzFactory<u8> for u8 {
         dst_layout: Layout,
         profile: TransformMatrixShaper<u8, LINEAR_CAP>,
         transform_options: TransformOptions,
-    ) -> Result<Box<dyn TransformExecutor<u8> + Send + Sync>, CmsError> {
+    ) -> Result<Arc<dyn TransformExecutor<u8> + Send + Sync>, CmsError> {
         if transform_options.prefer_fixed_point {
-            #[cfg(all(target_arch = "x86_64", feature = "avx"))]
+            #[cfg(all(target_arch = "x86_64", feature = "avx_shaper_fixed_point_paths"))]
             {
                 use crate::conversions::rgbxyz_fixed::make_rgb_xyz_q2_13_transform_avx2;
                 if std::arch::is_x86_feature_detected!("avx2") {
@@ -166,7 +173,10 @@ impl RgbXyzFactory<u8> for u8 {
                     );
                 }
             }
-            #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"))]
+            #[cfg(all(
+                any(target_arch = "x86", target_arch = "x86_64"),
+                feature = "sse_shaper_fixed_point_paths"
+            ))]
             {
                 use crate::conversions::rgbxyz_fixed::make_rgb_xyz_q2_13_transform_sse_41;
                 if std::arch::is_x86_feature_detected!("sse4.1") {
@@ -198,9 +208,9 @@ impl RgbXyzFactoryOpt<u16> for u16 {
         dst_layout: Layout,
         profile: TransformMatrixShaperOptimized<u16, LINEAR_CAP>,
         transform_options: TransformOptions,
-    ) -> Result<Box<dyn TransformExecutor<u16> + Send + Sync>, CmsError> {
+    ) -> Result<Arc<dyn TransformExecutor<u16> + Send + Sync>, CmsError> {
         if BIT_DEPTH >= 12 && transform_options.prefer_fixed_point {
-            #[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
+            #[cfg(all(target_arch = "aarch64", feature = "neon_shaper_fixed_point_paths"))]
             {
                 if std::arch::is_aarch64_feature_detected!("rdm") {
                     use crate::conversions::rgbxyz_fixed::make_rgb_xyz_q1_30_opt;
@@ -211,7 +221,7 @@ impl RgbXyzFactoryOpt<u16> for u16 {
             }
         }
         if BIT_DEPTH < 16 && transform_options.prefer_fixed_point {
-            #[cfg(all(target_arch = "x86_64", feature = "avx"))]
+            #[cfg(all(target_arch = "x86_64", feature = "avx_shaper_fixed_point_paths"))]
             {
                 use crate::conversions::rgbxyz_fixed::make_rgb_xyz_q2_13_transform_avx2_opt;
                 if std::arch::is_x86_feature_detected!("avx2") {
@@ -224,7 +234,10 @@ impl RgbXyzFactoryOpt<u16> for u16 {
                     );
                 }
             }
-            #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"))]
+            #[cfg(all(
+                any(target_arch = "x86", target_arch = "x86_64"),
+                feature = "sse_shaper_fixed_point_paths"
+            ))]
             {
                 use crate::conversions::rgbxyz_fixed::make_rgb_xyz_q2_13_transform_sse_41_opt;
                 if std::arch::is_x86_feature_detected!("sse4.1") {
@@ -237,7 +250,7 @@ impl RgbXyzFactoryOpt<u16> for u16 {
                     );
                 }
             }
-            #[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
+            #[cfg(all(target_arch = "aarch64", feature = "neon"))]
             {
                 return make_rgb_xyz_q2_13_opt::<u16, LINEAR_CAP, FIXED_POINT_SCALE>(
                     src_layout, dst_layout, profile, GAMMA_LUT, BIT_DEPTH,
@@ -260,9 +273,9 @@ impl RgbXyzFactoryOpt<f32> for f32 {
         dst_layout: Layout,
         profile: TransformMatrixShaperOptimized<f32, LINEAR_CAP>,
         transform_options: TransformOptions,
-    ) -> Result<Box<dyn TransformExecutor<f32> + Send + Sync>, CmsError> {
+    ) -> Result<Arc<dyn TransformExecutor<f32> + Send + Sync>, CmsError> {
         if transform_options.prefer_fixed_point {
-            #[cfg(all(target_arch = "x86_64", feature = "avx"))]
+            #[cfg(all(target_arch = "x86_64", feature = "avx_shaper_fixed_point_paths"))]
             {
                 use crate::conversions::rgbxyz_fixed::make_rgb_xyz_q2_13_transform_avx2_opt;
                 if std::arch::is_x86_feature_detected!("avx2") {
@@ -275,7 +288,10 @@ impl RgbXyzFactoryOpt<f32> for f32 {
                     );
                 }
             }
-            #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"))]
+            #[cfg(all(
+                any(target_arch = "x86", target_arch = "x86_64"),
+                feature = "sse_shaper_fixed_point_paths"
+            ))]
             {
                 use crate::conversions::rgbxyz_fixed::make_rgb_xyz_q2_13_transform_sse_41_opt;
                 if std::arch::is_x86_feature_detected!("sse4.1") {
@@ -288,7 +304,7 @@ impl RgbXyzFactoryOpt<f32> for f32 {
                     );
                 }
             }
-            #[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
+            #[cfg(all(target_arch = "aarch64", feature = "neon_shaper_fixed_point_paths"))]
             {
                 return if std::arch::is_aarch64_feature_detected!("rdm") {
                     use crate::conversions::rgbxyz_fixed::make_rgb_xyz_q1_30_opt;
@@ -318,9 +334,9 @@ impl RgbXyzFactoryOpt<f64> for f64 {
         dst_layout: Layout,
         profile: TransformMatrixShaperOptimized<f64, LINEAR_CAP>,
         transform_options: TransformOptions,
-    ) -> Result<Box<dyn TransformExecutor<f64> + Send + Sync>, CmsError> {
+    ) -> Result<Arc<dyn TransformExecutor<f64> + Send + Sync>, CmsError> {
         if transform_options.prefer_fixed_point {
-            #[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
+            #[cfg(all(target_arch = "aarch64", feature = "neon_shaper_fixed_point_paths"))]
             {
                 if std::arch::is_aarch64_feature_detected!("rdm") {
                     use crate::conversions::rgbxyz_fixed::make_rgb_xyz_q1_30_opt;
@@ -346,9 +362,9 @@ impl RgbXyzFactoryOpt<u8> for u8 {
         dst_layout: Layout,
         profile: TransformMatrixShaperOptimized<u8, LINEAR_CAP>,
         transform_options: TransformOptions,
-    ) -> Result<Box<dyn TransformExecutor<u8> + Send + Sync>, CmsError> {
+    ) -> Result<Arc<dyn TransformExecutor<u8> + Send + Sync>, CmsError> {
         if transform_options.prefer_fixed_point {
-            #[cfg(all(target_arch = "x86_64", feature = "avx512"))]
+            #[cfg(all(target_arch = "x86_64", feature = "avx512_shaper_fixed_point_paths"))]
             {
                 use crate::conversions::rgbxyz_fixed::make_rgb_xyz_q2_13_transform_avx512_opt;
                 if std::arch::is_x86_feature_detected!("avx512bw")
@@ -361,7 +377,7 @@ impl RgbXyzFactoryOpt<u8> for u8 {
                     >(src_layout, dst_layout, profile, GAMMA_LUT, 8);
                 }
             }
-            #[cfg(all(target_arch = "x86_64", feature = "avx"))]
+            #[cfg(all(target_arch = "x86_64", feature = "avx_shaper_fixed_point_paths"))]
             {
                 use crate::conversions::rgbxyz_fixed::make_rgb_xyz_q2_13_transform_avx2_opt;
                 if std::arch::is_x86_feature_detected!("avx2") {
@@ -372,7 +388,10 @@ impl RgbXyzFactoryOpt<u8> for u8 {
                     >(src_layout, dst_layout, profile, GAMMA_LUT, 8);
                 }
             }
-            #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"))]
+            #[cfg(all(
+                any(target_arch = "x86", target_arch = "x86_64"),
+                feature = "sse_shaper_fixed_point_paths"
+            ))]
             {
                 use crate::conversions::rgbxyz_fixed::make_rgb_xyz_q2_13_transform_sse_41_opt;
                 if std::arch::is_x86_feature_detected!("sse4.1") {

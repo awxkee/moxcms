@@ -1,5 +1,5 @@
 /*
- * // Copyright (c) Radzivon Bartoshyk 5/2025. All rights reserved.
+ * // Copyright (c) Radzivon Bartoshyk 12/2025. All rights reserved.
  * //
  * // Redistribution and use in source and binary forms, with or without modification,
  * // are permitted provided that the following conditions are met:
@@ -26,10 +26,6 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-mod rgb_xyz_opt;
-mod rgb_xyz_q2_13_opt;
+mod cmyka;
 
-#[cfg(feature = "avx512_shaper_optimized_paths")]
-pub(crate) use rgb_xyz_opt::TransformShaperRgbOptAvx512;
-#[cfg(feature = "avx512_shaper_fixed_point_paths")]
-pub(crate) use rgb_xyz_q2_13_opt::TransformShaperRgbQ2_13OptAvx512;
+pub(crate) use cmyka::{FromCmykaInterceptor, ToCmykaInterceptor};

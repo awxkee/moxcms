@@ -16,9 +16,9 @@ features = ["options"]
 
 [features]
 default = ["moxcms/options"]
-avx = ["moxcms/avx"]
-sse = ["moxcms/sse"]
-neon = ["moxcms/neon"]
+avx = ["moxcms/avx_luts", "moxcms/avx_shaper_fixed_point_paths", "moxcms/avx_shaper_optimized_paths", "moxcms/avx_shaper_paths"]
+sse = ["moxcms/sse_luts", "moxcms/sse_shaper_fixed_point_paths", "moxcms/sse_shaper_optimized_paths", "moxcms/sse_shaper_paths"]
+neon = ["moxcms/neon_luts", "moxcms/neon_shaper_fixed_point_paths", "moxcms/neon_shaper_optimized_paths", "moxcms/neon_shaper_paths"]
 
 [[bin]]
 name = "unsafe"

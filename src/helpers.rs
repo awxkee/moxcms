@@ -26,10 +26,7 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-use crate::matan::{
-    does_curve_have_discontinuity, is_curve_ascending, is_curve_degenerated, is_curve_descending,
-    is_curve_linear8, is_curve_linear16, is_curve_monotonic,
-};
+use crate::matan::*;
 use crate::reader::{
     s15_fixed16_number_to_double, uint8_number_to_float_fast, uint16_number_to_float_fast,
 };
@@ -49,6 +46,7 @@ impl LutStore {
         }
     }
 
+    #[cfg(feature = "any_to_any")]
     pub(crate) fn is_degenerated(&self, entries: usize, channel: usize) -> bool {
         let start = entries * channel;
         let end = start + entries;
@@ -59,6 +57,7 @@ impl LutStore {
         }
     }
 
+    #[cfg(feature = "any_to_any")]
     pub(crate) fn is_monotonic(&self, entries: usize, channel: usize) -> bool {
         let start = entries * channel;
         let end = start + entries;
@@ -69,6 +68,7 @@ impl LutStore {
         }
     }
 
+    #[cfg(feature = "any_to_any")]
     pub(crate) fn have_discontinuities(&self, entries: usize, channel: usize) -> bool {
         let start = entries * channel;
         let end = start + entries;
@@ -79,6 +79,7 @@ impl LutStore {
         }
     }
 
+    #[cfg(feature = "any_to_any")]
     #[allow(dead_code)]
     pub(crate) fn is_linear(&self, entries: usize, channel: usize) -> bool {
         let start = entries * channel;
@@ -90,6 +91,7 @@ impl LutStore {
         }
     }
 
+    #[cfg(feature = "any_to_any")]
     #[allow(dead_code)]
     pub(crate) fn is_descending(&self, entries: usize, channel: usize) -> bool {
         let start = entries * channel;
@@ -114,6 +116,7 @@ impl LutStore {
 }
 
 impl ToneReprCurve {
+    #[cfg(feature = "lut")]
     pub(crate) fn is_linear(&self) -> bool {
         match &self {
             ToneReprCurve::Lut(lut) => {
@@ -140,6 +143,7 @@ impl ToneReprCurve {
         }
     }
 
+    #[cfg(feature = "any_to_any")]
     pub(crate) fn is_monotonic(&self) -> bool {
         match &self {
             ToneReprCurve::Lut(lut) => is_curve_monotonic(lut),
@@ -147,6 +151,7 @@ impl ToneReprCurve {
         }
     }
 
+    #[cfg(feature = "any_to_any")]
     pub(crate) fn is_degenerated(&self) -> bool {
         match &self {
             ToneReprCurve::Lut(lut) => is_curve_degenerated(lut),
@@ -154,6 +159,7 @@ impl ToneReprCurve {
         }
     }
 
+    #[cfg(feature = "any_to_any")]
     pub(crate) fn have_discontinuities(&self) -> bool {
         match &self {
             ToneReprCurve::Lut(lut) => does_curve_have_discontinuity(lut),

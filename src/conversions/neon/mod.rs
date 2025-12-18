@@ -38,10 +38,41 @@ mod rgb_xyz_q2_13_opt;
 mod t_lut3_to_3;
 mod t_lut3_to_3_q0_15;
 
+#[cfg(feature = "neon_luts")]
 pub(crate) use lut4_to_3::NeonLut4x3Factory;
+#[cfg(feature = "neon_shaper_paths")]
 pub(crate) use rgb_xyz::TransformShaperRgbNeon;
+#[cfg(feature = "neon_shaper_optimized_paths")]
 pub(crate) use rgb_xyz_opt::TransformShaperRgbOptNeon;
+#[cfg(feature = "neon_shaper_fixed_point_paths")]
 pub(crate) use rgb_xyz_q1_30_opt::TransformShaperQ1_30NeonOpt;
+#[cfg(feature = "neon_shaper_fixed_point_paths")]
 pub(crate) use rgb_xyz_q2_13::TransformShaperQ2_13Neon;
+#[cfg(feature = "neon_shaper_fixed_point_paths")]
 pub(crate) use rgb_xyz_q2_13_opt::TransformShaperQ2_13NeonOpt;
+#[cfg(feature = "neon_luts")]
 pub(crate) use t_lut3_to_3::NeonLut3x3Factory;
+
+#[allow(dead_code)]
+#[inline]
+pub(crate) fn split_by_twos<T: Copy>(data: &[T], channels: usize) -> (&[T], &[T]) {
+    let len = data.len() / (channels * 4);
+    let split_point = len * 4;
+    data.split_at(split_point * channels)
+}
+
+#[allow(dead_code)]
+#[inline]
+pub(crate) fn split_by_twos_mut<T: Copy>(data: &mut [T], channels: usize) -> (&mut [T], &mut [T]) {
+    let len = data.len() / (channels * 4);
+    let split_point = len * 4;
+    data.split_at_mut(split_point * channels)
+}
+
+#[repr(align(16), C)]
+#[allow(unused)]
+pub(crate) struct NeonAlignedU16(pub(crate) [u16; 8]);
+
+#[repr(align(16), C)]
+#[allow(unused)]
+pub(crate) struct NeonAlignedF32(pub(crate) [f32; 4]);

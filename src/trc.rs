@@ -27,7 +27,6 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::cicp::create_rec709_parametric;
-use crate::matan::is_curve_linear16;
 use crate::math::m_clamp;
 use crate::mlaf::{mlaf, neg_mlaf};
 use crate::transform::PointeeSizeExpressible;
@@ -287,6 +286,7 @@ impl ParametricCurve {
         }
     }
 
+    #[cfg(feature = "lut")]
     fn is_linear(&self) -> bool {
         (self.g - 1.0).abs() < 1e-5
             && (self.a - 1.0).abs() < 1e-5
@@ -1015,6 +1015,7 @@ fn invert_lut_boxed<const N: usize>(table: &[u16; N], out_length: usize) -> Vec<
 }
 
 impl ToneReprCurve {
+    #[cfg(feature = "any_to_any")]
     pub(crate) fn to_clut(&self) -> Result<Vec<f32>, CmsError> {
         match self {
             ToneReprCurve::Lut(lut) => {
@@ -1289,6 +1290,7 @@ impl ColorProfile {
             .ok_or(CmsError::BuildTransferFunction)
     }
 
+    #[cfg(feature = "extended_range")]
     /// Checks if profile gamma can work in extended precision and we have implementation for this
     pub(crate) fn try_extended_gamma_evaluator(
         &self,
@@ -1315,6 +1317,7 @@ impl ColorProfile {
         None
     }
 
+    #[cfg(feature = "extended_range")]
     fn make_gamma_evaluator_all_the_same(
         red_trc: &ToneReprCurve,
     ) -> Option<Box<dyn ToneCurveEvaluator + Send + Sync>> {
@@ -1339,6 +1342,7 @@ impl ColorProfile {
                         *dst = *src;
                     }
 
+                    #[cfg(feature = "extended_range")]
                     if compare_parametric(lc_params.as_slice(), srgb_params.as_slice()) {
                         return Some(Box::new(ToneCurveCicpEvaluator {
                             rgb_trc: TransferCharacteristics::Srgb.extended_gamma_tristimulus(),
@@ -1346,6 +1350,7 @@ impl ColorProfile {
                         }));
                     }
 
+                    #[cfg(feature = "extended_range")]
                     if compare_parametric(lc_params.as_slice(), rec709_params.as_slice()) {
                         return Some(Box::new(ToneCurveCicpEvaluator {
                             rgb_trc: TransferCharacteristics::Bt709.extended_gamma_tristimulus(),
@@ -1406,6 +1411,7 @@ impl ColorProfile {
         false
     }
 
+    #[cfg(feature = "lut")]
     /// Checks if profile is matrix shaper, have same TRC and TRC is linear.
     pub(crate) fn is_linear_matrix_shaper(&self) -> bool {
         if !self.is_matrix_shaper() {
@@ -1420,6 +1426,7 @@ impl ColorProfile {
                     if lut.is_empty() {
                         return true;
                     }
+                    use crate::matan::is_curve_linear16;
                     if is_curve_linear16(lut) {
                         return true;
                     }
@@ -1436,6 +1443,7 @@ impl ColorProfile {
         false
     }
 
+    #[cfg(feature = "extended_range")]
     /// Checks if profile linearization can work in extended precision and we have implementation for this
     pub(crate) fn try_extended_linearizing_evaluator(
         &self,
@@ -1464,6 +1472,7 @@ impl ColorProfile {
         None
     }
 
+    #[cfg(feature = "extended_range")]
     fn make_linear_curve_evaluator_all_the_same(
         evaluator_curve: &ToneReprCurve,
     ) -> Option<Option<Box<dyn ToneCurveEvaluator + Send + Sync>>> {
@@ -1514,6 +1523,7 @@ impl ColorProfile {
     }
 }
 
+#[cfg(feature = "extended_range")]
 pub(crate) struct ToneCurveCicpEvaluator {
     rgb_trc: fn(Rgb<f32>) -> Rgb<f32>,
     trc: fn(f32) -> f32,
@@ -1529,6 +1539,7 @@ pub(crate) struct ToneCurveEvaluatorPureGamma {
 
 pub(crate) struct ToneCurveEvaluatorLinear {}
 
+#[cfg(feature = "extended_range")]
 impl ToneCurveEvaluator for ToneCurveCicpEvaluator {
     fn evaluate_tristimulus(&self, rgb: Rgb<f32>) -> Rgb<f32> {
         (self.rgb_trc)(rgb)

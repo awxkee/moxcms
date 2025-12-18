@@ -26,8 +26,8 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-use crate::conversions::neon::rgb_xyz::NeonAlignedU16;
-use crate::conversions::neon::rgb_xyz_q2_13::{split_by_twos, split_by_twos_mut};
+#![cfg(feature = "neon_shaper_optimized_paths")]
+use crate::conversions::neon::{NeonAlignedU16, split_by_twos, split_by_twos_mut};
 use crate::conversions::rgbxyz::TransformMatrixShaperOptimizedV;
 use crate::transform::PointeeSizeExpressible;
 use crate::{CmsError, Layout, TransformExecutor};

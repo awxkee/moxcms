@@ -31,6 +31,7 @@ use crate::LutWarehouse;
 impl LutWarehouse {
     /// Method tests if mathematical fusion on LUT table is allowed.
     /// If it's not, full brute-force pass in [Katana] is required.
+    #[cfg(feature = "any_to_any")]
     pub(crate) fn is_katana_required(&self) -> bool {
         match self {
             LutWarehouse::Lut(lut) => {

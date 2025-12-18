@@ -39,6 +39,7 @@ use crate::{
     PointeeSizeExpressible, TransformExecutor, TransformOptions,
 };
 use num_traits::AsPrimitive;
+use std::sync::Arc;
 
 pub(crate) fn do_any_to_any<
     T: Copy
@@ -58,7 +59,7 @@ pub(crate) fn do_any_to_any<
     dst_layout: Layout,
     dest: &ColorProfile,
     options: TransformOptions,
-) -> Result<Box<dyn TransformExecutor<T> + Send + Sync>, CmsError>
+) -> Result<Arc<dyn TransformExecutor<T> + Send + Sync>, CmsError>
 where
     f32: AsPrimitive<T>,
     u32: AsPrimitive<T>,
@@ -136,7 +137,7 @@ where
         post_finalization.push(stage);
     }
 
-    Ok(Box::new(Katana::<f32, T> {
+    Ok(Arc::new(Katana::<f32, T> {
         initial_stage,
         final_stage,
         stages,

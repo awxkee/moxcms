@@ -26,6 +26,7 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+#![cfg(feature = "sse_luts")]
 use crate::conversions::LutBarycentricReduction;
 use crate::conversions::interpolator::BarycentricWeight;
 use crate::conversions::lut_transforms::Lut4x3Factory;
@@ -43,6 +44,7 @@ use std::arch::x86::*;
 #[cfg(target_arch = "x86_64")]
 use std::arch::x86_64::*;
 use std::marker::PhantomData;
+use std::sync::Arc;
 
 struct TransformLut4To3Sse<
     T,
@@ -234,7 +236,7 @@ impl Lut4x3Factory for SseLut4x3Factory {
         options: TransformOptions,
         color_space: DataColorSpace,
         is_linear: bool,
-    ) -> Box<dyn TransformExecutor<T> + Sync + Send>
+    ) -> Arc<dyn TransformExecutor<T> + Sync + Send>
     where
         f32: AsPrimitive<T>,
         u32: AsPrimitive<T>,
@@ -259,7 +261,7 @@ impl Lut4x3Factory for SseLut4x3Factory {
                 })
                 .collect::<Vec<_>>();
             return match options.barycentric_weight_scale {
-                BarycentricWeightScale::Low => Box::new(TransformLut4To3SseQ0_15::<
+                BarycentricWeightScale::Low => Arc::new(TransformLut4To3SseQ0_15::<
                     T,
                     u8,
                     LAYOUT,
@@ -277,7 +279,7 @@ impl Lut4x3Factory for SseLut4x3Factory {
                     is_linear,
                 }),
                 #[cfg(feature = "options")]
-                BarycentricWeightScale::High => Box::new(TransformLut4To3SseQ0_15::<
+                BarycentricWeightScale::High => Arc::new(TransformLut4To3SseQ0_15::<
                     T,
                     u16,
                     LAYOUT,
@@ -302,7 +304,7 @@ impl Lut4x3Factory for SseLut4x3Factory {
             .collect::<Vec<_>>();
         match options.barycentric_weight_scale {
             BarycentricWeightScale::Low => {
-                Box::new(
+                Arc::new(
                     TransformLut4To3Sse::<T, u8, LAYOUT, GRID_SIZE, BIT_DEPTH, 256, 256> {
                         lut,
                         _phantom: PhantomData,
@@ -316,7 +318,7 @@ impl Lut4x3Factory for SseLut4x3Factory {
             }
             #[cfg(feature = "options")]
             BarycentricWeightScale::High => {
-                Box::new(
+                Arc::new(
                     TransformLut4To3Sse::<T, u16, LAYOUT, GRID_SIZE, BIT_DEPTH, 65536, 65536> {
                         lut,
                         _phantom: PhantomData,

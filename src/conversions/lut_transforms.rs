@@ -26,11 +26,12 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-use crate::conversions::lut3x3::{
-    create_lut3x3, katana_input_stage_lut_3x3, katana_output_stage_lut_3x3,
-};
+#![cfg(feature = "lut")]
+use crate::conversions::lut3x3::create_lut3x3;
+#[cfg(feature = "any_to_any")]
+use crate::conversions::lut3x3::{katana_input_stage_lut_3x3, katana_output_stage_lut_3x3};
 use crate::conversions::lut3x4::{create_lut3_samples_norm, create_lut3x4};
-use crate::conversions::lut4::{create_lut4, create_lut4_norm_samples, katana_input_stage_lut_4x3};
+use crate::conversions::lut4::*;
 use crate::conversions::mab::{prepare_mab_3x3, prepare_mba_3x3};
 use crate::conversions::transform_lut3_to_4::make_transform_3x4;
 use crate::mlaf::mlaf;
@@ -39,6 +40,7 @@ use crate::{
     ProfileVersion, TransformExecutor, TransformOptions,
 };
 use num_traits::AsPrimitive;
+use std::sync::Arc;
 
 pub(crate) struct MatrixStage {
     pub(crate) matrices: Vec<Matrix3f>,
@@ -87,7 +89,7 @@ pub(crate) trait Lut3x3Factory {
         options: TransformOptions,
         color_space: DataColorSpace,
         is_linear: bool,
-    ) -> Box<dyn TransformExecutor<T> + Send + Sync>
+    ) -> Arc<dyn TransformExecutor<T> + Send + Sync>
     where
         f32: AsPrimitive<T>,
         u32: AsPrimitive<T>,
@@ -106,7 +108,7 @@ pub(crate) trait Lut4x3Factory {
         options: TransformOptions,
         color_space: DataColorSpace,
         is_linear: bool,
-    ) -> Box<dyn TransformExecutor<T> + Sync + Send>
+    ) -> Arc<dyn TransformExecutor<T> + Sync + Send>
     where
         f32: AsPrimitive<T>,
         u32: AsPrimitive<T>,
@@ -179,7 +181,7 @@ macro_rules! make_transform_3x3_fn {
             options: TransformOptions,
             color_space: DataColorSpace,
             is_linear: bool,
-        ) -> Box<dyn TransformExecutor<T> + Send + Sync>
+        ) -> Arc<dyn TransformExecutor<T> + Send + Sync>
         where
             f32: AsPrimitive<T>,
             u32: AsPrimitive<T>,
@@ -245,7 +247,7 @@ macro_rules! make_transform_4x3_fn {
             options: TransformOptions,
             data_color_space: DataColorSpace,
             is_linear: bool,
-        ) -> Box<dyn TransformExecutor<T> + Send + Sync>
+        ) -> Arc<dyn TransformExecutor<T> + Send + Sync>
         where
             f32: AsPrimitive<T>,
             u32: AsPrimitive<T>,
@@ -271,29 +273,30 @@ macro_rules! make_transform_4x3_fn {
     };
 }
 
-#[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
+#[cfg(all(target_arch = "aarch64", feature = "neon_luts"))]
 use crate::conversions::neon::NeonLut3x3Factory;
-#[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
+#[cfg(all(target_arch = "aarch64", feature = "neon_luts"))]
 make_transform_3x3_fn!(make_transformer_3x3, NeonLut3x3Factory);
 
-#[cfg(not(all(target_arch = "aarch64", target_feature = "neon", feature = "neon")))]
+#[cfg(not(all(target_arch = "aarch64", feature = "neon_luts")))]
 use crate::conversions::transform_lut3_to_3::DefaultLut3x3Factory;
-#[cfg(not(all(target_arch = "aarch64", target_feature = "neon", feature = "neon")))]
+#[cfg(not(all(target_arch = "aarch64", feature = "neon_luts")))]
 make_transform_3x3_fn!(make_transformer_3x3, DefaultLut3x3Factory);
 
-#[cfg(all(target_arch = "x86_64", feature = "avx"))]
+#[cfg(all(target_arch = "x86_64", feature = "avx_luts"))]
 use crate::conversions::avx::AvxLut3x3Factory;
-#[cfg(all(target_arch = "x86_64", feature = "avx"))]
+#[cfg(all(target_arch = "x86_64", feature = "avx_luts"))]
 make_transform_3x3_fn!(make_transformer_3x3_avx_fma, AvxLut3x3Factory);
 
-#[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"))]
+#[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse_luts"))]
 use crate::conversions::sse::SseLut3x3Factory;
-#[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"))]
+#[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse_luts"))]
 make_transform_3x3_fn!(make_transformer_3x3_sse41, SseLut3x3Factory);
 
-#[cfg(all(target_arch = "x86_64", feature = "avx"))]
+use crate::conversions::LutBarycentricReduction;
+#[cfg(all(target_arch = "x86_64", feature = "avx_luts"))]
 use crate::conversions::avx::AvxLut4x3Factory;
-use crate::conversions::interpolator::LutBarycentricReduction;
+#[cfg(feature = "any_to_any")]
 use crate::conversions::katana::{
     Katana, KatanaDefaultIntermediate, KatanaInitialStage, KatanaPostFinalizationStage,
     KatanaStageLabToXyz, KatanaStageXyzToLab, katana_create_rgb_lin_lut, katana_pcs_lab_v2_to_v4,
@@ -302,31 +305,32 @@ use crate::conversions::katana::{
 };
 use crate::conversions::mab4x3::prepare_mab_4x3;
 use crate::conversions::mba3x4::prepare_mba_3x4;
+#[cfg(feature = "any_to_any")]
 use crate::conversions::md_luts_factory::{do_any_to_any, prepare_alpha_finalizer};
 // use crate::conversions::bpc::compensate_bpc_in_lut;
 
-#[cfg(all(target_arch = "x86_64", feature = "avx"))]
+#[cfg(all(target_arch = "x86_64", feature = "avx_luts"))]
 make_transform_4x3_fn!(make_transformer_4x3_avx_fma, AvxLut4x3Factory);
 
-#[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"))]
+#[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse_luts"))]
 use crate::conversions::sse::SseLut4x3Factory;
-#[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"))]
+#[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse_luts"))]
 make_transform_4x3_fn!(make_transformer_4x3_sse41, SseLut4x3Factory);
 
-#[cfg(not(all(target_arch = "aarch64", target_feature = "neon", feature = "neon")))]
+#[cfg(not(all(target_arch = "aarch64", feature = "neon_luts")))]
 use crate::conversions::transform_lut4_to_3::DefaultLut4x3Factory;
 
-#[cfg(not(all(target_arch = "aarch64", target_feature = "neon", feature = "neon")))]
+#[cfg(not(all(target_arch = "aarch64", feature = "neon_luts")))]
 make_transform_4x3_fn!(make_transformer_4x3, DefaultLut4x3Factory);
 
-#[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
-use crate::conversions::neon::NeonLut4x3Factory;
 use crate::conversions::prelude_lut_xyz_rgb::{create_rgb_lin_lut, prepare_inverse_lut_rgb_xyz};
 use crate::conversions::xyz_lab::{StageLabToXyz, StageXyzToLab};
 use crate::transform::PointeeSizeExpressible;
 use crate::trc::GammaLutInterpolate;
 
-#[cfg(all(target_arch = "aarch64", target_feature = "neon", feature = "neon"))]
+#[cfg(all(target_arch = "aarch64", feature = "neon_luts"))]
+use crate::conversions::neon::NeonLut4x3Factory;
+#[cfg(all(target_arch = "aarch64", feature = "neon_luts"))]
 make_transform_4x3_fn!(make_transformer_4x3, NeonLut4x3Factory);
 
 #[inline(never)]
@@ -349,7 +353,7 @@ pub(crate) fn make_lut_transform<
     dst_layout: Layout,
     dest: &ColorProfile,
     options: TransformOptions,
-) -> Result<Box<dyn TransformExecutor<T> + Send + Sync>, CmsError>
+) -> Result<Arc<dyn TransformExecutor<T> + Send + Sync>, CmsError>
 where
     f32: AsPrimitive<T>,
     u32: AsPrimitive<T>,
@@ -370,6 +374,7 @@ where
 
         const GRID_SIZE: usize = 17;
 
+        #[cfg(feature = "any_to_any")]
         let is_katana_required_for_source = source
             .get_device_to_pcs(options.rendering_intent)
             .ok_or(CmsError::UnsupportedLutRenderingIntent(
@@ -377,6 +382,7 @@ where
             ))
             .map(|x| x.is_katana_required())?;
 
+        #[cfg(feature = "any_to_any")]
         let is_katana_required_for_destination =
             if dest.is_matrix_shaper() || dest.pcs == DataColorSpace::Xyz {
                 false
@@ -388,6 +394,7 @@ where
                 return Err(CmsError::UnsupportedProfileConnection);
             };
 
+        #[cfg(feature = "any_to_any")]
         if is_katana_required_for_source || is_katana_required_for_destination {
             let initial_stage: Box<dyn KatanaInitialStage<f32, T> + Send + Sync> =
                 match source.get_device_to_pcs(options.rendering_intent).ok_or(
@@ -442,7 +449,7 @@ where
                 post_finalization.push(stage);
             }
 
-            return Ok(Box::new(Katana::<f32, T> {
+            return Ok(Arc::new(Katana::<f32, T> {
                 initial_stage,
                 final_stage,
                 stages,
@@ -511,7 +518,7 @@ where
             && dest.is_matrix_shaper()
             && dest.is_linear_matrix_shaper();
 
-        #[cfg(all(target_arch = "x86_64", feature = "avx"))]
+        #[cfg(all(target_arch = "x86_64", feature = "avx_luts"))]
         if std::arch::is_x86_feature_detected!("avx2") && std::arch::is_x86_feature_detected!("fma")
         {
             return Ok(make_transformer_4x3_avx_fma::<T, GRID_SIZE, BIT_DEPTH>(
@@ -522,7 +529,7 @@ where
                 is_dest_linear_profile,
             ));
         }
-        #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"))]
+        #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse_luts"))]
         if std::arch::is_x86_feature_detected!("sse4.1") {
             return Ok(make_transformer_4x3_sse41::<T, GRID_SIZE, BIT_DEPTH>(
                 dst_layout,
@@ -614,6 +621,7 @@ where
 
         const GRID_SIZE: usize = 33;
 
+        #[cfg(feature = "any_to_any")]
         let is_katana_required_for_source = if source.is_matrix_shaper() {
             false
         } else {
@@ -625,6 +633,7 @@ where
                 .map(|x| x.is_katana_required())?
         };
 
+        #[cfg(feature = "any_to_any")]
         let is_katana_required_for_destination =
             if source.is_matrix_shaper() || dest.pcs == DataColorSpace::Xyz {
                 false
@@ -636,9 +645,11 @@ where
                 return Err(CmsError::UnsupportedProfileConnection);
             };
 
+        #[cfg(feature = "any_to_any")]
         let mut stages: Vec<Box<KatanaDefaultIntermediate>> = Vec::new();
 
         // Slow and accurate fallback if anything not acceptable is detected by curve analysis
+        #[cfg(feature = "any_to_any")]
         if is_katana_required_for_source || is_katana_required_for_destination {
             let source_stage: Box<dyn KatanaInitialStage<f32, T> + Send + Sync> =
                 if source.is_matrix_shaper() {
@@ -699,7 +710,7 @@ where
                 post_finalization.push(stage);
             }
 
-            return Ok(Box::new(Katana::<f32, T> {
+            return Ok(Arc::new(Katana::<f32, T> {
                 initial_stage: source_stage,
                 final_stage,
                 stages,
@@ -763,7 +774,7 @@ where
             && dest.is_matrix_shaper()
             && dest.is_linear_matrix_shaper();
 
-        #[cfg(all(feature = "avx", target_arch = "x86_64"))]
+        #[cfg(all(feature = "avx_luts", target_arch = "x86_64"))]
         if std::arch::is_x86_feature_detected!("avx2") && std::is_x86_feature_detected!("fma") {
             return Ok(make_transformer_3x3_avx_fma::<T, GRID_SIZE, BIT_DEPTH>(
                 src_layout,
@@ -774,7 +785,7 @@ where
                 is_dest_linear_profile,
             ));
         }
-        #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"))]
+        #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse_luts"))]
         if std::arch::is_x86_feature_detected!("sse4.1") {
             return Ok(make_transformer_3x3_sse41::<T, GRID_SIZE, BIT_DEPTH>(
                 src_layout,
@@ -786,17 +797,38 @@ where
             ));
         }
 
-        Ok(make_transformer_3x3::<T, GRID_SIZE, BIT_DEPTH>(
-            src_layout,
-            dst_layout,
-            lut,
-            options,
-            dest.color_space,
-            is_dest_linear_profile,
-        ))
+        #[cfg(all(target_arch = "aarch64", feature = "neon_luts"))]
+        {
+            Ok(make_transformer_3x3::<T, GRID_SIZE, BIT_DEPTH>(
+                src_layout,
+                dst_layout,
+                lut,
+                options,
+                dest.color_space,
+                is_dest_linear_profile,
+            ))
+        }
+        #[cfg(not(all(target_arch = "aarch64", feature = "neon_luts")))]
+        {
+            Ok(make_transformer_3x3::<T, GRID_SIZE, BIT_DEPTH>(
+                src_layout,
+                dst_layout,
+                lut,
+                options,
+                dest.color_space,
+                is_dest_linear_profile,
+            ))
+        }
     } else {
-        do_any_to_any::<T, BIT_DEPTH, LINEAR_CAP, GAMMA_LUT>(
-            src_layout, source, dst_layout, dest, options,
-        )
+        #[cfg(feature = "any_to_any")]
+        {
+            do_any_to_any::<T, BIT_DEPTH, LINEAR_CAP, GAMMA_LUT>(
+                src_layout, source, dst_layout, dest, options,
+            )
+        }
+        #[cfg(not(feature = "any_to_any"))]
+        {
+            Err(CmsError::UnsupportedProfileConnection)
+        }
     }
 }

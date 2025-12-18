@@ -37,9 +37,20 @@ mod rgb_xyz_q2_13_opt;
 mod t_lut3_to_3;
 mod t_lut3_to_3_q0_15;
 
+#[cfg(feature = "avx_luts")]
 pub(crate) use lut4_to_3::AvxLut4x3Factory;
+#[cfg(feature = "avx_shaper_paths")]
 pub(crate) use rgb_xyz::TransformShaperRgbAvx;
+#[cfg(feature = "avx_shaper_optimized_paths")]
 pub(crate) use rgb_xyz_opt::TransformShaperRgbOptAvx;
+#[cfg(feature = "avx_shaper_fixed_point_paths")]
 pub(crate) use rgb_xyz_q2_13::TransformShaperRgbQ2_13Avx;
+#[cfg(feature = "avx_shaper_fixed_point_paths")]
 pub(crate) use rgb_xyz_q2_13_opt::TransformShaperRgbQ2_13OptAvx;
+#[cfg(feature = "avx_luts")]
 pub(crate) use t_lut3_to_3::AvxLut3x3Factory;
+
+#[repr(align(32), C)]
+#[derive(Debug)]
+#[allow(unused)]
+pub(crate) struct AvxAlignedU16(pub(crate) [u16; 16]);

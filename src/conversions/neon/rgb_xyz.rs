@@ -26,18 +26,13 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-use crate::conversions::neon::rgb_xyz_q2_13::{split_by_twos, split_by_twos_mut};
+#![cfg(feature = "neon_shaper_paths")]
+use crate::conversions::neon::{NeonAlignedU16, split_by_twos, split_by_twos_mut};
 use crate::conversions::rgbxyz::TransformMatrixShaperV;
 use crate::transform::PointeeSizeExpressible;
 use crate::{CmsError, Layout, TransformExecutor};
 use num_traits::AsPrimitive;
 use std::arch::aarch64::*;
-
-#[repr(align(16), C)]
-pub(crate) struct NeonAlignedU16(pub(crate) [u16; 8]);
-
-#[repr(align(16), C)]
-pub(crate) struct NeonAlignedF32(pub(crate) [f32; 4]);
 
 pub(crate) struct TransformShaperRgbNeon<
     T: Clone + PointeeSizeExpressible + Copy + Default + 'static,
