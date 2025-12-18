@@ -40,7 +40,8 @@ avx = []
 avx_shaper_paths = ["avx"]
 # Enables optimize matrix shaper AVX paths where all TRC are the same
 avx_shaper_optimized_paths = ["avx"]
-# Enables optimize matrix shaper AVX fixed point paths
+# Enables optimize matrix shaper AVX fixed point paths.
+# Fixed points the most agressively optimized paths, hence they are making the biggest contribution to the codesize.
 avx_shaper_fixed_point_paths = ["avx"]
 # Enables AVX optimized LUT paths
 avx_luts = ["lut", "avx"]
@@ -51,7 +52,8 @@ sse = []
 sse_shaper_paths = ["sse"]
 # Enables optimize matrix shaper SSE paths where all TRC are the same
 sse_shaper_optimized_paths = ["sse"]
-# Enables optimize matrix shaper SSE fixed point paths
+# Enables optimize matrix shaper SSE fixed point paths.
+# Fixed points the most agressively optimized paths, hence they are making the biggest contribution to the codesize.
 sse_shaper_fixed_point_paths = ["sse"]
 # Enables SSE optimized LUT paths
 sse_luts = ["lut", "sse"]
@@ -60,9 +62,10 @@ sse_luts = ["lut", "sse"]
 neon = []
 # Enables common matrix shaper NEON paths
 neon_shaper_paths = ["neon"]
-# Enables optimize matrix shaper NEON paths where all TRC are the same
+# Enables optimize matrix shaper NEON paths where all TRC are the same.
 neon_shaper_optimized_paths = ["neon"]
-# Enables optimize matrix shaper NEON fixed point paths
+# Enables optimize matrix shaper NEON fixed point paths.
+# Fixed points the most agressively optimized paths, hence they are making the biggest contribution to the codesize.
 neon_shaper_fixed_point_paths = ["neon"]
 # Enables NEON optimized LUT paths
 neon_luts = ["lut", "neon"]
@@ -85,7 +88,7 @@ sve_luts = ["lut", "sve"]
 
 # Allows configuring interpolation methods and LUT weights precision.
 # Disabled by default to prevent binary bloat.
-options = []
+options = ["lut"]
 # All LUT are gated by this feature. This is basic feature to work with CMYKs profiles.
 lut = []
 # This feature is required for one who wants to work with more than 4 channels ICC profiles, except CMYKA.

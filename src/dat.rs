@@ -31,7 +31,7 @@ use crate::writer::write_u16_be;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 #[repr(C)]
-#[derive(Debug, Clone, Copy, Ord, PartialOrd, Eq, PartialEq, Default)]
+#[derive(Debug, Clone, Copy, Ord, PartialOrd, Eq, PartialEq)]
 pub struct ColorDateTime {
     pub year: u16,
     pub month: u16,
@@ -66,6 +66,12 @@ fn days_in_month(year: i32, month: i32) -> i32 {
         11 => 30,
         12 => 31,
         _ => unreachable!("Unknown month"),
+    }
+}
+
+impl Default for ColorDateTime {
+    fn default() -> Self {
+        Self::now()
     }
 }
 
