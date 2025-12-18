@@ -50,10 +50,10 @@ impl<T> FromCmykaInterceptor<T> {
 
 impl<T: Clone + Copy + Default> TransformExecutor<T> for FromCmykaInterceptor<T> {
     fn transform(&self, src: &[T], dst: &mut [T]) -> Result<(), CmsError> {
-        if !src.len().is_multiple_of(5) {
+        if src.len() % 5 != 0 {
             return Err(CmsError::LaneMultipleOfChannels);
         }
-        if !dst.len().is_multiple_of(self.target_layout.channels()) {
+        if dst.len() % self.target_layout.channels() != 0 {
             return Err(CmsError::LaneMultipleOfChannels);
         }
         if src.len() / 5 != dst.len() / self.target_layout.channels() {
@@ -112,10 +112,10 @@ impl<T> ToCmykaInterceptor<T> {
 
 impl<T: Clone + Copy + Default> TransformExecutor<T> for ToCmykaInterceptor<T> {
     fn transform(&self, src: &[T], dst: &mut [T]) -> Result<(), CmsError> {
-        if !src.len().is_multiple_of(self.src_layout.channels()) {
+        if src.len() % self.src_layout.channels() != 0 {
             return Err(CmsError::LaneMultipleOfChannels);
         }
-        if !dst.len().is_multiple_of(5) {
+        if dst.len() % 5 != 0 {
             return Err(CmsError::LaneMultipleOfChannels);
         }
         if src.len() / self.src_layout.channels() != dst.len() / 5 {

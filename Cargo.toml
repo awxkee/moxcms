@@ -86,6 +86,8 @@ sve_luts = ["lut", "sve"]
 # Allows configuring interpolation methods and LUT weights precision.
 # Disabled by default to prevent binary bloat.
 options = []
+# All LUT are gated by this feature. This is basic feature to work with CMYKs profiles.
+lut = []
 # This feature is required for one who wants to work with more than 4 channels ICC profiles, except CMYKA.
 # This is required as for handling unusual 1-2 channels LUTs.
 # Optimizations in this library heavily depends on curves quantizing and fuzing many curves into one using interpolation.
@@ -93,8 +95,6 @@ options = []
 # degenerations at boundaries. Many CMYK have curves that do not fall under those requiremenent, so if accurate
 # color reproduction is neccessary for broad amount of LUT profiles, this feature is mandatory.
 any_to_any = ["lut"]
-# All LUT are gated by this feature
-lut = []
 # This allows extended range on `f32`/`f64` to work with HDR/WideGamut if neccessary
 extended_range = []
 

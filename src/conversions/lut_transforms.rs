@@ -449,7 +449,7 @@ where
                 post_finalization.push(stage);
             }
 
-            return Ok(Box::new(Katana::<f32, T> {
+            return Ok(Arc::new(Katana::<f32, T> {
                 initial_stage,
                 final_stage,
                 stages,
@@ -710,7 +710,7 @@ where
                 post_finalization.push(stage);
             }
 
-            return Ok(Box::new(Katana::<f32, T> {
+            return Ok(Arc::new(Katana::<f32, T> {
                 initial_stage: source_stage,
                 final_stage,
                 stages,

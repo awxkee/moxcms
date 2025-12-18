@@ -70,7 +70,7 @@ pub(crate) fn interpolate_out_function(
         Layout::Rgba => linear_4i_vec3f::<OUT>,
         Layout::Gray => linear_1i_vec3f::<OUT>,
         Layout::GrayAlpha => linear_2i_vec3f_direct::<OUT>,
-        Layout::Inks5 => linear_5i_vec3f::<OUT>,
+        Layout::Inks5 | Layout::Cmyka => linear_5i_vec3f::<OUT>,
         Layout::Inks6 => linear_6i_vec3f::<OUT>,
         Layout::Inks7 => linear_7i_vec3f::<OUT>,
         Layout::Inks8 => linear_8i_vec3f::<OUT>,

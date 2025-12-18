@@ -357,7 +357,7 @@ struct TransformMatrixShaperOptScalar<
 
 #[cfg(any(
     any(target_arch = "x86", target_arch = "x86_64"),
-    all(target_arch = "aarch64")
+    target_arch = "aarch64"
 ))]
 #[allow(unused)]
 macro_rules! create_rgb_xyz_dependant_executor {
@@ -427,7 +427,7 @@ macro_rules! create_rgb_xyz_dependant_executor {
 
 #[cfg(any(
     any(target_arch = "x86", target_arch = "x86_64"),
-    all(target_arch = "aarch64")
+    target_arch = "aarch64"
 ))]
 #[allow(unused)]
 macro_rules! create_rgb_xyz_dependant_executor_to_v {

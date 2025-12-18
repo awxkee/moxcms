@@ -355,7 +355,7 @@ where
     f32: AsPrimitive<T>,
 {
     fn to_pcs(&self, input: &[T]) -> Result<Vec<f32>, CmsError> {
-        let l_tbl = Cube::new_checked(&self.clut, self.grid_size as usize, 3)?;
+        let l_tbl = Cube::new(&self.clut, self.grid_size as usize, 3)?;
 
         // If PCS is LAB then linear interpolation should be used
         if self.pcs == DataColorSpace::Lab || self.pcs == DataColorSpace::Xyz {
@@ -389,7 +389,7 @@ where
     f32: AsPrimitive<T>,
 {
     fn to_output(&self, src: &mut [f32], dst: &mut [T]) -> Result<(), CmsError> {
-        let l_tbl = Cube::new_checked(&self.clut, self.grid_size as usize, 3)?;
+        let l_tbl = Cube::new(&self.clut, self.grid_size as usize, 3)?;
 
         // If PCS is LAB then linear interpolation should be used
         if self.pcs == DataColorSpace::Lab || self.pcs == DataColorSpace::Xyz {

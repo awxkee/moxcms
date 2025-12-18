@@ -109,6 +109,9 @@ impl<T: Clone + AsPrimitive<f32>> InPlaceStage for XyzToRgbStage<T> {
 }
 
 #[cfg(feature = "extended_range")]
+use crate::trc::ToneCurveEvaluator;
+
+#[cfg(feature = "extended_range")]
 pub(crate) struct XyzToRgbStageExtended<T: Clone> {
     pub(crate) gamma_evaluator: Box<dyn ToneCurveEvaluator>,
     pub(crate) matrices: Vec<Matrix3f>,
@@ -272,7 +275,6 @@ where
 {
     #[cfg(feature = "extended_range")]
     if !T::FINITE && options.allow_extended_range_rgb_xyz {
-        use crate::trc::ToneCurveEvaluator;
         if let Some(extended_gamma) = dest.try_extended_gamma_evaluator() {
             let xyz_to_rgb = dest.rgb_to_xyz_matrix().inverse();
 

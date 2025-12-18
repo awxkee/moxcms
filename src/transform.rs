@@ -946,7 +946,7 @@ impl ColorProfile {
             }
             #[cfg(not(feature = "lut"))]
             {
-                return Err(CmsError::UnsupportedProfileConnection);
+                Err(CmsError::UnsupportedProfileConnection)
             }
         } else {
             #[cfg(feature = "lut")]
@@ -957,7 +957,7 @@ impl ColorProfile {
             }
             #[cfg(not(feature = "lut"))]
             {
-                return Err(CmsError::UnsupportedProfileConnection);
+                Err(CmsError::UnsupportedProfileConnection)
             }
         }
     }
