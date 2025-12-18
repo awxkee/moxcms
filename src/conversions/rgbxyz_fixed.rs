@@ -31,6 +31,7 @@ use crate::conversions::TransformMatrixShaper;
 use crate::matrix::Matrix3;
 use crate::{CmsError, TransformExecutor};
 use num_traits::AsPrimitive;
+use std::sync::Arc;
 
 /// Fixed point conversion Q2.13
 pub(crate) struct TransformMatrixShaperFixedPoint<R, T, const LINEAR_CAP: usize> {
@@ -271,14 +272,14 @@ macro_rules! create_rgb_xyz_dependant_q2_13_executor {
             profile: $shaper<T, LINEAR_CAP>,
             gamma_lut: usize,
             bit_depth: usize,
-        ) -> Result<Box<dyn TransformExecutor<T> + Send + Sync>, CmsError>
+        ) -> Result<Arc<dyn TransformExecutor<T> + Send + Sync>, CmsError>
         where
             u32: AsPrimitive<T>,
         {
             let q2_13_profile =
                 profile.to_q2_13_n::<$resolution, PRECISION, LINEAR_CAP>(gamma_lut, bit_depth);
             if (src_layout == Layout::Rgba) && (dst_layout == Layout::Rgba) {
-                return Ok(Box::new($dependant::<
+                return Ok(Arc::new($dependant::<
                     T,
                     { Layout::Rgba as u8 },
                     { Layout::Rgba as u8 },
@@ -290,7 +291,7 @@ macro_rules! create_rgb_xyz_dependant_q2_13_executor {
                     gamma_lut,
                 }));
             } else if (src_layout == Layout::Rgb) && (dst_layout == Layout::Rgba) {
-                return Ok(Box::new($dependant::<
+                return Ok(Arc::new($dependant::<
                     T,
                     { Layout::Rgb as u8 },
                     { Layout::Rgba as u8 },
@@ -302,7 +303,7 @@ macro_rules! create_rgb_xyz_dependant_q2_13_executor {
                     gamma_lut,
                 }));
             } else if (src_layout == Layout::Rgba) && (dst_layout == Layout::Rgb) {
-                return Ok(Box::new($dependant::<
+                return Ok(Arc::new($dependant::<
                     T,
                     { Layout::Rgba as u8 },
                     { Layout::Rgb as u8 },
@@ -314,7 +315,7 @@ macro_rules! create_rgb_xyz_dependant_q2_13_executor {
                     gamma_lut,
                 }));
             } else if (src_layout == Layout::Rgb) && (dst_layout == Layout::Rgb) {
-                return Ok(Box::new($dependant::<
+                return Ok(Arc::new($dependant::<
                     T,
                     { Layout::Rgb as u8 },
                     { Layout::Rgb as u8 },
@@ -344,13 +345,13 @@ macro_rules! create_rgb_xyz_dependant_q2_13_executor_fp {
             profile: $shaper<T, LINEAR_CAP>,
             gamma_lut: usize,
             bit_depth: usize,
-        ) -> Result<Box<dyn TransformExecutor<T> + Send + Sync>, CmsError>
+        ) -> Result<Arc<dyn TransformExecutor<T> + Send + Sync>, CmsError>
         where
             u32: AsPrimitive<T>,
         {
             let q2_13_profile = profile.to_q2_13_i::<$resolution, PRECISION>(gamma_lut, bit_depth);
             if (src_layout == Layout::Rgba) && (dst_layout == Layout::Rgba) {
-                return Ok(Box::new($dependant::<
+                return Ok(Arc::new($dependant::<
                     T,
                     { Layout::Rgba as u8 },
                     { Layout::Rgba as u8 },
@@ -361,7 +362,7 @@ macro_rules! create_rgb_xyz_dependant_q2_13_executor_fp {
                     gamma_lut,
                 }));
             } else if (src_layout == Layout::Rgb) && (dst_layout == Layout::Rgba) {
-                return Ok(Box::new($dependant::<
+                return Ok(Arc::new($dependant::<
                     T,
                     { Layout::Rgb as u8 },
                     { Layout::Rgba as u8 },
@@ -372,7 +373,7 @@ macro_rules! create_rgb_xyz_dependant_q2_13_executor_fp {
                     gamma_lut,
                 }));
             } else if (src_layout == Layout::Rgba) && (dst_layout == Layout::Rgb) {
-                return Ok(Box::new($dependant::<
+                return Ok(Arc::new($dependant::<
                     T,
                     { Layout::Rgba as u8 },
                     { Layout::Rgb as u8 },
@@ -383,7 +384,7 @@ macro_rules! create_rgb_xyz_dependant_q2_13_executor_fp {
                     gamma_lut,
                 }));
             } else if (src_layout == Layout::Rgb) && (dst_layout == Layout::Rgb) {
-                return Ok(Box::new($dependant::<
+                return Ok(Arc::new($dependant::<
                     T,
                     { Layout::Rgb as u8 },
                     { Layout::Rgb as u8 },
@@ -412,13 +413,13 @@ macro_rules! create_rgb_xyz_dependant_q1_30_executor {
             profile: $shaper<T, LINEAR_CAP>,
             gamma_lut: usize,
             bit_depth: usize,
-        ) -> Result<Box<dyn TransformExecutor<T> + Send + Sync>, CmsError>
+        ) -> Result<Arc<dyn TransformExecutor<T> + Send + Sync>, CmsError>
         where
             u32: AsPrimitive<T>,
         {
             let q1_30_profile = profile.to_q1_30_n::<$resolution, PRECISION>(gamma_lut, bit_depth);
             if (src_layout == Layout::Rgba) && (dst_layout == Layout::Rgba) {
-                return Ok(Box::new($dependant::<
+                return Ok(Arc::new($dependant::<
                     T,
                     { Layout::Rgba as u8 },
                     { Layout::Rgba as u8 },
@@ -428,7 +429,7 @@ macro_rules! create_rgb_xyz_dependant_q1_30_executor {
                     bit_depth,
                 }));
             } else if (src_layout == Layout::Rgb) && (dst_layout == Layout::Rgba) {
-                return Ok(Box::new($dependant::<
+                return Ok(Arc::new($dependant::<
                     T,
                     { Layout::Rgb as u8 },
                     { Layout::Rgba as u8 },
@@ -438,7 +439,7 @@ macro_rules! create_rgb_xyz_dependant_q1_30_executor {
                     bit_depth,
                 }));
             } else if (src_layout == Layout::Rgba) && (dst_layout == Layout::Rgb) {
-                return Ok(Box::new($dependant::<
+                return Ok(Arc::new($dependant::<
                     T,
                     { Layout::Rgba as u8 },
                     { Layout::Rgb as u8 },
@@ -448,7 +449,7 @@ macro_rules! create_rgb_xyz_dependant_q1_30_executor {
                     bit_depth,
                 }));
             } else if (src_layout == Layout::Rgb) && (dst_layout == Layout::Rgb) {
-                return Ok(Box::new($dependant::<
+                return Ok(Arc::new($dependant::<
                     T,
                     { Layout::Rgb as u8 },
                     { Layout::Rgb as u8 },

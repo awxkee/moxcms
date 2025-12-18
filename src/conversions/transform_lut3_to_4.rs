@@ -35,6 +35,7 @@ use crate::{
 };
 use num_traits::AsPrimitive;
 use std::marker::PhantomData;
+use std::sync::Arc;
 
 pub(crate) struct TransformLut3x4<
     T,
@@ -187,7 +188,7 @@ pub(crate) fn make_transform_3x4<
     options: TransformOptions,
     color_space: DataColorSpace,
     is_linear: bool,
-) -> Box<dyn TransformExecutor<T> + Sync + Send>
+) -> Arc<dyn TransformExecutor<T> + Sync + Send>
 where
     f32: AsPrimitive<T>,
     u32: AsPrimitive<T>,
@@ -196,7 +197,7 @@ where
 {
     match layout {
         Layout::Rgb => match options.barycentric_weight_scale {
-            BarycentricWeightScale::Low => Box::new(TransformLut3x4::<
+            BarycentricWeightScale::Low => Arc::new(TransformLut3x4::<
                 T,
                 u8,
                 { Layout::Rgb as u8 },
@@ -214,7 +215,7 @@ where
                 is_linear,
             }),
             #[cfg(feature = "options")]
-            BarycentricWeightScale::High => Box::new(TransformLut3x4::<
+            BarycentricWeightScale::High => Arc::new(TransformLut3x4::<
                 T,
                 u16,
                 { Layout::Rgb as u8 },
@@ -233,7 +234,7 @@ where
             }),
         },
         Layout::Rgba => match options.barycentric_weight_scale {
-            BarycentricWeightScale::Low => Box::new(TransformLut3x4::<
+            BarycentricWeightScale::Low => Arc::new(TransformLut3x4::<
                 T,
                 u8,
                 { Layout::Rgba as u8 },
@@ -251,7 +252,7 @@ where
                 is_linear,
             }),
             #[cfg(feature = "options")]
-            BarycentricWeightScale::High => Box::new(TransformLut3x4::<
+            BarycentricWeightScale::High => Arc::new(TransformLut3x4::<
                 T,
                 u16,
                 { Layout::Rgba as u8 },

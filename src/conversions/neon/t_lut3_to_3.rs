@@ -41,6 +41,7 @@ use crate::{
 use num_traits::AsPrimitive;
 use std::arch::aarch64::*;
 use std::marker::PhantomData;
+use std::sync::Arc;
 
 struct TransformLut3x3Neon<
     T,
@@ -227,7 +228,7 @@ impl Lut3x3Factory for NeonLut3x3Factory {
         options: TransformOptions,
         color_space: DataColorSpace,
         is_linear: bool,
-    ) -> Box<dyn TransformExecutor<T> + Send + Sync>
+    ) -> Arc<dyn TransformExecutor<T> + Send + Sync>
     where
         f32: AsPrimitive<T>,
         u32: AsPrimitive<T>,
@@ -255,7 +256,7 @@ impl Lut3x3Factory for NeonLut3x3Factory {
                 })
                 .collect::<Vec<_>>();
             return match options.barycentric_weight_scale {
-                BarycentricWeightScale::Low => Box::new(TransformLut3x3NeonQ0_15::<
+                BarycentricWeightScale::Low => Arc::new(TransformLut3x3NeonQ0_15::<
                     T,
                     u8,
                     SRC_LAYOUT,
@@ -274,7 +275,7 @@ impl Lut3x3Factory for NeonLut3x3Factory {
                     is_linear,
                 }),
                 #[cfg(feature = "options")]
-                BarycentricWeightScale::High => Box::new(TransformLut3x3NeonQ0_15::<
+                BarycentricWeightScale::High => Arc::new(TransformLut3x3NeonQ0_15::<
                     T,
                     u16,
                     SRC_LAYOUT,
@@ -299,7 +300,7 @@ impl Lut3x3Factory for NeonLut3x3Factory {
             .map(|x| NeonAlignedF32([x[0], x[1], x[2], 0f32]))
             .collect::<Vec<_>>();
         match options.barycentric_weight_scale {
-            BarycentricWeightScale::Low => Box::new(TransformLut3x3Neon::<
+            BarycentricWeightScale::Low => Arc::new(TransformLut3x3Neon::<
                 T,
                 u8,
                 SRC_LAYOUT,
@@ -318,7 +319,7 @@ impl Lut3x3Factory for NeonLut3x3Factory {
                 is_linear,
             }),
             #[cfg(feature = "options")]
-            BarycentricWeightScale::High => Box::new(TransformLut3x3Neon::<
+            BarycentricWeightScale::High => Arc::new(TransformLut3x3Neon::<
                 T,
                 u16,
                 SRC_LAYOUT,

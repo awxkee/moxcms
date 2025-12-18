@@ -28,6 +28,7 @@
  */
 use crate::{CmsError, Layout, Matrix3, Matrix3f, TransformExecutor};
 use num_traits::AsPrimitive;
+use std::sync::Arc;
 
 pub(crate) struct TransformMatrixShaper<T: Clone, const BUCKET: usize> {
     pub(crate) r_linear: Box<[f32; BUCKET]>,
@@ -370,12 +371,12 @@ macro_rules! create_rgb_xyz_dependant_executor {
             profile: $shaper<T, LINEAR_CAP>,
             gamma_lut: usize,
             bit_depth: usize,
-        ) -> Result<Box<dyn TransformExecutor<T> + Send + Sync>, CmsError>
+        ) -> Result<Arc<dyn TransformExecutor<T> + Send + Sync>, CmsError>
         where
             u32: AsPrimitive<T>,
         {
             if (src_layout == Layout::Rgba) && (dst_layout == Layout::Rgba) {
-                return Ok(Box::new($dependant::<
+                return Ok(Arc::new($dependant::<
                     T,
                     { Layout::Rgba as u8 },
                     { Layout::Rgba as u8 },
@@ -386,7 +387,7 @@ macro_rules! create_rgb_xyz_dependant_executor {
                     gamma_lut,
                 }));
             } else if (src_layout == Layout::Rgb) && (dst_layout == Layout::Rgba) {
-                return Ok(Box::new($dependant::<
+                return Ok(Arc::new($dependant::<
                     T,
                     { Layout::Rgb as u8 },
                     { Layout::Rgba as u8 },
@@ -397,7 +398,7 @@ macro_rules! create_rgb_xyz_dependant_executor {
                     gamma_lut,
                 }));
             } else if (src_layout == Layout::Rgba) && (dst_layout == Layout::Rgb) {
-                return Ok(Box::new($dependant::<
+                return Ok(Arc::new($dependant::<
                     T,
                     { Layout::Rgba as u8 },
                     { Layout::Rgb as u8 },
@@ -408,7 +409,7 @@ macro_rules! create_rgb_xyz_dependant_executor {
                     gamma_lut,
                 }));
             } else if (src_layout == Layout::Rgb) && (dst_layout == Layout::Rgb) {
-                return Ok(Box::new($dependant::<
+                return Ok(Arc::new($dependant::<
                     T,
                     { Layout::Rgb as u8 },
                     { Layout::Rgb as u8 },
@@ -440,13 +441,13 @@ macro_rules! create_rgb_xyz_dependant_executor_to_v {
             profile: $shaper<T, LINEAR_CAP>,
             gamma_lut: usize,
             bit_depth: usize,
-        ) -> Result<Box<dyn TransformExecutor<T> + Send + Sync>, CmsError>
+        ) -> Result<Arc<dyn TransformExecutor<T> + Send + Sync>, CmsError>
         where
             u32: AsPrimitive<T>,
         {
             let profile = profile.convert_to_v();
             if (src_layout == Layout::Rgba) && (dst_layout == Layout::Rgba) {
-                return Ok(Box::new($dependant::<
+                return Ok(Arc::new($dependant::<
                     T,
                     { Layout::Rgba as u8 },
                     { Layout::Rgba as u8 },
@@ -456,7 +457,7 @@ macro_rules! create_rgb_xyz_dependant_executor_to_v {
                     gamma_lut,
                 }));
             } else if (src_layout == Layout::Rgb) && (dst_layout == Layout::Rgba) {
-                return Ok(Box::new($dependant::<
+                return Ok(Arc::new($dependant::<
                     T,
                     { Layout::Rgb as u8 },
                     { Layout::Rgba as u8 },
@@ -466,7 +467,7 @@ macro_rules! create_rgb_xyz_dependant_executor_to_v {
                     gamma_lut,
                 }));
             } else if (src_layout == Layout::Rgba) && (dst_layout == Layout::Rgb) {
-                return Ok(Box::new($dependant::<
+                return Ok(Arc::new($dependant::<
                     T,
                     { Layout::Rgba as u8 },
                     { Layout::Rgb as u8 },
@@ -476,7 +477,7 @@ macro_rules! create_rgb_xyz_dependant_executor_to_v {
                     gamma_lut,
                 }));
             } else if (src_layout == Layout::Rgb) && (dst_layout == Layout::Rgb) {
-                return Ok(Box::new($dependant::<
+                return Ok(Arc::new($dependant::<
                     T,
                     { Layout::Rgb as u8 },
                     { Layout::Rgb as u8 },
@@ -545,7 +546,7 @@ pub(crate) fn make_rgb_xyz_rgb_transform<
     profile: TransformMatrixShaper<T, LINEAR_CAP>,
     gamma_lut: usize,
     bit_depth: usize,
-) -> Result<Box<dyn TransformExecutor<T> + Send + Sync>, CmsError>
+) -> Result<Arc<dyn TransformExecutor<T> + Send + Sync>, CmsError>
 where
     u32: AsPrimitive<T>,
 {
@@ -562,7 +563,7 @@ where
         );
     }
     if (src_layout == Layout::Rgba) && (dst_layout == Layout::Rgba) {
-        return Ok(Box::new(TransformMatrixShaperScalar::<
+        return Ok(Arc::new(TransformMatrixShaperScalar::<
             T,
             { Layout::Rgba as u8 },
             { Layout::Rgba as u8 },
@@ -573,7 +574,7 @@ where
             bit_depth,
         }));
     } else if (src_layout == Layout::Rgb) && (dst_layout == Layout::Rgba) {
-        return Ok(Box::new(TransformMatrixShaperScalar::<
+        return Ok(Arc::new(TransformMatrixShaperScalar::<
             T,
             { Layout::Rgb as u8 },
             { Layout::Rgba as u8 },
@@ -584,7 +585,7 @@ where
             bit_depth,
         }));
     } else if (src_layout == Layout::Rgba) && (dst_layout == Layout::Rgb) {
-        return Ok(Box::new(TransformMatrixShaperScalar::<
+        return Ok(Arc::new(TransformMatrixShaperScalar::<
             T,
             { Layout::Rgba as u8 },
             { Layout::Rgb as u8 },
@@ -595,7 +596,7 @@ where
             bit_depth,
         }));
     } else if (src_layout == Layout::Rgb) && (dst_layout == Layout::Rgb) {
-        return Ok(Box::new(TransformMatrixShaperScalar::<
+        return Ok(Arc::new(TransformMatrixShaperScalar::<
             T,
             { Layout::Rgb as u8 },
             { Layout::Rgb as u8 },
@@ -619,7 +620,7 @@ pub(crate) fn make_rgb_xyz_rgb_transform_opt<
     profile: TransformMatrixShaperOptimized<T, LINEAR_CAP>,
     gamma_lut: usize,
     bit_depth: usize,
-) -> Result<Box<dyn TransformExecutor<T> + Send + Sync>, CmsError>
+) -> Result<Arc<dyn TransformExecutor<T> + Send + Sync>, CmsError>
 where
     u32: AsPrimitive<T>,
 {
@@ -645,7 +646,7 @@ where
         );
     }
     if (src_layout == Layout::Rgba) && (dst_layout == Layout::Rgba) {
-        return Ok(Box::new(TransformMatrixShaperOptScalar::<
+        return Ok(Arc::new(TransformMatrixShaperOptScalar::<
             T,
             { Layout::Rgba as u8 },
             { Layout::Rgba as u8 },
@@ -656,7 +657,7 @@ where
             bit_depth,
         }));
     } else if (src_layout == Layout::Rgb) && (dst_layout == Layout::Rgba) {
-        return Ok(Box::new(TransformMatrixShaperOptScalar::<
+        return Ok(Arc::new(TransformMatrixShaperOptScalar::<
             T,
             { Layout::Rgb as u8 },
             { Layout::Rgba as u8 },
@@ -667,7 +668,7 @@ where
             bit_depth,
         }));
     } else if (src_layout == Layout::Rgba) && (dst_layout == Layout::Rgb) {
-        return Ok(Box::new(TransformMatrixShaperOptScalar::<
+        return Ok(Arc::new(TransformMatrixShaperOptScalar::<
             T,
             { Layout::Rgba as u8 },
             { Layout::Rgb as u8 },
@@ -678,7 +679,7 @@ where
             bit_depth,
         }));
     } else if (src_layout == Layout::Rgb) && (dst_layout == Layout::Rgb) {
-        return Ok(Box::new(TransformMatrixShaperOptScalar::<
+        return Ok(Arc::new(TransformMatrixShaperOptScalar::<
             T,
             { Layout::Rgb as u8 },
             { Layout::Rgb as u8 },

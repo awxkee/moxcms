@@ -35,6 +35,7 @@ use crate::{
 };
 use num_traits::AsPrimitive;
 use std::marker::PhantomData;
+use std::sync::Arc;
 
 pub(crate) trait Vector3fCmykLerp {
     fn interpolate(a: Vector3f, b: Vector3f, t: f32, scale: f32) -> Vector3f;
@@ -311,7 +312,7 @@ impl Lut4x3Factory for DefaultLut4x3Factory {
         options: TransformOptions,
         color_space: DataColorSpace,
         is_linear: bool,
-    ) -> Box<dyn TransformExecutor<T> + Sync + Send>
+    ) -> Arc<dyn TransformExecutor<T> + Sync + Send>
     where
         f32: AsPrimitive<T>,
         u32: AsPrimitive<T>,
@@ -320,7 +321,7 @@ impl Lut4x3Factory for DefaultLut4x3Factory {
     {
         match options.barycentric_weight_scale {
             BarycentricWeightScale::Low => {
-                Box::new(
+                Arc::new(
                     TransformLut4To3::<T, u8, LAYOUT, GRID_SIZE, BIT_DEPTH, 256, 256> {
                         lut,
                         _phantom: PhantomData,
@@ -334,7 +335,7 @@ impl Lut4x3Factory for DefaultLut4x3Factory {
             }
             #[cfg(feature = "options")]
             BarycentricWeightScale::High => {
-                Box::new(
+                Arc::new(
                     TransformLut4To3::<T, u16, LAYOUT, GRID_SIZE, BIT_DEPTH, 65536, 65536> {
                         lut,
                         _phantom: PhantomData,

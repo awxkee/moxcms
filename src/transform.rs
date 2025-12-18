@@ -36,6 +36,7 @@ use crate::trc::GammaLutInterpolate;
 use crate::{ColorProfile, DataColorSpace, LutWarehouse, RenderingIntent, Vector3f, Xyzd};
 use num_traits::AsPrimitive;
 use std::marker::PhantomData;
+use std::sync::Arc;
 
 /// Transformation executor itself
 pub trait TransformExecutor<V: Copy + Default> {
@@ -149,8 +150,8 @@ impl Default for TransformOptions {
 
 pub type Transform8BitExecutor = dyn TransformExecutor<u8> + Send + Sync;
 pub type Transform16BitExecutor = dyn TransformExecutor<u16> + Send + Sync;
-pub type TransformF32BitExecutor = dyn TransformExecutor<f32> + Send + Sync;
-pub type TransformF64BitExecutor = dyn TransformExecutor<f64> + Send + Sync;
+pub type TransformF32Executor = dyn TransformExecutor<f32> + Send + Sync;
+pub type TransformF64Executor = dyn TransformExecutor<f64> + Send + Sync;
 
 /// Layout declares a data layout.
 /// For RGB it shows also the channel order.
@@ -402,7 +403,7 @@ impl ColorProfile {
         dst_pr: &ColorProfile,
         dst_layout: Layout,
         options: TransformOptions,
-    ) -> Result<Box<Transform16BitExecutor>, CmsError> {
+    ) -> Result<Arc<Transform16BitExecutor>, CmsError> {
         self.create_transform_nbit::<u16, 16, 65536, 65536>(src_layout, dst_pr, dst_layout, options)
     }
 
@@ -414,7 +415,7 @@ impl ColorProfile {
         dst_pr: &ColorProfile,
         dst_layout: Layout,
         options: TransformOptions,
-    ) -> Result<Box<Transform16BitExecutor>, CmsError> {
+    ) -> Result<Arc<Transform16BitExecutor>, CmsError> {
         self.create_transform_nbit::<u16, 12, 65536, 16384>(src_layout, dst_pr, dst_layout, options)
     }
 
@@ -426,7 +427,7 @@ impl ColorProfile {
         dst_pr: &ColorProfile,
         dst_layout: Layout,
         options: TransformOptions,
-    ) -> Result<Box<Transform16BitExecutor>, CmsError> {
+    ) -> Result<Arc<Transform16BitExecutor>, CmsError> {
         self.create_transform_nbit::<u16, 10, 65536, 8192>(src_layout, dst_pr, dst_layout, options)
     }
 
@@ -442,7 +443,7 @@ impl ColorProfile {
         dst_pr: &ColorProfile,
         dst_layout: Layout,
         options: TransformOptions,
-    ) -> Result<Box<TransformF32BitExecutor>, CmsError> {
+    ) -> Result<Arc<TransformF32Executor>, CmsError> {
         self.create_transform_nbit::<f32, 1, 65536, 32768>(src_layout, dst_pr, dst_layout, options)
     }
 
@@ -458,7 +459,7 @@ impl ColorProfile {
         dst_pr: &ColorProfile,
         dst_layout: Layout,
         options: TransformOptions,
-    ) -> Result<Box<TransformF64BitExecutor>, CmsError> {
+    ) -> Result<Arc<TransformF64Executor>, CmsError> {
         self.create_transform_nbit::<f64, 1, 65536, 65536>(src_layout, dst_pr, dst_layout, options)
     }
 
@@ -482,7 +483,7 @@ impl ColorProfile {
         dst_pr: &ColorProfile,
         dst_layout: Layout,
         options: TransformOptions,
-    ) -> Result<Box<dyn TransformExecutor<T> + Send + Sync>, CmsError>
+    ) -> Result<Arc<dyn TransformExecutor<T> + Send + Sync>, CmsError>
     where
         f32: AsPrimitive<T>,
         u32: AsPrimitive<T>,
@@ -850,7 +851,7 @@ impl ColorProfile {
         dst_pr: &ColorProfile,
         dst_layout: Layout,
         options: TransformOptions,
-    ) -> Result<Box<Transform8BitExecutor>, CmsError> {
+    ) -> Result<Arc<Transform8BitExecutor>, CmsError> {
         self.create_transform_nbit::<u8, 8, 256, 4096>(src_layout, dst_pr, dst_layout, options)
     }
 

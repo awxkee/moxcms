@@ -30,6 +30,7 @@ use crate::trc::ToneCurveEvaluator;
 use crate::{CmsError, Layout, Matrix3f, PointeeSizeExpressible, Rgb, TransformExecutor};
 use num_traits::AsPrimitive;
 use std::marker::PhantomData;
+use std::sync::Arc;
 
 pub(crate) struct TransformShaperRgbFloat<T: Clone, const BUCKET: usize> {
     pub(crate) r_linear: Box<[f32; BUCKET]>,
@@ -70,13 +71,13 @@ pub(crate) fn make_rgb_xyz_rgb_transform_float<
     dst_layout: Layout,
     profile: TransformShaperRgbFloat<T, LINEAR_CAP>,
     bit_depth: usize,
-) -> Result<Box<dyn TransformExecutor<T> + Send + Sync>, CmsError>
+) -> Result<Arc<dyn TransformExecutor<T> + Send + Sync>, CmsError>
 where
     u32: AsPrimitive<T>,
     f32: AsPrimitive<T>,
 {
     if (src_layout == Layout::Rgba) && (dst_layout == Layout::Rgba) {
-        return Ok(Box::new(TransformShaperFloatScalar::<
+        return Ok(Arc::new(TransformShaperFloatScalar::<
             T,
             { Layout::Rgba as u8 },
             { Layout::Rgba as u8 },
@@ -86,7 +87,7 @@ where
             bit_depth,
         }));
     } else if (src_layout == Layout::Rgb) && (dst_layout == Layout::Rgba) {
-        return Ok(Box::new(TransformShaperFloatScalar::<
+        return Ok(Arc::new(TransformShaperFloatScalar::<
             T,
             { Layout::Rgb as u8 },
             { Layout::Rgba as u8 },
@@ -96,7 +97,7 @@ where
             bit_depth,
         }));
     } else if (src_layout == Layout::Rgba) && (dst_layout == Layout::Rgb) {
-        return Ok(Box::new(TransformShaperFloatScalar::<
+        return Ok(Arc::new(TransformShaperFloatScalar::<
             T,
             { Layout::Rgba as u8 },
             { Layout::Rgb as u8 },
@@ -106,7 +107,7 @@ where
             bit_depth,
         }));
     } else if (src_layout == Layout::Rgb) && (dst_layout == Layout::Rgb) {
-        return Ok(Box::new(TransformShaperFloatScalar::<
+        return Ok(Arc::new(TransformShaperFloatScalar::<
             T,
             { Layout::Rgb as u8 },
             { Layout::Rgb as u8 },
@@ -126,13 +127,13 @@ pub(crate) fn make_rgb_xyz_rgb_transform_float_in_out<
     dst_layout: Layout,
     profile: TransformShaperFloatInOut<T>,
     bit_depth: usize,
-) -> Result<Box<dyn TransformExecutor<T> + Send + Sync>, CmsError>
+) -> Result<Arc<dyn TransformExecutor<T> + Send + Sync>, CmsError>
 where
     u32: AsPrimitive<T>,
     f32: AsPrimitive<T>,
 {
     if (src_layout == Layout::Rgba) && (dst_layout == Layout::Rgba) {
-        return Ok(Box::new(TransformShaperRgbFloatInOut::<
+        return Ok(Arc::new(TransformShaperRgbFloatInOut::<
             T,
             { Layout::Rgba as u8 },
             { Layout::Rgba as u8 },
@@ -141,7 +142,7 @@ where
             bit_depth,
         }));
     } else if (src_layout == Layout::Rgb) && (dst_layout == Layout::Rgba) {
-        return Ok(Box::new(TransformShaperRgbFloatInOut::<
+        return Ok(Arc::new(TransformShaperRgbFloatInOut::<
             T,
             { Layout::Rgb as u8 },
             { Layout::Rgba as u8 },
@@ -150,7 +151,7 @@ where
             bit_depth,
         }));
     } else if (src_layout == Layout::Rgba) && (dst_layout == Layout::Rgb) {
-        return Ok(Box::new(TransformShaperRgbFloatInOut::<
+        return Ok(Arc::new(TransformShaperRgbFloatInOut::<
             T,
             { Layout::Rgba as u8 },
             { Layout::Rgb as u8 },
@@ -159,7 +160,7 @@ where
             bit_depth,
         }));
     } else if (src_layout == Layout::Rgb) && (dst_layout == Layout::Rgb) {
-        return Ok(Box::new(TransformShaperRgbFloatInOut::<
+        return Ok(Arc::new(TransformShaperRgbFloatInOut::<
             T,
             { Layout::Rgb as u8 },
             { Layout::Rgb as u8 },

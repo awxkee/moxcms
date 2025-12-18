@@ -39,6 +39,7 @@ use crate::{
     ProfileVersion, TransformExecutor, TransformOptions,
 };
 use num_traits::AsPrimitive;
+use std::sync::Arc;
 
 pub(crate) struct MatrixStage {
     pub(crate) matrices: Vec<Matrix3f>,
@@ -87,7 +88,7 @@ pub(crate) trait Lut3x3Factory {
         options: TransformOptions,
         color_space: DataColorSpace,
         is_linear: bool,
-    ) -> Box<dyn TransformExecutor<T> + Send + Sync>
+    ) -> Arc<dyn TransformExecutor<T> + Send + Sync>
     where
         f32: AsPrimitive<T>,
         u32: AsPrimitive<T>,
@@ -106,7 +107,7 @@ pub(crate) trait Lut4x3Factory {
         options: TransformOptions,
         color_space: DataColorSpace,
         is_linear: bool,
-    ) -> Box<dyn TransformExecutor<T> + Sync + Send>
+    ) -> Arc<dyn TransformExecutor<T> + Sync + Send>
     where
         f32: AsPrimitive<T>,
         u32: AsPrimitive<T>,
@@ -179,7 +180,7 @@ macro_rules! make_transform_3x3_fn {
             options: TransformOptions,
             color_space: DataColorSpace,
             is_linear: bool,
-        ) -> Box<dyn TransformExecutor<T> + Send + Sync>
+        ) -> Arc<dyn TransformExecutor<T> + Send + Sync>
         where
             f32: AsPrimitive<T>,
             u32: AsPrimitive<T>,
@@ -245,7 +246,7 @@ macro_rules! make_transform_4x3_fn {
             options: TransformOptions,
             data_color_space: DataColorSpace,
             is_linear: bool,
-        ) -> Box<dyn TransformExecutor<T> + Send + Sync>
+        ) -> Arc<dyn TransformExecutor<T> + Send + Sync>
         where
             f32: AsPrimitive<T>,
             u32: AsPrimitive<T>,
@@ -351,7 +352,7 @@ pub(crate) fn make_lut_transform<
     dst_layout: Layout,
     dest: &ColorProfile,
     options: TransformOptions,
-) -> Result<Box<dyn TransformExecutor<T> + Send + Sync>, CmsError>
+) -> Result<Arc<dyn TransformExecutor<T> + Send + Sync>, CmsError>
 where
     f32: AsPrimitive<T>,
     u32: AsPrimitive<T>,
