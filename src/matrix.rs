@@ -41,7 +41,7 @@ pub struct Vector3<T> {
 
 /// Vector math helper
 #[repr(transparent)]
-#[derive(Copy, Clone, Debug, Default)]
+#[derive(Copy, Clone, Debug, Default, PartialEq)]
 pub struct Vector4<T> {
     pub v: [T; 4],
 }
@@ -394,20 +394,20 @@ where
 
 /// Matrix math helper
 #[repr(C)]
-#[derive(Copy, Clone, Debug, Default)]
+#[derive(Copy, Clone, Debug, Default, PartialEq)]
 pub struct Matrix3f {
     pub v: [[f32; 3]; 3],
 }
 
 /// Matrix math helper
 #[repr(C)]
-#[derive(Copy, Clone, Debug, Default)]
+#[derive(Copy, Clone, Debug, Default, PartialEq)]
 pub struct Matrix3d {
     pub v: [[f64; 3]; 3],
 }
 
 #[repr(C)]
-#[derive(Copy, Clone, Debug, Default)]
+#[derive(Copy, Clone, Debug, Default, PartialEq)]
 pub struct Matrix3<T> {
     pub v: [[T; 3]; 3],
 }

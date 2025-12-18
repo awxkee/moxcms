@@ -40,3 +40,10 @@ path = "lut/lut.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "safe_read_create"
+path = "safe_read_create/safe_read_create.rs"
+test = false
+doc = false
+bench = false

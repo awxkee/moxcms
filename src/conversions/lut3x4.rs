@@ -162,7 +162,7 @@ impl Lut3x4 {
 
 impl Stage for Lut3x4 {
     fn transform(&self, src: &[f32], dst: &mut [f32]) -> Result<(), CmsError> {
-        let l_tbl = Cube::new(&self.clut, self.grid_size as usize);
+        let l_tbl = Cube::new_checked(&self.clut, self.grid_size as usize, 4)?;
 
         // If PCS is LAB then linear interpolation should be used
         if self.pcs == DataColorSpace::Lab || self.pcs == DataColorSpace::Xyz {

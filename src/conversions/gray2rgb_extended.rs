@@ -98,7 +98,7 @@ where
                 _phantom: PhantomData,
                 bit_depth,
             })),
-            _ => unreachable!(),
+            _ => Err(CmsError::UnsupportedProfileConnection),
         },
         Layout::GrayAlpha => match dst_layout {
             Layout::Rgb => Ok(Box::new(TransformGrayOneToOneExecutor::<
@@ -141,7 +141,7 @@ where
                 _phantom: PhantomData,
                 bit_depth,
             })),
-            _ => unreachable!(),
+            _ => Err(CmsError::UnsupportedProfileConnection),
         },
         _ => Err(CmsError::UnsupportedProfileConnection),
     }

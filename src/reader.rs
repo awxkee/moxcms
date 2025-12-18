@@ -397,58 +397,103 @@ impl ColorProfile {
 
         let mut grid_points: [u8; 16] = [0; 16];
 
-        let clut_table: Option<LutStore> = if clut_offset != 0 {
-            // Check if CLUT formed correctly
-            if clut_offset.safe_add(20)? > tag.len() {
-                return Err(CmsError::InvalidProfile);
-            }
+        let clut_table: Option<LutStore> =
+            if clut_offset != 0 {
+                // Check if CLUT formed correctly
+                if clut_offset.safe_add(20)? > tag.len() {
+                    return Err(CmsError::InvalidProfile);
+                }
 
-            let clut_sizes_slice = &tag[clut_offset..clut_offset.safe_add(16)?];
-            for (&s, v) in clut_sizes_slice.iter().zip(grid_points.iter_mut()) {
-                *v = s;
-            }
+                let clut_sizes_slice = &tag[clut_offset..clut_offset.safe_add(16)?];
+                for (&s, v) in clut_sizes_slice.iter().zip(grid_points.iter_mut()) {
+                    *v = s;
+                }
 
-            let mut clut_size = 1u32;
-            for &i in grid_points.iter().take(in_channels as usize) {
-                clut_size = clut_size.safe_mul(i as u32)?;
-            }
-            clut_size = clut_size.safe_mul(out_channels as u32)?;
+                let mut clut_size = 1u32;
+                for &i in grid_points.iter().take(in_channels as usize) {
+                    clut_size = clut_size.safe_mul(i as u32)?;
+                }
+                clut_size = clut_size.safe_mul(out_channels as u32)?;
 
-            if clut_size == 0 {
-                return Err(CmsError::InvalidProfile);
-            }
+                if clut_size == 0 {
+                    return Err(CmsError::IncorrectlyFormedLut(
+                        "Clut size was zero when it shouldn't".to_string(),
+                    ));
+                }
 
-            if clut_size > 10_000_000 {
-                return Err(CmsError::InvalidProfile);
-            }
+                if clut_size > 10_000_000 {
+                    return Err(CmsError::IncorrectlyFormedLut(
+                        "Clut size exceeded 10_000_000 points what is too big".to_string(),
+                    ));
+                }
 
-            let clut_offset20 = clut_offset.safe_add(20)?;
+                // check LUT dimensions
+                let mut grid_stride: usize = 1usize;
+                let mut last_index: usize = 0;
+                for &dim in grid_points.iter().take(in_channels as usize).rev() {
+                    let dim_usize = dim as usize;
+                    if dim_usize == 0 {
+                        return Err(CmsError::IncorrectlyFormedLut(
+                            "One of grid dimensions is zero".to_string(),
+                        ));
+                    }
+                    let l = match dim_usize
+                        .checked_sub(1)
+                        .ok_or(CmsError::OverflowingError)?
+                        .safe_mul(grid_stride)
+                        .and_then(|x| x.safe_add(last_index))
+                    {
+                        Ok(v) => v,
+                        Err(_) => {
+                            return Err(CmsError::IncorrectlyFormedLut(
+                                "Pointer size overflow on LUT dimensions".to_string(),
+                            ));
+                        }
+                    };
+                    last_index = l;
 
-            let clut_header = &tag[clut_offset..clut_offset20];
-            let entry_size = clut_header[16];
-            if entry_size != 1 && entry_size != 2 {
-                return Err(CmsError::InvalidProfile);
-            }
+                    // Multiply stride by next dimension (check for overflow)
+                    grid_stride = grid_stride.checked_mul(dim_usize).ok_or(
+                        CmsError::IncorrectlyFormedLut("Overflow on grid dimensions".to_string()),
+                    )?;
+                }
 
-            let clut_end =
-                clut_offset20.safe_add(clut_size.safe_mul(entry_size as u32)? as usize)?;
+                last_index = last_index.checked_mul(out_channels as usize).ok_or(
+                    CmsError::IncorrectlyFormedLut("Overflow on grid dimensions".to_string()),
+                )?;
+                if last_index >= clut_size as usize {
+                    return Err(CmsError::IncorrectlyFormedLut(format!(
+                        "Clut size should be at least {last_index}, but it was {last_index}"
+                    )));
+                }
 
-            if tag.len() < clut_end {
-                return Err(CmsError::InvalidProfile);
-            }
+                let clut_offset20 = clut_offset.safe_add(20)?;
 
-            let shaped_clut_table = &tag[clut_offset20..clut_end];
-            Some(Self::read_lut_table_f32(
-                shaped_clut_table,
-                if entry_size == 1 {
-                    LutType::Lut8
-                } else {
-                    LutType::Lut16
-                },
-            )?)
-        } else {
-            None
-        };
+                let clut_header = &tag[clut_offset..clut_offset20];
+                let entry_size = clut_header[16];
+                if entry_size != 1 && entry_size != 2 {
+                    return Err(CmsError::InvalidProfile);
+                }
+
+                let clut_end =
+                    clut_offset20.safe_add(clut_size.safe_mul(entry_size as u32)? as usize)?;
+
+                if tag.len() < clut_end {
+                    return Err(CmsError::InvalidProfile);
+                }
+
+                let shaped_clut_table = &tag[clut_offset20..clut_end];
+                Some(Self::read_lut_table_f32(
+                    shaped_clut_table,
+                    if entry_size == 1 {
+                        LutType::Lut8
+                    } else {
+                        LutType::Lut16
+                    },
+                )?)
+            } else {
+                None
+            };
 
         let a_curves = if a_curve_offset == 0 {
             Vec::new()
@@ -612,8 +657,12 @@ impl ColorProfile {
 
         let output_size = (num_output_table_entries as usize).safe_mul(out_chan as usize)?;
 
-        let shaped_output_table =
-            &tag[output_offset..output_offset.safe_add(output_size.safe_mul(entry_size)?)?];
+        let shaped_output = output_offset.safe_add(output_size.safe_mul(entry_size)?)?;
+        if tag.len() < shaped_output {
+            return Err(CmsError::InvalidProfile);
+        }
+
+        let shaped_output_table = &tag[output_offset..shaped_output];
         let gamma_table = Self::read_lut_table_f32(shaped_output_table, lut_type)?;
 
         let wh = LutWarehouse::Lut(LutDataType {
@@ -858,7 +907,7 @@ impl ColorProfile {
         if def != TagTypeDefinition::Measurement {
             return Ok(None);
         }
-        if 36 > slice.len() {
+        if 36 + entry > slice.len() {
             return Err(CmsError::InvalidProfile);
         }
         let tag = &slice[entry..entry + 36];
