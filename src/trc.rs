@@ -220,19 +220,19 @@ pub fn curve_from_gamma(gamma: f32) -> ToneReprCurve {
 }
 
 #[derive(Debug)]
-struct ParametricCurve {
-    g: f32,
-    a: f32,
-    b: f32,
-    c: f32,
-    d: f32,
-    e: f32,
-    f: f32,
+pub struct ParametricCurve {
+    pub g: f32,
+    pub a: f32,
+    pub b: f32,
+    pub c: f32,
+    pub d: f32,
+    pub e: f32,
+    pub f: f32,
 }
 
 impl ParametricCurve {
     #[allow(clippy::many_single_char_names)]
-    fn new(params: &[f32]) -> Option<ParametricCurve> {
+    pub fn new(params: &[f32]) -> Option<ParametricCurve> {
         // convert from the variable number of parameters
         // contained in profiles to a unified representation.
         let g: f32 = params[0];
@@ -241,7 +241,7 @@ impl ParametricCurve {
                 g,
                 a: 1.,
                 b: 0.,
-                c: 1.,
+                c: 0.,
                 d: 0.,
                 e: 0.,
                 f: 0.,
