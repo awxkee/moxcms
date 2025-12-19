@@ -38,6 +38,7 @@ mod rgb_xyz_q2_13_opt;
 mod t_lut3_to_3;
 mod t_lut3_to_3_q0_15;
 
+#[cfg(feature = "lut")]
 use crate::conversions::interpolator::BarycentricWeight;
 #[cfg(feature = "neon_luts")]
 pub(crate) use lut4_to_3::NeonLut4x3Factory;
@@ -55,7 +56,7 @@ pub(crate) use rgb_xyz_q2_13_opt::TransformShaperQ2_13NeonOpt;
 pub(crate) use t_lut3_to_3::NeonLut3x3Factory;
 
 // this is required to ensure that interpolator never goes out of bounds
-#[allow(dead_code)]
+#[cfg(feature = "lut")]
 fn assert_barycentric_lut_size_precondition<R, const GRID_SIZE: usize>(
     lut: &[BarycentricWeight<R>],
 ) {

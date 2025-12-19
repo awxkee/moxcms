@@ -208,6 +208,8 @@ impl NeonVectorQ0_15Double {
     }
 }
 
+/// LUT size here is always fixed size (GRID_SIZE^3) and its use
+/// is hardened at [crate::conversions::neon::assert_barycentric_lut_size_precondition].
 impl<const GRID_SIZE: usize> Fetcher<NeonVectorQ0_15>
     for TetrahedralNeonQ0_15FetchVector<'_, GRID_SIZE>
 {
@@ -222,6 +224,8 @@ impl<const GRID_SIZE: usize> Fetcher<NeonVectorQ0_15>
     }
 }
 
+/// LUT size here is always fixed size (GRID_SIZE^3) and its use
+/// is hardened at [crate::conversions::neon::assert_barycentric_lut_size_precondition].
 impl<const GRID_SIZE: usize> Fetcher<NeonVectorQ0_15Double>
     for TetrahedralNeonQ0_15FetchVectorDouble<'_, GRID_SIZE>
 {
