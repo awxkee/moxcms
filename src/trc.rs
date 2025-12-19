@@ -294,7 +294,7 @@ impl ParametricCurve {
             && self.c.abs() < 1e-5
     }
 
-    fn eval(&self, x: f32) -> f32 {
+    pub fn eval(&self, x: f32) -> f32 {
         if x < self.d {
             self.c * x + self.f
         } else {
@@ -304,7 +304,7 @@ impl ParametricCurve {
 
     #[allow(dead_code)]
     #[allow(clippy::many_single_char_names)]
-    fn invert(&self) -> Option<ParametricCurve> {
+    pub fn invert(&self) -> Option<ParametricCurve> {
         // First check if the function is continuous at the cross-over point d.
         let d1 = f_powf(self.a * self.d + self.b, self.g) + self.e;
         let d2 = self.c * self.d + self.f;

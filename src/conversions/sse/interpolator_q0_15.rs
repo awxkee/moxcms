@@ -111,6 +111,8 @@ struct TetrahedralSseQ0_15FetchVector<'a, const GRID_SIZE: usize> {
     cube: &'a [SseAlignedI16x4],
 }
 
+/// LUT size here is always fixed size (GRID_SIZE^3) and its use
+/// is hardened at [crate::conversions::sse::assert_barycentric_lut_size_precondition].
 impl<const GRID_SIZE: usize> Fetcher<SseVector> for TetrahedralSseQ0_15FetchVector<'_, GRID_SIZE> {
     #[inline(always)]
     fn fetch(&self, x: i32, y: i32, z: i32) -> SseVector {

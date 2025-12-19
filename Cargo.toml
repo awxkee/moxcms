@@ -41,9 +41,10 @@ avx_shaper_paths = ["avx"]
 # Enables optimize matrix shaper AVX paths where all TRC are the same
 avx_shaper_optimized_paths = ["avx"]
 # Enables optimize matrix shaper AVX fixed point paths.
-# Fixed points the most agressively optimized paths, hence they are making the biggest contribution to the codesize.
+# Fixed point paths are the most agressively optimized paths,
+# hence they are making the biggest contribution to the codesize and compile times.
 avx_shaper_fixed_point_paths = ["avx"]
-# Enables AVX optimized LUT paths
+# Enables AVX optimized LUT paths. This includes fixes point paths and commons paths.
 avx_luts = ["lut", "avx"]
 
 # Enables SSE4.1 acceleration where possible
@@ -53,9 +54,10 @@ sse_shaper_paths = ["sse"]
 # Enables optimize matrix shaper SSE paths where all TRC are the same
 sse_shaper_optimized_paths = ["sse"]
 # Enables optimize matrix shaper SSE fixed point paths.
-# Fixed points the most agressively optimized paths, hence they are making the biggest contribution to the codesize.
+# Fixed point paths are the most agressively optimized paths,
+# hence they are making the biggest contribution to the codesize and compile times.
 sse_shaper_fixed_point_paths = ["sse"]
-# Enables SSE optimized LUT paths
+# Enables SSE optimized LUT paths. This includes fixes point paths and commons paths.
 sse_luts = ["lut", "sse"]
 
 # Enables NEON intrinsics where possible
@@ -65,9 +67,10 @@ neon_shaper_paths = ["neon"]
 # Enables optimize matrix shaper NEON paths where all TRC are the same.
 neon_shaper_optimized_paths = ["neon"]
 # Enables optimize matrix shaper NEON fixed point paths.
-# Fixed points the most agressively optimized paths, hence they are making the biggest contribution to the codesize.
+# Fixed point paths are the most agressively optimized paths,
+# hence they are making the biggest contribution to the codesize and compile times.
 neon_shaper_fixed_point_paths = ["neon"]
-# Enables NEON optimized LUT paths
+# Enables NEON optimized LUT paths. This includes fixes point paths and commons paths.
 neon_luts = ["lut", "neon"]
 
 # This is a placeholder for upcoming SVE implementation. Currently, does nothing.

@@ -30,10 +30,10 @@
 use crate::conversions::LutBarycentricReduction;
 use crate::conversions::interpolator::BarycentricWeight;
 use crate::conversions::lut_transforms::Lut3x3Factory;
-use crate::conversions::neon::NeonAlignedF32;
 use crate::conversions::neon::interpolator::*;
 use crate::conversions::neon::interpolator_q0_15::NeonAlignedI16x4;
 use crate::conversions::neon::t_lut3_to_3_q0_15::TransformLut3x3NeonQ0_15;
+use crate::conversions::neon::{NeonAlignedF32, assert_barycentric_lut_size_precondition};
 use crate::transform::PointeeSizeExpressible;
 use crate::{
     BarycentricWeightScale, CmsError, DataColorSpace, InterpolationMethod, Layout,
@@ -256,8 +256,64 @@ impl Lut3x3Factory for NeonLut3x3Factory {
                     ])
                 })
                 .collect::<Vec<_>>();
+
             return match options.barycentric_weight_scale {
-                BarycentricWeightScale::Low => Arc::new(TransformLut3x3NeonQ0_15::<
+                BarycentricWeightScale::Low => {
+                    let bins = BarycentricWeight::<i16>::create_ranged_256::<GRID_SIZE>();
+                    assert_barycentric_lut_size_precondition::<i16, GRID_SIZE>(bins.as_slice());
+                    Arc::new(TransformLut3x3NeonQ0_15::<
+                        T,
+                        u8,
+                        SRC_LAYOUT,
+                        DST_LAYOUT,
+                        GRID_SIZE,
+                        BIT_DEPTH,
+                        256,
+                        256,
+                    > {
+                        lut,
+                        _phantom: PhantomData,
+                        _phantom1: PhantomData,
+                        interpolation_method: options.interpolation_method,
+                        weights: bins,
+                        color_space,
+                        is_linear,
+                    })
+                }
+                #[cfg(feature = "options")]
+                BarycentricWeightScale::High => {
+                    let bins = BarycentricWeight::<i16>::create_binned::<GRID_SIZE, 65536>();
+                    assert_barycentric_lut_size_precondition::<i16, GRID_SIZE>(bins.as_slice());
+                    Arc::new(TransformLut3x3NeonQ0_15::<
+                        T,
+                        u16,
+                        SRC_LAYOUT,
+                        DST_LAYOUT,
+                        GRID_SIZE,
+                        BIT_DEPTH,
+                        65536,
+                        65536,
+                    > {
+                        lut,
+                        _phantom: PhantomData,
+                        _phantom1: PhantomData,
+                        interpolation_method: options.interpolation_method,
+                        weights: bins,
+                        color_space,
+                        is_linear,
+                    })
+                }
+            };
+        }
+        let lut = lut
+            .chunks_exact(3)
+            .map(|x| NeonAlignedF32([x[0], x[1], x[2], 0f32]))
+            .collect::<Vec<_>>();
+        match options.barycentric_weight_scale {
+            BarycentricWeightScale::Low => {
+                let bins = BarycentricWeight::<f32>::create_ranged_256::<GRID_SIZE>();
+                assert_barycentric_lut_size_precondition::<f32, GRID_SIZE>(bins.as_slice());
+                Arc::new(TransformLut3x3Neon::<
                     T,
                     u8,
                     SRC_LAYOUT,
@@ -271,12 +327,16 @@ impl Lut3x3Factory for NeonLut3x3Factory {
                     _phantom: PhantomData,
                     _phantom1: PhantomData,
                     interpolation_method: options.interpolation_method,
-                    weights: BarycentricWeight::<i16>::create_ranged_256::<GRID_SIZE>(),
+                    weights: bins,
                     color_space,
                     is_linear,
-                }),
-                #[cfg(feature = "options")]
-                BarycentricWeightScale::High => Arc::new(TransformLut3x3NeonQ0_15::<
+                })
+            }
+            #[cfg(feature = "options")]
+            BarycentricWeightScale::High => {
+                let bins = BarycentricWeight::<f32>::create_binned::<GRID_SIZE, 65536>();
+                assert_barycentric_lut_size_precondition::<f32, GRID_SIZE>(bins.as_slice());
+                Arc::new(TransformLut3x3Neon::<
                     T,
                     u16,
                     SRC_LAYOUT,
@@ -290,54 +350,11 @@ impl Lut3x3Factory for NeonLut3x3Factory {
                     _phantom: PhantomData,
                     _phantom1: PhantomData,
                     interpolation_method: options.interpolation_method,
-                    weights: BarycentricWeight::<i16>::create_binned::<GRID_SIZE, 65536>(),
+                    weights: bins,
                     color_space,
                     is_linear,
-                }),
-            };
-        }
-        let lut = lut
-            .chunks_exact(3)
-            .map(|x| NeonAlignedF32([x[0], x[1], x[2], 0f32]))
-            .collect::<Vec<_>>();
-        match options.barycentric_weight_scale {
-            BarycentricWeightScale::Low => Arc::new(TransformLut3x3Neon::<
-                T,
-                u8,
-                SRC_LAYOUT,
-                DST_LAYOUT,
-                GRID_SIZE,
-                BIT_DEPTH,
-                256,
-                256,
-            > {
-                lut,
-                _phantom: PhantomData,
-                _phantom1: PhantomData,
-                interpolation_method: options.interpolation_method,
-                weights: BarycentricWeight::<f32>::create_ranged_256::<GRID_SIZE>(),
-                color_space,
-                is_linear,
-            }),
-            #[cfg(feature = "options")]
-            BarycentricWeightScale::High => Arc::new(TransformLut3x3Neon::<
-                T,
-                u16,
-                SRC_LAYOUT,
-                DST_LAYOUT,
-                GRID_SIZE,
-                BIT_DEPTH,
-                65536,
-                65536,
-            > {
-                lut,
-                _phantom: PhantomData,
-                _phantom1: PhantomData,
-                interpolation_method: options.interpolation_method,
-                weights: BarycentricWeight::<f32>::create_binned::<GRID_SIZE, 65536>(),
-                color_space,
-                is_linear,
-            }),
+                })
+            }
         }
     }
 }

@@ -226,6 +226,8 @@ struct TetrahedralAvxFetchVector<'a, const GRID_SIZE: usize> {
     cube1: &'a [AvxAlignedI16],
 }
 
+/// LUT size here is always fixed size (GRID_SIZE^3) and its use
+/// is hardened at [crate::conversions::avx::assert_barycentric_lut_size_precondition].
 impl<const GRID_SIZE: usize> Fetcher<AvxVectorQ0_15> for TetrahedralAvxFetchVector<'_, GRID_SIZE> {
     #[inline(always)]
     fn fetch(&self, x: i32, y: i32, z: i32) -> AvxVectorQ0_15 {
