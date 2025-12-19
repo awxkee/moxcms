@@ -38,6 +38,7 @@ mod rgb_xyz_q2_13_opt;
 mod t_lut3_to_3;
 mod t_lut3_to_3_q0_15;
 
+use crate::conversions::interpolator::BarycentricWeight;
 #[cfg(feature = "neon_luts")]
 pub(crate) use lut4_to_3::NeonLut4x3Factory;
 #[cfg(feature = "neon_shaper_paths")]
@@ -52,6 +53,32 @@ pub(crate) use rgb_xyz_q2_13::TransformShaperQ2_13Neon;
 pub(crate) use rgb_xyz_q2_13_opt::TransformShaperQ2_13NeonOpt;
 #[cfg(feature = "neon_luts")]
 pub(crate) use t_lut3_to_3::NeonLut3x3Factory;
+
+// this is required to ensure that interpolator never goes out of bounds
+#[allow(dead_code)]
+fn assert_barycentric_lut_size_precondition<R, const GRID_SIZE: usize>(
+    lut: &[BarycentricWeight<R>],
+) {
+    let k = lut
+        .iter()
+        .max_by(|a, &b| a.x.cmp(&b.x))
+        .map(|x| x.x)
+        .unwrap_or(0);
+    let b = lut
+        .iter()
+        .max_by(|a, &b| a.x_n.cmp(&b.x_n))
+        .map(|x| x.x)
+        .unwrap_or(0);
+    let max_possible_product = (k as u32 * (GRID_SIZE as u32 * GRID_SIZE as u32)
+        + k as u32 * GRID_SIZE as u32
+        + k as u32) as usize;
+    let max_possible_product1 = (b as u32 * (GRID_SIZE as u32 * GRID_SIZE as u32)
+        + b as u32 * GRID_SIZE as u32
+        + b as u32) as usize;
+    let cube_size = GRID_SIZE * GRID_SIZE * GRID_SIZE;
+    assert!(max_possible_product < cube_size);
+    assert!(max_possible_product1 < cube_size);
+}
 
 #[allow(dead_code)]
 #[inline]
