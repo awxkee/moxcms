@@ -665,7 +665,7 @@ impl ColorProfile {
                     options.allow_use_cicp_transfer,
                 )?;
 
-                let profile_transform = crate::conversions::TransformMatrixShaperOptimized {
+                let profile_transform = TransformMatrixShaperOptimized {
                     linear,
                     gamma,
                     adaptation_matrix: transform.to_f32(),

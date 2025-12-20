@@ -32,7 +32,6 @@ mod lut4_to_3;
 mod lut4_to_3_q0_15;
 mod rgb_xyz;
 mod rgb_xyz_opt;
-mod rgb_xyz_q2_13;
 mod rgb_xyz_q2_13_opt;
 mod t_lut3_to_3;
 mod t_lut3_to_3_q0_15;
@@ -45,8 +44,6 @@ pub(crate) use lut4_to_3::AvxLut4x3Factory;
 pub(crate) use rgb_xyz::TransformShaperRgbAvx;
 #[cfg(feature = "avx_shaper_optimized_paths")]
 pub(crate) use rgb_xyz_opt::TransformShaperRgbOptAvx;
-#[cfg(feature = "avx_shaper_fixed_point_paths")]
-pub(crate) use rgb_xyz_q2_13::TransformShaperRgbQ2_13Avx;
 #[cfg(feature = "avx_shaper_fixed_point_paths")]
 pub(crate) use rgb_xyz_q2_13_opt::TransformShaperRgbQ2_13OptAvx;
 #[cfg(feature = "avx_luts")]
