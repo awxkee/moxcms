@@ -64,6 +64,8 @@ mod transform_lut3_to_4;
 mod transform_lut4_to_3;
 mod xyz_lab;
 
+#[cfg(feature = "in_place")]
+pub(crate) use gray2rgb::make_gray_to_gray_in_place;
 pub(crate) use gray2rgb::{make_gray_to_unfused, make_gray_to_x};
 #[cfg(feature = "extended_range")]
 pub(crate) use gray2rgb_extended::{make_gray_to_one_trc_extended, make_gray_to_rgb_extended};

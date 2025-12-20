@@ -25,37 +25,33 @@ rand = "0.9"
 
 [features]
 # If no unsafe intrinsics active then `forbid(unsafe)` will be used.
-default = ["avx_shaper_fixed_point_paths", "avx_luts", "sse_shaper_fixed_point_paths", "sse_luts", "neon_shaper_fixed_point_paths", "neon_luts", "lut"]
+default = ["avx_shaper_paths", "sse_shaper_paths", "neon_shaper_paths", "avx_shaper_fixed_point_paths", "avx_luts", "sse_shaper_fixed_point_paths", "sse_luts", "neon_shaper_fixed_point_paths", "neon_luts", "lut"]
 
 # Enables AVX-512 acceleration where possible. This will work only from 1.89 on stable.
 avx512 = []
-# Enables optimize matrix shaper AVX512 paths where all TRC are the same
+# Enables optimize matrix shaper AVX512 paths where all TRC are the same.
 avx512_shaper_optimized_paths = ["avx512"]
-# Enables optimize matrix shaper AVX512 fixed point paths
+# Enables optimize matrix shaper AVX512 fixed point paths.
 avx512_shaper_fixed_point_paths = ["avx512"]
 
 # Enables AVX2 acceleration where possible
 avx = []
-# Enables common matrix shaper AVX paths
+# Enables common matrix shaper AVX paths.
 avx_shaper_paths = ["avx"]
-# Enables optimize matrix shaper AVX paths where all TRC are the same
+# Enables optimize matrix shaper AVX paths where all TRC are the same.
 avx_shaper_optimized_paths = ["avx"]
 # Enables optimize matrix shaper AVX fixed point paths.
-# Fixed point paths are the most agressively optimized paths,
-# hence they are making the biggest contribution to the codesize and compile times.
 avx_shaper_fixed_point_paths = ["avx"]
 # Enables AVX optimized LUT paths. This includes fixes point paths and commons paths.
 avx_luts = ["lut", "avx"]
 
-# Enables SSE4.1 acceleration where possible
+# Enables SSE4.1 acceleration where possible.
 sse = []
-# Enables common matrix shaper SSE paths
+# Enables common matrix shaper SSE paths.
 sse_shaper_paths = ["sse"]
 # Enables optimize matrix shaper SSE paths where all TRC are the same
 sse_shaper_optimized_paths = ["sse"]
 # Enables optimize matrix shaper SSE fixed point paths.
-# Fixed point paths are the most agressively optimized paths,
-# hence they are making the biggest contribution to the codesize and compile times.
 sse_shaper_fixed_point_paths = ["sse"]
 # Enables SSE optimized LUT paths. This includes fixes point paths and commons paths.
 sse_luts = ["lut", "sse"]
@@ -67,8 +63,6 @@ neon_shaper_paths = ["neon"]
 # Enables optimize matrix shaper NEON paths where all TRC are the same.
 neon_shaper_optimized_paths = ["neon"]
 # Enables optimize matrix shaper NEON fixed point paths.
-# Fixed point paths are the most agressively optimized paths,
-# hence they are making the biggest contribution to the codesize and compile times.
 neon_shaper_fixed_point_paths = ["neon"]
 # Enables NEON optimized LUT paths. This includes fixes point paths and commons paths.
 neon_luts = ["lut", "neon"]
@@ -103,6 +97,8 @@ lut = []
 any_to_any = ["lut"]
 # This allows extended range on `f32`/`f64` to work with HDR/WideGamut if neccessary
 extended_range = []
+# Enables in-place transforms.
+in_place = []
 
 [package.metadata.docs.rs]
 # To build locally:

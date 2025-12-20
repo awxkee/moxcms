@@ -402,3 +402,213 @@ where
         Ok(())
     }
 }
+
+#[cfg(feature = "in_place")]
+use crate::InPlaceTransformExecutor;
+
+#[cfg(feature = "in_place")]
+impl<
+    T: Copy + PointeeSizeExpressible + 'static + Default,
+    const SRC_LAYOUT: u8,
+    const DST_LAYOUT: u8,
+    const PRECISION: i32,
+> InPlaceTransformExecutor<T> for TransformShaperQ2_13NeonOpt<T, SRC_LAYOUT, DST_LAYOUT, PRECISION>
+where
+    u32: AsPrimitive<T>,
+{
+    fn transform(&self, dst: &mut [T]) -> Result<(), CmsError> {
+        let src_cn = Layout::from(SRC_LAYOUT);
+        assert_eq!(
+            SRC_LAYOUT, DST_LAYOUT,
+            "This is in-place transform, layout must not diverge"
+        );
+        let src_channels = src_cn.channels();
+
+        if dst.len() % src_channels != 0 {
+            return Err(CmsError::LaneMultipleOfChannels);
+        }
+
+        let t = self.profile.adaptation_matrix.transpose();
+        let max_colors: T = ((1 << self.bit_depth) - 1).as_();
+
+        // safety precondition for linearization table
+        if T::FINITE {
+            let cap = (1 << self.bit_depth) - 1;
+            assert!(self.profile.linear.len() >= cap);
+        } else {
+            assert!(self.profile.linear.len() >= T::NOT_FINITE_LINEAR_TABLE_SIZE);
+        }
+
+        let lut_lin = &self.profile.linear;
+
+        let (dst_chunks, dst_remainder) = split_by_twos_mut(dst, src_channels);
+
+        unsafe {
+            let m0 = vld1_s16([t.v[0][0], t.v[0][1], t.v[0][2], 0].as_ptr());
+            let m1 = vld1_s16([t.v[1][0], t.v[1][1], t.v[1][2], 0].as_ptr());
+            let m2 = vld1_s16([t.v[2][0], t.v[2][1], t.v[2][2], 0].as_ptr());
+
+            let v_max_value = vdup_n_u16((self.gamma_lut - 1) as u16);
+
+            let rnd = vdupq_n_s32(1 << (PRECISION - 1));
+
+            if !dst_chunks.is_empty() {
+                let (dst0, dst1) = dst_chunks.split_at_mut(dst_chunks.len() / 2);
+                let (mut r0, mut g0, mut b0, mut a0);
+                let (mut r1, mut g1, mut b1, mut a1);
+                let (mut r2, mut g2, mut b2, mut a2);
+                let (mut r3, mut g3, mut b3, mut a3);
+
+                for (dst0, dst1) in dst0
+                    .chunks_exact_mut(src_channels * 2)
+                    .zip(dst1.chunks_exact_mut(src_channels * 2))
+                {
+                    let r0p = lut_lin.get_unchecked(dst0[src_cn.r_i()]._as_usize());
+                    let g0p = lut_lin.get_unchecked(dst0[src_cn.g_i()]._as_usize());
+                    let b0p = lut_lin.get_unchecked(dst0[src_cn.b_i()]._as_usize());
+
+                    let r1p = lut_lin.get_unchecked(dst0[src_cn.r_i() + src_channels]._as_usize());
+                    let g1p = lut_lin.get_unchecked(dst0[src_cn.g_i() + src_channels]._as_usize());
+                    let b1p = lut_lin.get_unchecked(dst0[src_cn.b_i() + src_channels]._as_usize());
+
+                    let r2p = lut_lin.get_unchecked(dst1[src_cn.r_i()]._as_usize());
+                    let g2p = lut_lin.get_unchecked(dst1[src_cn.g_i()]._as_usize());
+                    let b2p = lut_lin.get_unchecked(dst1[src_cn.b_i()]._as_usize());
+
+                    let r3p = lut_lin.get_unchecked(dst1[src_cn.r_i() + src_channels]._as_usize());
+                    let g3p = lut_lin.get_unchecked(dst1[src_cn.g_i() + src_channels]._as_usize());
+                    let b3p = lut_lin.get_unchecked(dst1[src_cn.b_i() + src_channels]._as_usize());
+
+                    r0 = vld1_dup_s16(r0p);
+                    g0 = vld1_dup_s16(g0p);
+                    b0 = vld1_dup_s16(b0p);
+
+                    r1 = vld1_dup_s16(r1p);
+                    g1 = vld1_dup_s16(g1p);
+                    b1 = vld1_dup_s16(b1p);
+
+                    r2 = vld1_dup_s16(r2p);
+                    g2 = vld1_dup_s16(g2p);
+                    b2 = vld1_dup_s16(b2p);
+
+                    r3 = vld1_dup_s16(r3p);
+                    g3 = vld1_dup_s16(g3p);
+                    b3 = vld1_dup_s16(b3p);
+
+                    a0 = if src_channels == 4 {
+                        dst0[src_cn.a_i()]
+                    } else {
+                        max_colors
+                    };
+
+                    a1 = if src_channels == 4 {
+                        dst0[src_cn.a_i() + src_channels]
+                    } else {
+                        max_colors
+                    };
+
+                    a2 = if src_channels == 4 {
+                        dst1[src_cn.a_i()]
+                    } else {
+                        max_colors
+                    };
+
+                    a3 = if src_channels == 4 {
+                        dst1[src_cn.a_i() + src_channels]
+                    } else {
+                        max_colors
+                    };
+
+                    let v0_0 = vmlal_s16(rnd, r0, m0);
+                    let v0_1 = vmlal_s16(rnd, r1, m0);
+                    let v0_2 = vmlal_s16(rnd, r2, m0);
+                    let v0_3 = vmlal_s16(rnd, r3, m0);
+
+                    let v1_0 = vmlal_s16(v0_0, g0, m1);
+                    let v1_1 = vmlal_s16(v0_1, g1, m1);
+                    let v1_2 = vmlal_s16(v0_2, g2, m1);
+                    let v1_3 = vmlal_s16(v0_3, g3, m1);
+
+                    let vr0 = vmlal_s16(v1_0, b0, m2);
+                    let vr1 = vmlal_s16(v1_1, b1, m2);
+                    let vr2 = vmlal_s16(v1_2, b2, m2);
+                    let vr3 = vmlal_s16(v1_3, b3, m2);
+
+                    let mut vr0 = vqshrun_n_s32::<PRECISION>(vr0);
+                    let mut vr1 = vqshrun_n_s32::<PRECISION>(vr1);
+                    let mut vr2 = vqshrun_n_s32::<PRECISION>(vr2);
+                    let mut vr3 = vqshrun_n_s32::<PRECISION>(vr3);
+
+                    vr0 = vmin_u16(vr0, v_max_value);
+                    vr1 = vmin_u16(vr1, v_max_value);
+                    vr2 = vmin_u16(vr2, v_max_value);
+                    vr3 = vmin_u16(vr3, v_max_value);
+
+                    dst0[src_cn.r_i()] = self.profile.gamma[vget_lane_u16::<0>(vr0) as usize];
+                    dst0[src_cn.g_i()] = self.profile.gamma[vget_lane_u16::<1>(vr0) as usize];
+                    dst0[src_cn.b_i()] = self.profile.gamma[vget_lane_u16::<2>(vr0) as usize];
+                    if src_channels == 4 {
+                        dst0[src_cn.a_i()] = a0;
+                    }
+
+                    dst0[src_cn.r_i() + src_channels] =
+                        self.profile.gamma[vget_lane_u16::<0>(vr1) as usize];
+                    dst0[src_cn.g_i() + src_channels] =
+                        self.profile.gamma[vget_lane_u16::<1>(vr1) as usize];
+                    dst0[src_cn.b_i() + src_channels] =
+                        self.profile.gamma[vget_lane_u16::<2>(vr0) as usize];
+                    if src_channels == 4 {
+                        dst0[src_cn.a_i() + src_channels] = a1;
+                    }
+
+                    dst1[src_cn.r_i()] = self.profile.gamma[vget_lane_u16::<0>(vr2) as usize];
+                    dst1[src_cn.g_i()] = self.profile.gamma[vget_lane_u16::<1>(vr2) as usize];
+                    dst1[src_cn.b_i()] = self.profile.gamma[vget_lane_u16::<2>(vr2) as usize];
+                    if src_channels == 4 {
+                        dst1[src_cn.a_i()] = a2;
+                    }
+
+                    dst1[src_cn.r_i() + src_channels] =
+                        self.profile.gamma[vget_lane_u16::<0>(vr3) as usize];
+                    dst1[src_cn.g_i() + src_channels] =
+                        self.profile.gamma[vget_lane_u16::<1>(vr3) as usize];
+                    dst1[src_cn.b_i() + src_channels] =
+                        self.profile.gamma[vget_lane_u16::<2>(vr3) as usize];
+                    if src_channels == 4 {
+                        dst1[src_cn.a_i() + src_channels] = a3;
+                    }
+                }
+            }
+
+            for dst in dst_remainder.chunks_exact_mut(src_channels) {
+                let rp = lut_lin.get_unchecked(dst[src_cn.r_i()]._as_usize());
+                let gp = lut_lin.get_unchecked(dst[src_cn.g_i()]._as_usize());
+                let bp = lut_lin.get_unchecked(dst[src_cn.b_i()]._as_usize());
+                let r = vld1_dup_s16(rp);
+                let g = vld1_dup_s16(gp);
+                let b = vld1_dup_s16(bp);
+                let a = if src_channels == 4 {
+                    dst[src_cn.a_i()]
+                } else {
+                    max_colors
+                };
+
+                let v0 = vmlal_s16(rnd, r, m0);
+                let v1 = vmlal_s16(v0, g, m1);
+                let v = vmlal_s16(v1, b, m2);
+
+                let mut vr0 = vqshrun_n_s32::<PRECISION>(v);
+                vr0 = vmin_u16(vr0, v_max_value);
+
+                dst[src_cn.r_i()] = self.profile.gamma[vget_lane_u16::<0>(vr0) as usize];
+                dst[src_cn.g_i()] = self.profile.gamma[vget_lane_u16::<1>(vr0) as usize];
+                dst[src_cn.b_i()] = self.profile.gamma[vget_lane_u16::<2>(vr0) as usize];
+                if src_channels == 4 {
+                    dst[src_cn.a_i()] = a;
+                }
+            }
+        }
+
+        Ok(())
+    }
+}

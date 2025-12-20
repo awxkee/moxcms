@@ -21,7 +21,6 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     let src_icc_profile = jpeg_reader.icc_profile().unwrap();
 
     let us_swop_icc = fs::read("../assets/us_swop_coated.icc").unwrap();
-    let srgb_perceptual_icc = fs::read("../assets/srgb_perceptual.icc").unwrap();
 
     let cmyk_profile = Profile::new_icc(&us_swop_icc).unwrap();
     let srgb_profile = Profile::new_srgb();
@@ -50,11 +49,33 @@ pub fn criterion_benchmark(c: &mut Criterion) {
                 Layout::Rgb,
                 &dest_profile,
                 Layout::Rgb,
-                TransformOptions::default(),
+                TransformOptions {
+                    prefer_fixed_point: true,
+                    ..Default::default()
+                },
             )
             .unwrap();
         b.iter(|| {
             transform.transform(&rgb, &mut dst).unwrap();
+        })
+    });
+
+    c.bench_function("moxcms: inplace RGB -> RGB", |b| {
+        let color_profile = ColorProfile::new_from_slice(&src_icc_profile).unwrap();
+        let dest_profile = ColorProfile::new_srgb();
+        let mut dst = vec![0u8; rgb.len()];
+        let transform = color_profile
+            .create_in_place_transform_8bit(
+                Layout::Rgb,
+                &dest_profile,
+                TransformOptions {
+                    prefer_fixed_point: true,
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        b.iter(|| {
+            transform.transform(&mut dst).unwrap();
         })
     });
 
@@ -67,11 +88,33 @@ pub fn criterion_benchmark(c: &mut Criterion) {
                 Layout::Rgba,
                 &dest_profile,
                 Layout::Rgba,
-                TransformOptions::default(),
+                TransformOptions {
+                    prefer_fixed_point: true,
+                    ..Default::default()
+                },
             )
             .unwrap();
         b.iter(|| {
             transform.transform(&rgba, &mut dst).unwrap();
+        })
+    });
+
+    c.bench_function("moxcms: in_place RGBA -> RGBA", |b| {
+        let color_profile = ColorProfile::new_from_slice(&src_icc_profile).unwrap();
+        let dest_profile = ColorProfile::new_srgb();
+        let mut dst = vec![0u8; rgba.len()];
+        let transform = color_profile
+            .create_in_place_transform_8bit(
+                Layout::Rgba,
+                &dest_profile,
+                TransformOptions {
+                    prefer_fixed_point: true,
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        b.iter(|| {
+            transform.transform(&mut dst).unwrap();
         })
     });
 
