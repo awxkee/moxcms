@@ -38,28 +38,54 @@ jobs:
       - run: RUSTFLAGS="-C target-feature=+avx2" cargo build --target x86_64-unknown-linux-gnu --no-default-features --features sse
       - run: RUSTFLAGS="-C target-feature=+avx2" cargo +nightly build --target x86_64-unknown-linux-gnu --no-default-features --features avx,avx512
       - run: RUSTFLAGS="-C target-feature=+simd128" cargo build --target wasm32-unknown-unknown
+      - run: cargo build --target x86_64-unknown-linux-gnu --no-default-features --features avx_shaper_paths
+      - run: cargo build --target x86_64-unknown-linux-gnu --no-default-features --features avx_shaper_optimized_paths
+      - run: cargo build --target x86_64-unknown-linux-gnu --no-default-features --features avx_shaper_fixed_point_paths
+      - run: cargo build --target x86_64-unknown-linux-gnu --no-default-features --features avx_luts
+      - run: cargo build --target x86_64-unknown-linux-gnu --no-default-features --features avx_shaper_fixed_point_paths,in_place
+      - run: cargo build --target x86_64-unknown-linux-gnu --no-default-features --features sse_shaper_paths
+      - run: cargo build --target x86_64-unknown-linux-gnu --no-default-features --features sse_shaper_optimized_paths
+      - run: cargo build --target x86_64-unknown-linux-gnu --no-default-features --features sse_shaper_fixed_point_paths
+      - run: cargo build --target x86_64-unknown-linux-gnu --no-default-features --features sse_luts
+      - run: cargo build --target x86_64-unknown-linux-gnu --no-default-features --features sse_shaper_fixed_point_paths,in_place
+      - run: cargo build --target aarch64-unknown-linux-gnu --no-default-features --features neon_shaper_paths
+      - run: cargo build --target aarch64-unknown-linux-gnu --no-default-features --features neon_shaper_optimized_paths
+      - run: cargo build --target aarch64-unknown-linux-gnu --no-default-features --features neon_shaper_fixed_point_paths
+      - run: cargo build --target aarch64-unknown-linux-gnu --no-default-features --features neon_luts
+      - run: cargo build --target aarch64-unknown-linux-gnu --no-default-features --features neon_shaper_fixed_point_paths,in_place
+      - run: cargo build --target x86_64-unknown-linux-gnu --no-default-features --features in_place
+      - run: cargo build --target aarch64-unknown-linux-gnu --no-default-features --features in_place
 
   tests_arm:
     name: Tests
-    strategy:
-      matrix:
-        features: [ "", neon ]
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - run: cargo test  --no-default-features --features "${{ matrix.features }}"
+      - run: cargo test --no-default-features
+      - run: cargo test --features neon_shaper_paths
+      - run: cargo test --features neon_shaper_optimized_paths
+      - run: cargo test --features neon_shaper_fixed_point_paths
+      - run: cargo test --features neon_luts
+      - run: cargo test --features neon_shaper_fixed_point_paths,in_place
 
   tests_x86:
     name: Tests
-    strategy:
-      matrix:
-        features: [ "", sse, avx ]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - run: cargo test --no-default-features --features "${{ matrix.features }}"
+      - run: cargo test --no-default-features
+      - run: cargo test --features avx_shaper_paths
+      - run: cargo test --features avx_shaper_optimized_paths
+      - run: cargo test --features avx_shaper_fixed_point_paths
+      - run: cargo test --features avx_luts
+      - run: cargo test --features avx_shaper_fixed_point_paths,in_place
+      - run: cargo test --features sse_shaper_paths
+      - run: cargo test --features sse_shaper_optimized_paths
+      - run: cargo test --features sse_shaper_fixed_point_paths
+      - run: cargo test --features sse_luts
+      - run: cargo test --features sse_shaper_fixed_point_paths,in_place
 
   clippy_x86:
     name: Clippy x86 Stable
@@ -67,7 +93,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - run: cargo clippy --features avx,sse,neon,options -- -D warnings
+      - run: cargo clippy --no-default-features                             -- -D warnings
+      - run: cargo clippy --features avx_shaper_paths                       -- -D warnings
+      - run: cargo clippy --features avx_shaper_optimized_paths             -- -D warnings
+      - run: cargo clippy --features avx_shaper_fixed_point_paths           -- -D warnings
+      - run: cargo clippy --features avx_luts                               -- -D warnings
+      - run: cargo clippy --features avx_shaper_fixed_point_paths,in_place  -- -D warnings
+      - run: cargo clippy --features sse_shaper_paths                       -- -D warnings
+      - run: cargo clippy --features sse_shaper_optimized_paths             -- -D warnings
+      - run: cargo clippy --features sse_shaper_fixed_point_paths           -- -D warnings
+      - run: cargo clippy --features sse_luts                               -- -D warnings
+      - run: cargo clippy --features sse_shaper_fixed_point_paths,in_place  -- -D warnings
 
   clippy_x86_nightly:
     name: Clippy x86 Nightly
@@ -76,7 +112,17 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@nightly
       - run: rustup component add clippy
-      - run: cargo clippy --all-features -- -D warnings
+      - run: cargo clippy  --no-default-features                            -- -D warnings
+      - run: cargo clippy  --features avx_shaper_paths                      -- -D warnings
+      - run: cargo clippy  --features avx_shaper_optimized_paths            -- -D warnings
+      - run: cargo clippy  --features avx_shaper_fixed_point_paths          -- -D warnings
+      - run: cargo clippy  --features avx_luts                              -- -D warnings
+      - run: cargo clippy  --features avx_shaper_fixed_point_paths,in_place -- -D warnings
+      - run: cargo clippy  --features sse_shaper_paths                      -- -D warnings
+      - run: cargo clippy  --features sse_shaper_optimized_paths            -- -D warnings
+      - run: cargo clippy  --features sse_shaper_fixed_point_paths          -- -D warnings
+      - run: cargo clippy  --features sse_luts                              -- -D warnings
+      - run: cargo clippy  --features sse_shaper_fixed_point_paths,in_place -- -D warnings
 
   clippy_arm:
     name: Clippy ARM
@@ -84,7 +130,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - run: cargo clippy -- -D warnings
+      - run: cargo clippy --no-default-features                             -- -D warnings
+      - run: cargo clippy --features neon_shaper_paths                      -- -D warnings
+      - run: cargo clippy --features neon_shaper_optimized_paths            -- -D warnings
+      - run: cargo clippy --features neon_shaper_fixed_point_paths          -- -D warnings
+      - run: cargo clippy --features neon_luts                              -- -D warnings
+      - run: cargo clippy --features neon_shaper_fixed_point_paths,in_place -- -D warnings
 
   fuzz_arm:
     name: Fuzzing ARM
@@ -96,8 +147,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@nightly
       - run: cargo install cargo-fuzz
-      - run: cargo fuzz run unsafe --no-default-features --features ${{ matrix.feature }} -- -max_total_time=10
-      - run: cargo fuzz run lut --no-default-features --features ${{ matrix.feature }} -- -max_total_time=12
+      - run: cargo fuzz run unsafe --no-default-features --features ${{ matrix.feature }} -- -max_total_time=16
+      - run: cargo fuzz run lut --no-default-features --features ${{ matrix.feature }} -- -max_total_time=16
 
   fuzz_x86_64:
     name: Fuzzing x86_64
@@ -109,8 +160,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@nightly
       - run: cargo install cargo-fuzz
-      - run: cargo fuzz run unsafe --no-default-features --features ${{ matrix.feature }} -- -max_total_time=12
-      - run: cargo fuzz run lut --no-default-features --features ${{ matrix.feature }} -- -max_total_time=12
+      - run: cargo fuzz run unsafe --no-default-features --features ${{ matrix.feature }} -- -max_total_time=16
+      - run: cargo fuzz run lut --no-default-features --features ${{ matrix.feature }} -- -max_total_time=16
 
   fuzz_reader:
     name: Fuzzing Reader

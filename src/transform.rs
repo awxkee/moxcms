@@ -51,6 +51,10 @@ pub trait InPlaceStage {
     fn transform(&self, dst: &mut [f32]) -> Result<(), CmsError>;
 }
 
+pub trait InPlaceTransformExecutor<V: Copy + Default> {
+    fn transform(&self, in_out: &mut [V]) -> Result<(), CmsError>;
+}
+
 /// Barycentric interpolation weights size.
 ///
 /// Bigger weights increases precision.
@@ -427,6 +431,20 @@ impl ColorProfile {
     }
 
     /// Creates transform between source and destination profile
+    /// Use for 16 bit-depth data bit-depth only.
+    ///
+    /// In place transform only the same amount of channels, and only RGBX -> RGBX, or GrayX -> GrayX.
+    #[cfg(feature = "in_place")]
+    pub fn create_in_place_transform_16bit(
+        &self,
+        layout: Layout,
+        dst_pr: &ColorProfile,
+        options: TransformOptions,
+    ) -> Result<Arc<dyn InPlaceTransformExecutor<u16> + Send + Sync>, CmsError> {
+        self.create_transform_in_place_nbit::<u16, 16, 65536, 65536>(layout, dst_pr, options)
+    }
+
+    /// Creates transform between source and destination profile
     /// Use for 12 bit-depth data bit-depth only.
     pub fn create_transform_12bit(
         &self,
@@ -458,6 +476,20 @@ impl ColorProfile {
     }
 
     /// Creates transform between source and destination profile
+    /// Use for 12 bit-depth data bit-depth only.
+    ///
+    /// In place transform only the same amount of channels, and only RGBX -> RGBX, or GrayX -> GrayX.
+    #[cfg(feature = "in_place")]
+    pub fn create_in_place_transform_12bit(
+        &self,
+        layout: Layout,
+        dst_pr: &ColorProfile,
+        options: TransformOptions,
+    ) -> Result<Arc<dyn InPlaceTransformExecutor<u16> + Send + Sync>, CmsError> {
+        self.create_transform_in_place_nbit::<u16, 12, 65536, 16384>(layout, dst_pr, options)
+    }
+
+    /// Creates transform between source and destination profile
     /// Use for 10 bit-depth data bit-depth only.
     pub fn create_transform_10bit(
         &self,
@@ -486,6 +518,20 @@ impl ColorProfile {
             return Ok(Arc::new(ToCmykaInterceptor::install(handle, dst_layout)));
         }
         Ok(handle)
+    }
+
+    /// Creates transform between source and destination profile
+    /// Use for 10 bit-depth data bit-depth only.
+    ///
+    /// In place transform only the same amount of channels, and only RGBX -> RGBX, or GrayX -> GrayX.
+    #[cfg(feature = "in_place")]
+    pub fn create_in_place_transform_10bit(
+        &self,
+        layout: Layout,
+        dst_pr: &ColorProfile,
+        options: TransformOptions,
+    ) -> Result<Arc<dyn InPlaceTransformExecutor<u16> + Send + Sync>, CmsError> {
+        self.create_transform_in_place_nbit::<u16, 10, 65536, 8192>(layout, dst_pr, options)
     }
 
     /// Creates transform between source and destination profile
@@ -523,6 +569,24 @@ impl ColorProfile {
         Ok(handle)
     }
 
+    /// Creates transform between source and destination profile.
+    /// Data has to be normalized into [0, 1] range.
+    /// ICC profiles and LUT tables do not exist in infinite precision.
+    /// Thus, this implementation considers `f32` as 14-bit values.
+    /// Floating point transformer works in extended mode, that means returned data might be negative
+    /// or more than 1.
+    ///
+    /// In place transform only the same amount of channels, and only RGBX -> RGBX, or GrayX -> GrayX.
+    #[cfg(feature = "in_place")]
+    pub fn create_in_place_transform_f32(
+        &self,
+        layout: Layout,
+        dst_pr: &ColorProfile,
+        options: TransformOptions,
+    ) -> Result<Arc<dyn InPlaceTransformExecutor<f32> + Send + Sync>, CmsError> {
+        self.create_transform_in_place_nbit::<f32, 1, 65536, 32768>(layout, dst_pr, options)
+    }
+
     /// Creates transform between source and destination profile
     /// Data has to be normalized into [0, 1] range.
     /// ICC profiles and LUT tables do not exist in infinite precision.
@@ -556,6 +620,150 @@ impl ColorProfile {
             return Ok(Arc::new(ToCmykaInterceptor::install(handle, dst_layout)));
         }
         Ok(handle)
+    }
+
+    /// Creates transform between source and destination profile
+    /// Data has to be normalized into [0, 1] range.
+    /// ICC profiles and LUT tables do not exist in infinite precision.
+    /// Thus, this implementation considers `f64` as 16-bit values.
+    /// Floating point transformer works in extended mode, that means returned data might be negative
+    /// or more than 1.
+    ///
+    /// In place transform only the same amount of channels, and only RGBX -> RGBX, or GrayX -> GrayX.
+    #[cfg(feature = "in_place")]
+    pub fn create_in_place_transform_f64(
+        &self,
+        layout: Layout,
+        dst_pr: &ColorProfile,
+        options: TransformOptions,
+    ) -> Result<Arc<dyn InPlaceTransformExecutor<f64> + Send + Sync>, CmsError> {
+        self.create_transform_in_place_nbit::<f64, 1, 65536, 65536>(layout, dst_pr, options)
+    }
+
+    #[cfg(feature = "in_place")]
+    fn create_transform_in_place_nbit<
+        T: Copy
+            + Default
+            + AsPrimitive<usize>
+            + PointeeSizeExpressible
+            + Send
+            + Sync
+            + AsPrimitive<f32>
+            + RgbXyzFactory<T>
+            + RgbXyzFactoryOpt<T>
+            + GammaLutInterpolate,
+        const BIT_DEPTH: usize,
+        const LINEAR_CAP: usize,
+        const GAMMA_CAP: usize,
+    >(
+        &self,
+        layout: Layout,
+        dst_pr: &ColorProfile,
+        options: TransformOptions,
+    ) -> Result<Arc<dyn InPlaceTransformExecutor<T> + Send + Sync>, CmsError>
+    where
+        f32: AsPrimitive<T>,
+        u32: AsPrimitive<T>,
+    {
+        // In-place transforms supports only matrix shaper transforms
+        let is_rgb_transform = self.color_space == DataColorSpace::Rgb
+            && dst_pr.pcs == DataColorSpace::Xyz
+            && dst_pr.color_space == DataColorSpace::Rgb
+            && self.pcs == DataColorSpace::Xyz
+            && self.is_matrix_shaper()
+            && dst_pr.is_matrix_shaper();
+        let is_gray_transform = (self.color_space == DataColorSpace::Gray
+            && self.gray_trc.is_some())
+            && (dst_pr.color_space == DataColorSpace::Gray && dst_pr.gray_trc.is_some())
+            && self.pcs == DataColorSpace::Xyz
+            && dst_pr.pcs == DataColorSpace::Xyz;
+
+        if is_rgb_transform {
+            let transform = self.transform_matrix(dst_pr);
+
+            if self.are_all_trc_the_same() && dst_pr.are_all_trc_the_same() {
+                let linear = self.build_r_linearize_table::<T, LINEAR_CAP, BIT_DEPTH>(
+                    options.allow_use_cicp_transfer,
+                )?;
+
+                let gamma = dst_pr.build_gamma_table::<T, 65536, GAMMA_CAP, BIT_DEPTH>(
+                    &dst_pr.red_trc,
+                    options.allow_use_cicp_transfer,
+                )?;
+
+                let profile_transform = TransformMatrixShaperOptimized {
+                    linear,
+                    gamma,
+                    adaptation_matrix: transform.to_f32(),
+                };
+
+                return T::make_in_place_optimized_transform::<LINEAR_CAP, GAMMA_CAP, BIT_DEPTH>(
+                    layout,
+                    profile_transform,
+                    options,
+                );
+            }
+
+            let lin_r = self.build_r_linearize_table::<T, LINEAR_CAP, BIT_DEPTH>(
+                options.allow_use_cicp_transfer,
+            )?;
+            let lin_g = self.build_g_linearize_table::<T, LINEAR_CAP, BIT_DEPTH>(
+                options.allow_use_cicp_transfer,
+            )?;
+            let lin_b = self.build_b_linearize_table::<T, LINEAR_CAP, BIT_DEPTH>(
+                options.allow_use_cicp_transfer,
+            )?;
+
+            let gamma_r = dst_pr.build_gamma_table::<T, 65536, GAMMA_CAP, BIT_DEPTH>(
+                &dst_pr.red_trc,
+                options.allow_use_cicp_transfer,
+            )?;
+            let gamma_g = dst_pr.build_gamma_table::<T, 65536, GAMMA_CAP, BIT_DEPTH>(
+                &dst_pr.green_trc,
+                options.allow_use_cicp_transfer,
+            )?;
+            let gamma_b = dst_pr.build_gamma_table::<T, 65536, GAMMA_CAP, BIT_DEPTH>(
+                &dst_pr.blue_trc,
+                options.allow_use_cicp_transfer,
+            )?;
+
+            let profile_transform = TransformMatrixShaper {
+                r_linear: lin_r,
+                g_linear: lin_g,
+                b_linear: lin_b,
+                r_gamma: gamma_r,
+                g_gamma: gamma_g,
+                b_gamma: gamma_b,
+                adaptation_matrix: transform.to_f32(),
+            };
+
+            return T::make_in_place_transform::<LINEAR_CAP, GAMMA_CAP, BIT_DEPTH>(
+                layout,
+                profile_transform,
+                options,
+            );
+        }
+
+        if is_gray_transform {
+            // Gray -> Gray case
+            let gray_linear = self.build_gray_linearize_table::<T, LINEAR_CAP, BIT_DEPTH>()?;
+
+            let gray_gamma = dst_pr.build_gamma_table::<T, 65536, GAMMA_CAP, BIT_DEPTH>(
+                &dst_pr.gray_trc,
+                options.allow_use_cicp_transfer,
+            )?;
+
+            use crate::conversions::make_gray_to_gray_in_place;
+            return make_gray_to_gray_in_place::<T, LINEAR_CAP>(
+                layout,
+                &gray_linear,
+                &gray_gamma,
+                BIT_DEPTH,
+                GAMMA_CAP,
+            );
+        }
+
+        Err(CmsError::UnsupportedProfileConnection)
     }
 
     fn create_transform_nbit<
@@ -972,6 +1180,18 @@ impl ColorProfile {
         options: TransformOptions,
     ) -> Result<Arc<Transform8BitExecutor>, CmsError> {
         self.create_transform_nbit::<u8, 8, 256, 4096>(src_layout, dst_pr, dst_layout, options)
+    }
+
+    /// Creates transform between source and destination profile
+    /// Only 8 bit is supported.
+    #[cfg(feature = "in_place")]
+    pub fn create_in_place_transform_8bit(
+        &self,
+        layout: Layout,
+        dst_pr: &ColorProfile,
+        options: TransformOptions,
+    ) -> Result<Arc<dyn InPlaceTransformExecutor<u8> + Send + Sync>, CmsError> {
+        self.create_transform_in_place_nbit::<u8, 8, 256, 4096>(layout, dst_pr, options)
     }
 
     #[allow(unused)]

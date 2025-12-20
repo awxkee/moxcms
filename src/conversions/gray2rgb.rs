@@ -26,6 +26,8 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+#[cfg(feature = "in_place")]
+use crate::InPlaceTransformExecutor;
 use crate::transform::PointeeSizeExpressible;
 use crate::{CmsError, Layout, TransformExecutor};
 use num_traits::AsPrimitive;
@@ -137,6 +139,52 @@ where
     }
 }
 
+#[cfg(feature = "in_place")]
+pub(crate) fn make_gray_to_gray_in_place<
+    T: Copy + Default + PointeeSizeExpressible + 'static + Send + Sync,
+    const BUCKET: usize,
+>(
+    layout: Layout,
+    gray_linear: &[f32; BUCKET],
+    gray_gamma: &[T; 65536],
+    bit_depth: usize,
+    gamma_lut: usize,
+) -> Result<Arc<dyn InPlaceTransformExecutor<T> + Sync + Send>, CmsError>
+where
+    u32: AsPrimitive<T>,
+{
+    if layout != Layout::Gray && layout != Layout::GrayAlpha {
+        return Err(CmsError::UnsupportedProfileConnection);
+    }
+
+    let mut fused_gamma = Box::new([T::default(); 65536]);
+    let max_lut_size = (gamma_lut - 1) as f32;
+    for (&src, dst) in gray_linear.iter().zip(fused_gamma.iter_mut()) {
+        let possible_value = ((src * max_lut_size).round() as u32).min(max_lut_size as u32) as u16;
+        *dst = gray_gamma[possible_value as usize];
+    }
+
+    match layout {
+        Layout::Gray => Ok(Arc::new(TransformGray2RgbFusedExecutor::<
+            T,
+            { Layout::Gray as u8 },
+            { Layout::Gray as u8 },
+        > {
+            fused_gamma,
+            bit_depth,
+        })),
+        Layout::GrayAlpha => Ok(Arc::new(TransformGray2RgbFusedExecutor::<
+            T,
+            { Layout::GrayAlpha as u8 },
+            { Layout::GrayAlpha as u8 },
+        > {
+            fused_gamma,
+            bit_depth,
+        })),
+        _ => Err(CmsError::UnsupportedProfileConnection),
+    }
+}
+
 impl<
     T: Copy + Default + PointeeSizeExpressible + 'static,
     const SRC_LAYOUT: u8,
@@ -182,6 +230,45 @@ where
                 dst[1] = g;
                 dst[2] = g;
                 dst[3] = a;
+            }
+        }
+
+        Ok(())
+    }
+}
+
+#[cfg(feature = "in_place")]
+impl<
+    T: Copy + Default + PointeeSizeExpressible + 'static,
+    const SRC_LAYOUT: u8,
+    const DST_LAYOUT: u8,
+> InPlaceTransformExecutor<T> for TransformGray2RgbFusedExecutor<T, SRC_LAYOUT, DST_LAYOUT>
+where
+    u32: AsPrimitive<T>,
+{
+    fn transform(&self, in_out: &mut [T]) -> Result<(), CmsError> {
+        assert_eq!(
+            SRC_LAYOUT, DST_LAYOUT,
+            "This is in-place transform, layout must not diverge"
+        );
+        let src_cn = Layout::from(SRC_LAYOUT);
+        let src_channels = src_cn.channels();
+
+        if in_out.len() % src_channels != 0 {
+            return Err(CmsError::LaneMultipleOfChannels);
+        }
+
+        let is_gray_alpha = src_cn == Layout::GrayAlpha;
+
+        let max_value: T = ((1u32 << self.bit_depth as u32) - 1u32).as_();
+
+        for dst in in_out.chunks_exact_mut(src_channels) {
+            let g = self.fused_gamma[dst[0]._as_usize()];
+            let a = if is_gray_alpha { dst[1] } else { max_value };
+
+            dst[0] = g;
+            if src_cn == Layout::GrayAlpha {
+                dst[1] = a;
             }
         }
 

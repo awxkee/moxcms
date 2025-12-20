@@ -26,6 +26,8 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+#[cfg(feature = "in_place")]
+use crate::InPlaceTransformExecutor;
 use crate::{CmsError, Layout, Matrix3, Matrix3f, TransformExecutor};
 use num_traits::AsPrimitive;
 use std::sync::Arc;
@@ -440,6 +442,98 @@ macro_rules! create_rgb_xyz_dependant_executor_to_v {
     };
 }
 
+#[cfg(any(
+    any(target_arch = "x86", target_arch = "x86_64"),
+    target_arch = "aarch64"
+))]
+#[allow(unused)]
+macro_rules! create_in_place_opt_rgb_xyz_fp_to_v {
+    ($dep_name: ident, $dependant: ident, $resolution: ident, $shaper: ident) => {
+        pub(crate) fn $dep_name<
+            T: Clone + Send + Sync + Default + PointeeSizeExpressible + Copy + 'static,
+            const LINEAR_CAP: usize,
+            const PRECISION: i32,
+        >(
+            layout: Layout,
+            profile: $shaper<T, LINEAR_CAP>,
+            gamma_lut: usize,
+            bit_depth: usize,
+        ) -> Result<Arc<dyn InPlaceTransformExecutor<T> + Send + Sync>, CmsError>
+        where
+            u32: AsPrimitive<T>,
+        {
+            let q2_13_profile = profile.to_q2_13_i::<$resolution, PRECISION>(gamma_lut, bit_depth);
+            if layout == Layout::Rgba {
+                return Ok(Arc::new($dependant::<
+                    T,
+                    { Layout::Rgba as u8 },
+                    { Layout::Rgba as u8 },
+                    PRECISION,
+                > {
+                    profile: q2_13_profile,
+                    bit_depth,
+                    gamma_lut,
+                }));
+            } else if layout == Layout::Rgb {
+                return Ok(Arc::new($dependant::<
+                    T,
+                    { Layout::Rgb as u8 },
+                    { Layout::Rgb as u8 },
+                    PRECISION,
+                > {
+                    profile: q2_13_profile,
+                    bit_depth,
+                    gamma_lut,
+                }));
+            }
+            Err(CmsError::UnsupportedProfileConnection)
+        }
+    };
+}
+
+#[allow(unused)]
+macro_rules! create_in_place_rgb_xyz {
+    ($dep_name: ident, $dependant: ident, $shaper: ident) => {
+        pub(crate) fn $dep_name<
+            T: Clone + Send + Sync + Default + PointeeSizeExpressible + Copy + 'static,
+            const LINEAR_CAP: usize,
+        >(
+            layout: Layout,
+            profile: $shaper<T, LINEAR_CAP>,
+            gamma_lut: usize,
+            bit_depth: usize,
+        ) -> Result<Arc<dyn InPlaceTransformExecutor<T> + Send + Sync>, CmsError>
+        where
+            u32: AsPrimitive<T>,
+        {
+            if layout == Layout::Rgba {
+                return Ok(Arc::new($dependant::<
+                    T,
+                    { Layout::Rgba as u8 },
+                    { Layout::Rgba as u8 },
+                    LINEAR_CAP,
+                > {
+                    profile,
+                    bit_depth,
+                    gamma_lut,
+                }));
+            } else if layout == Layout::Rgb {
+                return Ok(Arc::new($dependant::<
+                    T,
+                    { Layout::Rgb as u8 },
+                    { Layout::Rgb as u8 },
+                    LINEAR_CAP,
+                > {
+                    profile,
+                    bit_depth,
+                    gamma_lut,
+                }));
+            }
+            Err(CmsError::UnsupportedProfileConnection)
+        }
+    };
+}
+
 #[cfg(all(
     any(target_arch = "x86", target_arch = "x86_64"),
     feature = "sse_shaper_optimized_paths"
@@ -681,10 +775,81 @@ create_rgb_xyz_dependant_executor_to_v!(
     TransformMatrixShaper
 );
 
+#[cfg(feature = "in_place")]
+create_in_place_rgb_xyz!(
+    make_in_place_rgb_xyz_transform,
+    TransformMatrixShaperScalar,
+    TransformMatrixShaper
+);
+
 #[cfg(all(target_arch = "aarch64", feature = "neon_shaper_optimized_paths"))]
 create_rgb_xyz_dependant_executor_to_v!(
     make_rgb_xyz_rgb_transform_opt,
     TransformShaperRgbOptNeon,
+    TransformMatrixShaperOptimized
+);
+
+#[cfg(feature = "in_place")]
+create_in_place_rgb_xyz!(
+    make_rgb_xyz_in_place_transform_opt,
+    TransformMatrixShaperOptScalar,
+    TransformMatrixShaperOptimized
+);
+
+#[cfg(all(
+    target_arch = "aarch64",
+    feature = "in_place",
+    feature = "neon_shaper_fixed_point_paths"
+))]
+use crate::conversions::neon::TransformShaperQ2_13NeonOpt;
+
+#[cfg(all(
+    target_arch = "aarch64",
+    feature = "in_place",
+    feature = "neon_shaper_fixed_point_paths"
+))]
+create_in_place_opt_rgb_xyz_fp_to_v!(
+    make_rgb_xyz_in_place_transform_q2_13_opt,
+    TransformShaperQ2_13NeonOpt,
+    i16,
+    TransformMatrixShaperOptimized
+);
+
+#[cfg(all(
+    any(target_arch = "x86_64", target_arch = "x86"),
+    feature = "in_place",
+    feature = "sse_shaper_fixed_point_paths"
+))]
+use crate::conversions::sse::TransformShaperQ2_13OptSse;
+
+#[cfg(all(
+    any(target_arch = "x86_64", target_arch = "x86"),
+    feature = "in_place",
+    feature = "sse_shaper_fixed_point_paths"
+))]
+create_in_place_opt_rgb_xyz_fp_to_v!(
+    make_sse_rgb_xyz_in_place_transform_q2_13_opt,
+    TransformShaperQ2_13OptSse,
+    i32,
+    TransformMatrixShaperOptimized
+);
+
+#[cfg(all(
+    target_arch = "x86_64",
+    feature = "in_place",
+    feature = "avx_shaper_fixed_point_paths"
+))]
+use crate::conversions::avx::TransformShaperRgbQ2_13OptAvx;
+
+#[cfg(all(
+    target_arch = "x86_64",
+    feature = "in_place",
+    feature = "avx_shaper_fixed_point_paths"
+))]
+create_in_place_opt_rgb_xyz_fp_to_v!(
+    make_avx_rgb_xyz_in_place_transform_q2_13_opt,
+    TransformShaperRgbQ2_13OptAvx,
+    i32,
     TransformMatrixShaperOptimized
 );
 
@@ -780,6 +945,91 @@ where
     }
 }
 
+#[cfg(feature = "in_place")]
+impl<
+    T: Clone + PointeeSizeExpressible + Copy + Default + 'static,
+    const SRC_LAYOUT: u8,
+    const DST_LAYOUT: u8,
+    const LINEAR_CAP: usize,
+> InPlaceTransformExecutor<T> for TransformMatrixShaperScalar<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP>
+where
+    u32: AsPrimitive<T>,
+{
+    fn transform(&self, dst: &mut [T]) -> Result<(), CmsError> {
+        use crate::mlaf::mlaf;
+        assert_eq!(
+            SRC_LAYOUT, DST_LAYOUT,
+            "This is in-place transform, layout must not diverge"
+        );
+        let src_cn = Layout::from(SRC_LAYOUT);
+        let src_channels = src_cn.channels();
+
+        if dst.len() % src_channels != 0 {
+            return Err(CmsError::LaneMultipleOfChannels);
+        }
+
+        let transform = self.profile.adaptation_matrix;
+        let scale = (self.gamma_lut - 1) as f32;
+        let max_colors: T = ((1 << self.bit_depth) - 1).as_();
+
+        for dst in dst.chunks_exact_mut(src_channels) {
+            let r = self.profile.r_linear[dst[src_cn.r_i()]._as_usize()];
+            let g = self.profile.g_linear[dst[src_cn.g_i()]._as_usize()];
+            let b = self.profile.b_linear[dst[src_cn.b_i()]._as_usize()];
+            let a = if src_channels == 4 {
+                dst[src_cn.a_i()]
+            } else {
+                max_colors
+            };
+
+            let new_r = mlaf(
+                0.5f32,
+                mlaf(
+                    mlaf(r * transform.v[0][0], g, transform.v[0][1]),
+                    b,
+                    transform.v[0][2],
+                )
+                .max(0f32)
+                .min(1f32),
+                scale,
+            );
+
+            let new_g = mlaf(
+                0.5f32,
+                mlaf(
+                    mlaf(r * transform.v[1][0], g, transform.v[1][1]),
+                    b,
+                    transform.v[1][2],
+                )
+                .max(0f32)
+                .min(1f32),
+                scale,
+            );
+
+            let new_b = mlaf(
+                0.5f32,
+                mlaf(
+                    mlaf(r * transform.v[2][0], g, transform.v[2][1]),
+                    b,
+                    transform.v[2][2],
+                )
+                .max(0f32)
+                .min(1f32),
+                scale,
+            );
+
+            dst[src_cn.r_i()] = self.profile.r_gamma[(new_r as u16) as usize];
+            dst[src_cn.g_i()] = self.profile.g_gamma[(new_g as u16) as usize];
+            dst[src_cn.b_i()] = self.profile.b_gamma[(new_b as u16) as usize];
+            if src_channels == 4 {
+                dst[src_cn.a_i()] = a;
+            }
+        }
+
+        Ok(())
+    }
+}
+
 #[allow(unused)]
 impl<
     T: Clone + PointeeSizeExpressible + Copy + Default + 'static,
@@ -820,6 +1070,92 @@ where
             let b = self.profile.linear[src[src_cn.b_i()]._as_usize()];
             let a = if src_channels == 4 {
                 src[src_cn.a_i()]
+            } else {
+                max_colors
+            };
+
+            let new_r = mlaf(
+                0.5f32,
+                mlaf(
+                    mlaf(r * transform.v[0][0], g, transform.v[0][1]),
+                    b,
+                    transform.v[0][2],
+                )
+                .max(0f32)
+                .min(1f32),
+                scale,
+            );
+
+            let new_g = mlaf(
+                0.5f32,
+                mlaf(
+                    mlaf(r * transform.v[1][0], g, transform.v[1][1]),
+                    b,
+                    transform.v[1][2],
+                )
+                .max(0f32)
+                .min(1f32),
+                scale,
+            );
+
+            let new_b = mlaf(
+                0.5f32,
+                mlaf(
+                    mlaf(r * transform.v[2][0], g, transform.v[2][1]),
+                    b,
+                    transform.v[2][2],
+                )
+                .max(0f32)
+                .min(1f32),
+                scale,
+            );
+
+            dst[dst_cn.r_i()] = self.profile.gamma[(new_r as u16) as usize];
+            dst[dst_cn.g_i()] = self.profile.gamma[(new_g as u16) as usize];
+            dst[dst_cn.b_i()] = self.profile.gamma[(new_b as u16) as usize];
+            if dst_channels == 4 {
+                dst[dst_cn.a_i()] = a;
+            }
+        }
+
+        Ok(())
+    }
+}
+
+#[cfg(feature = "in_place")]
+impl<
+    T: Clone + PointeeSizeExpressible + Copy + Default + 'static,
+    const SRC_LAYOUT: u8,
+    const DST_LAYOUT: u8,
+    const LINEAR_CAP: usize,
+> InPlaceTransformExecutor<T>
+    for TransformMatrixShaperOptScalar<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP>
+where
+    u32: AsPrimitive<T>,
+{
+    fn transform(&self, dst: &mut [T]) -> Result<(), CmsError> {
+        use crate::mlaf::mlaf;
+        assert_eq!(
+            SRC_LAYOUT, DST_LAYOUT,
+            "This is in-place transform, layout must not diverge"
+        );
+        let dst_cn = Layout::from(DST_LAYOUT);
+        let dst_channels = dst_cn.channels();
+
+        if dst.len() % dst_channels != 0 {
+            return Err(CmsError::LaneMultipleOfChannels);
+        }
+
+        let transform = self.profile.adaptation_matrix;
+        let scale = (self.gamma_lut - 1) as f32;
+        let max_colors: T = ((1 << self.bit_depth) - 1).as_();
+
+        for dst in dst.chunks_exact_mut(dst_channels) {
+            let r = self.profile.linear[dst[dst_cn.r_i()]._as_usize()];
+            let g = self.profile.linear[dst[dst_cn.g_i()]._as_usize()];
+            let b = self.profile.linear[dst[dst_cn.b_i()]._as_usize()];
+            let a = if dst_channels == 4 {
+                dst[dst_cn.a_i()]
             } else {
                 max_colors
             };

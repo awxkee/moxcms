@@ -325,9 +325,22 @@ fn main() {
     // fs::write("./gray.icc", encode).unwrap();
 
     let img = DynamicImage::from_decoder(decoder).unwrap();
-    let rgb_f32 = img.to_rgb8();
+    let mut rgb_f32 = img.to_rgb8();
 
     let srgb = moxcms::ColorProfile::new_srgb();
+
+    let i_t = srgb
+        .create_in_place_transform_8bit(
+            moxcms::Layout::Rgb,
+            &ColorProfile::new_adobe_rgb(),
+            TransformOptions {
+                prefer_fixed_point: true,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+
+    i_t.transform(&mut rgb_f32).unwrap();
 
     let transform = srgb
         .create_transform_8bit(

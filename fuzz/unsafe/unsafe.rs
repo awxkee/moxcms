@@ -40,6 +40,12 @@ fuzz_target!(|data: (u8, u8, u16, u8, u8, u8, u8, f32)| {
         dst_layout,
         interpolation_method,
     );
+    fuzz_8_bit_in_place(
+        data.0 as usize,
+        data.1 as usize,
+        (data.2 >> 8) as u8,
+        src_layout,
+    );
     fuzz_16_bit(
         data.0 as usize,
         data.1 as usize,
@@ -80,6 +86,26 @@ fn fuzz_8_bit(
     transform
         .transform(&src_image_rgb, &mut dst_image_rgb)
         .unwrap();
+}
+
+fn fuzz_8_bit_in_place(width: usize, height: usize, px: u8, src_layout: Layout) {
+    if width == 0 || height == 0 {
+        return;
+    }
+    let mut src_image_rgb = vec![px; width * height * src_layout.channels()];
+    let src_profile = ColorProfile::new_srgb();
+    let dst_profile = ColorProfile::new_bt2020();
+    let transform = src_profile
+        .create_in_place_transform_8bit(
+            src_layout,
+            &dst_profile,
+            TransformOptions {
+                prefer_fixed_point: true,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+    transform.transform(&mut src_image_rgb).unwrap();
 }
 
 fn fuzz_16_bit(
