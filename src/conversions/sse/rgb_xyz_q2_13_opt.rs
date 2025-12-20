@@ -29,7 +29,6 @@
 #![cfg(feature = "sse_shaper_fixed_point_paths")]
 use crate::conversions::rgbxyz_fixed::TransformMatrixShaperFpOptVec;
 use crate::conversions::sse::SseAlignedU16;
-use crate::conversions::sse::rgb_xyz_q2_13::_xmm_load_epi32;
 use crate::transform::PointeeSizeExpressible;
 use crate::{CmsError, Layout, TransformExecutor};
 use num_traits::AsPrimitive;
@@ -37,6 +36,13 @@ use num_traits::AsPrimitive;
 use std::arch::x86::*;
 #[cfg(target_arch = "x86_64")]
 use std::arch::x86_64::*;
+
+#[inline(always)]
+#[allow(dead_code)]
+pub(crate) unsafe fn _xmm_load_epi32(f: &i32) -> __m128i {
+    let float_ref: &f32 = unsafe { &*(f as *const i32 as *const f32) };
+    unsafe { _mm_castps_si128(_mm_load_ss(float_ref)) }
+}
 
 pub(crate) struct TransformShaperQ2_13OptSse<
     T: Copy,

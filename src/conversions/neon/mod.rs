@@ -33,7 +33,6 @@ mod lut4_to_3_q0_15;
 mod rgb_xyz;
 mod rgb_xyz_opt;
 mod rgb_xyz_q1_30_opt;
-mod rgb_xyz_q2_13;
 mod rgb_xyz_q2_13_opt;
 mod t_lut3_to_3;
 mod t_lut3_to_3_q0_15;
@@ -48,8 +47,6 @@ pub(crate) use rgb_xyz::TransformShaperRgbNeon;
 pub(crate) use rgb_xyz_opt::TransformShaperRgbOptNeon;
 #[cfg(feature = "neon_shaper_fixed_point_paths")]
 pub(crate) use rgb_xyz_q1_30_opt::TransformShaperQ1_30NeonOpt;
-#[cfg(feature = "neon_shaper_fixed_point_paths")]
-pub(crate) use rgb_xyz_q2_13::TransformShaperQ2_13Neon;
 #[cfg(feature = "neon_shaper_fixed_point_paths")]
 pub(crate) use rgb_xyz_q2_13_opt::TransformShaperQ2_13NeonOpt;
 #[cfg(feature = "neon_luts")]

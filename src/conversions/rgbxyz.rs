@@ -98,58 +98,6 @@ pub(crate) struct TransformMatrixShaperOptimizedV<T: Clone> {
 impl<T: Clone + PointeeSizeExpressible, const BUCKET: usize> TransformMatrixShaper<T, BUCKET> {
     #[inline(never)]
     #[allow(dead_code)]
-    pub(crate) fn to_q2_13_n<
-        R: Copy + 'static + Default,
-        const PRECISION: i32,
-        const LINEAR_CAP: usize,
-    >(
-        &self,
-        gamma_lut: usize,
-        bit_depth: usize,
-    ) -> TransformMatrixShaperFixedPoint<R, T, BUCKET>
-    where
-        f32: AsPrimitive<R>,
-    {
-        let linear_scale = if T::FINITE {
-            let lut_scale = (gamma_lut - 1) as f32 / ((1 << bit_depth) - 1) as f32;
-            ((1 << bit_depth) - 1) as f32 * lut_scale
-        } else {
-            let lut_scale = (gamma_lut - 1) as f32 / (T::NOT_FINITE_LINEAR_TABLE_SIZE - 1) as f32;
-            (T::NOT_FINITE_LINEAR_TABLE_SIZE - 1) as f32 * lut_scale
-        };
-        let mut new_box_r = Box::new([R::default(); BUCKET]);
-        let mut new_box_g = Box::new([R::default(); BUCKET]);
-        let mut new_box_b = Box::new([R::default(); BUCKET]);
-        for (dst, &src) in new_box_r.iter_mut().zip(self.r_linear.iter()) {
-            *dst = (src * linear_scale).round().as_();
-        }
-        for (dst, &src) in new_box_g.iter_mut().zip(self.g_linear.iter()) {
-            *dst = (src * linear_scale).round().as_();
-        }
-        for (dst, &src) in new_box_b.iter_mut().zip(self.b_linear.iter()) {
-            *dst = (src * linear_scale).round().as_();
-        }
-        let scale: f32 = (1i32 << PRECISION) as f32;
-        let source_matrix = self.adaptation_matrix;
-        let mut dst_matrix = Matrix3::<i16> { v: [[0i16; 3]; 3] };
-        for i in 0..3 {
-            for j in 0..3 {
-                dst_matrix.v[i][j] = (source_matrix.v[i][j] * scale) as i16;
-            }
-        }
-        TransformMatrixShaperFixedPoint {
-            r_linear: new_box_r,
-            g_linear: new_box_g,
-            b_linear: new_box_b,
-            r_gamma: self.r_gamma.clone(),
-            g_gamma: self.g_gamma.clone(),
-            b_gamma: self.b_gamma.clone(),
-            adaptation_matrix: dst_matrix,
-        }
-    }
-
-    #[inline(never)]
-    #[allow(dead_code)]
     pub(crate) fn to_q2_13_i<R: Copy + 'static + Default, const PRECISION: i32>(
         &self,
         gamma_lut: usize,
@@ -722,7 +670,7 @@ use crate::conversions::neon::TransformShaperRgbNeon;
 use crate::conversions::neon::TransformShaperRgbOptNeon;
 use crate::conversions::rgbxyz_fixed::TransformMatrixShaperFpOptVec;
 use crate::conversions::rgbxyz_fixed::{
-    TransformMatrixShaperFixedPoint, TransformMatrixShaperFixedPointOpt, TransformMatrixShaperFp,
+    TransformMatrixShaperFixedPointOpt, TransformMatrixShaperFp,
 };
 use crate::transform::PointeeSizeExpressible;
 
