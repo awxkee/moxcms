@@ -90,119 +90,19 @@ where
             if !src_chunks.is_empty() {
                 let (src0, src1) = src_chunks.split_at(src_chunks.len() / 2);
                 let (dst0, dst1) = dst_chunks.split_at_mut(dst_chunks.len() / 2);
-                let mut src_iter0 = src0.chunks_exact(src_channels * 2);
-                let mut src_iter1 = src1.chunks_exact(src_channels * 2);
+                let src_iter0 = src0.chunks_exact(src_channels * 2);
+                let src_iter1 = src1.chunks_exact(src_channels * 2);
 
                 let (mut r0, mut g0, mut b0, mut a0);
                 let (mut r1, mut g1, mut b1, mut a1);
                 let (mut r2, mut g2, mut b2, mut a2);
                 let (mut r3, mut g3, mut b3, mut a3);
 
-                if let (Some(src0), Some(src1)) = (src_iter0.next(), src_iter1.next()) {
-                    let r0p = lin_lut.get_unchecked(src0[src_cn.r_i()]._as_usize());
-                    let g0p = lin_lut.get_unchecked(src0[src_cn.g_i()]._as_usize());
-                    let b0p = lin_lut.get_unchecked(src0[src_cn.b_i()]._as_usize());
-
-                    let r1p = lin_lut.get_unchecked(src0[src_cn.r_i() + src_channels]._as_usize());
-                    let g1p = lin_lut.get_unchecked(src0[src_cn.g_i() + src_channels]._as_usize());
-                    let b1p = lin_lut.get_unchecked(src0[src_cn.b_i() + src_channels]._as_usize());
-
-                    let r2p = lin_lut.get_unchecked(src1[src_cn.r_i()]._as_usize());
-                    let g2p = lin_lut.get_unchecked(src1[src_cn.g_i()]._as_usize());
-                    let b2p = lin_lut.get_unchecked(src1[src_cn.b_i()]._as_usize());
-
-                    let r3p = lin_lut.get_unchecked(src1[src_cn.r_i() + src_channels]._as_usize());
-                    let g3p = lin_lut.get_unchecked(src1[src_cn.g_i() + src_channels]._as_usize());
-                    let b3p = lin_lut.get_unchecked(src1[src_cn.b_i() + src_channels]._as_usize());
-
-                    r0 = vld1q_dup_s32(r0p);
-                    g0 = vld1q_dup_s32(g0p);
-                    b0 = vld1q_dup_s32(b0p);
-
-                    r1 = vld1q_dup_s32(r1p);
-                    g1 = vld1q_dup_s32(g1p);
-                    b1 = vld1q_dup_s32(b1p);
-
-                    r2 = vld1q_dup_s32(r2p);
-                    g2 = vld1q_dup_s32(g2p);
-                    b2 = vld1q_dup_s32(b2p);
-
-                    r3 = vld1q_dup_s32(r3p);
-                    g3 = vld1q_dup_s32(g3p);
-                    b3 = vld1q_dup_s32(b3p);
-
-                    a0 = if src_channels == 4 {
-                        src0[src_cn.a_i()]
-                    } else {
-                        max_colors
-                    };
-
-                    a1 = if src_channels == 4 {
-                        src0[src_cn.a_i() + src_channels]
-                    } else {
-                        max_colors
-                    };
-
-                    a2 = if src_channels == 4 {
-                        src1[src_cn.a_i()]
-                    } else {
-                        max_colors
-                    };
-
-                    a3 = if src_channels == 4 {
-                        src1[src_cn.a_i() + src_channels]
-                    } else {
-                        max_colors
-                    };
-                } else {
-                    r0 = vdupq_n_s32(0);
-                    g0 = vdupq_n_s32(0);
-                    b0 = vdupq_n_s32(0);
-                    r1 = vdupq_n_s32(0);
-                    g1 = vdupq_n_s32(0);
-                    b1 = vdupq_n_s32(0);
-                    r2 = vdupq_n_s32(0);
-                    g2 = vdupq_n_s32(0);
-                    b2 = vdupq_n_s32(0);
-                    r3 = vdupq_n_s32(0);
-                    g3 = vdupq_n_s32(0);
-                    b3 = vdupq_n_s32(0);
-                    a0 = max_colors;
-                    a1 = max_colors;
-                    a2 = max_colors;
-                    a3 = max_colors;
-                }
-
                 for (((src0, src1), dst0), dst1) in src_iter0
                     .zip(src_iter1)
                     .zip(dst0.chunks_exact_mut(dst_channels * 2))
                     .zip(dst1.chunks_exact_mut(dst_channels * 2))
                 {
-                    let v0_0 = vqrdmulhq_s32(r0, m0);
-                    let v0_1 = vqrdmulhq_s32(r1, m0);
-                    let v0_2 = vqrdmulhq_s32(r2, m0);
-                    let v0_3 = vqrdmulhq_s32(r3, m0);
-
-                    let v1_0 = vqrdmlahq_s32(v0_0, g0, m1);
-                    let v1_1 = vqrdmlahq_s32(v0_1, g1, m1);
-                    let v1_2 = vqrdmlahq_s32(v0_2, g2, m1);
-                    let v1_3 = vqrdmlahq_s32(v0_3, g3, m1);
-
-                    let vr0 = vqrdmlahq_s32(v1_0, b0, m2);
-                    let vr1 = vqrdmlahq_s32(v1_1, b1, m2);
-                    let vr2 = vqrdmlahq_s32(v1_2, b2, m2);
-                    let vr3 = vqrdmlahq_s32(v1_3, b3, m2);
-
-                    let mut vr0 = vqmovun_s32(vr0);
-                    let mut vr1 = vqmovun_s32(vr1);
-                    let mut vr2 = vqmovun_s32(vr2);
-                    let mut vr3 = vqmovun_s32(vr3);
-
-                    vr0 = vmin_u16(vr0, v_max_value);
-                    vr1 = vmin_u16(vr1, v_max_value);
-                    vr2 = vmin_u16(vr2, v_max_value);
-                    vr3 = vmin_u16(vr3, v_max_value);
-
                     let r0p = lin_lut.get_unchecked(src0[src_cn.r_i()]._as_usize());
                     let g0p = lin_lut.get_unchecked(src0[src_cn.g_i()]._as_usize());
                     let b0p = lin_lut.get_unchecked(src0[src_cn.b_i()]._as_usize());
@@ -235,40 +135,6 @@ where
                     g3 = vld1q_dup_s32(g3p);
                     b3 = vld1q_dup_s32(b3p);
 
-                    dst0[dst_cn.r_i()] = self.profile.gamma[vget_lane_u16::<0>(vr0) as usize];
-                    dst0[dst_cn.g_i()] = self.profile.gamma[vget_lane_u16::<1>(vr0) as usize];
-                    dst0[dst_cn.b_i()] = self.profile.gamma[vget_lane_u16::<2>(vr0) as usize];
-                    if dst_channels == 4 {
-                        dst0[dst_cn.a_i()] = a0;
-                    }
-
-                    dst0[dst_cn.r_i() + dst_channels] =
-                        self.profile.gamma[vget_lane_u16::<0>(vr1) as usize];
-                    dst0[dst_cn.g_i() + dst_channels] =
-                        self.profile.gamma[vget_lane_u16::<1>(vr1) as usize];
-                    dst0[dst_cn.b_i() + dst_channels] =
-                        self.profile.gamma[vget_lane_u16::<2>(vr0) as usize];
-                    if dst_channels == 4 {
-                        dst0[dst_cn.a_i() + dst_channels] = a1;
-                    }
-
-                    dst1[dst_cn.r_i()] = self.profile.gamma[vget_lane_u16::<0>(vr2) as usize];
-                    dst1[dst_cn.g_i()] = self.profile.gamma[vget_lane_u16::<1>(vr2) as usize];
-                    dst1[dst_cn.b_i()] = self.profile.gamma[vget_lane_u16::<2>(vr2) as usize];
-                    if dst_channels == 4 {
-                        dst1[dst_cn.a_i()] = a2;
-                    }
-
-                    dst1[dst_cn.r_i() + dst_channels] =
-                        self.profile.gamma[vget_lane_u16::<0>(vr3) as usize];
-                    dst1[dst_cn.g_i() + dst_channels] =
-                        self.profile.gamma[vget_lane_u16::<1>(vr3) as usize];
-                    dst1[dst_cn.b_i() + dst_channels] =
-                        self.profile.gamma[vget_lane_u16::<2>(vr3) as usize];
-                    if dst_channels == 4 {
-                        dst1[dst_cn.a_i() + dst_channels] = a3;
-                    }
-
                     a0 = if src_channels == 4 {
                         src0[src_cn.a_i()]
                     } else {
@@ -292,12 +158,7 @@ where
                     } else {
                         max_colors
                     };
-                }
 
-                if let (Some(dst0), Some(dst1)) = (
-                    dst0.chunks_exact_mut(dst_channels * 2).last(),
-                    dst1.chunks_exact_mut(dst_channels * 2).last(),
-                ) {
                     let v0_0 = vqrdmulhq_s32(r0, m0);
                     let v0_1 = vqrdmulhq_s32(r1, m0);
                     let v0_2 = vqrdmulhq_s32(r2, m0);

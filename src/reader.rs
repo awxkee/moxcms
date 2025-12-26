@@ -80,7 +80,6 @@ fn utf16be_to_utf16(slice: &[u8]) -> Result<Vec<u16>, CmsError> {
 }
 
 impl ColorProfile {
-    #[inline]
     pub(crate) fn read_lut_type(
         slice: &[u8],
         entry: usize,
@@ -99,7 +98,6 @@ impl ColorProfile {
         LutType::try_from(tag_type)
     }
 
-    #[inline]
     pub(crate) fn read_viewing_conditions(
         slice: &[u8],
         entry: usize,
@@ -294,7 +292,6 @@ impl ColorProfile {
         Ok(None)
     }
 
-    #[inline]
     fn read_lut_table_f32(table: &[u8], lut_type: LutType) -> Result<LutStore, CmsError> {
         if lut_type == LutType::Lut16 {
             let mut clut = try_vec![0u16; table.len() / 2];
@@ -313,7 +310,6 @@ impl ColorProfile {
         }
     }
 
-    #[inline]
     fn read_nested_tone_curves(
         slice: &[u8],
         offset: usize,
@@ -341,7 +337,6 @@ impl ColorProfile {
         Ok(Some(curves))
     }
 
-    #[inline]
     pub(crate) fn read_lut_abm_type(
         slice: &[u8],
         entry: usize,
@@ -557,7 +552,6 @@ impl ColorProfile {
         Ok(Some(wh))
     }
 
-    #[inline]
     pub(crate) fn read_lut_a_to_b_type(
         slice: &[u8],
         entry: usize,
@@ -804,7 +798,6 @@ impl ColorProfile {
         }
     }
 
-    #[inline]
     pub(crate) fn read_chad_tag(
         slice: &[u8],
         entry: usize,
@@ -864,7 +857,6 @@ impl ColorProfile {
         Ok(None)
     }
 
-    #[inline]
     pub(crate) fn read_date_time_tag(
         slice: &[u8],
         entry: usize,
@@ -968,7 +960,6 @@ impl ColorProfile {
         Ok(Xyzd { x, y, z })
     }
 
-    #[inline]
     pub(crate) fn read_cicp_tag(
         slice: &[u8],
         entry: usize,

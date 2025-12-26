@@ -895,7 +895,7 @@ pub struct ColorProfile {
     pub calibration_date: Option<ColorDateTime>,
     pub creation_date_time: ColorDateTime,
     /// Version for internal and viewing purposes only.
-    /// On encoding added value to profile will always be V4.
+    /// On encoding this is computable property which will set at least V4.
     pub(crate) version_internal: ProfileVersion,
 }
 
