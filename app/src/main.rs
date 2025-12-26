@@ -31,6 +31,7 @@ mod encode_gray_lut;
 // use jxl_oxide::{JxlImage, JxlThreadPool, Lcms2, Moxcms};
 use crate::encode_gray_lut::encode_gray_lut;
 use image::DynamicImage;
+use jpeg_encoder::{ColorType, Encoder};
 use moxcms::ProfileClass::ColorSpace;
 use moxcms::{
     BarycentricWeightScale, Chromaticity, CicpColorPrimaries, CicpProfile, ColorDateTime,
@@ -41,6 +42,8 @@ use moxcms::{
     adaption_matrix_d,
 };
 use std::fs;
+use std::fs::File;
+use std::io::BufWriter;
 use std::ops::Mul;
 use std::time::Instant;
 
@@ -299,6 +302,20 @@ fn check_fuzzer_path(path: &str) {
     println!("Successfully checked file: {path}");
 }
 
+fn encode_jpeg_with_icc(name: String, img: &[u8], w: usize, h: usize, icc: &[u8]) {
+    let file = File::create(name).unwrap();
+    let writer = BufWriter::new(file);
+
+    let mut encoder = Encoder::new(writer, 81);
+
+    // Attach ICC profile
+    encoder.add_icc_profile(icc).unwrap();
+
+    encoder
+        .encode(img, w as u16, h as u16, ColorType::Rgb)
+        .unwrap();
+}
+
 fn main() {
     // check_fuzzer_path("./assets/сheck.icc");
     let reader = image::ImageReader::open("./assets/bench.jpg").unwrap();
@@ -312,7 +329,7 @@ fn main() {
     // Curve first point must be 0 and last 65535.
     // let mut new_curve = vec![0u16; 4096];
     let srgb = ColorProfile::new_srgb();
-    let fogra_profile = ColorProfile::new_from_slice(&fogra_icc).unwrap();
+    let fogra_profile = ColorProfile::new_adobe_rgb(); // ColorProfile::new_from_slice(&fogra_icc).unwrap();
 
     // let gamma_table = srgb.build_gamma_table(&srgb.red_trc, true).unwrap();
 
@@ -329,26 +346,13 @@ fn main() {
 
     let srgb = moxcms::ColorProfile::new_srgb();
 
-    let i_t = srgb
-        .create_in_place_transform_8bit(
-            moxcms::Layout::Rgb,
-            &ColorProfile::new_adobe_rgb(),
-            TransformOptions {
-                prefer_fixed_point: true,
-                ..Default::default()
-            },
-        )
-        .unwrap();
-
-    i_t.transform(&mut rgb_f32).unwrap();
-
     let transform = srgb
         .create_transform_8bit(
             moxcms::Layout::Rgb,
             &fogra_profile,
             moxcms::Layout::Rgba,
             TransformOptions {
-                prefer_fixed_point: true,
+                prefer_fixed_point: false,
                 ..Default::default()
             },
         )
@@ -363,33 +367,7 @@ fn main() {
             &srgb,
             moxcms::Layout::Rgb,
             TransformOptions {
-                prefer_fixed_point: true,
-                rendering_intent: RenderingIntent::RelativeColorimetric,
-                ..Default::default()
-            },
-        )
-        .unwrap();
-
-    _ = fogra_profile
-        .create_transform_16bit(
-            moxcms::Layout::Rgba,
-            &srgb,
-            moxcms::Layout::Rgb,
-            TransformOptions {
-                prefer_fixed_point: true,
-                rendering_intent: RenderingIntent::RelativeColorimetric,
-                ..Default::default()
-            },
-        )
-        .unwrap();
-
-    _ = fogra_profile
-        .create_transform_f32(
-            moxcms::Layout::Rgba,
-            &srgb,
-            moxcms::Layout::Rgb,
-            TransformOptions {
-                prefer_fixed_point: true,
+                prefer_fixed_point: false,
                 rendering_intent: RenderingIntent::RelativeColorimetric,
                 ..Default::default()
             },

@@ -55,6 +55,7 @@ jobs:
       - run: cargo build --target aarch64-unknown-linux-gnu --no-default-features --features neon_shaper_fixed_point_paths,in_place
       - run: cargo build --target x86_64-unknown-linux-gnu --no-default-features --features in_place
       - run: cargo build --target aarch64-unknown-linux-gnu --no-default-features --features in_place
+      - run: cargo build --target aarch64-unknown-linux-gnu --no-default-features --features any_to_any
 
   tests_arm:
     name: Tests
@@ -86,6 +87,7 @@ jobs:
       - run: cargo test --features sse_shaper_fixed_point_paths
       - run: cargo test --features sse_luts
       - run: cargo test --features sse_shaper_fixed_point_paths,in_place
+      - run: cargo test --features extended_range
 
   clippy_x86:
     name: Clippy x86 Stable
@@ -104,6 +106,8 @@ jobs:
       - run: cargo clippy --features sse_shaper_fixed_point_paths           -- -D warnings
       - run: cargo clippy --features sse_luts                               -- -D warnings
       - run: cargo clippy --features sse_shaper_fixed_point_paths,in_place  -- -D warnings
+      - run: cargo clippy --features any_to_any -- -D warnings
+      - run: cargo clippy --features extended_range -- -D warnings
 
   clippy_x86_nightly:
     name: Clippy x86 Nightly
@@ -136,6 +140,8 @@ jobs:
       - run: cargo clippy --features neon_shaper_fixed_point_paths          -- -D warnings
       - run: cargo clippy --features neon_luts                              -- -D warnings
       - run: cargo clippy --features neon_shaper_fixed_point_paths,in_place -- -D warnings
+      - run: cargo clippy --features any_to_any -- -D warnings
+      - run: cargo clippy --features extended_range  -- -D warnings
 
   fuzz_arm:
     name: Fuzzing ARM

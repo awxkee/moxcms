@@ -30,6 +30,7 @@
 #![allow(dead_code)]
 use crate::conversions::lut_transforms::LUT_SAMPLING;
 use crate::math::{FusedMultiplyAdd, FusedMultiplyNegAdd};
+use crate::mlaf::fmla;
 use crate::{Vector3f, Vector4f};
 use std::ops::{Add, Mul, Sub};
 
@@ -63,7 +64,7 @@ impl BarycentricWeight<f32> {
 
             let scale = (GRID_SIZE as i32 - 1) as f32 * SCALE;
 
-            let dr = index as f32 * scale - x as f32;
+            let dr = fmla(index as f32, scale, -x as f32);
             *weight = BarycentricWeight { x, x_n, w: dr };
         }
         weights
@@ -81,7 +82,7 @@ impl BarycentricWeight<f32> {
 
             let scale = (GRID_SIZE as i32 - 1) as f32 * b_scale;
 
-            let dr = index as f32 * scale - x as f32;
+            let dr = fmla(index as f32, scale, -x as f32);
             *weight = BarycentricWeight { x, x_n, w: dr };
         }
         weights
@@ -103,7 +104,7 @@ impl BarycentricWeight<i16> {
 
             const Q: f32 = ((1i32 << 15) - 1) as f32;
 
-            let dr = ((index as f32 * scale - x as f32) * Q)
+            let dr = (fmla(index as f32, scale, -x as f32) * Q)
                 .round()
                 .min(i16::MAX as f32)
                 .max(-i16::MAX as f32) as i16;
@@ -126,7 +127,7 @@ impl BarycentricWeight<i16> {
 
             const Q: f32 = ((1i32 << 15) - 1) as f32;
 
-            let dr = ((index as f32 * scale - x as f32) * Q)
+            let dr = (fmla(index as f32, scale, -x as f32) * Q)
                 .round()
                 .min(i16::MAX as f32)
                 .max(-i16::MAX as f32) as i16;
