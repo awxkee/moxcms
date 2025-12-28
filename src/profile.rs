@@ -88,18 +88,62 @@ pub enum ProfileVersion {
 impl TryFrom<u32> for ProfileVersion {
     type Error = CmsError;
     fn try_from(value: u32) -> Result<Self, Self::Error> {
+        // First try exact match for known versions
         match value {
-            0x02000000 => Ok(ProfileVersion::V2_0),
-            0x02100000 => Ok(ProfileVersion::V2_1),
-            0x02200000 => Ok(ProfileVersion::V2_2),
-            0x02300000 => Ok(ProfileVersion::V2_3),
-            0x02400000 => Ok(ProfileVersion::V2_4),
-            0x04000000 => Ok(ProfileVersion::V4_0),
-            0x04100000 => Ok(ProfileVersion::V4_1),
-            0x04200000 => Ok(ProfileVersion::V4_2),
-            0x04300000 => Ok(ProfileVersion::V4_3),
-            0x04400000 => Ok(ProfileVersion::V4_3),
-            _ => Err(CmsError::InvalidProfile),
+            0x02000000 => return Ok(ProfileVersion::V2_0),
+            0x02100000 => return Ok(ProfileVersion::V2_1),
+            0x02200000 => return Ok(ProfileVersion::V2_2),
+            0x02300000 => return Ok(ProfileVersion::V2_3),
+            0x02400000 => return Ok(ProfileVersion::V2_4),
+            0x04000000 => return Ok(ProfileVersion::V4_0),
+            0x04100000 => return Ok(ProfileVersion::V4_1),
+            0x04200000 => return Ok(ProfileVersion::V4_2),
+            0x04300000 => return Ok(ProfileVersion::V4_3),
+            0x04400000 => return Ok(ProfileVersion::V4_4),
+            _ => {}
+        }
+
+        // Extract major version (first byte) for range matching
+        // ICC version format: major.minor.bugfix.zero in bytes [0][1][2][3]
+        let major = (value >> 24) & 0xFF;
+        let minor = (value >> 20) & 0x0F;
+
+        // Accept profiles with patch versions (e.g., v2.0.2, v3.4, v4.2.9)
+        // but reject invalid versions (v0.x) and unsupported versions (v5.x+ / ICC MAX)
+        match major {
+            0 => {
+                // Version 0.x is invalid - reject
+                Err(CmsError::InvalidProfile)
+            }
+            2 => {
+                // v2.x - map to the appropriate v2 minor version or highest known
+                match minor {
+                    0 => Ok(ProfileVersion::V2_0),
+                    1 => Ok(ProfileVersion::V2_1),
+                    2 => Ok(ProfileVersion::V2_2),
+                    3 => Ok(ProfileVersion::V2_3),
+                    _ => Ok(ProfileVersion::V2_4), // Higher minor versions -> v2.4
+                }
+            }
+            3 => {
+                // v3.x (rare but exists) - treat as v2.4 (functionally similar)
+                Ok(ProfileVersion::V2_4)
+            }
+            4 => {
+                // v4.x - map to the appropriate v4 minor version or highest known
+                match minor {
+                    0 => Ok(ProfileVersion::V4_0),
+                    1 => Ok(ProfileVersion::V4_1),
+                    2 => Ok(ProfileVersion::V4_2),
+                    3 => Ok(ProfileVersion::V4_3),
+                    _ => Ok(ProfileVersion::V4_4), // Higher minor versions -> v4.4
+                }
+            }
+            _ => {
+                // v5.x+ (ICC MAX) and other unknown versions - reject
+                // ICC MAX has different white point requirements and would produce wrong colors
+                Err(CmsError::InvalidProfile)
+            }
         }
     }
 }
@@ -1388,10 +1432,8 @@ mod tests {
     }
 
     #[test]
-    fn test_profile_version_parsing_nonstandard() {
-        // Non-standard versions found in real ICC profiles should be accepted
-        // v0.0 (AdobeColorSpin.icc) - legacy profile
-        assert!(ProfileVersion::try_from(0x00000000).is_ok(), "v0.0 should be accepted");
+    fn test_profile_version_parsing_patch_versions() {
+        // Patch versions found in real ICC profiles should be accepted
 
         // v2.0.2 (SM245B.icc) - minor bugfix version
         assert!(ProfileVersion::try_from(0x02020000).is_ok(), "v2.0.2 should be accepted");
@@ -1399,14 +1441,22 @@ mod tests {
         // v3.4 (ibm-t61.icc, new.icc) - intermediate version
         assert!(ProfileVersion::try_from(0x03400000).is_ok(), "v3.4 should be accepted");
 
-        // v4.29 (lcms_samsung_syncmaster.icc) - high minor version
-        // Note: 29 in hex nibble = 0x2 (2*16 + 9 doesn't fit, so this is actually 0x42900000)
-        // ICC format: major.minor where minor is in bits 20-23 (one nibble)
-        // v4.2.9 would be 0x04290000
+        // v4.2.9 (lcms_samsung_syncmaster.icc) - patch version
         assert!(ProfileVersion::try_from(0x04290000).is_ok(), "v4.2.9 should be accepted");
+    }
 
-        // v5.0 (iccMAX) - next generation
-        assert!(ProfileVersion::try_from(0x05000000).is_ok(), "v5.0 should be accepted");
+    #[test]
+    fn test_profile_version_parsing_rejected() {
+        // Invalid and unsupported versions should be rejected
+
+        // v0.0 - invalid version (no such ICC spec exists)
+        assert!(ProfileVersion::try_from(0x00000000).is_err(), "v0.0 should be rejected");
+
+        // v5.0 (iccMAX) - reject because it has different white point requirements
+        assert!(ProfileVersion::try_from(0x05000000).is_err(), "v5.0 should be rejected");
+
+        // v6.0 - future/unknown version
+        assert!(ProfileVersion::try_from(0x06000000).is_err(), "v6.0 should be rejected");
     }
 
     #[test]
