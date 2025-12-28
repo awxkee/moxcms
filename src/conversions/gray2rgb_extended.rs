@@ -105,8 +105,8 @@ where
         Layout::GrayAlpha => match dst_layout {
             Layout::Rgb => Ok(Arc::new(TransformGrayOneToOneExecutor::<
                 T,
-                { Layout::Gray as u8 },
                 { Layout::GrayAlpha as u8 },
+                { Layout::Rgb as u8 },
             > {
                 linear_eval,
                 gamma_eval,
@@ -115,7 +115,7 @@ where
             })),
             Layout::Rgba => Ok(Arc::new(TransformGrayOneToOneExecutor::<
                 T,
-                { Layout::Gray as u8 },
+                { Layout::GrayAlpha as u8 },
                 { Layout::Rgba as u8 },
             > {
                 linear_eval,
@@ -125,7 +125,7 @@ where
             })),
             Layout::Gray => Ok(Arc::new(TransformGrayOneToOneExecutor::<
                 T,
-                { Layout::Gray as u8 },
+                { Layout::GrayAlpha as u8 },
                 { Layout::Gray as u8 },
             > {
                 linear_eval,

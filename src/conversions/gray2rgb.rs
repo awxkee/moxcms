@@ -103,15 +103,15 @@ where
         Layout::GrayAlpha => match dst_layout {
             Layout::Rgb => Ok(Arc::new(TransformGray2RgbFusedExecutor::<
                 T,
-                { Layout::Gray as u8 },
                 { Layout::GrayAlpha as u8 },
+                { Layout::Rgb as u8 },
             > {
                 fused_gamma,
                 bit_depth,
             })),
             Layout::Rgba => Ok(Arc::new(TransformGray2RgbFusedExecutor::<
                 T,
-                { Layout::Gray as u8 },
+                { Layout::GrayAlpha as u8 },
                 { Layout::Rgba as u8 },
             > {
                 fused_gamma,
@@ -119,7 +119,7 @@ where
             })),
             Layout::Gray => Ok(Arc::new(TransformGray2RgbFusedExecutor::<
                 T,
-                { Layout::Gray as u8 },
+                { Layout::GrayAlpha as u8 },
                 { Layout::Gray as u8 },
             > {
                 fused_gamma,
@@ -364,8 +364,8 @@ where
         Layout::GrayAlpha => match dst_layout {
             Layout::Rgb => Ok(Arc::new(TransformGrayToRgbExecutor::<
                 T,
-                { Layout::Gray as u8 },
                 { Layout::GrayAlpha as u8 },
+                { Layout::Rgb as u8 },
             > {
                 gray_linear,
                 red_gamma,
@@ -376,7 +376,7 @@ where
             })),
             Layout::Rgba => Ok(Arc::new(TransformGrayToRgbExecutor::<
                 T,
-                { Layout::Gray as u8 },
+                { Layout::GrayAlpha as u8 },
                 { Layout::Rgba as u8 },
             > {
                 gray_linear,
@@ -388,7 +388,7 @@ where
             })),
             Layout::Gray => Ok(Arc::new(TransformGrayToRgbExecutor::<
                 T,
-                { Layout::Gray as u8 },
+                { Layout::GrayAlpha as u8 },
                 { Layout::Gray as u8 },
             > {
                 gray_linear,
@@ -472,5 +472,30 @@ where
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{ColorProfile, TransformOptions};
+
+    #[test]
+    fn gray_rgb_roundtrip() {
+        let gray = ColorProfile::new_gray_with_gamma(2.2);
+        let srgb = ColorProfile::new_srgb();
+
+        let src_layout = [Layout::Gray, Layout::GrayAlpha];
+        let dst_layout = [Layout::Rgb, Layout::GrayAlpha, Layout::Rgba, Layout::Gray];
+        for src in src_layout {
+            for dst in dst_layout {
+                let transform = gray
+                    .create_transform_8bit(src, &srgb, dst, TransformOptions::default())
+                    .unwrap();
+                let mut in_px = vec![0u8; src.channels()];
+                let mut out_px = vec![0u8; dst.channels()];
+                transform.transform(&mut in_px, &mut out_px).unwrap();
+            }
+        }
     }
 }
