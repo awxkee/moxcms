@@ -255,7 +255,7 @@ where
                     dst0[dst_cn.g_i() + dst_channels] =
                         self.profile.gamma[vget_lane_u16::<1>(vr1) as usize];
                     dst0[dst_cn.b_i() + dst_channels] =
-                        self.profile.gamma[vget_lane_u16::<2>(vr0) as usize];
+                        self.profile.gamma[vget_lane_u16::<2>(vr1) as usize];
                     if dst_channels == 4 {
                         dst0[dst_cn.a_i() + dst_channels] = a1;
                     }
@@ -343,7 +343,7 @@ where
                     dst0[dst_cn.g_i() + dst_channels] =
                         self.profile.gamma[vget_lane_u16::<1>(vr1) as usize];
                     dst0[dst_cn.b_i() + dst_channels] =
-                        self.profile.gamma[vget_lane_u16::<2>(vr0) as usize];
+                        self.profile.gamma[vget_lane_u16::<2>(vr1) as usize];
                     if dst_channels == 4 {
                         dst0[dst_cn.a_i() + dst_channels] = a1;
                     }
@@ -556,7 +556,7 @@ where
                     dst0[src_cn.g_i() + src_channels] =
                         self.profile.gamma[vget_lane_u16::<1>(vr1) as usize];
                     dst0[src_cn.b_i() + src_channels] =
-                        self.profile.gamma[vget_lane_u16::<2>(vr0) as usize];
+                        self.profile.gamma[vget_lane_u16::<2>(vr1) as usize];
                     if src_channels == 4 {
                         dst0[src_cn.a_i() + src_channels] = a1;
                     }

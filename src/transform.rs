@@ -1675,4 +1675,58 @@ mod tests {
         cvt_inverse.transform(&dst, &mut inverse).unwrap();
         assert!((inverse[0] - 0.273002833) < 1e-4);
     }
+
+    /// Test that multi-pixel RGB transforms produce consistent results for each pixel.
+    /// This catches bugs where SIMD implementations incorrectly share data between pixels.
+    /// Specifically tests the case where even/odd pixels should have independent blue channels.
+    #[test]
+    fn test_transform_rgb8_pixel_independence() {
+        let srgb_profile = ColorProfile::new_srgb();
+        let bt2020_profile = ColorProfile::new_bt2020();
+
+        let transform = bt2020_profile
+            .create_transform_8bit(
+                Layout::Rgb,
+                &srgb_profile,
+                Layout::Rgb,
+                TransformOptions {
+                    prefer_fixed_point: true,
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+
+        // Create 4 pixels with distinct colors - specifically testing that
+        // even/odd pixels don't share blue channel values
+        // Pixel 0: Red (255, 0, 0)
+        // Pixel 1: Green (0, 255, 0)
+        // Pixel 2: Blue (0, 0, 255)
+        // Pixel 3: Yellow (255, 255, 0)
+        let src: Vec<u8> = vec![
+            255, 0, 0,      // Pixel 0: Red
+            0, 255, 0,      // Pixel 1: Green
+            0, 0, 255,      // Pixel 2: Blue
+            255, 255, 0,    // Pixel 3: Yellow
+        ];
+        let mut dst = vec![0u8; 12];
+        transform.transform(&src, &mut dst).unwrap();
+
+        // Process same pixels individually for comparison
+        let mut single_pixel_results = Vec::new();
+        for pixel in src.chunks(3) {
+            let mut single_dst = vec![0u8; 3];
+            transform.transform(pixel, &mut single_dst).unwrap();
+            single_pixel_results.extend(single_dst);
+        }
+
+        // Each pixel in batch processing should match single-pixel processing
+        // This catches the vr0/vr1 bug where pixel 1's blue channel would get pixel 0's value
+        for (i, (batch, single)) in dst.iter().zip(single_pixel_results.iter()).enumerate() {
+            assert_eq!(
+                batch, single,
+                "Mismatch at byte {} (pixel {}, channel {}): batch={}, single={}",
+                i, i / 3, i % 3, batch, single
+            );
+        }
+    }
 }
