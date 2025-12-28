@@ -1377,4 +1377,41 @@ mod tests {
             assert!(f_p.description.is_some());
         }
     }
+
+    #[test]
+    fn test_profile_version_parsing_standard() {
+        // Standard versions should work
+        assert_eq!(ProfileVersion::try_from(0x02000000).unwrap(), ProfileVersion::V2_0);
+        assert_eq!(ProfileVersion::try_from(0x02400000).unwrap(), ProfileVersion::V2_4);
+        assert_eq!(ProfileVersion::try_from(0x04000000).unwrap(), ProfileVersion::V4_0);
+        assert_eq!(ProfileVersion::try_from(0x04400000).unwrap(), ProfileVersion::V4_4);
+    }
+
+    #[test]
+    fn test_profile_version_parsing_nonstandard() {
+        // Non-standard versions found in real ICC profiles should be accepted
+        // v0.0 (AdobeColorSpin.icc) - legacy profile
+        assert!(ProfileVersion::try_from(0x00000000).is_ok(), "v0.0 should be accepted");
+
+        // v2.0.2 (SM245B.icc) - minor bugfix version
+        assert!(ProfileVersion::try_from(0x02020000).is_ok(), "v2.0.2 should be accepted");
+
+        // v3.4 (ibm-t61.icc, new.icc) - intermediate version
+        assert!(ProfileVersion::try_from(0x03400000).is_ok(), "v3.4 should be accepted");
+
+        // v4.29 (lcms_samsung_syncmaster.icc) - high minor version
+        // Note: 29 in hex nibble = 0x2 (2*16 + 9 doesn't fit, so this is actually 0x42900000)
+        // ICC format: major.minor where minor is in bits 20-23 (one nibble)
+        // v4.2.9 would be 0x04290000
+        assert!(ProfileVersion::try_from(0x04290000).is_ok(), "v4.2.9 should be accepted");
+
+        // v5.0 (iccMAX) - next generation
+        assert!(ProfileVersion::try_from(0x05000000).is_ok(), "v5.0 should be accepted");
+    }
+
+    #[test]
+    fn test_profile_version_v4_4_mapping() {
+        // V4.4 should map to V4_4, not V4_3 (regression test for typo)
+        assert_eq!(ProfileVersion::try_from(0x04400000).unwrap(), ProfileVersion::V4_4);
+    }
 }
