@@ -32,8 +32,8 @@ use crate::conversions::katana::{
 };
 use crate::mlaf::mlaf;
 use crate::{
-    CmsError, ColorProfile, GammaLutInterpolate, Layout, Matrix3f, PointeeSizeExpressible,
-    RenderingIntent, Rgb, TransformOptions, filmlike_clip,
+    CmsError, ColorProfile, GammaLutInterpolate, Layout, Matrix3f, PointeeSizeExpressible, Rgb,
+    TransformOptions,
 };
 use num_traits::AsPrimitive;
 
@@ -41,7 +41,6 @@ pub(crate) struct KatanaXyzToRgbStage<T: Clone, const LAYOUT: u8> {
     pub(crate) r_gamma: Box<[T; 65536]>,
     pub(crate) g_gamma: Box<[T; 65536]>,
     pub(crate) b_gamma: Box<[T; 65536]>,
-    pub(crate) intent: RenderingIntent,
     pub(crate) bit_depth: usize,
     pub(crate) gamma_lut: usize,
 }
@@ -75,39 +74,19 @@ where
         .as_();
         let lut_cap = (self.gamma_lut - 1) as f32;
 
-        if self.intent != RenderingIntent::AbsoluteColorimetric {
-            for (src, dst) in src.chunks_exact(3).zip(dst.chunks_exact_mut(dst_channels)) {
-                let mut rgb = Rgb::new(src[0], src[1], src[2]);
-                if rgb.is_out_of_gamut() {
-                    rgb = filmlike_clip(rgb);
-                }
-                let r = mlaf(0.5, rgb.r, lut_cap).min(lut_cap).max(0.) as u16;
-                let g = mlaf(0.5, rgb.g, lut_cap).min(lut_cap).max(0.) as u16;
-                let b = mlaf(0.5, rgb.b, lut_cap).min(lut_cap).max(0.) as u16;
+        for (src, dst) in src.chunks_exact(3).zip(dst.chunks_exact_mut(dst_channels)) {
+            let rgb = Rgb::new(src[0], src[1], src[2]);
+            let r = mlaf(0.5, rgb.r, lut_cap).min(lut_cap).max(0.) as u16;
+            let g = mlaf(0.5, rgb.g, lut_cap).min(lut_cap).max(0.) as u16;
+            let b = mlaf(0.5, rgb.b, lut_cap).min(lut_cap).max(0.) as u16;
 
-                dst[0] = self.r_gamma[r as usize];
-                dst[1] = self.g_gamma[g as usize];
-                dst[2] = self.b_gamma[b as usize];
-                if dst_cn == Layout::Rgba {
-                    dst[3] = max_colors;
-                }
-            }
-        } else {
-            for (src, dst) in src.chunks_exact(3).zip(dst.chunks_exact_mut(dst_channels)) {
-                let rgb = Rgb::new(src[0], src[1], src[2]);
-                let r = mlaf(0.5, rgb.r, lut_cap).min(lut_cap).max(0.) as u16;
-                let g = mlaf(0.5, rgb.g, lut_cap).min(lut_cap).max(0.) as u16;
-                let b = mlaf(0.5, rgb.b, lut_cap).min(lut_cap).max(0.) as u16;
-
-                dst[0] = self.r_gamma[r as usize];
-                dst[1] = self.g_gamma[g as usize];
-                dst[2] = self.b_gamma[b as usize];
-                if dst_cn == Layout::Rgba {
-                    dst[3] = max_colors;
-                }
+            dst[0] = self.r_gamma[r as usize];
+            dst[1] = self.g_gamma[g as usize];
+            dst[2] = self.b_gamma[b as usize];
+            if dst_cn == Layout::Rgba {
+                dst[3] = max_colors;
             }
         }
-
         Ok(())
     }
 }
@@ -190,7 +169,6 @@ where
                 r_gamma: gamma_map_r,
                 g_gamma: gamma_map_g,
                 b_gamma: gamma_map_b,
-                intent: options.rendering_intent,
                 bit_depth: BIT_DEPTH,
                 gamma_lut: GAMMA_LUT,
             };
@@ -204,7 +182,6 @@ where
                 r_gamma: gamma_map_r,
                 g_gamma: gamma_map_g,
                 b_gamma: gamma_map_b,
-                intent: options.rendering_intent,
                 bit_depth: BIT_DEPTH,
                 gamma_lut: GAMMA_LUT,
             };
