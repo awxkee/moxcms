@@ -53,12 +53,12 @@ pub(crate) const fn s15_fixed16_number_to_double(a: i32) -> f64 {
 
 #[inline]
 pub(crate) const fn uint16_number_to_float(a: u32) -> f32 {
-    a as f32 / 65536.
+    a as f32 / 65535.
 }
 
 #[inline]
 pub(crate) const fn uint16_number_to_float_fast(a: u32) -> f32 {
-    a as f32 * (1. / 65536.)
+    a as f32 * (1. / 65535.)
 }
 
 // #[inline]
