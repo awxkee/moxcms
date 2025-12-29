@@ -1309,10 +1309,15 @@ impl ColorProfile {
         v
     }
 
+    /// Returns the RGB to XYZ transformation matrix.
+    ///
+    /// Per ICC.1:2022-05 Section F.3, the computational model is:
+    ///   connection = colorantMatrix × linear_rgb
+    ///
+    /// The colorant tags (rXYZ, gXYZ, bXYZ) are used directly as matrix columns.
+    /// This matches skcms and lcms2 behavior.
     pub fn rgb_to_xyz_matrix(&self) -> Matrix3d {
-        let xyz_matrix = self.colorant_matrix();
-        let white_point = Chromaticity::D50.to_xyzd();
-        ColorProfile::rgb_to_xyz_d(xyz_matrix, white_point)
+        self.colorant_matrix()
     }
 
     /// Computes transform matrix RGB -> XYZ -> RGB
@@ -1419,6 +1424,44 @@ mod tests {
 
             assert!(f_p.copyright.is_some());
             assert!(f_p.description.is_some());
+        }
+    }
+
+    /// Verify rgb_to_xyz_matrix returns colorant_matrix directly per ICC.1:2022-05 F.3.
+    ///
+    /// SM245B.icc is a V2 Samsung monitor profile with D65 colorants and no CHAD tag.
+    /// Source: https://skia.googlesource.com/skcms/+/refs/heads/main/profiles/misc/SM245B.icc
+    #[test]
+    fn test_rgb_to_xyz_matrix_equals_colorant_matrix() {
+        // Test with SM245B.icc (D65 colorants, no CHAD tag)
+        if let Ok(icc_data) = fs::read("./assets/SM245B.icc") {
+            if let Ok(profile) = ColorProfile::new_from_slice(&icc_data) {
+                let rgb_to_xyz = profile.rgb_to_xyz_matrix();
+                let colorants = profile.colorant_matrix();
+
+                for i in 0..3 {
+                    for j in 0..3 {
+                        assert!(
+                            (rgb_to_xyz.v[i][j] - colorants.v[i][j]).abs() < 1e-10,
+                            "rgb_to_xyz_matrix should equal colorant_matrix at [{i}][{j}]"
+                        );
+                    }
+                }
+            }
+        }
+
+        // Also verify with sRGB
+        let srgb = ColorProfile::new_srgb();
+        let rgb_to_xyz = srgb.rgb_to_xyz_matrix();
+        let colorants = srgb.colorant_matrix();
+
+        for i in 0..3 {
+            for j in 0..3 {
+                assert!(
+                    (rgb_to_xyz.v[i][j] - colorants.v[i][j]).abs() < 1e-10,
+                    "sRGB: rgb_to_xyz_matrix should equal colorant_matrix at [{i}][{j}]"
+                );
+            }
         }
     }
 
