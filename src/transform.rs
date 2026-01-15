@@ -1183,7 +1183,8 @@ impl ColorProfile {
     }
 
     /// Creates transform between source and destination profile
-    /// Only 8 bit is supported.
+    ///
+    /// In place transform only the same amount of channels, and only RGBX -> RGBX, or GrayX -> GrayX.
     #[cfg(feature = "in_place")]
     pub fn create_in_place_transform_8bit(
         &self,
