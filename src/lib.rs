@@ -37,13 +37,7 @@
 )]
 #![allow(stable_features)]
 #![cfg_attr(
-    not(any(
-        feature = "avx",
-        feature = "sse",
-        feature = "avx512",
-        feature = "neon",
-        feature = "sve"
-    )),
+    not(any(feature = "avx", feature = "sse", feature = "avx512", feature = "neon",)),
     forbid(unsafe_code)
 )]
 mod chad;
