@@ -67,22 +67,6 @@ neon_shaper_fixed_point_paths = ["neon"]
 # Enables NEON optimized LUT paths. This includes fixes point paths and commons paths.
 neon_luts = ["lut", "neon"]
 
-# This is a placeholder for upcoming SVE implementation. Currently, does nothing.
-# Nightly only implementation might appear without any prior notice if enabled.
-sve = []
-# This is a placeholder for upcoming SVE implementation. Currently, does nothing.
-# Nightly only implementation might appear without any prior notice if enabled.
-sve_shaper_paths = ["sve"]
-# This is a placeholder for upcoming SVE implementation. Currently, does nothing.
-# Nightly only implementation might appear without any prior notice if enabled.
-sve_shaper_optimized_paths = ["sve"]
-# This is a placeholder for upcoming SVE implementation. Currently, does nothing.
-# Nightly only implementation might appear without any prior notice if enabled.
-sve_shaper_fixed_point_paths = ["sve"]
-# This is a placeholder for upcoming SVE implementation. Currently, does nothing.
-# Nightly only implementation might appear without any prior notice if enabled.
-sve_luts = ["lut", "sve"]
-
 # Allows configuring interpolation methods and LUT weights precision.
 # Disabled by default to prevent binary bloat.
 options = ["lut"]
