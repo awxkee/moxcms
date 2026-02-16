@@ -209,6 +209,14 @@ where
             return Err(CmsError::LaneMultipleOfChannels);
         }
 
+        // Fast path for Gray→Gray: direct iteration avoids chunks_exact overhead
+        if SRC_LAYOUT == Layout::Gray as u8 && DST_LAYOUT == Layout::Gray as u8 {
+            for (s, d) in src.iter().zip(dst.iter_mut()) {
+                *d = self.fused_gamma[(*s)._as_usize()];
+            }
+            return Ok(());
+        }
+
         let is_gray_alpha = src_cn == Layout::GrayAlpha;
 
         let max_value: T = ((1u32 << self.bit_depth as u32) - 1u32).as_();
