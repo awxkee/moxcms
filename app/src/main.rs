@@ -27,6 +27,7 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 mod encode_gray_lut;
+mod xyb;
 
 // use jxl_oxide::{JxlImage, JxlThreadPool, Lcms2, Moxcms};
 use crate::encode_gray_lut::encode_gray_lut;
@@ -46,6 +47,7 @@ use std::fs::File;
 use std::io::BufWriter;
 use std::ops::Mul;
 use std::time::Instant;
+use crate::xyb::gen_xyb_icc;
 
 fn compute_abs_diff4(src: &[f32], dst: &[[f32; 4]], highlights: &mut [f32]) {
     let mut abs_r = f32::MIN;
@@ -325,10 +327,14 @@ fn main() {
     // let custom_profile = Profile::new_icc(&decoder.icc_profile().unwrap().unwrap()).unwrap();
 
     let fogra_icc = fs::read("./assets/fogra39_coated.icc").unwrap();
+    let xyb_dec = ColorProfile::new_from_slice(&fs::read("./assets/xyb_dec.icc").unwrap()).unwrap();
 
     // Curve first point must be 0 and last 65535.
     // let mut new_curve = vec![0u16; 4096];
     let srgb = ColorProfile::new_srgb();
+    let xyb_icc = gen_xyb_icc();
+    let xyb_profile_data = xyb_icc.encode().unwrap();
+    fs::write("./assets/xyb_profile.icc", xyb_profile_data).unwrap();
     let fogra_profile = ColorProfile::new_adobe_rgb(); // ColorProfile::new_from_slice(&fogra_icc).unwrap();
 
     // let gamma_table = srgb.build_gamma_table(&srgb.red_trc, true).unwrap();
@@ -349,8 +355,8 @@ fn main() {
     let transform = srgb
         .create_transform_8bit(
             moxcms::Layout::Rgb,
-            &fogra_profile,
-            moxcms::Layout::Rgba,
+            &xyb_icc,
+            moxcms::Layout::Rgb,
             TransformOptions {
                 prefer_fixed_point: false,
                 ..Default::default()
@@ -358,17 +364,17 @@ fn main() {
         )
         .unwrap();
 
-    let mut new_img_bytes = vec![0; (img.as_bytes().len() / 3) * 4];
+    let mut new_img_bytes = vec![0; img.as_bytes().len()];
     transform.transform(&rgb_f32, &mut new_img_bytes).unwrap();
 
-    let inverse_transform = fogra_profile
+    let inverse_transform = xyb_icc
         .create_transform_8bit(
-            moxcms::Layout::Rgba,
+            moxcms::Layout::Rgb,
             &srgb,
             moxcms::Layout::Rgb,
             TransformOptions {
                 prefer_fixed_point: false,
-                rendering_intent: RenderingIntent::RelativeColorimetric,
+                rendering_intent: RenderingIntent::Perceptual,
                 ..Default::default()
             },
         )
