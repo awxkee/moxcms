@@ -603,12 +603,18 @@ impl TryFrom<u32> for RenderingIntent {
 
     #[inline]
     fn try_from(value: u32) -> Result<Self, Self::Error> {
+        // Rendering intent is a big-endian u32 at bytes 64-67 with valid
+        // values 0-3. Non-conforming profiles (e.g. old Linotype "Lino"
+        // v2.1 profiles with byte-swapped values) may have invalid values.
+        // Default to Perceptual rather than rejecting the entire profile,
+        // since this field is advisory — moxcms uses TransformOptions for
+        // actual LUT selection.
         match value {
             0 => Ok(RenderingIntent::Perceptual),
             1 => Ok(RenderingIntent::RelativeColorimetric),
             2 => Ok(RenderingIntent::Saturation),
             3 => Ok(RenderingIntent::AbsoluteColorimetric),
-            _ => Err(CmsError::InvalidRenderingIntent),
+            _ => Ok(RenderingIntent::Perceptual),
         }
     }
 }
@@ -1506,5 +1512,41 @@ mod tests {
     fn test_profile_version_v4_4_mapping() {
         // V4.4 should map to V4_4, not V4_3 (regression test for typo)
         assert_eq!(ProfileVersion::try_from(0x04400000).unwrap(), ProfileVersion::V4_4);
+    }
+
+    #[test]
+    fn test_rendering_intent_invalid_defaults_to_perceptual() {
+        // Valid values are 0-3. Invalid values default to Perceptual
+        // rather than rejecting the profile.
+        assert_eq!(RenderingIntent::try_from(0x01000000).unwrap(), RenderingIntent::Perceptual);
+        assert_eq!(RenderingIntent::try_from(0x04000000).unwrap(), RenderingIntent::Perceptual);
+        assert_eq!(RenderingIntent::try_from(0xFFFFFFFF).unwrap(), RenderingIntent::Perceptual);
+    }
+
+    /// Parse a profile with a non-conforming rendering intent value.
+    /// Synthesized from SM245B.icc with bytes 64-67 set to 0x01000000
+    /// (byte-swapped, as found in old Linotype "Lino" profiles).
+    /// The invalid value should default to Perceptual per our policy.
+    #[test]
+    fn test_invalid_rendering_intent_defaults_to_perceptual() {
+        let icc_data = fs::read("./assets/swapped_intent.icc")
+            .expect("swapped_intent.icc test asset");
+        let profile = ColorProfile::new_from_slice(&icc_data)
+            .expect("Profile with invalid rendering intent should parse");
+        assert_eq!(profile.rendering_intent, RenderingIntent::Perceptual);
+        // Verify the rest of the profile parsed correctly
+        assert_eq!(profile.color_space, DataColorSpace::Rgb);
+        assert!(profile.red_trc.is_some());
+        assert!(profile.green_trc.is_some());
+        assert!(profile.blue_trc.is_some());
+        // Verify we can create a transform
+        let dst = ColorProfile::new_srgb();
+        let transform = profile
+            .create_transform_8bit(Layout::Rgba, &dst, Layout::Rgba, Default::default())
+            .expect("Should create transform from profile with defaulted intent");
+        let src = [128u8, 128, 128, 255];
+        let mut out = [0u8; 4];
+        transform.transform(&src, &mut out).unwrap();
+        assert!(out[3] == 255, "Alpha should be preserved");
     }
 }
