@@ -1539,11 +1539,65 @@ mod tests {
         assert!(profile.red_trc.is_some());
         assert!(profile.green_trc.is_some());
         assert!(profile.blue_trc.is_some());
-        // Verify we can create a transform
         let dst = ColorProfile::new_srgb();
         let transform = profile
             .create_transform_8bit(Layout::Rgba, &dst, Layout::Rgba, Default::default())
             .expect("Should create transform from profile with defaulted intent");
+        let src = [128u8, 128, 128, 255];
+        let mut out = [0u8; 4];
+        transform.transform(&src, &mut out).unwrap();
+        assert!(out[3] == 255, "Alpha should be preserved");
+    }
+
+    /// v4 profile with correct mluc description tag should parse as
+    /// Localizable (regression: ensure desc-tolerance doesn't break mluc).
+    #[test]
+    fn test_v4_mluc_description_parses_as_localizable() {
+        let icc_data = fs::read("./assets/Display P3.icc")
+            .expect("Display P3.icc test asset");
+        let profile = ColorProfile::new_from_slice(&icc_data)
+            .expect("Display P3 profile should parse");
+        assert_eq!(profile.version(), ProfileVersion::V4_0);
+        let desc = profile.description.clone().expect("description should be present");
+        match desc {
+            super::ProfileText::Localizable(records) => {
+                assert!(!records.is_empty(), "mluc should have at least one record");
+                assert!(
+                    records[0].value.contains("Display P3"),
+                    "mluc should contain 'Display P3', got: {}",
+                    records[0].value
+                );
+            }
+            other => panic!("v4 mluc should parse as Localizable, got {:?}", other),
+        }
+    }
+
+    /// v4 profile with non-conforming truncated desc tag should parse.
+    /// Synthesized from Display P3.icc with the mluc tag replaced by a
+    /// minimal desc tag (ASCII only, no Unicode/ScriptCode sections).
+    #[test]
+    fn test_v4_truncated_desc_tag() {
+        let icc_data = fs::read("./assets/truncated_desc_v4.icc")
+            .expect("truncated_desc_v4.icc test asset");
+        let profile = ColorProfile::new_from_slice(&icc_data)
+            .expect("v4 profile with truncated desc should parse");
+        assert_eq!(profile.version(), ProfileVersion::V4_0);
+        assert_eq!(profile.color_space, DataColorSpace::Rgb);
+        let desc = profile.description.clone().expect("description should be present");
+        match desc {
+            super::ProfileText::Description(d) => {
+                assert!(
+                    d.ascii_string.contains("Display P3"),
+                    "desc should contain 'Display P3', got: {}",
+                    d.ascii_string
+                );
+            }
+            other => panic!("v4 truncated desc should parse as Description, got {:?}", other),
+        }
+        let dst = ColorProfile::new_srgb();
+        let transform = profile
+            .create_transform_8bit(Layout::Rgba, &dst, Layout::Rgba, Default::default())
+            .expect("Should create transform from v4 profile with truncated desc");
         let src = [128u8, 128, 128, 255];
         let mut out = [0u8; 4];
         transform.transform(&src, &mut out).unwrap();
