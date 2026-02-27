@@ -172,10 +172,15 @@ fn write_string_value(into: &mut Vec<u8>, text: &ProfileText) -> usize {
             write_mluc(into, localizable)
         }
         ProfileText::Description(description) => {
+            let value = if description.unicode_string.is_empty() {
+                description.ascii_string.clone()
+            } else {
+                description.unicode_string.clone()
+            };
             let vec = vec![LocalizableString {
                 language: "en".to_string(),
                 country: "US".to_string(),
-                value: description.unicode_string.clone(),
+                value,
             }];
             write_mluc(into, &vec)
         }
