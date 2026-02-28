@@ -1219,7 +1219,7 @@ impl ColorProfile {
 #[cfg(test)]
 mod tests {
     use crate::*;
-    use rand::Rng;
+    use rand::RngExt;
 
     #[test]
     fn test_transform_rgb8() {
@@ -1704,10 +1704,10 @@ mod tests {
         // Pixel 2: Blue (0, 0, 255)
         // Pixel 3: Yellow (255, 255, 0)
         let src: Vec<u8> = vec![
-            255, 0, 0,      // Pixel 0: Red
-            0, 255, 0,      // Pixel 1: Green
-            0, 0, 255,      // Pixel 2: Blue
-            255, 255, 0,    // Pixel 3: Yellow
+            255, 0, 0, // Pixel 0: Red
+            0, 255, 0, // Pixel 1: Green
+            0, 0, 255, // Pixel 2: Blue
+            255, 255, 0, // Pixel 3: Yellow
         ];
         let mut dst = vec![0u8; 12];
         transform.transform(&src, &mut dst).unwrap();
@@ -1724,9 +1724,14 @@ mod tests {
         // This catches the vr0/vr1 bug where pixel 1's blue channel would get pixel 0's value
         for (i, (batch, single)) in dst.iter().zip(single_pixel_results.iter()).enumerate() {
             assert_eq!(
-                batch, single,
+                batch,
+                single,
                 "Mismatch at byte {} (pixel {}, channel {}): batch={}, single={}",
-                i, i / 3, i % 3, batch, single
+                i,
+                i / 3,
+                i % 3,
+                batch,
+                single
             );
         }
     }

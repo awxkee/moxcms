@@ -82,10 +82,7 @@ fn utf16be_to_utf16(slice: &[u8]) -> Result<Vec<u16>, CmsError> {
 /// Parse the Unicode section of a desc tag at `unicode_offset` (the byte
 /// offset right after the ASCII data). Returns `(language_code, string)`,
 /// or `Ok(None)` if truncated or the Unicode length is zero.
-fn read_desc_unicode(
-    tag: &[u8],
-    unicode_offset: usize,
-) -> Result<Option<(u32, String)>, CmsError> {
+fn read_desc_unicode(tag: &[u8], unicode_offset: usize) -> Result<Option<(u32, String)>, CmsError> {
     if tag.len() < unicode_offset.safe_add(8)? {
         return Ok(None);
     }
