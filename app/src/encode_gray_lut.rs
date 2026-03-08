@@ -28,7 +28,7 @@
  */
 use moxcms::{
     ColorProfile, DataColorSpace, LutMultidimensionalType, LutStore, LutWarehouse, Matrix3d,
-    ToneReprCurve, Vector3, WHITE_POINT_D50, WHITE_POINT_D65, adaption_matrix_d,
+    ToneReprCurve, Vector3, adaption_matrix_d, white_point_d50, white_point_d65,
 };
 use std::ops::Mul;
 
@@ -79,8 +79,8 @@ pub(crate) fn encode_gray_lut() -> ColorProfile {
         ],
     };
 
-    let d50_to_d65 = adaption_matrix_d(WHITE_POINT_D50.to_xyz(), WHITE_POINT_D65.to_xyz());
-    let d65_to_d50 = adaption_matrix_d(WHITE_POINT_D65.to_xyz(), WHITE_POINT_D50.to_xyz());
+    let d50_to_d65 = adaption_matrix_d(white_point_d50().to_xyz(), white_point_d65().to_xyz());
+    let d65_to_d50 = adaption_matrix_d(white_point_d65().to_xyz(), white_point_d50().to_xyz());
 
     let srgb_profile = ColorProfile::new_srgb();
     let inverted_srgb = srgb_profile.red_trc.as_ref().unwrap().inverse().unwrap();
@@ -90,7 +90,7 @@ pub(crate) fn encode_gray_lut() -> ColorProfile {
     let gray_to_xyz = create_gray_to_xyz_samples::<17>();
 
     let mut gray_profile = ColorProfile::new_gray_with_gamma(1.0);
-    gray_profile.white_point = WHITE_POINT_D65.to_xyzd();
+    gray_profile.white_point = white_point_d65().to_xyzd();
     gray_profile.color_space = DataColorSpace::Gray;
     gray_profile.gray_trc = srgb_profile.red_trc.clone();
 

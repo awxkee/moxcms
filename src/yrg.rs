@@ -148,7 +148,7 @@ impl Ych {
 // to go from RGB to CIE LMS 2006.
 // Warning: only applies to achromatic pixels.
 pub const fn cie_y_1931_to_cie_y_2006(x: f32) -> f32 {
-    1.05785528 * (x)
+    1.05785528 * x
 }
 
 #[cfg(test)]

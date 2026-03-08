@@ -26,7 +26,6 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-use crate::chad::BRADFORD_D;
 use crate::cicp::create_rec709_parametric;
 use crate::trc::{ToneReprCurve, curve_from_gamma};
 use crate::{
@@ -34,14 +33,15 @@ use crate::{
     LocalizableString, LutMultidimensionalType, LutWarehouse, Matrix3d, MatrixCoefficients,
     ProfileClass, ProfileText, RenderingIntent, TransferCharacteristics, Vector3, XyY,
 };
-use pxfm::{copysignk, exp, floor, pow};
+use pxfm::{f_exp, f_pow};
+use std::sync::OnceLock;
 
 /// From lcms: `cmsWhitePointFromTemp`
 /// tempK must be >= 4000. and <= 25000.
 /// Invalid values of tempK will return
 /// (x,y,Y) = (-1.0, -1.0, -1.0)
 /// similar to argyll: `icx_DTEMP2XYZ()`
-const fn white_point_from_temperature(temp_k: i32) -> XyY {
+fn white_point_from_temperature(temp_k: i32) -> XyY {
     let mut white_point = XyY {
         x: 0.,
         y: 0.,
@@ -77,15 +77,29 @@ const fn white_point_from_temperature(temp_k: i32) -> XyY {
     white_point
 }
 
-pub const WHITE_POINT_D50: XyY = white_point_from_temperature(5003);
-pub const WHITE_POINT_D60: XyY = white_point_from_temperature(6000);
-pub const WHITE_POINT_D65: XyY = white_point_from_temperature(6504);
-pub const WHITE_POINT_DCI_P3: XyY = white_point_from_temperature(6300);
+static WHITE_POINT_D50: OnceLock<XyY> = OnceLock::new();
+static WHITE_POINT_D65: OnceLock<XyY> = OnceLock::new();
+static WHITE_POINT_D60: OnceLock<XyY> = OnceLock::new();
+static WHITE_POINT_DCI_P3: OnceLock<XyY> = OnceLock::new();
+
+pub fn white_point_d50() -> XyY {
+    *WHITE_POINT_D50.get_or_init(|| white_point_from_temperature(5003))
+}
+pub fn white_point_d65() -> XyY {
+    *WHITE_POINT_D65.get_or_init(|| white_point_from_temperature(6504))
+}
+
+pub fn white_point_d60() -> XyY {
+    *WHITE_POINT_D60.get_or_init(|| white_point_from_temperature(6000))
+}
+pub fn white_point_dci_p3() -> XyY {
+    *WHITE_POINT_DCI_P3.get_or_init(|| white_point_from_temperature(6300))
+}
 
 // https://www.itu.int/dms_pubrec/itu-r/rec/bt/R-REC-BT.2100-2-201807-I!!PDF-F.pdf
 // Perceptual Quantization / SMPTE standard ST.2084
 #[inline]
-const fn pq_curve(x: f64) -> f64 {
+fn pq_curve(x: f64) -> f64 {
     const M1: f64 = 2610.0 / 16384.0;
     const M2: f64 = (2523.0 / 4096.0) * 128.0;
     const C1: f64 = 3424.0 / 4096.0;
@@ -98,15 +112,15 @@ const fn pq_curve(x: f64) -> f64 {
     let sign = x;
     let x = x.abs();
 
-    let xpo = pow(x, 1.0 / M2);
+    let xpo = f_pow(x, 1.0 / M2);
     let num = (xpo - C1).max(0.0);
     let den = C2 - C3 * xpo;
-    let res = pow(num / den, 1.0 / M1);
+    let res = f_pow(num / den, 1.0 / M1);
 
-    copysignk(res, sign)
+    f64::copysign(res, sign)
 }
 
-pub(crate) const fn build_trc_table_pq() -> [u16; 4096] {
+pub(crate) fn build_trc_table_pq() -> [u16; 4096] {
     let mut table = [0u16; 4096];
 
     const NUM_ENTRIES: usize = 4096;
@@ -122,13 +136,13 @@ pub(crate) const fn build_trc_table_pq() -> [u16; 4096] {
         if output < 0.0 {
             output = 0.0
         }
-        table[i] = floor(output) as u16;
+        table[i] = f64::floor(output) as u16;
         i += 1;
     }
     table
 }
 
-pub(crate) const fn build_trc_table_hlg() -> [u16; 4096] {
+pub(crate) fn build_trc_table_hlg() -> [u16; 4096] {
     let mut table = [0u16; 4096];
 
     const NUM_ENTRIES: usize = 4096;
@@ -144,7 +158,7 @@ pub(crate) const fn build_trc_table_hlg() -> [u16; 4096] {
         if output < 0.0 {
             output = 0.0
         }
-        table[i] = floor(output) as u16;
+        table[i] = f64::floor(output) as u16;
         i += 1;
     }
     table
@@ -152,7 +166,7 @@ pub(crate) const fn build_trc_table_hlg() -> [u16; 4096] {
 
 // https://www.itu.int/dms_pubrec/itu-r/rec/bt/R-REC-BT.2100-2-201807-I!!PDF-F.pdf
 // Hybrid Log-Gamma
-const fn hlg_curve(x: f64) -> f64 {
+fn hlg_curve(x: f64) -> f64 {
     const BETA: f64 = 0.04;
     const RA: f64 = 5.591816309728916; // 1.0 / A where A = 0.17883277
     const B: f64 = 0.28466892; // 1.0 - 4.0 * A
@@ -169,42 +183,60 @@ const fn hlg_curve(x: f64) -> f64 {
     let res = if e <= 0.5 {
         e * e / 3.0
     } else {
-        (exp((e - C) * RA) + B) / 12.0
+        (f_exp((e - C) * RA) + B) * (1.0 / 12.0)
     };
 
-    copysignk(res, sign)
+    f64::copysign(res, sign)
 }
 
 /// Perceptual Quantizer Lookup table
-pub const PQ_LUT_TABLE: [u16; 4096] = build_trc_table_pq();
+static PQ_LUT_TABLE: OnceLock<[u16; 4096]> = OnceLock::new();
 /// Hybrid Log Gamma Lookup table
-pub const HLG_LUT_TABLE: [u16; 4096] = build_trc_table_hlg();
+static HLG_LUT_TABLE: OnceLock<[u16; 4096]> = OnceLock::new();
+
+pub fn srgb_colorants() -> Matrix3d {
+    ColorProfile::colorants_matrix(white_point_d65(), ColorPrimaries::BT_709)
+}
+
+pub fn display_p3_colorants() -> Matrix3d {
+    ColorProfile::colorants_matrix(white_point_d65(), ColorPrimaries::SMPTE_432)
+}
+
+pub fn adobe_rgb_colorants() -> Matrix3d {
+    ColorProfile::colorants_matrix(white_point_d65(), ColorPrimaries::ADOBE_RGB)
+}
+
+pub fn dci_p3_colorants() -> Matrix3d {
+    ColorProfile::colorants_matrix(white_point_dci_p3(), ColorPrimaries::DCI_P3)
+}
+
+pub fn pro_photo_rgb_colorants() -> Matrix3d {
+    ColorProfile::colorants_matrix(white_point_d50(), ColorPrimaries::PRO_PHOTO_RGB)
+}
+
+pub fn bt2020_colorants() -> Matrix3d {
+    ColorProfile::colorants_matrix(white_point_d65(), ColorPrimaries::BT_2020)
+}
+
+pub fn aces_2065_1_colorants() -> Matrix3d {
+    ColorProfile::colorants_matrix(white_point_d60(), ColorPrimaries::ACES_2065_1)
+}
+
+pub fn aces_cg_colorants() -> Matrix3d {
+    ColorProfile::colorants_matrix(white_point_d60(), ColorPrimaries::ACES_CG)
+}
+
+#[allow(clippy::redundant_closure)]
+fn hlg_built_curve() -> Vec<u16> {
+    HLG_LUT_TABLE.get_or_init(|| build_trc_table_hlg()).to_vec()
+}
+
+#[allow(clippy::redundant_closure)]
+fn pq_built_curve() -> Vec<u16> {
+    PQ_LUT_TABLE.get_or_init(|| build_trc_table_pq()).to_vec()
+}
 
 impl ColorProfile {
-    const SRGB_COLORANTS: Matrix3d =
-        ColorProfile::colorants_matrix(WHITE_POINT_D65, ColorPrimaries::BT_709);
-
-    const DISPLAY_P3_COLORANTS: Matrix3d =
-        ColorProfile::colorants_matrix(WHITE_POINT_D65, ColorPrimaries::SMPTE_432);
-
-    const ADOBE_RGB_COLORANTS: Matrix3d =
-        ColorProfile::colorants_matrix(WHITE_POINT_D65, ColorPrimaries::ADOBE_RGB);
-
-    const DCI_P3_COLORANTS: Matrix3d =
-        ColorProfile::colorants_matrix(WHITE_POINT_DCI_P3, ColorPrimaries::DCI_P3);
-
-    const PRO_PHOTO_RGB_COLORANTS: Matrix3d =
-        ColorProfile::colorants_matrix(WHITE_POINT_D50, ColorPrimaries::PRO_PHOTO_RGB);
-
-    const BT2020_COLORANTS: Matrix3d =
-        ColorProfile::colorants_matrix(WHITE_POINT_D65, ColorPrimaries::BT_2020);
-
-    const ACES_2065_1_COLORANTS: Matrix3d =
-        ColorProfile::colorants_matrix(WHITE_POINT_D60, ColorPrimaries::ACES_2065_1);
-
-    const ACES_CG_COLORANTS: Matrix3d =
-        ColorProfile::colorants_matrix(WHITE_POINT_D60, ColorPrimaries::ACES_CG);
-
     #[inline]
     fn basic_rgb_profile() -> ColorProfile {
         ColorProfile {
@@ -212,8 +244,8 @@ impl ColorProfile {
             rendering_intent: RenderingIntent::Perceptual,
             color_space: DataColorSpace::Rgb,
             pcs: DataColorSpace::Xyz,
-            chromatic_adaptation: Some(BRADFORD_D),
-            white_point: WHITE_POINT_D50.to_xyzd(),
+            chromatic_adaptation: Some(Matrix3d::bradford()),
+            white_point: white_point_d50().to_xyzd(),
             ..Default::default()
         }
     }
@@ -228,14 +260,14 @@ impl ColorProfile {
     /// Creates new sRGB profile
     pub fn new_srgb() -> ColorProfile {
         let mut profile = ColorProfile::basic_rgb_profile();
-        profile.update_colorants(ColorProfile::SRGB_COLORANTS);
+        profile.update_colorants(srgb_colorants());
 
         let curve =
             ToneReprCurve::Parametric(vec![2.4, 1. / 1.055, 0.055 / 1.055, 1. / 12.92, 0.04045]);
         profile.red_trc = Some(curve.clone());
         profile.blue_trc = Some(curve.clone());
         profile.green_trc = Some(curve);
-        profile.media_white_point = Some(WHITE_POINT_D65.to_xyzd());
+        profile.media_white_point = Some(white_point_d65().to_xyzd());
         profile.cicp = Some(CicpProfile {
             color_primaries: CicpColorPrimaries::Bt709,
             transfer_characteristics: TransferCharacteristics::Srgb,
@@ -258,14 +290,14 @@ impl ColorProfile {
     /// Creates new Adobe RGB profile
     pub fn new_adobe_rgb() -> ColorProfile {
         let mut profile = ColorProfile::basic_rgb_profile();
-        profile.update_colorants(ColorProfile::ADOBE_RGB_COLORANTS);
+        profile.update_colorants(adobe_rgb_colorants());
 
         let curve = curve_from_gamma(2.19921875f32);
         profile.red_trc = Some(curve.clone());
         profile.blue_trc = Some(curve.clone());
         profile.green_trc = Some(curve);
-        profile.media_white_point = Some(WHITE_POINT_D65.to_xyzd());
-        profile.white_point = WHITE_POINT_D50.to_xyzd();
+        profile.media_white_point = Some(white_point_d65().to_xyzd());
+        profile.white_point = white_point_d50().to_xyzd();
         profile.description = Some(ProfileText::Localizable(vec![LocalizableString::new(
             "en".to_string(),
             "US".to_string(),
@@ -282,14 +314,14 @@ impl ColorProfile {
     /// Creates new Display P3 profile
     pub fn new_display_p3() -> ColorProfile {
         let mut profile = ColorProfile::basic_rgb_profile();
-        profile.update_colorants(ColorProfile::DISPLAY_P3_COLORANTS);
+        profile.update_colorants(display_p3_colorants());
 
         let curve =
             ToneReprCurve::Parametric(vec![2.4, 1. / 1.055, 0.055 / 1.055, 1. / 12.92, 0.04045]);
         profile.red_trc = Some(curve.clone());
         profile.blue_trc = Some(curve.clone());
         profile.green_trc = Some(curve);
-        profile.media_white_point = Some(WHITE_POINT_D65.to_xyzd());
+        profile.media_white_point = Some(white_point_d65().to_xyzd());
         profile.cicp = Some(CicpProfile {
             color_primaries: CicpColorPrimaries::Smpte431,
             transfer_characteristics: TransferCharacteristics::Srgb,
@@ -312,14 +344,14 @@ impl ColorProfile {
     /// Creates new Display P3 PQ profile
     pub fn new_display_p3_pq() -> ColorProfile {
         let mut profile = ColorProfile::basic_rgb_profile();
-        profile.update_colorants(ColorProfile::DISPLAY_P3_COLORANTS);
+        profile.update_colorants(display_p3_colorants());
 
-        let curve = ToneReprCurve::Lut(PQ_LUT_TABLE.to_vec());
+        let curve = ToneReprCurve::Lut(pq_built_curve());
 
         profile.red_trc = Some(curve.clone());
         profile.blue_trc = Some(curve.clone());
         profile.green_trc = Some(curve);
-        profile.media_white_point = Some(WHITE_POINT_D65.to_xyzd());
+        profile.media_white_point = Some(white_point_d65().to_xyzd());
         profile.cicp = Some(CicpProfile {
             color_primaries: CicpColorPrimaries::Smpte431,
             transfer_characteristics: TransferCharacteristics::Smpte2084,
@@ -342,13 +374,13 @@ impl ColorProfile {
     /// Creates new DCI P3 profile
     pub fn new_dci_p3() -> ColorProfile {
         let mut profile = ColorProfile::basic_rgb_profile();
-        profile.update_colorants(ColorProfile::DCI_P3_COLORANTS);
+        profile.update_colorants(dci_p3_colorants());
 
         let curve = curve_from_gamma(2.6f32);
         profile.red_trc = Some(curve.clone());
         profile.blue_trc = Some(curve.clone());
         profile.green_trc = Some(curve);
-        profile.media_white_point = Some(WHITE_POINT_DCI_P3.to_xyzd());
+        profile.media_white_point = Some(white_point_dci_p3().to_xyzd());
         profile.cicp = Some(CicpProfile {
             color_primaries: CicpColorPrimaries::Smpte432,
             transfer_characteristics: TransferCharacteristics::Srgb,
@@ -371,13 +403,13 @@ impl ColorProfile {
     /// Creates new ProPhoto RGB profile
     pub fn new_pro_photo_rgb() -> ColorProfile {
         let mut profile = ColorProfile::basic_rgb_profile();
-        profile.update_colorants(ColorProfile::PRO_PHOTO_RGB_COLORANTS);
+        profile.update_colorants(pro_photo_rgb_colorants());
 
         let curve = curve_from_gamma(1.8f32);
         profile.red_trc = Some(curve.clone());
         profile.blue_trc = Some(curve.clone());
         profile.green_trc = Some(curve);
-        profile.media_white_point = Some(WHITE_POINT_D50.to_xyzd());
+        profile.media_white_point = Some(white_point_d50().to_xyzd());
         profile.description = Some(ProfileText::Localizable(vec![LocalizableString::new(
             "en".to_string(),
             "US".to_string(),
@@ -394,13 +426,13 @@ impl ColorProfile {
     /// Creates new Bt.2020 profile
     pub fn new_bt2020() -> ColorProfile {
         let mut profile = ColorProfile::basic_rgb_profile();
-        profile.update_colorants(ColorProfile::BT2020_COLORANTS);
+        profile.update_colorants(bt2020_colorants());
 
         let curve = ToneReprCurve::Parametric(create_rec709_parametric().to_vec());
         profile.red_trc = Some(curve.clone());
         profile.blue_trc = Some(curve.clone());
         profile.green_trc = Some(curve);
-        profile.media_white_point = Some(WHITE_POINT_D65.to_xyzd());
+        profile.media_white_point = Some(white_point_d65().to_xyzd());
         profile.description = Some(ProfileText::Localizable(vec![LocalizableString::new(
             "en".to_string(),
             "US".to_string(),
@@ -417,14 +449,14 @@ impl ColorProfile {
     /// Creates new Bt.2020 PQ profile
     pub fn new_bt2020_pq() -> ColorProfile {
         let mut profile = ColorProfile::basic_rgb_profile();
-        profile.update_colorants(ColorProfile::BT2020_COLORANTS);
+        profile.update_colorants(bt2020_colorants());
 
-        let curve = ToneReprCurve::Lut(PQ_LUT_TABLE.to_vec());
+        let curve = ToneReprCurve::Lut(pq_built_curve());
 
         profile.red_trc = Some(curve.clone());
         profile.blue_trc = Some(curve.clone());
         profile.green_trc = Some(curve);
-        profile.media_white_point = Some(WHITE_POINT_D65.to_xyzd());
+        profile.media_white_point = Some(white_point_d65().to_xyzd());
         profile.cicp = Some(CicpProfile {
             color_primaries: CicpColorPrimaries::Bt2020,
             transfer_characteristics: TransferCharacteristics::Smpte2084,
@@ -447,14 +479,14 @@ impl ColorProfile {
     /// Creates new Bt.2020 HLG profile
     pub fn new_bt2020_hlg() -> ColorProfile {
         let mut profile = ColorProfile::basic_rgb_profile();
-        profile.update_colorants(ColorProfile::BT2020_COLORANTS);
+        profile.update_colorants(bt2020_colorants());
 
-        let curve = ToneReprCurve::Lut(HLG_LUT_TABLE.to_vec());
+        let curve = ToneReprCurve::Lut(hlg_built_curve());
 
         profile.red_trc = Some(curve.clone());
         profile.blue_trc = Some(curve.clone());
         profile.green_trc = Some(curve);
-        profile.media_white_point = Some(WHITE_POINT_D65.to_xyzd());
+        profile.media_white_point = Some(white_point_d65().to_xyzd());
         profile.cicp = Some(CicpProfile {
             color_primaries: CicpColorPrimaries::Bt2020,
             transfer_characteristics: TransferCharacteristics::Hlg,
@@ -481,9 +513,9 @@ impl ColorProfile {
             profile_class: ProfileClass::DisplayDevice,
             rendering_intent: RenderingIntent::Perceptual,
             color_space: DataColorSpace::Gray,
-            media_white_point: Some(WHITE_POINT_D65.to_xyzd()),
-            white_point: WHITE_POINT_D50.to_xyzd(),
-            chromatic_adaptation: Some(BRADFORD_D),
+            media_white_point: Some(white_point_d65().to_xyzd()),
+            white_point: white_point_d50().to_xyzd(),
+            chromatic_adaptation: Some(Matrix3d::bradford()),
             copyright: Some(ProfileText::Localizable(vec![LocalizableString::new(
                 "en".to_string(),
                 "US".to_string(),
@@ -496,13 +528,13 @@ impl ColorProfile {
     /// Creates new ACES 2065-1/AP0 profile
     pub fn new_aces_aces_2065_1_linear() -> ColorProfile {
         let mut profile = ColorProfile::basic_rgb_profile();
-        profile.update_colorants(ColorProfile::ACES_2065_1_COLORANTS);
+        profile.update_colorants(aces_2065_1_colorants());
 
         let curve = ToneReprCurve::Lut(vec![]);
         profile.red_trc = Some(curve.clone());
         profile.blue_trc = Some(curve.clone());
         profile.green_trc = Some(curve);
-        profile.media_white_point = Some(WHITE_POINT_D60.to_xyzd());
+        profile.media_white_point = Some(white_point_d60().to_xyzd());
         profile.description = Some(ProfileText::Localizable(vec![LocalizableString::new(
             "en".to_string(),
             "US".to_string(),
@@ -519,13 +551,13 @@ impl ColorProfile {
     /// Creates new ACEScg profile
     pub fn new_aces_cg_linear() -> ColorProfile {
         let mut profile = ColorProfile::basic_rgb_profile();
-        profile.update_colorants(ColorProfile::ACES_CG_COLORANTS);
+        profile.update_colorants(aces_cg_colorants());
 
         let curve = ToneReprCurve::Lut(vec![]);
         profile.red_trc = Some(curve.clone());
         profile.blue_trc = Some(curve.clone());
         profile.green_trc = Some(curve);
-        profile.media_white_point = Some(WHITE_POINT_D60.to_xyzd());
+        profile.media_white_point = Some(white_point_d60().to_xyzd());
         profile.description = Some(ProfileText::Localizable(vec![LocalizableString::new(
             "en".to_string(),
             "US".to_string(),
@@ -546,9 +578,9 @@ impl ColorProfile {
             rendering_intent: RenderingIntent::Perceptual,
             color_space: DataColorSpace::Lab,
             pcs: DataColorSpace::Xyz,
-            chromatic_adaptation: Some(BRADFORD_D),
-            white_point: WHITE_POINT_D50.to_xyzd(),
-            media_white_point: Some(WHITE_POINT_D65.to_xyzd()),
+            chromatic_adaptation: Some(Matrix3d::bradford()),
+            white_point: white_point_d50().to_xyzd(),
+            media_white_point: Some(white_point_d65().to_xyzd()),
             ..Default::default()
         };
 

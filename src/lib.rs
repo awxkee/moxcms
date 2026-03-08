@@ -88,8 +88,9 @@ pub use chromaticity::Chromaticity;
 pub use cicp::{CicpColorPrimaries, ColorPrimaries, MatrixCoefficients, TransferCharacteristics};
 pub use dat::ColorDateTime;
 pub use defaults::{
-    HLG_LUT_TABLE, PQ_LUT_TABLE, WHITE_POINT_D50, WHITE_POINT_D60, WHITE_POINT_D65,
-    WHITE_POINT_DCI_P3,
+    aces_2065_1_colorants, aces_cg_colorants, adobe_rgb_colorants, bt2020_colorants,
+    dci_p3_colorants, display_p3_colorants, pro_photo_rgb_colorants, srgb_colorants,
+    white_point_d50, white_point_d60, white_point_d65, white_point_dci_p3,
 };
 pub use dt_ucs::{DtUchHcb, DtUchHsb, DtUchJch};
 pub use err::{CmsError, MalformedSize};
@@ -101,8 +102,9 @@ pub use lab::Lab;
 pub use luv::{LCh, Luv};
 pub use math::rounding_div_ceil;
 pub use matrix::{
-    BT2020_MATRIX, DISPLAY_P3_MATRIX, Matrix3, Matrix3d, Matrix3f, Matrix4f, SRGB_MATRIX, Vector3,
-    Vector3d, Vector3f, Vector3i, Vector3u, Vector4, Vector4d, Vector4f, Vector4i, Xyz, Xyzd,
+    Matrix3, Matrix3d, Matrix3f, Matrix4f, Vector3, Vector3d, Vector3f, Vector3i, Vector3u,
+    Vector4, Vector4d, Vector4f, Vector4i, Xyz, Xyzd, bt2020_matrix, display_p3_matrix,
+    srgb_matrix,
 };
 pub use nd_array::{Cube, Hypercube};
 pub use oklab::Oklab;
