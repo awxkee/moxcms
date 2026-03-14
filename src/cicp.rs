@@ -614,11 +614,11 @@ impl TryFrom<u8> for MatrixCoefficients {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::WHITE_POINT_D65;
+    use crate::white_point_d65;
 
     #[test]
     fn test_to_xyz_using_absolute_coordinates() {
-        let conversion_matrix = ColorPrimaries::BT_709.transform_to_xyz_d(WHITE_POINT_D65);
+        let conversion_matrix = ColorPrimaries::BT_709.transform_to_xyz_d(white_point_d65());
         assert!((conversion_matrix.v[0][0] - 0.4121524015214193).abs() < 1e-14);
         assert!((conversion_matrix.v[1][1] - 0.7153537403945436).abs() < 1e-14);
         assert!((conversion_matrix.v[2][2] - 0.9497138466283235).abs() < 1e-14);
@@ -626,7 +626,7 @@ mod tests {
 
     #[test]
     fn test_to_xyz_using_absolute_coordinates_xyz() {
-        let conversion_matrix = ColorPrimaries::XYZ.transform_to_xyz_d(WHITE_POINT_D65);
+        let conversion_matrix = ColorPrimaries::XYZ.transform_to_xyz_d(white_point_d65());
         assert!((conversion_matrix.v[0][0] - 0.95015469385536477).abs() < 1e-14);
         assert!((conversion_matrix.v[1][1] - 1.0).abs() < 1e-14);
         assert!((conversion_matrix.v[2][2] - 1.0882590676722474).abs() < 1e-14);
@@ -634,7 +634,7 @@ mod tests {
 
     #[test]
     fn test_to_xyz_using_absolute_coordinates_f() {
-        let conversion_matrix = ColorPrimaries::BT_709.transform_to_xyz(WHITE_POINT_D65);
+        let conversion_matrix = ColorPrimaries::BT_709.transform_to_xyz(white_point_d65());
         assert!((conversion_matrix.v[0][0] - 0.4121524015214193).abs() < 1e-5);
         assert!((conversion_matrix.v[1][1] - 0.7153537403945436).abs() < 1e-5);
         assert!((conversion_matrix.v[2][2] - 0.9497138466283235).abs() < 1e-5);

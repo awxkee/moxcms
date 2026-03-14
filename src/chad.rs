@@ -29,18 +29,32 @@
 use crate::matrix::{Matrix3f, Vector3f, Xyz};
 use crate::{Chromaticity, Matrix3d, Vector3d, XyY};
 
-pub(crate) const BRADFORD_D: Matrix3d = Matrix3d {
-    v: [
-        [0.8951, 0.2664, -0.1614],
-        [-0.7502, 1.7135, 0.0367],
-        [0.0389, -0.0685, 1.0296],
-    ],
-};
+impl Matrix3d {
+    pub(crate) fn bradford() -> Matrix3d {
+        Matrix3d {
+            v: [
+                [0.8951, 0.2664, -0.1614],
+                [-0.7502, 1.7135, 0.0367],
+                [0.0389, -0.0685, 1.0296],
+            ],
+        }
+    }
+}
 
-pub(crate) const BRADFORD_F: Matrix3f = BRADFORD_D.to_f32();
+impl Matrix3f {
+    pub(crate) fn bradford() -> Matrix3f {
+        Matrix3f {
+            v: [
+                [0.8951, 0.2664, -0.1614],
+                [-0.7502, 1.7135, 0.0367],
+                [0.0389, -0.0685, 1.0296],
+            ],
+        }
+    }
+}
 
 #[inline]
-pub(crate) const fn compute_chromatic_adaption(
+pub(crate) fn compute_chromatic_adaption(
     source_white_point: Xyz,
     dest_white_point: Xyz,
     chad: Matrix3f,
@@ -74,7 +88,7 @@ pub(crate) const fn compute_chromatic_adaption(
 }
 
 #[inline]
-pub(crate) const fn compute_chromatic_adaption_d(
+pub(crate) fn compute_chromatic_adaption_d(
     source_white_point: Xyz,
     dest_white_point: Xyz,
     chad: Matrix3d,
@@ -107,49 +121,45 @@ pub(crate) const fn compute_chromatic_adaption_d(
 
     let chad_inv = chad.inverse();
 
-    let p0 = cone.mat_mul_const(chad);
-    chad_inv.mat_mul_const(p0)
+    let p0 = cone.mat_mul(chad);
+    chad_inv.mat_mul(p0)
 }
 
-pub const fn adaption_matrix(source_illumination: Xyz, target_illumination: Xyz) -> Matrix3f {
-    compute_chromatic_adaption(source_illumination, target_illumination, BRADFORD_F)
+pub fn adaption_matrix(source_illumination: Xyz, target_illumination: Xyz) -> Matrix3f {
+    compute_chromatic_adaption(
+        source_illumination,
+        target_illumination,
+        Matrix3f::bradford(),
+    )
 }
 
-pub const fn adaption_matrix_d(source_illumination: Xyz, target_illumination: Xyz) -> Matrix3d {
-    compute_chromatic_adaption_d(source_illumination, target_illumination, BRADFORD_D)
+pub fn adaption_matrix_d(source_illumination: Xyz, target_illumination: Xyz) -> Matrix3d {
+    compute_chromatic_adaption_d(
+        source_illumination,
+        target_illumination,
+        Matrix3d::bradford(),
+    )
 }
 
-pub const fn adapt_to_d50(r: Matrix3f, source_white_pt: XyY) -> Matrix3f {
+pub fn adapt_to_d50(r: Matrix3f, source_white_pt: XyY) -> Matrix3f {
     adapt_to_illuminant(r, source_white_pt, Chromaticity::D50.to_xyz())
 }
 
-pub const fn adapt_to_d50_d(r: Matrix3d, source_white_pt: XyY) -> Matrix3d {
+pub fn adapt_to_d50_d(r: Matrix3d, source_white_pt: XyY) -> Matrix3d {
     adapt_to_illuminant_d(r, source_white_pt, Chromaticity::D50.to_xyz())
 }
 
-pub const fn adapt_to_illuminant(
-    r: Matrix3f,
-    source_white_pt: XyY,
-    illuminant_xyz: Xyz,
-) -> Matrix3f {
+pub fn adapt_to_illuminant(r: Matrix3f, source_white_pt: XyY, illuminant_xyz: Xyz) -> Matrix3f {
     let bradford = adaption_matrix(source_white_pt.to_xyz(), illuminant_xyz);
     bradford.mat_mul_const(r)
 }
 
-pub const fn adapt_to_illuminant_d(
-    r: Matrix3d,
-    source_white_pt: XyY,
-    illuminant_xyz: Xyz,
-) -> Matrix3d {
+pub fn adapt_to_illuminant_d(r: Matrix3d, source_white_pt: XyY, illuminant_xyz: Xyz) -> Matrix3d {
     let bradford = adaption_matrix_d(source_white_pt.to_xyz(), illuminant_xyz);
     bradford.mat_mul_const(r)
 }
 
-pub const fn adapt_to_illuminant_xyz(
-    r: Matrix3f,
-    source_white_pt: Xyz,
-    illuminant_xyz: Xyz,
-) -> Matrix3f {
+pub fn adapt_to_illuminant_xyz(r: Matrix3f, source_white_pt: Xyz, illuminant_xyz: Xyz) -> Matrix3f {
     if source_white_pt.y == 0.0 {
         return r;
     }
@@ -158,7 +168,7 @@ pub const fn adapt_to_illuminant_xyz(
     bradford.mat_mul_const(r)
 }
 
-pub const fn adapt_to_illuminant_xyz_d(
+pub fn adapt_to_illuminant_xyz_d(
     r: Matrix3d,
     source_white_pt: Xyz,
     illuminant_xyz: Xyz,
@@ -168,5 +178,5 @@ pub const fn adapt_to_illuminant_xyz_d(
     }
 
     let bradford = adaption_matrix_d(source_white_pt, illuminant_xyz);
-    bradford.mat_mul_const(r)
+    bradford.mat_mul(r)
 }

@@ -41,10 +41,6 @@ const HPE_LMS: Matrix3f = Matrix3f {
     ],
 };
 
-const XYZ_TO_LMS: Matrix3f = CROSSTALK.mat_mul_const(HPE_LMS);
-
-const LMS_TO_XYZ: Matrix3f = XYZ_TO_LMS.inverse();
-
 const L_LMS_TO_ICTCP: Matrix3f = Matrix3f {
     v: [
         [2048. / 4096., 2048. / 4096., 0.],
@@ -52,8 +48,6 @@ const L_LMS_TO_ICTCP: Matrix3f = Matrix3f {
         [17933. / 4096., -17390. / 4096., -543. / 4096.],
     ],
 };
-
-const ICTCP_TO_L_LMS: Matrix3f = L_LMS_TO_ICTCP.inverse();
 
 #[derive(Copy, Clone, Default, PartialOrd, PartialEq)]
 pub struct ICtCp {
@@ -74,6 +68,7 @@ impl ICtCp {
     /// Converts XYZ D65 to ICtCp
     #[inline]
     pub fn from_xyz(xyz: Xyz) -> ICtCp {
+        const XYZ_TO_LMS: Matrix3f = CROSSTALK.mat_mul_const(HPE_LMS);
         let lms = XYZ_TO_LMS.mul_vector(xyz.to_vector());
         let lin_l = pq_from_linearf(lms.v[0]);
         let lin_m = pq_from_linearf(lms.v[1]);
@@ -113,6 +108,7 @@ impl ICtCp {
     /// Precompute forward matrix by [ICtCp::prepare_to_lms] and then inverse it
     #[inline]
     pub fn to_linear_rgb(&self, matrix: Matrix3f) -> Rgb<f32> {
+        const ICTCP_TO_L_LMS: Matrix3f = L_LMS_TO_ICTCP.inverse();
         let l_lms = ICTCP_TO_L_LMS.mul_vector(Vector3f {
             v: [self.i, self.ct, self.cp],
         });
@@ -133,6 +129,7 @@ impl ICtCp {
     /// Converts ICtCp to XYZ D65
     #[inline]
     pub fn to_xyz(&self) -> Xyz {
+        const ICTCP_TO_L_LMS: Matrix3f = L_LMS_TO_ICTCP.inverse();
         let l_lms = ICTCP_TO_L_LMS.mul_vector(Vector3f {
             v: [self.i, self.ct, self.cp],
         });
@@ -140,6 +137,8 @@ impl ICtCp {
         let gamma_m = pq_to_linearf(l_lms.v[1]);
         let gamma_s = pq_to_linearf(l_lms.v[2]);
 
+        const XYZ_TO_LMS: Matrix3f = CROSSTALK.mat_mul_const(HPE_LMS);
+        const LMS_TO_XYZ: Matrix3f = XYZ_TO_LMS.inverse();
         let lms = LMS_TO_XYZ.mul_vector(Vector3f {
             v: [gamma_l, gamma_m, gamma_s],
         });
@@ -152,7 +151,8 @@ impl ICtCp {
 
     /// Prepares RGB->LMS matrix
     #[inline]
-    pub const fn prepare_to_lms(rgb_to_xyz: Matrix3f) -> Matrix3f {
+    pub fn prepare_to_lms(rgb_to_xyz: Matrix3f) -> Matrix3f {
+        const XYZ_TO_LMS: Matrix3f = CROSSTALK.mat_mul_const(HPE_LMS);
         XYZ_TO_LMS.mat_mul_const(rgb_to_xyz)
     }
 }

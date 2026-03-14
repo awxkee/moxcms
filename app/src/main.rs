@@ -38,8 +38,7 @@ use moxcms::{
     ColorPrimaries, ColorProfile, Cube, DataColorSpace, InterpolationMethod, Layout,
     LutMultidimensionalType, LutStore, LutWarehouse, Matrix3d, Matrix3f, MatrixCoefficients,
     RenderingIntent, Rgb, ToneReprCurve, TransferCharacteristics, TransformOptions, Vector3,
-    Vector3d, WHITE_POINT_D50, WHITE_POINT_D65, Xyz, Xyzd, adapt_to_illuminant_d,
-    adaption_matrix_d,
+    Vector3d, Xyz, Xyzd, adapt_to_illuminant_d, adaption_matrix_d,
 };
 use std::fs;
 use std::fs::File;

@@ -432,41 +432,48 @@ pub struct Matrix4f {
     pub v: [[f32; 4]; 4],
 }
 
-pub const SRGB_MATRIX: Matrix3d = Matrix3d {
-    v: [
-        [
-            s15_fixed16_number_to_double(0x6FA2),
-            s15_fixed16_number_to_double(0x6299),
-            s15_fixed16_number_to_double(0x24A0),
+pub fn srgb_matrix() -> Matrix3d {
+    static SRGB_MATRIX: Matrix3d = Matrix3d {
+        v: [
+            [
+                s15_fixed16_number_to_double(0x6FA2),
+                s15_fixed16_number_to_double(0x6299),
+                s15_fixed16_number_to_double(0x24A0),
+            ],
+            [
+                s15_fixed16_number_to_double(0x38F5),
+                s15_fixed16_number_to_double(0xB785),
+                s15_fixed16_number_to_double(0x0F84),
+            ],
+            [
+                s15_fixed16_number_to_double(0x0390),
+                s15_fixed16_number_to_double(0x18DA),
+                s15_fixed16_number_to_double(0xB6CF),
+            ],
         ],
-        [
-            s15_fixed16_number_to_double(0x38F5),
-            s15_fixed16_number_to_double(0xB785),
-            s15_fixed16_number_to_double(0x0F84),
-        ],
-        [
-            s15_fixed16_number_to_double(0x0390),
-            s15_fixed16_number_to_double(0x18DA),
-            s15_fixed16_number_to_double(0xB6CF),
-        ],
-    ],
-};
+    };
+    SRGB_MATRIX
+}
 
-pub const DISPLAY_P3_MATRIX: Matrix3d = Matrix3d {
-    v: [
-        [0.515102, 0.291965, 0.157153],
-        [0.241182, 0.692236, 0.0665819],
-        [-0.00104941, 0.0418818, 0.784378],
-    ],
-};
+pub fn display_p3_matrix() -> Matrix3d {
+    Matrix3d {
+        v: [
+            [0.515102, 0.291965, 0.157153],
+            [0.241182, 0.692236, 0.0665819],
+            [-0.00104941, 0.0418818, 0.784378],
+        ],
+    }
+}
 
-pub const BT2020_MATRIX: Matrix3d = Matrix3d {
-    v: [
-        [0.673459, 0.165661, 0.125100],
-        [0.279033, 0.675338, 0.0456288],
-        [-0.00193139, 0.0299794, 0.797162],
-    ],
-};
+pub fn bt2020_matrix() -> Matrix3d {
+    Matrix3d {
+        v: [
+            [0.673459, 0.165661, 0.125100],
+            [0.279033, 0.675338, 0.0456288],
+            [-0.00193139, 0.0299794, 0.797162],
+        ],
+    }
+}
 
 impl Matrix4f {
     #[inline]
@@ -537,7 +544,7 @@ impl Matrix3f {
     };
 
     #[inline]
-    pub const fn test_equality(&self, other: Matrix3f) -> bool {
+    pub fn test_equality(&self, other: Matrix3f) -> bool {
         const TOLERANCE: f32 = 0.001f32;
         let diff_r_x = (self.v[0][0] - other.v[0][0]).abs();
         let diff_r_y = (self.v[0][1] - other.v[0][1]).abs();
@@ -676,7 +683,7 @@ impl Matrix3f {
     }
 
     #[inline]
-    pub const fn mul_vector(&self, other: Vector3f) -> Vector3f {
+    pub fn mul_vector(&self, other: Vector3f) -> Vector3f {
         let x = self.v[0][1] * other.v[1] + self.v[0][2] * other.v[2] + self.v[0][0] * other.v[0];
         let y = self.v[1][0] * other.v[0] + self.v[1][1] * other.v[1] + self.v[1][2] * other.v[2];
         let z = self.v[2][0] * other.v[0] + self.v[2][1] * other.v[1] + self.v[2][2] * other.v[2];
@@ -740,7 +747,7 @@ impl Matrix3f {
     }
 
     #[inline]
-    pub const fn to_f64(&self) -> Matrix3d {
+    pub fn to_f64(&self) -> Matrix3d {
         Matrix3d {
             v: [
                 [
