@@ -57,6 +57,60 @@ jobs:
       - run: cargo build --target aarch64-unknown-linux-gnu --no-default-features --features in_place
       - run: cargo build --target aarch64-unknown-linux-gnu --no-default-features --features any_to_any
 
+  tests_x86_sse_isolated:
+    name: Testing x86 SSE isolated
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@nightly
+      - run: sudo apt-get install -y qemu-user
+      - run: |
+          failed=0
+          tests=$(cargo +nightly test --lib -- --list 2>/dev/null | grep ': test' | sed 's/: test//')
+          while read -r test; do
+              rc=0
+              echo "Running: $test"
+              output=$(RUSTFLAGS="-C target-feature=+sse4.1,-avx,-avx2,-fma" \
+              CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER="qemu-x86_64 -cpu Nehalem" \
+              cargo +nightly test --lib -- "$test" --exact 2>&1) || rc=$?
+              echo "$output" | grep -E "FAILED|ok|signal 4"
+              if [ "${rc:-0}" -ne 0 ]; then
+                echo "❌ Test failed: $test"
+                echo "$output"
+                failed=1
+              else
+                echo "$output" | grep -E "ok|signal 4"
+              fi
+          done <<< "$tests"
+          exit $failed
+
+  tests_x86_avx2_isolated:
+    name: Testing x86 AVX2 isolated (no FMA)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@nightly
+      - run: sudo apt-get install -y qemu-user
+      - run: |
+          failed=0
+          tests=$(cargo +nightly test --lib -- --list 2>/dev/null | grep ': test' | sed 's/: test//')
+          while read -r test; do
+              rc=0
+              echo "Running: $test"
+              output=$(RUSTFLAGS="-C target-feature=+avx2,-fma" \
+              CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER="qemu-x86_64 -cpu Haswell-noTSX,avx2=on,fma=off" \
+              cargo +nightly test --lib --target x86_64-unknown-linux-gnu -- "$test" --exact 2>&1) || rc=$?
+              echo "$output" | grep -E "FAILED|ok|signal 4"
+              if [ "${rc:-0}" -ne 0 ]; then
+                echo "❌ Test failed: $test"
+                echo "$output"
+                failed=1
+              else
+                echo "$output" | grep -E "ok|signal 4"
+              fi
+          done <<< "$tests"
+          exit $failed
+
   tests_arm:
     name: Tests
     runs-on: macos-latest
