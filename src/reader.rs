@@ -72,7 +72,9 @@ pub(crate) fn uint8_number_to_float_fast(a: u8) -> f32 {
 
 fn utf16be_to_utf16(slice: &[u8]) -> Result<Vec<u16>, CmsError> {
     Ok(slice
-        .chunks_exact(2)
+        .as_chunks::<2>()
+        .0
+        .iter()
         .map(|chunk| u16::from_be_bytes([chunk[0], chunk[1]]))
         .collect())
 }
@@ -297,7 +299,9 @@ impl ColorProfile {
     fn read_lut_table_f32(table: &[u8], lut_type: LutType) -> Result<LutStore, CmsError> {
         if lut_type == LutType::Lut16 {
             let clut = table
-                .chunks_exact(2)
+                .as_chunks::<2>()
+                .0
+                .iter()
                 .map(|chunk| u16::from_be_bytes([chunk[0], chunk[1]]))
                 .collect();
             Ok(LutStore::Store16(clut))
@@ -328,7 +332,7 @@ impl ColorProfile {
             }
             curve_offset += tag_size;
             // 4 byte aligned
-            if curve_offset % 4 != 0 {
+            if !curve_offset.is_multiple_of(4) {
                 curve_offset += 4 - curve_offset % 4;
             }
         }
@@ -753,7 +757,9 @@ impl ColorProfile {
             }
             let curve_sliced = &tag[12..curve_end];
             let curve_values = curve_sliced
-                .chunks_exact(2)
+                .as_chunks::<2>()
+                .0
+                .iter()
                 .map(|chunk| u16::from_be_bytes([chunk[0], chunk[1]]))
                 .collect::<Vec<_>>();
             *read_size = curve_end;
@@ -775,7 +781,9 @@ impl ColorProfile {
             }
             let curve_sliced = &tag[12..12 + COUNT_TO_LENGTH[entry_count] * size_of::<u32>()];
             let params = curve_sliced
-                .chunks_exact(4)
+                .as_chunks::<4>()
+                .0
+                .iter()
                 .map(|chunk| {
                     s15_fixed16_number_to_float(i32::from_be_bytes([
                         chunk[0], chunk[1], chunk[2], chunk[3],

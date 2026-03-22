@@ -92,7 +92,12 @@ where
         let value_scale = unsafe { vdupq_n_f32(((1 << BIT_DEPTH) - 1) as f32) };
         let max_value = ((1 << BIT_DEPTH) - 1u32).as_();
 
-        for (src, dst) in src.chunks_exact(4).zip(dst.chunks_exact_mut(channels)) {
+        for (src, dst) in src
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .zip(dst.chunks_exact_mut(channels))
+        {
             let c = <() as LutBarycentricReduction<T, U>>::reduce::<BIT_DEPTH, BARYCENTRIC_BINS>(
                 src[0],
             );
@@ -175,10 +180,10 @@ where
     fn transform(&self, src: &[T], dst: &mut [T]) -> Result<(), CmsError> {
         let cn = Layout::from(LAYOUT);
         let channels = cn.channels();
-        if src.len() % 4 != 0 {
+        if !src.len().is_multiple_of(4) {
             return Err(CmsError::LaneMultipleOfChannels);
         }
-        if dst.len() % channels != 0 {
+        if !dst.len().is_multiple_of(channels) {
             return Err(CmsError::LaneMultipleOfChannels);
         }
         let src_chunks = src.len() / 4;

@@ -136,10 +136,10 @@ where
     f32: AsPrimitive<T>,
 {
     fn to_output(&self, src: &mut [f32], dst: &mut [T]) -> Result<(), CmsError> {
-        if src.len() % 3 != 0 {
+        if !src.len().is_multiple_of(3) {
             return Err(CmsError::LaneMultipleOfChannels);
         }
-        if dst.len() % self.output_inks != 0 {
+        if !dst.len().is_multiple_of(self.output_inks) {
             return Err(CmsError::LaneMultipleOfChannels);
         }
 

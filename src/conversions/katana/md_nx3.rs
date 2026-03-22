@@ -153,7 +153,7 @@ impl<T: Copy + Default + AsPrimitive<f32> + PointeeSizeExpressible + Send + Sync
     KatanaInitialStage<f32, T> for MultidimensionalNx3<T>
 {
     fn to_pcs(&self, input: &[T]) -> Result<Vec<f32>, CmsError> {
-        if input.len() % self.input_inks != 0 {
+        if !input.len().is_multiple_of(self.input_inks) {
             return Err(CmsError::LaneMultipleOfChannels);
         }
 

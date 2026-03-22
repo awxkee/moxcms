@@ -396,7 +396,7 @@ fn write_mab_entry(
 
     // Offset to "B curves"
     if !lut.b_curves.is_empty() {
-        while working_offset % 4 != 0 {
+        while !working_offset.is_multiple_of(4) {
             data.push(0);
             working_offset += 1;
         }
@@ -406,7 +406,7 @@ fn write_mab_entry(
         for trc in lut.b_curves.iter() {
             let curve_size = write_trc_entry(&mut data, trc)?;
             working_offset += curve_size;
-            while working_offset % 4 != 0 {
+            while !working_offset.is_multiple_of(4) {
                 data.push(0);
                 working_offset += 1;
             }
@@ -417,7 +417,7 @@ fn write_mab_entry(
 
     // Offset to matrix
     if !lut.m_curves.is_empty() {
-        while working_offset % 4 != 0 {
+        while !working_offset.is_multiple_of(4) {
             data.push(0);
             working_offset += 1;
         }
@@ -431,7 +431,7 @@ fn write_mab_entry(
         for trc in lut.m_curves.iter() {
             let curve_size = write_trc_entry(&mut data, trc)?;
             working_offset += curve_size;
-            while working_offset % 4 != 0 {
+            while !working_offset.is_multiple_of(4) {
                 data.push(0);
                 working_offset += 1;
             }
@@ -447,7 +447,7 @@ fn write_mab_entry(
 
     // Offset to CLUT
     if let Some(clut) = &lut.clut {
-        while working_offset % 4 != 0 {
+        while !working_offset.is_multiple_of(4) {
             data.push(0);
             working_offset += 1;
         }
@@ -488,7 +488,7 @@ fn write_mab_entry(
 
     // Offset to "A curves"
     if !lut.a_curves.is_empty() {
-        while working_offset % 4 != 0 {
+        while !working_offset.is_multiple_of(4) {
             data.push(0);
             working_offset += 1;
         }
@@ -498,7 +498,7 @@ fn write_mab_entry(
         for trc in lut.a_curves.iter() {
             let curve_size = write_trc_entry(&mut data, trc)?;
             working_offset += curve_size;
-            while working_offset % 4 != 0 {
+            while !working_offset.is_multiple_of(4) {
                 data.push(0);
                 working_offset += 1;
             }
@@ -611,33 +611,33 @@ impl ColorProfile {
         if self.luminance.is_some() {
             tags_count += 1;
         }
-        if let Some(description) = &self.description {
-            if description.has_values() {
-                tags_count += 1;
-            }
+        if let Some(description) = &self.description
+            && description.has_values()
+        {
+            tags_count += 1;
         }
-        if let Some(copyright) = &self.copyright {
-            if copyright.has_values() {
-                tags_count += 1;
-            }
+        if let Some(copyright) = &self.copyright
+            && copyright.has_values()
+        {
+            tags_count += 1;
         }
         if self.viewing_conditions.is_some() {
             tags_count += 1;
         }
-        if let Some(vd) = &self.viewing_conditions_description {
-            if vd.has_values() {
-                tags_count += 1;
-            }
+        if let Some(vd) = &self.viewing_conditions_description
+            && vd.has_values()
+        {
+            tags_count += 1;
         }
-        if let Some(vd) = &self.device_model {
-            if vd.has_values() {
-                tags_count += 1;
-            }
+        if let Some(vd) = &self.device_model
+            && vd.has_values()
+        {
+            tags_count += 1;
         }
-        if let Some(vd) = &self.device_manufacturer {
-            if vd.has_values() {
-                tags_count += 1;
-            }
+        if let Some(vd) = &self.device_manufacturer
+            && vd.has_values()
+        {
+            tags_count += 1;
         }
         tags_count
     }
@@ -716,17 +716,16 @@ impl ColorProfile {
         // profile class in the profile header is Input or Display. The tag shall not be present for other data colour spaces
         // or profile classes indicated in the profile header.
 
-        if let Some(cicp) = &self.cicp {
-            if (self.profile_class == ProfileClass::InputDevice
+        if let Some(cicp) = &self.cicp
+            && (self.profile_class == ProfileClass::InputDevice
                 || self.profile_class == ProfileClass::DisplayDevice)
-                && (self.color_space == DataColorSpace::Rgb
-                    || self.color_space == DataColorSpace::YCbr
-                    || self.color_space == DataColorSpace::Xyz)
-            {
-                write_tag_entry(&mut tags, Tag::CodeIndependentPoints, base_offset, 12);
-                write_cicp_entry(&mut entries, cicp);
-                base_offset += 12;
-            }
+            && (self.color_space == DataColorSpace::Rgb
+                || self.color_space == DataColorSpace::YCbr
+                || self.color_space == DataColorSpace::Xyz)
+        {
+            write_tag_entry(&mut tags, Tag::CodeIndependentPoints, base_offset, 12);
+            write_cicp_entry(&mut entries, cicp);
+            base_offset += 12;
         }
 
         if let Some(lut) = &self.lut_a_to_b_perceptual {
@@ -807,20 +806,20 @@ impl ColorProfile {
             base_offset += 20;
         }
 
-        if let Some(description) = &self.description {
-            if description.has_values() {
-                let entry_size = write_string_value(&mut entries, description);
-                write_tag_entry(&mut tags, Tag::ProfileDescription, base_offset, entry_size);
-                base_offset += entry_size;
-            }
+        if let Some(description) = &self.description
+            && description.has_values()
+        {
+            let entry_size = write_string_value(&mut entries, description);
+            write_tag_entry(&mut tags, Tag::ProfileDescription, base_offset, entry_size);
+            base_offset += entry_size;
         }
 
-        if let Some(copyright) = &self.copyright {
-            if copyright.has_values() {
-                let entry_size = write_string_value(&mut entries, copyright);
-                write_tag_entry(&mut tags, Tag::Copyright, base_offset, entry_size);
-                base_offset += entry_size;
-            }
+        if let Some(copyright) = &self.copyright
+            && copyright.has_values()
+        {
+            let entry_size = write_string_value(&mut entries, copyright);
+            write_tag_entry(&mut tags, Tag::Copyright, base_offset, entry_size);
+            base_offset += entry_size;
         }
 
         if let Some(vc) = &self.viewing_conditions {
@@ -829,33 +828,33 @@ impl ColorProfile {
             base_offset += entry_size;
         }
 
-        if let Some(vd) = &self.viewing_conditions_description {
-            if vd.has_values() {
-                let entry_size = write_string_value(&mut entries, vd);
-                write_tag_entry(
-                    &mut tags,
-                    Tag::ViewingConditionsDescription,
-                    base_offset,
-                    entry_size,
-                );
-                base_offset += entry_size;
-            }
+        if let Some(vd) = &self.viewing_conditions_description
+            && vd.has_values()
+        {
+            let entry_size = write_string_value(&mut entries, vd);
+            write_tag_entry(
+                &mut tags,
+                Tag::ViewingConditionsDescription,
+                base_offset,
+                entry_size,
+            );
+            base_offset += entry_size;
         }
 
-        if let Some(vd) = &self.device_model {
-            if vd.has_values() {
-                let entry_size = write_string_value(&mut entries, vd);
-                write_tag_entry(&mut tags, Tag::DeviceModel, base_offset, entry_size);
-                base_offset += entry_size;
-            }
+        if let Some(vd) = &self.device_model
+            && vd.has_values()
+        {
+            let entry_size = write_string_value(&mut entries, vd);
+            write_tag_entry(&mut tags, Tag::DeviceModel, base_offset, entry_size);
+            base_offset += entry_size;
         }
 
-        if let Some(vd) = &self.device_manufacturer {
-            if vd.has_values() {
-                let entry_size = write_string_value(&mut entries, vd);
-                write_tag_entry(&mut tags, Tag::DeviceManufacturer, base_offset, entry_size);
-                // base_offset += entry_size;
-            }
+        if let Some(vd) = &self.device_manufacturer
+            && vd.has_values()
+        {
+            let entry_size = write_string_value(&mut entries, vd);
+            write_tag_entry(&mut tags, Tag::DeviceManufacturer, base_offset, entry_size);
+            // base_offset += entry_size;
         }
 
         tags.extend(entries);

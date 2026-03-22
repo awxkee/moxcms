@@ -54,10 +54,10 @@ where
     fn to_output(&self, src: &mut [f32], dst: &mut [T]) -> Result<(), CmsError> {
         let dst_cn = Layout::from(LAYOUT);
         let dst_channels = dst_cn.channels();
-        if src.len() % 3 != 0 {
+        if !src.len().is_multiple_of(3) {
             return Err(CmsError::LaneMultipleOfChannels);
         }
-        if dst.len() % dst_channels != 0 {
+        if !dst.len().is_multiple_of(dst_channels) {
             return Err(CmsError::LaneMultipleOfChannels);
         }
         let src_chunks = src.len() / 3;

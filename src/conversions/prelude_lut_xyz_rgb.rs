@@ -154,10 +154,10 @@ impl<
 > RgbLinearizationStage<T, LINEAR_CAP, SAMPLES>
 {
     fn transform(&self, src: &[T], dst: &mut [f32]) -> Result<(), CmsError> {
-        if src.len() % 3 != 0 {
+        if !src.len().is_multiple_of(3) {
             return Err(CmsError::LaneMultipleOfChannels);
         }
-        if dst.len() % 3 != 0 {
+        if !dst.len().is_multiple_of(3) {
             return Err(CmsError::LaneMultipleOfChannels);
         }
 
@@ -257,27 +257,28 @@ where
     u32: AsPrimitive<T>,
 {
     #[cfg(feature = "extended_range")]
-    if !T::FINITE && options.allow_extended_range_rgb_xyz {
-        if let Some(extended_gamma) = dest.try_extended_gamma_evaluator() {
-            let xyz_to_rgb = dest.rgb_to_xyz_matrix().inverse();
+    if !T::FINITE
+        && options.allow_extended_range_rgb_xyz
+        && let Some(extended_gamma) = dest.try_extended_gamma_evaluator()
+    {
+        let xyz_to_rgb = dest.rgb_to_xyz_matrix().inverse();
 
-            let mut matrices = vec![Matrix3f {
-                v: [
-                    [65535.0 / 32768.0, 0.0, 0.0],
-                    [0.0, 65535.0 / 32768.0, 0.0],
-                    [0.0, 0.0, 65535.0 / 32768.0],
-                ],
-            }];
+        let mut matrices = vec![Matrix3f {
+            v: [
+                [65535.0 / 32768.0, 0.0, 0.0],
+                [0.0, 65535.0 / 32768.0, 0.0],
+                [0.0, 0.0, 65535.0 / 32768.0],
+            ],
+        }];
 
-            matrices.push(xyz_to_rgb.to_f32());
-            let xyz_to_rgb_stage = XyzToRgbStageExtended::<T> {
-                gamma_evaluator: extended_gamma,
-                matrices,
-                phantom_data: PhantomData,
-            };
-            xyz_to_rgb_stage.transform(lut)?;
-            return Ok(());
-        }
+        matrices.push(xyz_to_rgb.to_f32());
+        let xyz_to_rgb_stage = XyzToRgbStageExtended::<T> {
+            gamma_evaluator: extended_gamma,
+            matrices,
+            phantom_data: PhantomData,
+        };
+        xyz_to_rgb_stage.transform(lut)?;
+        return Ok(());
     }
     let gamma_map_r = dest.build_gamma_table::<T, 65536, GAMMA_LUT, BIT_DEPTH>(
         &dest.red_trc,

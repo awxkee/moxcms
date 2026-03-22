@@ -50,7 +50,7 @@ impl<
 {
     fn to_pcs(&self, input: &[T]) -> Result<Vec<f32>, CmsError> {
         let src_layout = Layout::from(LAYOUT);
-        if input.len() % src_layout.channels() != 0 {
+        if !input.len().is_multiple_of(src_layout.channels()) {
             return Err(CmsError::LaneMultipleOfChannels);
         }
         let mut dst = try_vec![0.; input.len() / src_layout.channels() * 3];

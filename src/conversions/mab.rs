@@ -242,7 +242,7 @@ impl MCurves3 {
         let b = self.bias;
 
         if !m.test_equality(Matrix3f::IDENTITY) || !b.eq(&Vector3f::default()) {
-            for dst in dst.chunks_exact_mut(3) {
+            for dst in dst.as_chunks_mut::<3>().0.iter_mut() {
                 let x = dst[0];
                 let y = dst[1];
                 let z = dst[2];
@@ -262,7 +262,7 @@ impl InPlaceStage for MCurves3 {
             self.execute_matrix_stage(dst);
         }
 
-        for dst in dst.chunks_exact_mut(3) {
+        for dst in dst.as_chunks_mut::<3>().0.iter_mut() {
             let a0 = (dst[0] * scale_value).round().min(scale_value) as u16;
             let a1 = (dst[1] * scale_value).round().min(scale_value) as u16;
             let a2 = (dst[2] * scale_value).round().min(scale_value) as u16;

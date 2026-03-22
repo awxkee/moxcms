@@ -174,10 +174,10 @@ where
 
         let dst_cn = Layout::from(DST_LAYOUT);
         let dst_channels = dst_cn.channels();
-        if src.len() % src_channels != 0 {
+        if !src.len().is_multiple_of(src_channels) {
             return Err(CmsError::LaneMultipleOfChannels);
         }
-        if dst.len() % dst_channels != 0 {
+        if !dst.len().is_multiple_of(dst_channels) {
             return Err(CmsError::LaneMultipleOfChannels);
         }
         let src_chunks = src.len() / src_channels;

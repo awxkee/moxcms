@@ -1166,12 +1166,11 @@ impl ColorProfile {
         &self,
         use_cicp: bool,
     ) -> Result<Box<[f32; N]>, CmsError> {
-        if use_cicp {
-            if let Some(tc) = self.cicp.as_ref().map(|c| c.transfer_characteristics) {
-                if tc.has_transfer_curve() {
-                    return Ok(tc.make_linear_table::<T, N, BIT_DEPTH>());
-                }
-            }
+        if use_cicp
+            && let Some(tc) = self.cicp.as_ref().map(|c| c.transfer_characteristics)
+            && tc.has_transfer_curve()
+        {
+            return Ok(tc.make_linear_table::<T, N, BIT_DEPTH>());
         }
         self.red_trc
             .as_ref()
@@ -1188,12 +1187,11 @@ impl ColorProfile {
         &self,
         use_cicp: bool,
     ) -> Result<Box<[f32; N]>, CmsError> {
-        if use_cicp {
-            if let Some(tc) = self.cicp.as_ref().map(|c| c.transfer_characteristics) {
-                if tc.has_transfer_curve() {
-                    return Ok(tc.make_linear_table::<T, N, BIT_DEPTH>());
-                }
-            }
+        if use_cicp
+            && let Some(tc) = self.cicp.as_ref().map(|c| c.transfer_characteristics)
+            && tc.has_transfer_curve()
+        {
+            return Ok(tc.make_linear_table::<T, N, BIT_DEPTH>());
         }
         self.green_trc
             .as_ref()
@@ -1210,12 +1208,11 @@ impl ColorProfile {
         &self,
         use_cicp: bool,
     ) -> Result<Box<[f32; N]>, CmsError> {
-        if use_cicp {
-            if let Some(tc) = self.cicp.as_ref().map(|c| c.transfer_characteristics) {
-                if tc.has_transfer_curve() {
-                    return Ok(tc.make_linear_table::<T, N, BIT_DEPTH>());
-                }
-            }
+        if use_cicp
+            && let Some(tc) = self.cicp.as_ref().map(|c| c.transfer_characteristics)
+            && tc.has_transfer_curve()
+        {
+            return Ok(tc.make_linear_table::<T, N, BIT_DEPTH>());
         }
         self.blue_trc
             .as_ref()
@@ -1278,12 +1275,11 @@ impl ColorProfile {
         f32: AsPrimitive<T>,
         u32: AsPrimitive<T>,
     {
-        if use_cicp {
-            if let Some(tc) = self.cicp.as_ref().map(|c| c.transfer_characteristics) {
-                if tc.has_transfer_curve() {
-                    return Ok(tc.make_gamma_table::<T, BUCKET, N>(BIT_DEPTH));
-                }
-            }
+        if use_cicp
+            && let Some(tc) = self.cicp.as_ref().map(|c| c.transfer_characteristics)
+            && tc.has_transfer_curve()
+        {
+            return Ok(tc.make_gamma_table::<T, BUCKET, N>(BIT_DEPTH));
         }
         trc.as_ref()
             .and_then(|trc| trc.build_gamma_table::<T, BUCKET, N, BIT_DEPTH>())
@@ -1295,13 +1291,13 @@ impl ColorProfile {
     pub(crate) fn try_extended_gamma_evaluator(
         &self,
     ) -> Option<Box<dyn ToneCurveEvaluator + Send + Sync>> {
-        if let Some(tc) = self.cicp.as_ref().map(|c| c.transfer_characteristics) {
-            if tc.has_transfer_curve() {
-                return Some(Box::new(ToneCurveCicpEvaluator {
-                    rgb_trc: tc.extended_gamma_tristimulus(),
-                    trc: tc.extended_gamma_single(),
-                }));
-            }
+        if let Some(tc) = self.cicp.as_ref().map(|c| c.transfer_characteristics)
+            && tc.has_transfer_curve()
+        {
+            return Some(Box::new(ToneCurveCicpEvaluator {
+                rgb_trc: tc.extended_gamma_tristimulus(),
+                trc: tc.extended_gamma_single(),
+            }));
         }
         if !self.are_all_trc_the_same() {
             return None;
@@ -1392,20 +1388,18 @@ impl ColorProfile {
             }
             if let (ToneReprCurve::Lut(lut0), ToneReprCurve::Lut(lut1), ToneReprCurve::Lut(lut2)) =
                 (red_trc, green_trc, blue_trc)
+                && (lut0 == lut1 || lut1 == lut2)
             {
-                if lut0 == lut1 || lut1 == lut2 {
-                    return true;
-                }
+                return true;
             }
             if let (
                 ToneReprCurve::Parametric(lut0),
                 ToneReprCurve::Parametric(lut1),
                 ToneReprCurve::Parametric(lut2),
             ) = (red_trc, green_trc, blue_trc)
+                && (lut0 == lut1 || lut1 == lut2)
             {
-                if lut0 == lut1 || lut1 == lut2 {
-                    return true;
-                }
+                return true;
             }
         }
         false
@@ -1448,13 +1442,13 @@ impl ColorProfile {
     pub(crate) fn try_extended_linearizing_evaluator(
         &self,
     ) -> Option<Box<dyn ToneCurveEvaluator + Send + Sync>> {
-        if let Some(tc) = self.cicp.as_ref().map(|c| c.transfer_characteristics) {
-            if tc.has_transfer_curve() {
-                return Some(Box::new(ToneCurveCicpEvaluator {
-                    rgb_trc: tc.extended_linear_tristimulus(),
-                    trc: tc.extended_linear_single(),
-                }));
-            }
+        if let Some(tc) = self.cicp.as_ref().map(|c| c.transfer_characteristics)
+            && tc.has_transfer_curve()
+        {
+            return Some(Box::new(ToneCurveCicpEvaluator {
+                rgb_trc: tc.extended_linear_tristimulus(),
+                trc: tc.extended_linear_single(),
+            }));
         }
         if !self.are_all_trc_the_same() {
             return None;
@@ -1464,10 +1458,10 @@ impl ColorProfile {
         } else {
             self.red_trc.as_ref()
         };
-        if let Some(red_trc) = reference_trc {
-            if let Some(value) = Self::make_linear_curve_evaluator_all_the_same(red_trc) {
-                return value;
-            }
+        if let Some(red_trc) = reference_trc
+            && let Some(value) = Self::make_linear_curve_evaluator_all_the_same(red_trc)
+        {
+            return value;
         }
         None
     }

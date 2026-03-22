@@ -34,7 +34,7 @@ pub(crate) struct StageLabToXyz {}
 
 impl InPlaceStage for StageLabToXyz {
     fn transform(&self, dst: &mut [f32]) -> Result<(), CmsError> {
-        for dst in dst.chunks_exact_mut(3) {
+        for dst in dst.as_chunks_mut::<3>().0.iter_mut() {
             let lab = Lab::new(dst[0], dst[1], dst[2]);
             let xyz = lab.to_pcs_xyz();
             dst[0] = xyz.x;
@@ -50,7 +50,7 @@ pub(crate) struct StageXyzToLab {}
 
 impl InPlaceStage for StageXyzToLab {
     fn transform(&self, dst: &mut [f32]) -> Result<(), CmsError> {
-        for dst in dst.chunks_exact_mut(3) {
+        for dst in dst.as_chunks_mut::<3>().0.iter_mut() {
             let xyz = Xyz::new(dst[0], dst[1], dst[2]);
             let lab = Lab::from_pcs_xyz(xyz);
             dst[0] = lab.l;

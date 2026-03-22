@@ -166,7 +166,7 @@ impl<T: Copy + Default + AsPrimitive<f32> + PointeeSizeExpressible + Send + Sync
     KatanaInitialStage<f32, T> for Multidimensional3x3<T>
 {
     fn to_pcs(&self, input: &[T]) -> Result<Vec<f32>, CmsError> {
-        if input.len() % 3 != 0 {
+        if !input.len().is_multiple_of(3) {
             return Err(CmsError::LaneMultipleOfChannels);
         }
         let fixed_new_clut = Vec::new();
@@ -304,10 +304,10 @@ where
     f32: AsPrimitive<T>,
 {
     fn to_output(&self, src: &mut [f32], dst: &mut [T]) -> Result<(), CmsError> {
-        if src.len() % 3 != 0 {
+        if !src.len().is_multiple_of(3) {
             return Err(CmsError::LaneMultipleOfChannels);
         }
-        if dst.len() % 3 != 0 {
+        if !dst.len().is_multiple_of(3) {
             return Err(CmsError::LaneMultipleOfChannels);
         }
         if src.len() != dst.len() {

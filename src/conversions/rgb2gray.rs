@@ -146,10 +146,10 @@ where
         if src.len() / src_channels != dst.len() / dst_channels {
             return Err(CmsError::LaneSizeMismatch);
         }
-        if src.len() % src_channels != 0 {
+        if !src.len().is_multiple_of(src_channels) {
             return Err(CmsError::LaneMultipleOfChannels);
         }
-        if dst.len() % dst_channels != 0 {
+        if !dst.len().is_multiple_of(dst_channels) {
             return Err(CmsError::LaneMultipleOfChannels);
         }
 

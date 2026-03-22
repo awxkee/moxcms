@@ -61,7 +61,7 @@ where
     u32: AsPrimitive<T>,
 {
     #[target_feature(enable = "avx2")]
-    unsafe fn transform_avx2(&self, src: &[T], dst: &mut [T]) -> Result<(), CmsError> {
+    fn transform_avx2(&self, src: &[T], dst: &mut [T]) -> Result<(), CmsError> {
         let src_cn = Layout::from(SRC_LAYOUT);
         let dst_cn = Layout::from(DST_LAYOUT);
         let src_channels = src_cn.channels();
@@ -72,10 +72,10 @@ where
         if src.len() / src_channels != dst.len() / dst_channels {
             return Err(CmsError::LaneSizeMismatch);
         }
-        if src.len() % src_channels != 0 {
+        if !src.len().is_multiple_of(src_channels) {
             return Err(CmsError::LaneMultipleOfChannels);
         }
-        if dst.len() % dst_channels != 0 {
+        if !dst.len().is_multiple_of(dst_channels) {
             return Err(CmsError::LaneMultipleOfChannels);
         }
 
@@ -304,7 +304,7 @@ where
 
         let mut temporary0 = AvxAlignedU16([0; 16]);
 
-        if in_out.len() % src_channels != 0 {
+        if !in_out.len().is_multiple_of(src_channels) {
             return Err(CmsError::LaneMultipleOfChannels);
         }
 

@@ -68,7 +68,12 @@ impl ACurves4x3<'_> {
 
         assert_eq!(src.len() / 4, dst.len() / 3);
 
-        for (src, dst) in src.chunks_exact(4).zip(dst.chunks_exact_mut(3)) {
+        for (src, dst) in src
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .zip(dst.as_chunks_mut::<3>().0.iter_mut())
+        {
             let a0 = (src[0] * scale_value).round().min(scale_value) as u16;
             let a1 = (src[1] * scale_value).round().min(scale_value) as u16;
             let a2 = (src[2] * scale_value).round().min(scale_value) as u16;
@@ -97,7 +102,12 @@ impl ACurves4x3Optimized<'_> {
     ) -> Result<(), CmsError> {
         assert_eq!(src.len() / 4, dst.len() / 3);
 
-        for (src, dst) in src.chunks_exact(4).zip(dst.chunks_exact_mut(3)) {
+        for (src, dst) in src
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .zip(dst.as_chunks_mut::<3>().0.iter_mut())
+        {
             let c = src[0];
             let m = src[1];
             let y = src[2];
