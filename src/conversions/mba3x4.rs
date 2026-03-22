@@ -65,7 +65,12 @@ impl ACurves3x4Inverse<'_> {
 
         assert_eq!(src.len() / 3, dst.len() / 4);
 
-        for (src, dst) in src.chunks_exact(3).zip(dst.chunks_exact_mut(4)) {
+        for (src, dst) in src
+            .as_chunks::<3>()
+            .0
+            .iter()
+            .zip(dst.as_chunks_mut::<4>().0.iter_mut())
+        {
             let interpolated = fetch(src[0], src[1], src[2]);
             let a0 = (interpolated.v[0] * scale_value).round().min(scale_value) as u16;
             let a1 = (interpolated.v[1] * scale_value).round().min(scale_value) as u16;
@@ -93,7 +98,12 @@ impl ACurves3x4InverseOptimized<'_> {
     ) -> Result<(), CmsError> {
         assert_eq!(src.len() / 3, dst.len() / 4);
 
-        for (src, dst) in src.chunks_exact(3).zip(dst.chunks_exact_mut(4)) {
+        for (src, dst) in src
+            .as_chunks::<3>()
+            .0
+            .iter()
+            .zip(dst.as_chunks_mut::<4>().0.iter_mut())
+        {
             let interpolated = fetch(src[0], src[1], src[2]);
             let b0 = interpolated.v[0];
             let b1 = interpolated.v[1];

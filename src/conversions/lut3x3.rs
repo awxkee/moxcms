@@ -267,7 +267,7 @@ where
         input: &[T],
         fetch: Fetch,
     ) -> Result<Vec<f32>, CmsError> {
-        if input.len() % 3 != 0 {
+        if !input.len().is_multiple_of(3) {
             return Err(CmsError::LaneMultipleOfChannels);
         }
         let normalizing_value = if T::FINITE {
@@ -279,7 +279,12 @@ where
         let linearization_0 = &self.input[0];
         let linearization_1 = &self.input[1];
         let linearization_2 = &self.input[2];
-        for (dest, src) in dst.chunks_exact_mut(3).zip(input.chunks_exact(3)) {
+        for (dest, src) in dst
+            .as_chunks_mut::<3>()
+            .0
+            .iter_mut()
+            .zip(input.as_chunks::<3>().0.iter())
+        {
             let linear_x =
                 lut_interp_linear_float(src[0].as_() * normalizing_value, linearization_0);
             let linear_y =
@@ -305,10 +310,10 @@ where
         dst: &mut [T],
         fetch: Fetch,
     ) -> Result<(), CmsError> {
-        if src.len() % 3 != 0 {
+        if !src.len().is_multiple_of(3) {
             return Err(CmsError::LaneMultipleOfChannels);
         }
-        if dst.len() % 3 != 0 {
+        if !dst.len().is_multiple_of(3) {
             return Err(CmsError::LaneMultipleOfChannels);
         }
         if dst.len() != src.len() {
@@ -323,7 +328,12 @@ where
         let linearization_0 = &self.input[0];
         let linearization_1 = &self.input[1];
         let linearization_2 = &self.input[2];
-        for (dest, src) in dst.chunks_exact_mut(3).zip(src.chunks_exact(3)) {
+        for (dest, src) in dst
+            .as_chunks_mut::<3>()
+            .0
+            .iter_mut()
+            .zip(src.as_chunks::<3>().0.iter())
+        {
             let linear_x = lut_interp_linear_float(src[0], linearization_0);
             let linear_y = lut_interp_linear_float(src[1], linearization_1);
             let linear_z = lut_interp_linear_float(src[2], linearization_2);

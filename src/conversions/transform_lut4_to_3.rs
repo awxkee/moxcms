@@ -198,10 +198,10 @@ where
     fn transform(&self, src: &[T], dst: &mut [T]) -> Result<(), CmsError> {
         let cn = Layout::from(LAYOUT);
         let channels = cn.channels();
-        if src.len() % 4 != 0 {
+        if !src.len().is_multiple_of(4) {
             return Err(CmsError::LaneMultipleOfChannels);
         }
-        if dst.len() % channels != 0 {
+        if !dst.len().is_multiple_of(channels) {
             return Err(CmsError::LaneMultipleOfChannels);
         }
         let src_chunks = src.len() / 4;

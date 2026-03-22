@@ -76,7 +76,12 @@ impl Lut4x3 {
         let linearization_1 = &self.linearization[1];
         let linearization_2 = &self.linearization[2];
         let linearization_3 = &self.linearization[3];
-        for (dest, src) in dst.chunks_exact_mut(3).zip(src.chunks_exact(4)) {
+        for (dest, src) in dst
+            .as_chunks_mut::<3>()
+            .0
+            .iter_mut()
+            .zip(src.as_chunks::<4>().0.iter())
+        {
             debug_assert!(self.grid_size as i32 >= 1);
             let linear_x = lut_interp_linear_float(src[0], linearization_0);
             let linear_y = lut_interp_linear_float(src[1], linearization_1);
@@ -140,7 +145,7 @@ impl<T: Copy + PointeeSizeExpressible + AsPrimitive<f32>> KatanaLut4x3<T> {
         input: &[T],
         fetch: Fetch,
     ) -> Result<Vec<f32>, CmsError> {
-        if input.len() % 4 != 0 {
+        if !input.len().is_multiple_of(4) {
             return Err(CmsError::LaneMultipleOfChannels);
         }
         let norm_value = if T::FINITE {
@@ -153,7 +158,12 @@ impl<T: Copy + PointeeSizeExpressible + AsPrimitive<f32>> KatanaLut4x3<T> {
         let linearization_1 = &self.linearization[1];
         let linearization_2 = &self.linearization[2];
         let linearization_3 = &self.linearization[3];
-        for (dest, src) in dst.chunks_exact_mut(3).zip(input.chunks_exact(4)) {
+        for (dest, src) in dst
+            .as_chunks_mut::<3>()
+            .0
+            .iter_mut()
+            .zip(input.as_chunks::<4>().0.iter())
+        {
             let linear_x = lut_interp_linear_float(src[0].as_() * norm_value, linearization_0);
             let linear_y = lut_interp_linear_float(src[1].as_() * norm_value, linearization_1);
             let linear_z = lut_interp_linear_float(src[2].as_() * norm_value, linearization_2);
@@ -177,7 +187,7 @@ impl<T: Copy + PointeeSizeExpressible + AsPrimitive<f32>> KatanaInitialStage<f32
     for KatanaLut4x3<T>
 {
     fn to_pcs(&self, input: &[T]) -> Result<Vec<f32>, CmsError> {
-        if input.len() % 4 != 0 {
+        if !input.len().is_multiple_of(4) {
             return Err(CmsError::LaneMultipleOfChannels);
         }
         let l_tbl = Hypercube::new(&self.clut, self.grid_size as usize, 3)?;

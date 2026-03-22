@@ -48,7 +48,7 @@ pub(crate) type KatanaDefaultIntermediate = dyn KatanaIntermediateStage<f32> + S
 
 impl KatanaIntermediateStage<f32> for KatanaMatrixStage {
     fn stage(&self, input: &mut Vec<f32>) -> Result<Vec<f32>, CmsError> {
-        if input.len() % 3 != 0 {
+        if !input.len().is_multiple_of(3) {
             return Err(CmsError::LaneMultipleOfChannels);
         }
 

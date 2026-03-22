@@ -817,50 +817,51 @@ impl ColorProfile {
             let transform = self.transform_matrix(dst_pr);
 
             #[cfg(feature = "extended_range")]
-            if !T::FINITE && options.allow_extended_range_rgb_xyz {
-                if let Some(gamma_evaluator) = dst_pr.try_extended_gamma_evaluator() {
-                    if let Some(linear_evaluator) = self.try_extended_linearizing_evaluator() {
-                        use crate::conversions::{
-                            TransformShaperFloatInOut, make_rgb_xyz_rgb_transform_float_in_out,
-                        };
-                        use std::marker::PhantomData;
-                        let p = TransformShaperFloatInOut {
-                            linear_evaluator,
-                            gamma_evaluator,
-                            adaptation_matrix: transform.to_f32(),
-                            phantom_data: PhantomData,
-                        };
-                        return make_rgb_xyz_rgb_transform_float_in_out::<T>(
-                            src_layout, dst_layout, p, BIT_DEPTH,
-                        );
-                    }
-
-                    let lin_r = self.build_r_linearize_table::<T, LINEAR_CAP, BIT_DEPTH>(
-                        options.allow_use_cicp_transfer,
-                    )?;
-                    let lin_g = self.build_g_linearize_table::<T, LINEAR_CAP, BIT_DEPTH>(
-                        options.allow_use_cicp_transfer,
-                    )?;
-                    let lin_b = self.build_b_linearize_table::<T, LINEAR_CAP, BIT_DEPTH>(
-                        options.allow_use_cicp_transfer,
-                    )?;
-
+            if !T::FINITE
+                && options.allow_extended_range_rgb_xyz
+                && let Some(gamma_evaluator) = dst_pr.try_extended_gamma_evaluator()
+            {
+                if let Some(linear_evaluator) = self.try_extended_linearizing_evaluator() {
                     use crate::conversions::{
-                        TransformShaperRgbFloat, make_rgb_xyz_rgb_transform_float,
+                        TransformShaperFloatInOut, make_rgb_xyz_rgb_transform_float_in_out,
                     };
                     use std::marker::PhantomData;
-                    let p = TransformShaperRgbFloat {
-                        r_linear: lin_r,
-                        g_linear: lin_g,
-                        b_linear: lin_b,
+                    let p = TransformShaperFloatInOut {
+                        linear_evaluator,
                         gamma_evaluator,
                         adaptation_matrix: transform.to_f32(),
                         phantom_data: PhantomData,
                     };
-                    return make_rgb_xyz_rgb_transform_float::<T, LINEAR_CAP>(
+                    return make_rgb_xyz_rgb_transform_float_in_out::<T>(
                         src_layout, dst_layout, p, BIT_DEPTH,
                     );
                 }
+
+                let lin_r = self.build_r_linearize_table::<T, LINEAR_CAP, BIT_DEPTH>(
+                    options.allow_use_cicp_transfer,
+                )?;
+                let lin_g = self.build_g_linearize_table::<T, LINEAR_CAP, BIT_DEPTH>(
+                    options.allow_use_cicp_transfer,
+                )?;
+                let lin_b = self.build_b_linearize_table::<T, LINEAR_CAP, BIT_DEPTH>(
+                    options.allow_use_cicp_transfer,
+                )?;
+
+                use crate::conversions::{
+                    TransformShaperRgbFloat, make_rgb_xyz_rgb_transform_float,
+                };
+                use std::marker::PhantomData;
+                let p = TransformShaperRgbFloat {
+                    r_linear: lin_r,
+                    g_linear: lin_g,
+                    b_linear: lin_b,
+                    gamma_evaluator,
+                    adaptation_matrix: transform.to_f32(),
+                    phantom_data: PhantomData,
+                };
+                return make_rgb_xyz_rgb_transform_float::<T, LINEAR_CAP>(
+                    src_layout, dst_layout, p, BIT_DEPTH,
+                );
             }
 
             if self.are_all_trc_the_same() && dst_pr.are_all_trc_the_same() {
@@ -947,20 +948,20 @@ impl ColorProfile {
 
             if dst_pr.color_space == DataColorSpace::Gray {
                 #[cfg(feature = "extended_range")]
-                if !T::FINITE && options.allow_extended_range_rgb_xyz {
-                    if let Some(gamma_evaluator) = dst_pr.try_extended_gamma_evaluator() {
-                        if let Some(linear_evaluator) = self.try_extended_linearizing_evaluator() {
-                            // Gray -> Gray case extended range
-                            use crate::conversions::make_gray_to_one_trc_extended;
-                            return make_gray_to_one_trc_extended::<T>(
-                                src_layout,
-                                dst_layout,
-                                linear_evaluator,
-                                gamma_evaluator,
-                                BIT_DEPTH,
-                            );
-                        }
-                    }
+                if !T::FINITE
+                    && options.allow_extended_range_rgb_xyz
+                    && let Some(gamma_evaluator) = dst_pr.try_extended_gamma_evaluator()
+                    && let Some(linear_evaluator) = self.try_extended_linearizing_evaluator()
+                {
+                    // Gray -> Gray case extended range
+                    use crate::conversions::make_gray_to_one_trc_extended;
+                    return make_gray_to_one_trc_extended::<T>(
+                        src_layout,
+                        dst_layout,
+                        linear_evaluator,
+                        gamma_evaluator,
+                        BIT_DEPTH,
+                    );
                 }
 
                 // Gray -> Gray case
@@ -1091,20 +1092,20 @@ impl ColorProfile {
             };
 
             #[cfg(feature = "extended_range")]
-            if !T::FINITE && options.allow_extended_range_rgb_xyz {
-                if let Some(gamma_evaluator) = dst_pr.try_extended_gamma_evaluator() {
-                    if let Some(linear_evaluator) = self.try_extended_linearizing_evaluator() {
-                        use crate::conversions::make_rgb_to_gray_extended;
-                        return make_rgb_to_gray_extended::<T>(
-                            src_layout,
-                            dst_layout,
-                            linear_evaluator,
-                            gamma_evaluator,
-                            vector,
-                            BIT_DEPTH,
-                        );
-                    }
-                }
+            if !T::FINITE
+                && options.allow_extended_range_rgb_xyz
+                && let Some(gamma_evaluator) = dst_pr.try_extended_gamma_evaluator()
+                && let Some(linear_evaluator) = self.try_extended_linearizing_evaluator()
+            {
+                use crate::conversions::make_rgb_to_gray_extended;
+                return make_rgb_to_gray_extended::<T>(
+                    src_layout,
+                    dst_layout,
+                    linear_evaluator,
+                    gamma_evaluator,
+                    vector,
+                    BIT_DEPTH,
+                );
             }
 
             let lin_r = self.build_r_linearize_table::<T, LINEAR_CAP, BIT_DEPTH>(

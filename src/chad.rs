@@ -87,7 +87,6 @@ pub(crate) fn compute_chromatic_adaption(
     chad_inv.mat_mul_const(p0)
 }
 
-#[inline]
 pub(crate) fn compute_chromatic_adaption_d(
     source_white_point: Xyz,
     dest_white_point: Xyz,

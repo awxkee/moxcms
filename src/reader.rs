@@ -26,7 +26,6 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-use crate::err::try_vec;
 use crate::helpers::{read_matrix_3d, read_vector_3d};
 use crate::profile::LutDataType;
 use crate::safe_math::{SafeAdd, SafeMul, SafePowi};
@@ -72,11 +71,12 @@ pub(crate) fn uint8_number_to_float_fast(a: u8) -> f32 {
 }
 
 fn utf16be_to_utf16(slice: &[u8]) -> Result<Vec<u16>, CmsError> {
-    let mut vec = try_vec![0u16; slice.len() / 2];
-    for (dst, chunk) in vec.iter_mut().zip(slice.chunks_exact(2)) {
-        *dst = u16::from_be_bytes([chunk[0], chunk[1]]);
-    }
-    Ok(vec)
+    Ok(slice
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .map(|chunk| u16::from_be_bytes([chunk[0], chunk[1]]))
+        .collect())
 }
 
 /// Parse the Unicode section of a desc tag at `unicode_offset` (the byte
@@ -283,7 +283,7 @@ impl ColorProfile {
             // but also seen in some v2 profiles in the wild).
             let unicode_offset = ascii_end;
             let (unicode_code, unicode_string) =
-                self::read_desc_unicode(tag, unicode_offset)?.unwrap_or((0, String::new()));
+                read_desc_unicode(tag, unicode_offset)?.unwrap_or((0, String::new()));
 
             return Ok(Some(ProfileText::Description(DescriptionString {
                 ascii_string,
@@ -298,17 +298,15 @@ impl ColorProfile {
 
     fn read_lut_table_f32(table: &[u8], lut_type: LutType) -> Result<LutStore, CmsError> {
         if lut_type == LutType::Lut16 {
-            let mut clut = try_vec![0u16; table.len() / 2];
-            for (src, dst) in table.chunks_exact(2).zip(clut.iter_mut()) {
-                *dst = u16::from_be_bytes([src[0], src[1]]);
-            }
+            let clut = table
+                .as_chunks::<2>()
+                .0
+                .iter()
+                .map(|chunk| u16::from_be_bytes([chunk[0], chunk[1]]))
+                .collect();
             Ok(LutStore::Store16(clut))
         } else if lut_type == LutType::Lut8 {
-            let mut clut = try_vec![0u8; table.len()];
-            for (&src, dst) in table.iter().zip(clut.iter_mut()) {
-                *dst = src;
-            }
-            Ok(LutStore::Store8(clut))
+            Ok(LutStore::Store8(table.to_vec()))
         } else {
             unreachable!("This should never happen, report to https://github.com/awxkee/moxcms")
         }
@@ -334,7 +332,7 @@ impl ColorProfile {
             }
             curve_offset += tag_size;
             // 4 byte aligned
-            if curve_offset % 4 != 0 {
+            if !curve_offset.is_multiple_of(4) {
                 curve_offset += 4 - curve_offset % 4;
             }
         }
@@ -758,11 +756,12 @@ impl ColorProfile {
                 ));
             }
             let curve_sliced = &tag[12..curve_end];
-            let mut curve_values = try_vec![0u16; entry_count];
-            for (value, curve_value) in curve_sliced.chunks_exact(2).zip(curve_values.iter_mut()) {
-                let gamma_s15 = u16::from_be_bytes([value[0], value[1]]);
-                *curve_value = gamma_s15;
-            }
+            let curve_values = curve_sliced
+                .as_chunks::<2>()
+                .0
+                .iter()
+                .map(|chunk| u16::from_be_bytes([chunk[0], chunk[1]]))
+                .collect::<Vec<_>>();
             *read_size = curve_end;
             Ok(Some(ToneReprCurve::Lut(curve_values)))
         } else if curve_type == TagTypeDefinition::ParametricToneCurve {
@@ -781,11 +780,16 @@ impl ColorProfile {
                 ));
             }
             let curve_sliced = &tag[12..12 + COUNT_TO_LENGTH[entry_count] * size_of::<u32>()];
-            let mut params = try_vec![0f32; COUNT_TO_LENGTH[entry_count]];
-            for (value, param_value) in curve_sliced.chunks_exact(4).zip(params.iter_mut()) {
-                let parametric_value = i32::from_be_bytes([value[0], value[1], value[2], value[3]]);
-                *param_value = s15_fixed16_number_to_float(parametric_value);
-            }
+            let params = curve_sliced
+                .as_chunks::<4>()
+                .0
+                .iter()
+                .map(|chunk| {
+                    s15_fixed16_number_to_float(i32::from_be_bytes([
+                        chunk[0], chunk[1], chunk[2], chunk[3],
+                    ]))
+                })
+                .collect::<Vec<_>>();
             if entry_count == 1 || entry_count == 2 {
                 // we have a type 1 or type 2 function that has a division by `a`
                 let a: f32 = params[1];

@@ -77,28 +77,22 @@ fn white_point_from_temperature(temp_k: i32) -> XyY {
     white_point
 }
 
-static WHITE_POINT_D50: OnceLock<XyY> = OnceLock::new();
-static WHITE_POINT_D65: OnceLock<XyY> = OnceLock::new();
-static WHITE_POINT_D60: OnceLock<XyY> = OnceLock::new();
-static WHITE_POINT_DCI_P3: OnceLock<XyY> = OnceLock::new();
-
 pub fn white_point_d50() -> XyY {
-    *WHITE_POINT_D50.get_or_init(|| white_point_from_temperature(5003))
+    white_point_from_temperature(5003)
 }
 pub fn white_point_d65() -> XyY {
-    *WHITE_POINT_D65.get_or_init(|| white_point_from_temperature(6504))
+    white_point_from_temperature(6504)
 }
 
 pub fn white_point_d60() -> XyY {
-    *WHITE_POINT_D60.get_or_init(|| white_point_from_temperature(6000))
+    white_point_from_temperature(6000)
 }
 pub fn white_point_dci_p3() -> XyY {
-    *WHITE_POINT_DCI_P3.get_or_init(|| white_point_from_temperature(6300))
+    white_point_from_temperature(6300)
 }
 
 // https://www.itu.int/dms_pubrec/itu-r/rec/bt/R-REC-BT.2100-2-201807-I!!PDF-F.pdf
 // Perceptual Quantization / SMPTE standard ST.2084
-#[inline]
 fn pq_curve(x: f64) -> f64 {
     const M1: f64 = 2610.0 / 16384.0;
     const M2: f64 = (2523.0 / 4096.0) * 128.0;

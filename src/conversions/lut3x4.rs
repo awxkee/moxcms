@@ -140,7 +140,12 @@ impl Lut3x4 {
         let linearization_0 = &self.input[0];
         let linearization_1 = &self.input[1];
         let linearization_2 = &self.input[2];
-        for (dest, src) in dst.chunks_exact_mut(4).zip(src.chunks_exact(3)) {
+        for (dest, src) in dst
+            .as_chunks_mut::<4>()
+            .0
+            .iter_mut()
+            .zip(src.as_chunks::<3>().0.iter())
+        {
             debug_assert!(self.grid_size as i32 >= 1);
             let linear_x = lut_interp_linear_float(src[0], linearization_0);
             let linear_y = lut_interp_linear_float(src[1], linearization_1);

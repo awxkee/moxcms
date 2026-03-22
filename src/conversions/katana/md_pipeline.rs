@@ -64,7 +64,7 @@ struct KatanaLut3xN<T> {
 
 impl<T: Copy + PointeeSizeExpressible + AsPrimitive<f32>> KatanaLutNx3<T> {
     fn to_pcs_impl(&self, input: &[T]) -> Result<Vec<f32>, CmsError> {
-        if input.len() % self.input_inks != 0 {
+        if !input.len().is_multiple_of(self.input_inks) {
             return Err(CmsError::LaneMultipleOfChannels);
         }
         let norm_value = if T::FINITE {
@@ -117,7 +117,7 @@ impl<T: Copy + PointeeSizeExpressible + AsPrimitive<f32>> KatanaInitialStage<f32
     for KatanaLutNx3<T>
 {
     fn to_pcs(&self, input: &[T]) -> Result<Vec<f32>, CmsError> {
-        if input.len() % self.input_inks != 0 {
+        if !input.len().is_multiple_of(self.input_inks) {
             return Err(CmsError::LaneMultipleOfChannels);
         }
 
@@ -131,7 +131,7 @@ where
     f32: AsPrimitive<T>,
 {
     fn to_output(&self, src: &mut [f32], dst: &mut [T]) -> Result<(), CmsError> {
-        if src.len() % 3 != 0 {
+        if !src.len().is_multiple_of(3) {
             return Err(CmsError::LaneMultipleOfChannels);
         }
 

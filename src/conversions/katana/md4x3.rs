@@ -154,7 +154,7 @@ impl<T: Copy + Default + AsPrimitive<f32> + PointeeSizeExpressible + Send + Sync
     KatanaInitialStage<f32, T> for Multidimensional4x3<T>
 {
     fn to_pcs(&self, input: &[T]) -> Result<Vec<f32>, CmsError> {
-        if input.len() % 4 != 0 {
+        if !input.len().is_multiple_of(4) {
             return Err(CmsError::LaneMultipleOfChannels);
         }
         let fixed_new_clut = Vec::new();
