@@ -24,7 +24,7 @@ jobs:
       matrix:
         rust: [ "1.89.0", stable ]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: ${{ matrix.rust }}
@@ -115,7 +115,7 @@ jobs:
     name: Tests
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo test --no-default-features
       - run: cargo test --features neon_shaper_paths
@@ -128,7 +128,7 @@ jobs:
     name: Tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo test --no-default-features
       - run: cargo test --features avx_shaper_paths
@@ -147,7 +147,7 @@ jobs:
     name: Clippy x86 Stable
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo clippy --no-default-features                             -- -D warnings
       - run: cargo clippy --features avx_shaper_paths                       -- -D warnings
@@ -167,7 +167,7 @@ jobs:
     name: Clippy x86 Nightly
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@nightly
       - run: rustup component add clippy
       - run: cargo clippy  --no-default-features                            -- -D warnings
@@ -186,7 +186,7 @@ jobs:
     name: Clippy ARM
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo clippy --no-default-features                             -- -D warnings
       - run: cargo clippy --features neon_shaper_paths                      -- -D warnings
@@ -204,7 +204,7 @@ jobs:
       matrix:
         feature: [ neon ]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@nightly
       - run: cargo install cargo-fuzz
       - run: cargo fuzz run unsafe --no-default-features --features ${{ matrix.feature }} -- -max_total_time=16
@@ -217,7 +217,7 @@ jobs:
       matrix:
         feature: [ sse, avx ]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@nightly
       - run: cargo install cargo-fuzz
       - run: cargo fuzz run unsafe --no-default-features --features ${{ matrix.feature }} -- -max_total_time=16
@@ -227,7 +227,7 @@ jobs:
     name: Fuzzing Reader
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@nightly
       - run: cargo install cargo-fuzz
       - run: cargo fuzz run safe_read --no-default-features -- -max_total_time=20 -max_len=512000
