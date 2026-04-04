@@ -35,10 +35,7 @@ use crate::conversions::lut4::*;
 use crate::conversions::mab::{prepare_mab_3x3, prepare_mba_3x3};
 use crate::conversions::transform_lut3_to_4::make_transform_3x4;
 use crate::mlaf::mlaf;
-use crate::{
-    CmsError, ColorProfile, DataColorSpace, InPlaceStage, Layout, LutWarehouse, Matrix3f,
-    ProfileVersion, TransformExecutor, TransformOptions,
-};
+use crate::{CmsError, ColorProfile, DataColorSpace, InPlaceStage, Layout, LutWarehouse, Matrix3f, ProfileVersion, TransformExecutor, TransformOptions, Xyz};
 use num_traits::AsPrimitive;
 use std::sync::Arc;
 
@@ -296,6 +293,7 @@ make_transform_3x3_fn!(make_transformer_3x3_sse41, SseLut3x3Factory);
 use crate::conversions::LutBarycentricReduction;
 #[cfg(all(target_arch = "x86_64", feature = "avx_luts"))]
 use crate::conversions::avx::AvxLut4x3Factory;
+use crate::conversions::bpc::compensate_bpc_in_lut;
 #[cfg(feature = "any_to_any")]
 use crate::conversions::katana::{
     Katana, KatanaDefaultIntermediate, KatanaInitialStage, KatanaPostFinalizationStage,
@@ -576,6 +574,13 @@ where
                     prepare_mab_3x3(mab, &mut lut, options, source.pcs)?
                 }
             }
+            match device_to_pcs {
+                LutWarehouse::Lut(lut_data_type) => {}
+                LutWarehouse::Multidimensional(mab) => {
+                    let bpt = source.detect_black_point(&mab.clut.clone().unwrap().to_clut_f32(),mab.grid_points[0] as usize).unwrap();
+                    compensate_bpc_in_lut(&mut lut, bpt, Xyz::default());
+                }
+            }
         } else if source.is_matrix_shaper() {
             lut = create_rgb_lin_lut::<T, BIT_DEPTH, LINEAR_CAP, GRID_SIZE>(source, options)?;
         } else {
@@ -734,6 +739,13 @@ where
                     prepare_mab_3x3(mab, &mut lut, options, source.pcs)?
                 }
             }
+            // match device_to_pcs {
+            //     LutWarehouse::Lut(lut_data_type) => {}
+            //     LutWarehouse::Multidimensional(mab) => {
+            //         let bpt = source.detect_black_point(&mab.clut.clone().unwrap().to_clut_f32(),mab.grid_points[0] as usize).unwrap();
+            //         compensate_bpc_in_lut(&mut lut, bpt, Xyz::new(0., 0., 0.));
+            //     }
+            // }
         } else if source.is_matrix_shaper() {
             lut = create_rgb_lin_lut::<T, BIT_DEPTH, LINEAR_CAP, GRID_SIZE>(source, options)?;
         } else {
