@@ -584,6 +584,9 @@ pub enum MatrixCoefficients {
     ChromaticityDerivedNCL = 12, // Chromaticity-derived non-constant luminance
     ChromaticityDerivedCL = 13,  // Chromaticity-derived constant luminance
     ICtCp = 14,                  // ICtCp
+    IPtC2 = 15,                  // Color representation developed in SMPTE as IPT-PQ-C2
+    YCgCoRe = 16,                // YCgCo-Re (YCgCo-R type even),
+    YCgCoRo = 17,                // YCgCo-Ro (YCgCo-R type odd),
 }
 
 impl TryFrom<u8> for MatrixCoefficients {
@@ -606,6 +609,9 @@ impl TryFrom<u8> for MatrixCoefficients {
             12 => Ok(MatrixCoefficients::ChromaticityDerivedNCL),
             13 => Ok(MatrixCoefficients::ChromaticityDerivedCL),
             14 => Ok(MatrixCoefficients::ICtCp),
+            15 => Ok(MatrixCoefficients::IPtC2),
+            16 => Ok(MatrixCoefficients::YCgCoRe),
+            17 => Ok(MatrixCoefficients::YCgCoRo),
             _ => Err(CmsError::InvalidCicp),
         }
     }

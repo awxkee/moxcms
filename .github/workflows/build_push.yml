@@ -63,7 +63,9 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@nightly
-      - run: sudo apt-get install -y qemu-user
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu-user
       - run: |
           failed=0
           tests=$(cargo +nightly test --lib -- --list 2>/dev/null | grep ': test' | sed 's/: test//')
@@ -90,7 +92,9 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@nightly
-      - run: sudo apt-get install -y qemu-user
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu-user
       - run: |
           failed=0
           tests=$(cargo +nightly test --lib -- --list 2>/dev/null | grep ': test' | sed 's/: test//')
