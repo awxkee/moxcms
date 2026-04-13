@@ -397,7 +397,7 @@ use crate::conversions::sse::TransformShaperQ2_13OptSse;
     any(target_arch = "x86", target_arch = "x86_64"),
     feature = "sse_shaper_fixed_point_paths"
 ))]
-create_rgb_xyz_dependant_q2_13_executor_fp!(
+create_rgb_xyz_dependant_q2_13_executor!(
     make_rgb_xyz_q2_13_transform_sse_41_opt,
     TransformShaperQ2_13OptSse,
     i32,
@@ -410,7 +410,7 @@ use crate::conversions::rgbxyz::TransformMatrixShaperOptimized;
 use crate::transform::PointeeSizeExpressible;
 
 #[cfg(all(target_arch = "x86_64", feature = "avx_shaper_fixed_point_paths"))]
-create_rgb_xyz_dependant_q2_13_executor_fp!(
+create_rgb_xyz_dependant_q2_13_executor!(
     make_rgb_xyz_q2_13_transform_avx2_opt,
     TransformShaperRgbQ2_13OptAvx,
     i32,

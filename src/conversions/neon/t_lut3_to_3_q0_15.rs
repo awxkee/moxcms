@@ -86,7 +86,7 @@ where
         &self,
         src: &[T],
         dst: &mut [T],
-        interpolator: Box<dyn NeonMdInterpolationQ0_15 + Send + Sync>,
+        interpolator: Box<dyn NeonMdInterpolationQ0_15<BINS> + Send + Sync>,
     ) {
         let src_cn = Layout::from(SRC_LAYOUT);
         let src_channels = src_cn.channels();
@@ -122,13 +122,7 @@ where
                 max_value
             };
 
-            let v = interpolator.inter3_neon(
-                &self.lut,
-                x.as_(),
-                y.as_(),
-                z.as_(),
-                self.weights.as_slice(),
-            );
+            let v = interpolator.inter3_neon(&self.lut, x.as_(), y.as_(), z.as_(), &self.weights);
             if T::FINITE {
                 let mut o = vmax_s16(v.v, vdup_n_s16(0));
                 o = vmin_s16(o, v_max_scale);

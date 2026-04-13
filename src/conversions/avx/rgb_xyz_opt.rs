@@ -27,8 +27,8 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 #![cfg(feature = "avx_shaper_optimized_paths")]
+use crate::conversions::TransformMatrixShaperOptimized;
 use crate::conversions::avx::AvxAlignedU16;
-use crate::conversions::rgbxyz::TransformMatrixShaperOptimizedV;
 use crate::transform::PointeeSizeExpressible;
 use crate::{CmsError, Layout, TransformExecutor};
 use num_traits::AsPrimitive;
@@ -38,8 +38,9 @@ pub(crate) struct TransformShaperRgbOptAvx<
     T: Clone + Copy + 'static + PointeeSizeExpressible + Default,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
+    const LINEAR_CAP: usize,
 > {
-    pub(crate) profile: TransformMatrixShaperOptimizedV<T>,
+    pub(crate) profile: TransformMatrixShaperOptimized<T, LINEAR_CAP>,
     pub(crate) bit_depth: usize,
     pub(crate) gamma_lut: usize,
 }
@@ -48,7 +49,8 @@ impl<
     T: Clone + Copy + 'static + PointeeSizeExpressible + Default,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
-> TransformShaperRgbOptAvx<T, SRC_LAYOUT, DST_LAYOUT>
+    const LINEAR_CAP: usize,
+> TransformShaperRgbOptAvx<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP>
 where
     u32: AsPrimitive<T>,
 {
@@ -75,14 +77,6 @@ where
 
         let scale = (self.gamma_lut - 1) as f32;
         let max_colors: T = ((1 << self.bit_depth) - 1).as_();
-
-        // safety precondition for linearization table
-        if T::FINITE {
-            let cap = (1 << self.bit_depth) - 1;
-            assert!(self.profile.linear.len() >= cap);
-        } else {
-            assert!(self.profile.linear.len() >= T::NOT_FINITE_LINEAR_TABLE_SIZE);
-        }
 
         let lut_lin = &self.profile.linear;
 
@@ -111,17 +105,17 @@ where
             let (mut r1, mut g1, mut b1, mut a1);
 
             for (src, dst) in src_iter.zip(dst_iter) {
-                r0 = _mm_broadcast_ss(lut_lin.get_unchecked(src[src_cn.r_i()]._as_usize()));
-                g0 = _mm_broadcast_ss(lut_lin.get_unchecked(src[src_cn.g_i()]._as_usize()));
-                b0 = _mm_broadcast_ss(lut_lin.get_unchecked(src[src_cn.b_i()]._as_usize()));
+                r0 = _mm_broadcast_ss(&lut_lin[src[src_cn.r_i()]._as_usize() & (LINEAR_CAP - 1)]);
+                g0 = _mm_broadcast_ss(&lut_lin[src[src_cn.g_i()]._as_usize() & (LINEAR_CAP - 1)]);
+                b0 = _mm_broadcast_ss(&lut_lin[src[src_cn.b_i()]._as_usize() & (LINEAR_CAP - 1)]);
                 r1 = _mm_broadcast_ss(
-                    lut_lin.get_unchecked(src[src_cn.r_i() + src_channels]._as_usize()),
+                    &lut_lin[src[src_cn.r_i() + src_channels]._as_usize() & (LINEAR_CAP - 1)],
                 );
                 g1 = _mm_broadcast_ss(
-                    lut_lin.get_unchecked(src[src_cn.g_i() + src_channels]._as_usize()),
+                    &lut_lin[src[src_cn.g_i() + src_channels]._as_usize() & (LINEAR_CAP - 1)],
                 );
                 b1 = _mm_broadcast_ss(
-                    lut_lin.get_unchecked(src[src_cn.b_i() + src_channels]._as_usize()),
+                    &lut_lin[src[src_cn.b_i() + src_channels]._as_usize() & (LINEAR_CAP - 1)],
                 );
                 a0 = if src_channels == 4 {
                     src[src_cn.a_i()]
@@ -179,9 +173,12 @@ where
                 .chunks_exact(src_channels)
                 .zip(dst.chunks_exact_mut(dst_channels))
             {
-                let r = _mm_broadcast_ss(lut_lin.get_unchecked(src[src_cn.r_i()]._as_usize()));
-                let g = _mm_broadcast_ss(lut_lin.get_unchecked(src[src_cn.g_i()]._as_usize()));
-                let b = _mm_broadcast_ss(lut_lin.get_unchecked(src[src_cn.b_i()]._as_usize()));
+                let r =
+                    _mm_broadcast_ss(&lut_lin[src[src_cn.r_i()]._as_usize() & (LINEAR_CAP - 1)]);
+                let g =
+                    _mm_broadcast_ss(&lut_lin[src[src_cn.g_i()]._as_usize() & (LINEAR_CAP - 1)]);
+                let b =
+                    _mm_broadcast_ss(&lut_lin[src[src_cn.b_i()]._as_usize() & (LINEAR_CAP - 1)]);
                 let a = if src_channels == 4 {
                     src[src_cn.a_i()]
                 } else {
@@ -224,7 +221,8 @@ impl<
     T: Clone + Copy + 'static + PointeeSizeExpressible + Default,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
-> TransformExecutor<T> for TransformShaperRgbOptAvx<T, SRC_LAYOUT, DST_LAYOUT>
+    const LINEAR_CAP: usize,
+> TransformExecutor<T> for TransformShaperRgbOptAvx<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP>
 where
     u32: AsPrimitive<T>,
 {

@@ -76,7 +76,7 @@ where
         &self,
         src: &[T],
         dst: &mut [T],
-        interpolator: Box<dyn SseMdInterpolationQ0_15 + Send + Sync>,
+        interpolator: Box<dyn SseMdInterpolationQ0_15<BINS> + Send + Sync>,
     ) {
         let cn = Layout::from(LAYOUT);
         let channels = cn.channels();
@@ -122,10 +122,10 @@ where
             let table2 = &self.lut[(w_n * grid_size3) as usize..];
 
             let a0 = interpolator
-                .inter3_sse(table1, c.as_(), m.as_(), y.as_(), self.weights.as_slice())
+                .inter3_sse(table1, c.as_(), m.as_(), y.as_(), &self.weights)
                 .v;
             let b0 = interpolator
-                .inter3_sse(table2, c.as_(), m.as_(), y.as_(), self.weights.as_slice())
+                .inter3_sse(table2, c.as_(), m.as_(), y.as_(), &self.weights)
                 .v;
 
             let hp = _mm_mulhrs_epi16(_mm_set1_epi16(t_n), a0);

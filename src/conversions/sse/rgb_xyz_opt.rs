@@ -27,7 +27,7 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 #![cfg(feature = "sse_shaper_optimized_paths")]
-use crate::conversions::rgbxyz::TransformMatrixShaperOptimizedV;
+use crate::conversions::TransformMatrixShaperOptimized;
 use crate::conversions::sse::SseAlignedU16;
 use crate::transform::PointeeSizeExpressible;
 use crate::{CmsError, Layout, TransformExecutor};
@@ -41,8 +41,9 @@ pub(crate) struct TransformShaperRgbOptSse<
     T: Clone + Copy + 'static + PointeeSizeExpressible + Default,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
+    const LINEAR_CAP: usize,
 > {
-    pub(crate) profile: TransformMatrixShaperOptimizedV<T>,
+    pub(crate) profile: TransformMatrixShaperOptimized<T, LINEAR_CAP>,
     pub(crate) bit_depth: usize,
     pub(crate) gamma_lut: usize,
 }
@@ -51,7 +52,8 @@ impl<
     T: Clone + Copy + 'static + PointeeSizeExpressible + Default,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
-> TransformShaperRgbOptSse<T, SRC_LAYOUT, DST_LAYOUT>
+    const LINEAR_CAP: usize,
+> TransformShaperRgbOptSse<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP>
 where
     u32: AsPrimitive<T>,
 {
@@ -79,14 +81,6 @@ where
         let scale = (self.gamma_lut - 1) as f32;
         let max_colors: T = ((1 << self.bit_depth) - 1).as_();
 
-        // safety precondition for linearization table
-        if T::FINITE {
-            let cap = (1 << self.bit_depth) - 1;
-            assert!(self.profile.linear.len() >= cap);
-        } else {
-            assert!(self.profile.linear.len() >= T::NOT_FINITE_LINEAR_TABLE_SIZE);
-        }
-
         let lut_lin = &self.profile.linear;
 
         unsafe {
@@ -102,9 +96,9 @@ where
                 .chunks_exact(src_channels)
                 .zip(dst.chunks_exact_mut(dst_channels))
             {
-                let rp = lut_lin.get_unchecked(src[src_cn.r_i()]._as_usize());
-                let gp = lut_lin.get_unchecked(src[src_cn.g_i()]._as_usize());
-                let bp = lut_lin.get_unchecked(src[src_cn.b_i()]._as_usize());
+                let rp = &lut_lin[src[src_cn.r_i()]._as_usize() & (LINEAR_CAP - 1)];
+                let gp = &lut_lin[src[src_cn.g_i()]._as_usize() & (LINEAR_CAP - 1)];
+                let bp = &lut_lin[src[src_cn.b_i()]._as_usize() & (LINEAR_CAP - 1)];
 
                 let mut r = _mm_load_ss(rp);
                 let mut g = _mm_load_ss(gp);
@@ -148,7 +142,8 @@ impl<
     T: Clone + Copy + 'static + PointeeSizeExpressible + Default,
     const SRC_LAYOUT: u8,
     const DST_LAYOUT: u8,
-> TransformExecutor<T> for TransformShaperRgbOptSse<T, SRC_LAYOUT, DST_LAYOUT>
+    const LINEAR_CAP: usize,
+> TransformExecutor<T> for TransformShaperRgbOptSse<T, SRC_LAYOUT, DST_LAYOUT, LINEAR_CAP>
 where
     u32: AsPrimitive<T>,
 {

@@ -77,21 +77,27 @@ where
         let scale = (self.gamma_lut - 1) as f32;
         let max_colors: T = ((1 << self.bit_depth) - 1).as_();
 
-        // safety precondition for linearization table
-        if T::FINITE {
-            let cap = (1 << self.bit_depth) - 1;
-            assert!(self.profile.r_linear.len() >= cap);
-            assert!(self.profile.g_linear.len() >= cap);
-            assert!(self.profile.b_linear.len() >= cap);
-        } else {
-            assert!(self.profile.r_linear.len() >= T::NOT_FINITE_LINEAR_TABLE_SIZE);
-            assert!(self.profile.g_linear.len() >= T::NOT_FINITE_LINEAR_TABLE_SIZE);
-            assert!(self.profile.b_linear.len() >= T::NOT_FINITE_LINEAR_TABLE_SIZE);
-        }
-
         let r_lin = &self.profile.r_linear;
         let g_lin = &self.profile.g_linear;
         let b_lin = &self.profile.b_linear;
+        let r_mask = r_lin.len() - 1;
+        let g_mask = g_lin.len() - 1;
+        let b_mask = b_lin.len() - 1;
+
+        debug_assert!(r_lin.len().is_power_of_two());
+        debug_assert!(g_lin.len().is_power_of_two());
+        debug_assert!(b_lin.len().is_power_of_two());
+
+        if T::FINITE {
+            let cap = 1usize << self.bit_depth;
+            assert!(r_lin.len() >= cap);
+            assert!(g_lin.len() >= cap);
+            assert!(b_lin.len() >= cap);
+        } else {
+            assert!(r_lin.len() >= T::NOT_FINITE_LINEAR_TABLE_SIZE);
+            assert!(g_lin.len() >= T::NOT_FINITE_LINEAR_TABLE_SIZE);
+            assert!(b_lin.len() >= T::NOT_FINITE_LINEAR_TABLE_SIZE);
+        }
 
         let (src_chunks, src_remainder) = split_by_twos(src, src_channels);
         let (dst_chunks, dst_remainder) = split_by_twos_mut(dst, dst_channels);
@@ -121,21 +127,21 @@ where
                     .zip(dst0.chunks_exact_mut(dst_channels * 2))
                     .zip(dst1.chunks_exact_mut(dst_channels * 2))
                 {
-                    let r0p = r_lin.get_unchecked(src0[src_cn.r_i()]._as_usize());
-                    let g0p = g_lin.get_unchecked(src0[src_cn.g_i()]._as_usize());
-                    let b0p = b_lin.get_unchecked(src0[src_cn.b_i()]._as_usize());
+                    let r0p = &r_lin[src0[src_cn.r_i()]._as_usize() & r_mask];
+                    let g0p = &g_lin[src0[src_cn.g_i()]._as_usize() & g_mask];
+                    let b0p = &b_lin[src0[src_cn.b_i()]._as_usize() & b_mask];
 
-                    let r1p = r_lin.get_unchecked(src0[src_cn.r_i() + src_channels]._as_usize());
-                    let g1p = g_lin.get_unchecked(src0[src_cn.g_i() + src_channels]._as_usize());
-                    let b1p = b_lin.get_unchecked(src0[src_cn.b_i() + src_channels]._as_usize());
+                    let r1p = &r_lin[src0[src_cn.r_i() + src_channels]._as_usize() & r_mask];
+                    let g1p = &g_lin[src0[src_cn.g_i() + src_channels]._as_usize() & g_mask];
+                    let b1p = &b_lin[src0[src_cn.b_i() + src_channels]._as_usize() & b_mask];
 
-                    let r2p = r_lin.get_unchecked(src1[src_cn.r_i()]._as_usize());
-                    let g2p = g_lin.get_unchecked(src1[src_cn.g_i()]._as_usize());
-                    let b2p = b_lin.get_unchecked(src1[src_cn.b_i()]._as_usize());
+                    let r2p = &r_lin[src1[src_cn.r_i()]._as_usize() & r_mask];
+                    let g2p = &g_lin[src1[src_cn.g_i()]._as_usize() & g_mask];
+                    let b2p = &b_lin[src1[src_cn.b_i()]._as_usize() & b_mask];
 
-                    let r3p = r_lin.get_unchecked(src1[src_cn.r_i() + src_channels]._as_usize());
-                    let g3p = g_lin.get_unchecked(src1[src_cn.g_i() + src_channels]._as_usize());
-                    let b3p = b_lin.get_unchecked(src1[src_cn.b_i() + src_channels]._as_usize());
+                    let r3p = &r_lin[src1[src_cn.r_i() + src_channels]._as_usize() & r_mask];
+                    let g3p = &g_lin[src1[src_cn.g_i() + src_channels]._as_usize() & g_mask];
+                    let b3p = &b_lin[src1[src_cn.b_i() + src_channels]._as_usize() & b_mask];
 
                     r0 = vld1q_dup_f32(r0p);
                     g0 = vld1q_dup_f32(g0p);
@@ -251,9 +257,9 @@ where
                 .chunks_exact(src_channels)
                 .zip(dst_remainder.chunks_exact_mut(dst_channels))
             {
-                let rp = r_lin.get_unchecked(src[src_cn.r_i()]._as_usize());
-                let gp = g_lin.get_unchecked(src[src_cn.g_i()]._as_usize());
-                let bp = b_lin.get_unchecked(src[src_cn.b_i()]._as_usize());
+                let rp = &r_lin[src[src_cn.r_i()]._as_usize() & r_mask];
+                let gp = &g_lin[src[src_cn.g_i()]._as_usize() & g_mask];
+                let bp = &b_lin[src[src_cn.b_i()]._as_usize() & b_mask];
                 let r = vld1q_dup_f32(rp);
                 let g = vld1q_dup_f32(gp);
                 let b = vld1q_dup_f32(bp);

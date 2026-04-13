@@ -126,31 +126,31 @@ impl<const GRID_SIZE: usize> Fetcher<SseVector> for TetrahedralSseFetchVector<'_
     }
 }
 
-pub(crate) trait SseMdInterpolation {
+pub(crate) trait SseMdInterpolation<const BINS: usize> {
     fn inter3_sse(
         &self,
         table: &[SseAlignedF32],
         in_r: usize,
         in_g: usize,
         in_b: usize,
-        lut: &[BarycentricWeight<f32>],
+        lut: &[BarycentricWeight<f32>; BINS],
     ) -> SseVector;
 }
 
 #[cfg(feature = "options")]
 impl<const GRID_SIZE: usize> TetrahedralSse<GRID_SIZE> {
     #[target_feature(enable = "sse4.1")]
-    unsafe fn interpolate(
+    unsafe fn interpolate<const BINS: usize>(
         &self,
         in_r: usize,
         in_g: usize,
         in_b: usize,
-        lut: &[BarycentricWeight<f32>],
+        lut: &[BarycentricWeight<f32>; BINS],
         r: impl Fetcher<SseVector>,
     ) -> SseVector {
-        let lut_r = unsafe { *lut.get_unchecked(in_r) };
-        let lut_g = unsafe { *lut.get_unchecked(in_g) };
-        let lut_b = unsafe { *lut.get_unchecked(in_b) };
+        let lut_r = lut[in_r & (BINS - 1)];
+        let lut_g = lut[in_g & (BINS - 1)];
+        let lut_b = lut[in_b & (BINS - 1)];
 
         let x: i32 = lut_r.x;
         let y: i32 = lut_g.x;
@@ -210,14 +210,16 @@ impl<const GRID_SIZE: usize> TetrahedralSse<GRID_SIZE> {
 
 macro_rules! define_inter_sse {
     ($interpolator: ident) => {
-        impl<const GRID_SIZE: usize> SseMdInterpolation for $interpolator<GRID_SIZE> {
+        impl<const GRID_SIZE: usize, const BINS: usize> SseMdInterpolation<BINS>
+            for $interpolator<GRID_SIZE>
+        {
             fn inter3_sse(
                 &self,
                 table: &[SseAlignedF32],
                 in_r: usize,
                 in_g: usize,
                 in_b: usize,
-                lut: &[BarycentricWeight<f32>],
+                lut: &[BarycentricWeight<f32>; BINS],
             ) -> SseVector {
                 unsafe {
                     self.interpolate(
@@ -244,17 +246,17 @@ define_inter_sse!(TrilinearSse);
 #[cfg(feature = "options")]
 impl<const GRID_SIZE: usize> PyramidalSse<GRID_SIZE> {
     #[target_feature(enable = "sse4.1")]
-    unsafe fn interpolate(
+    unsafe fn interpolate<const BINS: usize>(
         &self,
         in_r: usize,
         in_g: usize,
         in_b: usize,
-        lut: &[BarycentricWeight<f32>],
+        lut: &[BarycentricWeight<f32>; BINS],
         r: impl Fetcher<SseVector>,
     ) -> SseVector {
-        let lut_r = unsafe { *lut.get_unchecked(in_r) };
-        let lut_g = unsafe { *lut.get_unchecked(in_g) };
-        let lut_b = unsafe { *lut.get_unchecked(in_b) };
+        let lut_r = lut[in_r & (BINS - 1)];
+        let lut_g = lut[in_g & (BINS - 1)];
+        let lut_b = lut[in_b & (BINS - 1)];
 
         let x: i32 = lut_r.x;
         let y: i32 = lut_g.x;
@@ -322,17 +324,17 @@ impl<const GRID_SIZE: usize> PyramidalSse<GRID_SIZE> {
 #[cfg(feature = "options")]
 impl<const GRID_SIZE: usize> PrismaticSse<GRID_SIZE> {
     #[target_feature(enable = "sse4.1")]
-    unsafe fn interpolate(
+    unsafe fn interpolate<const BINS: usize>(
         &self,
         in_r: usize,
         in_g: usize,
         in_b: usize,
-        lut: &[BarycentricWeight<f32>],
+        lut: &[BarycentricWeight<f32>; BINS],
         r: impl Fetcher<SseVector>,
     ) -> SseVector {
-        let lut_r = unsafe { *lut.get_unchecked(in_r) };
-        let lut_g = unsafe { *lut.get_unchecked(in_g) };
-        let lut_b = unsafe { *lut.get_unchecked(in_b) };
+        let lut_r = lut[in_r & (BINS - 1)];
+        let lut_g = lut[in_g & (BINS - 1)];
+        let lut_b = lut[in_b & (BINS - 1)];
 
         let x: i32 = lut_r.x;
         let y: i32 = lut_g.x;
@@ -390,17 +392,17 @@ impl<const GRID_SIZE: usize> PrismaticSse<GRID_SIZE> {
 
 impl<const GRID_SIZE: usize> TrilinearSse<GRID_SIZE> {
     #[target_feature(enable = "sse4.1")]
-    unsafe fn interpolate(
+    unsafe fn interpolate<const BINS: usize>(
         &self,
         in_r: usize,
         in_g: usize,
         in_b: usize,
-        lut: &[BarycentricWeight<f32>],
+        lut: &[BarycentricWeight<f32>; BINS],
         r: impl Fetcher<SseVector>,
     ) -> SseVector {
-        let lut_r = unsafe { *lut.get_unchecked(in_r) };
-        let lut_g = unsafe { *lut.get_unchecked(in_g) };
-        let lut_b = unsafe { *lut.get_unchecked(in_b) };
+        let lut_r = lut[in_r & (BINS - 1)];
+        let lut_g = lut[in_g & (BINS - 1)];
+        let lut_b = lut[in_b & (BINS - 1)];
 
         let x: i32 = lut_r.x;
         let y: i32 = lut_g.x;

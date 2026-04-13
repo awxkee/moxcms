@@ -83,7 +83,7 @@ where
         &self,
         src: &[T],
         dst: &mut [T],
-        interpolator: Box<dyn NeonMdInterpolation + Send + Sync>,
+        interpolator: Box<dyn NeonMdInterpolation<BINS> + Send + Sync>,
     ) {
         unsafe {
             let src_cn = Layout::from(SRC_LAYOUT);
@@ -115,13 +115,8 @@ where
                     max_value
                 };
 
-                let v = interpolator.inter3_neon(
-                    &self.lut,
-                    x.as_(),
-                    y.as_(),
-                    z.as_(),
-                    self.weights.as_slice(),
-                );
+                let v =
+                    interpolator.inter3_neon(&self.lut, x.as_(), y.as_(), z.as_(), &self.weights);
                 if T::FINITE {
                     let mut r = vfmaq_f32(vdupq_n_f32(0.5f32), v.v, value_scale);
                     r = vminq_f32(r, value_scale);

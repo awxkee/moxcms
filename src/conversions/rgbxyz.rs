@@ -491,6 +491,55 @@ macro_rules! create_in_place_opt_rgb_xyz_fp_to_v {
     };
 }
 
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+#[allow(unused)]
+macro_rules! create_in_place_opt_rgb_xyz_fp {
+    ($dep_name: ident, $dependant: ident, $resolution: ident, $shaper: ident) => {
+        pub(crate) fn $dep_name<
+            T: Clone + Send + Sync + Default + PointeeSizeExpressible + Copy + 'static,
+            const LINEAR_CAP: usize,
+            const PRECISION: i32,
+        >(
+            layout: Layout,
+            profile: $shaper<T, LINEAR_CAP>,
+            gamma_lut: usize,
+            bit_depth: usize,
+        ) -> Result<Arc<dyn InPlaceTransformExecutor<T> + Send + Sync>, CmsError>
+        where
+            u32: AsPrimitive<T>,
+        {
+            let q2_13_profile =
+                profile.to_q2_13_n::<$resolution, PRECISION, LINEAR_CAP>(gamma_lut, bit_depth);
+            if layout == Layout::Rgba {
+                return Ok(Arc::new($dependant::<
+                    T,
+                    { Layout::Rgba as u8 },
+                    { Layout::Rgba as u8 },
+                    LINEAR_CAP,
+                    PRECISION,
+                > {
+                    profile: q2_13_profile,
+                    bit_depth,
+                    gamma_lut,
+                }));
+            } else if layout == Layout::Rgb {
+                return Ok(Arc::new($dependant::<
+                    T,
+                    { Layout::Rgb as u8 },
+                    { Layout::Rgb as u8 },
+                    LINEAR_CAP,
+                    PRECISION,
+                > {
+                    profile: q2_13_profile,
+                    bit_depth,
+                    gamma_lut,
+                }));
+            }
+            Err(CmsError::UnsupportedProfileConnection)
+        }
+    };
+}
+
 #[allow(unused)]
 macro_rules! create_in_place_rgb_xyz {
     ($dep_name: ident, $dependant: ident, $shaper: ident) => {
@@ -565,7 +614,7 @@ create_rgb_xyz_dependant_executor!(
     any(target_arch = "x86", target_arch = "x86_64"),
     feature = "sse_shaper_optimized_paths"
 ))]
-create_rgb_xyz_dependant_executor_to_v!(
+create_rgb_xyz_dependant_executor!(
     make_rgb_xyz_rgb_transform_sse_41_opt,
     TransformShaperRgbOptSse,
     TransformMatrixShaperOptimized
@@ -579,7 +628,7 @@ create_rgb_xyz_dependant_executor!(
 );
 
 #[cfg(all(target_arch = "x86_64", feature = "avx_shaper_optimized_paths"))]
-create_rgb_xyz_dependant_executor_to_v!(
+create_rgb_xyz_dependant_executor!(
     make_rgb_xyz_rgb_transform_avx2_opt,
     TransformShaperRgbOptAvx,
     TransformMatrixShaperOptimized
@@ -827,7 +876,7 @@ use crate::conversions::sse::TransformShaperQ2_13OptSse;
     feature = "in_place",
     feature = "sse_shaper_fixed_point_paths"
 ))]
-create_in_place_opt_rgb_xyz_fp_to_v!(
+create_in_place_opt_rgb_xyz_fp!(
     make_sse_rgb_xyz_in_place_transform_q2_13_opt,
     TransformShaperQ2_13OptSse,
     i32,
@@ -846,7 +895,7 @@ use crate::conversions::avx::TransformShaperRgbQ2_13OptAvx;
     feature = "in_place",
     feature = "avx_shaper_fixed_point_paths"
 ))]
-create_in_place_opt_rgb_xyz_fp_to_v!(
+create_in_place_opt_rgb_xyz_fp!(
     make_avx_rgb_xyz_in_place_transform_q2_13_opt,
     TransformShaperRgbQ2_13OptAvx,
     i32,
