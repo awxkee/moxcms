@@ -281,7 +281,28 @@ impl ColorProfile {
         profile
     }
 
-    /// Creates new Adobe RGB profile
+    /// Creates an Adobe RGB (1998) profile with a pure-gamma 2.19921875
+    /// (= 563/256) TRC.
+    ///
+    /// The Adobe RGB (1998) Color Image Encoding spec §4.3.4.2 defines the
+    /// TRC as pure gamma 2.19921875 with no linear toe. Annex C of the
+    /// same spec (Informative) recommends imposing a slope limit of 1/32
+    /// at implementation time, giving `max(C'^2.19921875, C'/32)` — which
+    /// is mathematically equivalent to `paraType funcType=3` with
+    /// `c=1/32, d=0.05568`. Annex C explicitly notes the slope limit is
+    /// an implementation aspect, not an encoding attribute, and different
+    /// implementations may use different slope limits.
+    ///
+    /// This constructor emits the spec-body form (pure gamma). Adobe's
+    /// ACE, saucecontrol's Compact-ICC `AdobeCompat-v4.icc`, and lcms2's
+    /// default Adobe RGB profile emit the `paraType funcType=3` slope-limit
+    /// form instead. The majority of Adobe RGB ICC profiles shipped with
+    /// operating systems (Adobe CS4, Windows `ClayRGB1998` / `AdobeRGB1998`,
+    /// macOS `AdobeRGB1998`, most Linux variants, camera-bundled) use
+    /// pure gamma matching this constructor.
+    ///
+    /// Adobe RGB (1998) spec PDF:
+    /// <https://www.adobe.com/digitalimag/pdfs/AdobeRGB1998.pdf>
     pub fn new_adobe_rgb() -> ColorProfile {
         let mut profile = ColorProfile::basic_rgb_profile();
         profile.update_colorants(adobe_rgb_colorants());
@@ -394,7 +415,40 @@ impl ColorProfile {
         profile
     }
 
-    /// Creates new ProPhoto RGB profile
+    /// Creates a ProPhoto RGB (ROMM RGB) profile with a pure-gamma 1.8 TRC.
+    ///
+    /// Real-world ProPhoto / ROMM ICC profiles are encoded in several
+    /// different ways in the wild, and different CMS implementations make
+    /// different choices:
+    ///
+    /// - **Pure gamma 1.8** (what this constructor emits): matches
+    ///   `installed-*-rommrgb.icc` on Linux / Windows, `Windows-ProPhoto.icm`,
+    ///   `installed-linux-*-ProPhotoRGB.icc`, and the saucecontrol
+    ///   Compact-ICC pure-gamma variants. Simple but omits the linear
+    ///   segment near black that ISO 22028-2 §6.3 specifies.
+    ///
+    /// - **`paraType funcType=3` with `c=1/16, d=1/32`**: the form defined
+    ///   by ISO 22028-2:2013 §6.3 and the original Kodak ROMM paper
+    ///   (Spaulding, Woolfe, Giorgianni, "Reference Input/Output Medium
+    ///   Metric RGB Color Encodings", IS&T PICS 2000). Used by
+    ///   saucecontrol's `ProPhoto-v4.icc`.
+    ///
+    /// - **`paraType funcType=3` with `c=1/16, d=1/512`**: Apple's macOS
+    ///   `ROMM RGB.icc` ships this variant. The slope matches the ISO
+    ///   spec but the break point is 16× smaller, making the linear
+    ///   segment nearly identity. Source of the choice is not documented
+    ///   publicly.
+    ///
+    /// - **Linear TRC with ProPhoto primaries**: Windows'
+    ///   `ProPhotoLin.icm` is encoded as a linear TRC despite the name,
+    ///   for use as an intermediate linear-light working space.
+    ///
+    /// - **mAB/mBA LUT**: the `ISO22028-2_ROMM-RGB.icc` v4 profiles
+    ///   shipped on some Linux distributions use multi-dimensional LUT
+    ///   tags with no rTRC at all.
+    ///
+    /// See the Kodak ROMM paper (available at
+    /// <http://www.color.org/ROMMRGB.pdf>) for the original definition.
     pub fn new_pro_photo_rgb() -> ColorProfile {
         let mut profile = ColorProfile::basic_rgb_profile();
         profile.update_colorants(pro_photo_rgb_colorants());
