@@ -32,6 +32,7 @@ use crate::conversions::lut_transforms::LUT_SAMPLING;
 use crate::math::{FusedMultiplyAdd, FusedMultiplyNegAdd};
 use crate::mlaf::fmla;
 use crate::{Vector3f, Vector4f};
+use num_traits::AsPrimitive;
 use std::ops::{Add, Mul, Sub};
 
 #[cfg(feature = "options")]
@@ -50,6 +51,37 @@ pub(crate) struct BarycentricWeight<V> {
     pub x: i32,
     pub x_n: i32,
     pub w: V,
+}
+
+/// Do the three barycentric-weight lookups + nine field extractions that open
+/// every SIMD `interpolate` method. One call replaces thirteen lines of
+/// per-method boilerplate, so the lookup pattern lives in exactly one place.
+///
+/// `U: AsPrimitive<usize>` widens the caller's narrow index type (`u8` for
+/// `BINS = 256`, `u16` for `BINS = 65536`) to `usize` at the array index.
+/// With `lut: &[_; BINS]` compile-time-sized, LLVM sees the zero-extended
+/// range and drops the bounds check — no `assert_unchecked`, no `unsafe`.
+/// `#[inline(always)]` flattens the call so there is no runtime cost over a
+/// hand-written lookup.
+///
+/// Returned tuple layout: `(x, y, z, x_n, y_n, z_n, w_r, w_g, w_b)` — three
+/// floor indices, three ceil indices, three weight fractions. Callers
+/// destructure with a `let` pattern, naming the weight bindings however
+/// their interpolator prefers (`rx/ry/rz` for Tetrahedral, `dr/dg/db` for
+/// the others).
+#[inline(always)]
+pub(crate) fn load_bary_weights<V: Copy, U: AsPrimitive<usize>, const BINS: usize>(
+    lut: &[BarycentricWeight<V>; BINS],
+    in_r: U,
+    in_g: U,
+    in_b: U,
+) -> (i32, i32, i32, i32, i32, i32, V, V, V) {
+    let lut_r = lut[in_r.as_()];
+    let lut_g = lut[in_g.as_()];
+    let lut_b = lut[in_b.as_()];
+    (
+        lut_r.x, lut_g.x, lut_b.x, lut_r.x_n, lut_g.x_n, lut_b.x_n, lut_r.w, lut_g.w, lut_b.w,
+    )
 }
 
 impl BarycentricWeight<f32> {

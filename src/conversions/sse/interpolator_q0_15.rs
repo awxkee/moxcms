@@ -27,8 +27,9 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 #![cfg(feature = "sse_luts")]
-use crate::conversions::interpolator::BarycentricWeight;
+use crate::conversions::interpolator::{BarycentricWeight, load_bary_weights};
 use crate::math::FusedMultiplyAdd;
+use num_traits::AsPrimitive;
 #[cfg(target_arch = "x86")]
 use std::arch::x86::*;
 #[cfg(target_arch = "x86_64")]
@@ -126,43 +127,29 @@ impl<const GRID_SIZE: usize> Fetcher<SseVector> for TetrahedralSseQ0_15FetchVect
     }
 }
 
-pub(crate) trait SseMdInterpolationQ0_15 {
+pub(crate) trait SseMdInterpolationQ0_15<const BINS: usize, U: AsPrimitive<usize>> {
     fn inter3_sse(
         &self,
         cube: &[SseAlignedI16x4],
-        in_r: usize,
-        in_g: usize,
-        in_b: usize,
-        lut: &[BarycentricWeight<i16>],
+        in_r: U,
+        in_g: U,
+        in_b: U,
+        lut: &[BarycentricWeight<i16>; BINS],
     ) -> SseVector;
 }
 
 #[cfg(feature = "options")]
 impl<const GRID_SIZE: usize> TetrahedralSseQ0_15<GRID_SIZE> {
     #[target_feature(enable = "sse4.1")]
-    unsafe fn interpolate(
+    unsafe fn interpolate<U: AsPrimitive<usize>, const BINS: usize>(
         &self,
-        in_r: usize,
-        in_g: usize,
-        in_b: usize,
-        lut: &[BarycentricWeight<i16>],
+        in_r: U,
+        in_g: U,
+        in_b: U,
+        lut: &[BarycentricWeight<i16>; BINS],
         r: impl Fetcher<SseVector>,
     ) -> SseVector {
-        let lut_r = lut[in_r];
-        let lut_g = lut[in_g];
-        let lut_b = lut[in_b];
-
-        let x: i32 = lut_r.x;
-        let y: i32 = lut_g.x;
-        let z: i32 = lut_b.x;
-
-        let x_n: i32 = lut_r.x_n;
-        let y_n: i32 = lut_g.x_n;
-        let z_n: i32 = lut_b.x_n;
-
-        let rx = lut_r.w;
-        let ry = lut_g.w;
-        let rz = lut_b.w;
+        let (x, y, z, x_n, y_n, z_n, rx, ry, rz) = load_bary_weights(lut, in_r, in_g, in_b);
 
         let c0 = r.fetch(x, y, z);
 
@@ -210,14 +197,16 @@ impl<const GRID_SIZE: usize> TetrahedralSseQ0_15<GRID_SIZE> {
 
 macro_rules! define_inter_sse {
     ($interpolator: ident) => {
-        impl<const GRID_SIZE: usize> SseMdInterpolationQ0_15 for $interpolator<GRID_SIZE> {
+        impl<const GRID_SIZE: usize, const BINS: usize, U: AsPrimitive<usize>>
+            SseMdInterpolationQ0_15<BINS, U> for $interpolator<GRID_SIZE>
+        {
             fn inter3_sse(
                 &self,
                 table: &[SseAlignedI16x4],
-                in_r: usize,
-                in_g: usize,
-                in_b: usize,
-                lut: &[BarycentricWeight<i16>],
+                in_r: U,
+                in_g: U,
+                in_b: U,
+                lut: &[BarycentricWeight<i16>; BINS],
             ) -> SseVector {
                 unsafe {
                     self.interpolate(
@@ -244,29 +233,15 @@ define_inter_sse!(TrilinearSseQ0_15);
 #[cfg(feature = "options")]
 impl<const GRID_SIZE: usize> PyramidalSseQ0_15<GRID_SIZE> {
     #[target_feature(enable = "sse4.1")]
-    unsafe fn interpolate(
+    unsafe fn interpolate<U: AsPrimitive<usize>, const BINS: usize>(
         &self,
-        in_r: usize,
-        in_g: usize,
-        in_b: usize,
-        lut: &[BarycentricWeight<i16>],
+        in_r: U,
+        in_g: U,
+        in_b: U,
+        lut: &[BarycentricWeight<i16>; BINS],
         r: impl Fetcher<SseVector>,
     ) -> SseVector {
-        let lut_r = lut[in_r];
-        let lut_g = lut[in_g];
-        let lut_b = lut[in_b];
-
-        let x: i32 = lut_r.x;
-        let y: i32 = lut_g.x;
-        let z: i32 = lut_b.x;
-
-        let x_n: i32 = lut_r.x_n;
-        let y_n: i32 = lut_g.x_n;
-        let z_n: i32 = lut_b.x_n;
-
-        let dr = lut_r.w;
-        let dg = lut_g.w;
-        let db = lut_b.w;
+        let (x, y, z, x_n, y_n, z_n, dr, dg, db) = load_bary_weights(lut, in_r, in_g, in_b);
 
         let c0 = r.fetch(x, y, z);
 
@@ -322,29 +297,15 @@ impl<const GRID_SIZE: usize> PyramidalSseQ0_15<GRID_SIZE> {
 #[cfg(feature = "options")]
 impl<const GRID_SIZE: usize> PrismaticSseQ0_15<GRID_SIZE> {
     #[target_feature(enable = "sse4.1")]
-    unsafe fn interpolate(
+    unsafe fn interpolate<U: AsPrimitive<usize>, const BINS: usize>(
         &self,
-        in_r: usize,
-        in_g: usize,
-        in_b: usize,
-        lut: &[BarycentricWeight<i16>],
+        in_r: U,
+        in_g: U,
+        in_b: U,
+        lut: &[BarycentricWeight<i16>; BINS],
         r: impl Fetcher<SseVector>,
     ) -> SseVector {
-        let lut_r = lut[in_r];
-        let lut_g = lut[in_g];
-        let lut_b = lut[in_b];
-
-        let x: i32 = lut_r.x;
-        let y: i32 = lut_g.x;
-        let z: i32 = lut_b.x;
-
-        let x_n: i32 = lut_r.x_n;
-        let y_n: i32 = lut_g.x_n;
-        let z_n: i32 = lut_b.x_n;
-
-        let dr = lut_r.w;
-        let dg = lut_g.w;
-        let db = lut_b.w;
+        let (x, y, z, x_n, y_n, z_n, dr, dg, db) = load_bary_weights(lut, in_r, in_g, in_b);
 
         let c0 = r.fetch(x, y, z);
 
@@ -390,29 +351,15 @@ impl<const GRID_SIZE: usize> PrismaticSseQ0_15<GRID_SIZE> {
 
 impl<const GRID_SIZE: usize> TrilinearSseQ0_15<GRID_SIZE> {
     #[target_feature(enable = "sse4.1")]
-    unsafe fn interpolate(
+    unsafe fn interpolate<U: AsPrimitive<usize>, const BINS: usize>(
         &self,
-        in_r: usize,
-        in_g: usize,
-        in_b: usize,
-        lut: &[BarycentricWeight<i16>],
+        in_r: U,
+        in_g: U,
+        in_b: U,
+        lut: &[BarycentricWeight<i16>; BINS],
         r: impl Fetcher<SseVector>,
     ) -> SseVector {
-        let lut_r = lut[in_r];
-        let lut_g = lut[in_g];
-        let lut_b = lut[in_b];
-
-        let x: i32 = lut_r.x;
-        let y: i32 = lut_g.x;
-        let z: i32 = lut_b.x;
-
-        let x_n: i32 = lut_r.x_n;
-        let y_n: i32 = lut_g.x_n;
-        let z_n: i32 = lut_b.x_n;
-
-        let dr = lut_r.w;
-        let dg = lut_g.w;
-        let db = lut_b.w;
+        let (x, y, z, x_n, y_n, z_n, dr, dg, db) = load_bary_weights(lut, in_r, in_g, in_b);
 
         const Q_MAX: i16 = ((1i32 << 15i32) - 1) as i16;
         let q_max = SseVector::from(Q_MAX);
