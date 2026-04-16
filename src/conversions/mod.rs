@@ -33,6 +33,7 @@
 /// For u16/f32/f64, indices are at most 65535 (f32/f64 clamp through u16) so >= 65536.
 /// When LLVM sees the assertion and knows the index comes from a bounded integer cast,
 /// it can eliminate the subsequent bounds check entirely.
+#[allow(unused_macros)] // only used under feature-gated SIMD modules (avx/sse/neon)
 macro_rules! assert_lut_min_len {
     ($T:ty, $len:expr) => {
         if <$T>::IS_U8 {
