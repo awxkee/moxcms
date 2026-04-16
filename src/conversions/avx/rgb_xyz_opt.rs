@@ -76,15 +76,8 @@ where
         let scale = (self.gamma_lut - 1) as f32;
         let max_colors: T = ((1 << self.bit_depth) - 1).as_();
 
-        // safety precondition for linearization table
-        if T::FINITE {
-            let cap = (1 << self.bit_depth) - 1;
-            assert!(self.profile.linear.len() >= cap);
-        } else {
-            assert!(self.profile.linear.len() >= T::NOT_FINITE_LINEAR_TABLE_SIZE);
-        }
-
         let lut_lin = &self.profile.linear;
+        assert_lut_min_len!(T, lut_lin.len());
 
         unsafe {
             let m0 = _mm256_setr_ps(
@@ -111,18 +104,12 @@ where
             let (mut r1, mut g1, mut b1, mut a1);
 
             for (src, dst) in src_iter.zip(dst_iter) {
-                r0 = _mm_broadcast_ss(lut_lin.get_unchecked(src[src_cn.r_i()]._as_usize()));
-                g0 = _mm_broadcast_ss(lut_lin.get_unchecked(src[src_cn.g_i()]._as_usize()));
-                b0 = _mm_broadcast_ss(lut_lin.get_unchecked(src[src_cn.b_i()]._as_usize()));
-                r1 = _mm_broadcast_ss(
-                    lut_lin.get_unchecked(src[src_cn.r_i() + src_channels]._as_usize()),
-                );
-                g1 = _mm_broadcast_ss(
-                    lut_lin.get_unchecked(src[src_cn.g_i() + src_channels]._as_usize()),
-                );
-                b1 = _mm_broadcast_ss(
-                    lut_lin.get_unchecked(src[src_cn.b_i() + src_channels]._as_usize()),
-                );
+                r0 = _mm_broadcast_ss(&lut_lin[src[src_cn.r_i()]._as_usize()]);
+                g0 = _mm_broadcast_ss(&lut_lin[src[src_cn.g_i()]._as_usize()]);
+                b0 = _mm_broadcast_ss(&lut_lin[src[src_cn.b_i()]._as_usize()]);
+                r1 = _mm_broadcast_ss(&lut_lin[src[src_cn.r_i() + src_channels]._as_usize()]);
+                g1 = _mm_broadcast_ss(&lut_lin[src[src_cn.g_i() + src_channels]._as_usize()]);
+                b1 = _mm_broadcast_ss(&lut_lin[src[src_cn.b_i() + src_channels]._as_usize()]);
                 a0 = if src_channels == 4 {
                     src[src_cn.a_i()]
                 } else {
@@ -179,9 +166,9 @@ where
                 .chunks_exact(src_channels)
                 .zip(dst.chunks_exact_mut(dst_channels))
             {
-                let r = _mm_broadcast_ss(lut_lin.get_unchecked(src[src_cn.r_i()]._as_usize()));
-                let g = _mm_broadcast_ss(lut_lin.get_unchecked(src[src_cn.g_i()]._as_usize()));
-                let b = _mm_broadcast_ss(lut_lin.get_unchecked(src[src_cn.b_i()]._as_usize()));
+                let r = _mm_broadcast_ss(&lut_lin[src[src_cn.r_i()]._as_usize()]);
+                let g = _mm_broadcast_ss(&lut_lin[src[src_cn.g_i()]._as_usize()]);
+                let b = _mm_broadcast_ss(&lut_lin[src[src_cn.b_i()]._as_usize()]);
                 let a = if src_channels == 4 {
                     src[src_cn.a_i()]
                 } else {

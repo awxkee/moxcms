@@ -492,9 +492,9 @@ mod tests {
                 let transform = gray
                     .create_transform_8bit(src, &srgb, dst, TransformOptions::default())
                     .unwrap();
-                let mut in_px = vec![0u8; src.channels()];
+                let in_px = vec![0u8; src.channels()];
                 let mut out_px = vec![0u8; dst.channels()];
-                transform.transform(&mut in_px, &mut out_px).unwrap();
+                transform.transform(&in_px, &mut out_px).unwrap();
             }
         }
     }

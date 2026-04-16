@@ -98,23 +98,16 @@ where
 
             let v_max_value = _mm_set1_epi32(self.gamma_lut as i32 - 1);
 
-            // safety precondition for linearization table
-            if T::FINITE {
-                let cap = (1 << self.bit_depth) - 1;
-                assert!(self.profile.linear.len() >= cap);
-            } else {
-                assert!(self.profile.linear.len() >= T::NOT_FINITE_LINEAR_TABLE_SIZE);
-            }
-
             let lut_lin = &self.profile.linear;
+            assert_lut_min_len!(T, lut_lin.len());
 
             for (src, dst) in src
                 .chunks_exact(src_channels)
                 .zip(dst.chunks_exact_mut(dst_channels))
             {
-                let rp = lut_lin.get_unchecked(src[src_cn.r_i()]._as_usize());
-                let gp = lut_lin.get_unchecked(src[src_cn.g_i()]._as_usize());
-                let bp = lut_lin.get_unchecked(src[src_cn.b_i()]._as_usize());
+                let rp = &lut_lin[src[src_cn.r_i()]._as_usize()];
+                let gp = &lut_lin[src[src_cn.g_i()]._as_usize()];
+                let bp = &lut_lin[src[src_cn.b_i()]._as_usize()];
 
                 let mut r = _xmm_load_epi32(rp);
                 let mut g = _xmm_load_epi32(gp);
@@ -189,20 +182,13 @@ where
 
             let v_max_value = _mm_set1_epi32(self.gamma_lut as i32 - 1);
 
-            // safety precondition for linearization table
-            if T::FINITE {
-                let cap = (1 << self.bit_depth) - 1;
-                assert!(self.profile.linear.len() >= cap);
-            } else {
-                assert!(self.profile.linear.len() >= T::NOT_FINITE_LINEAR_TABLE_SIZE);
-            }
-
             let lut_lin = &self.profile.linear;
+            assert_lut_min_len!(T, lut_lin.len());
 
             for dst in in_out.chunks_exact_mut(src_channels) {
-                let rp = lut_lin.get_unchecked(dst[src_cn.r_i()]._as_usize());
-                let gp = lut_lin.get_unchecked(dst[src_cn.g_i()]._as_usize());
-                let bp = lut_lin.get_unchecked(dst[src_cn.b_i()]._as_usize());
+                let rp = &lut_lin[dst[src_cn.r_i()]._as_usize()];
+                let gp = &lut_lin[dst[src_cn.g_i()]._as_usize()];
+                let bp = &lut_lin[dst[src_cn.b_i()]._as_usize()];
 
                 let mut r = _xmm_load_epi32(rp);
                 let mut g = _xmm_load_epi32(gp);

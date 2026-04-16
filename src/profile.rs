@@ -1444,18 +1444,18 @@ mod tests {
     #[test]
     fn test_rgb_to_xyz_matrix_equals_colorant_matrix() {
         // Test with SM245B.icc (D65 colorants, no CHAD tag)
-        if let Ok(icc_data) = fs::read("./assets/SM245B.icc") {
-            if let Ok(profile) = ColorProfile::new_from_slice(&icc_data) {
-                let rgb_to_xyz = profile.rgb_to_xyz_matrix();
-                let colorants = profile.colorant_matrix();
+        if let Ok(icc_data) = fs::read("./assets/SM245B.icc")
+            && let Ok(profile) = ColorProfile::new_from_slice(&icc_data)
+        {
+            let rgb_to_xyz = profile.rgb_to_xyz_matrix();
+            let colorants = profile.colorant_matrix();
 
-                for i in 0..3 {
-                    for j in 0..3 {
-                        assert!(
-                            (rgb_to_xyz.v[i][j] - colorants.v[i][j]).abs() < 1e-10,
-                            "rgb_to_xyz_matrix should equal colorant_matrix at [{i}][{j}]"
-                        );
-                    }
+            for i in 0..3 {
+                for j in 0..3 {
+                    assert!(
+                        (rgb_to_xyz.v[i][j] - colorants.v[i][j]).abs() < 1e-10,
+                        "rgb_to_xyz_matrix should equal colorant_matrix at [{i}][{j}]"
+                    );
                 }
             }
         }
