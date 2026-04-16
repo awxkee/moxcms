@@ -8,3 +8,4 @@ profile.json.gz
 .cargo
 rust-toolchain.toml
 specs
+.workongoing

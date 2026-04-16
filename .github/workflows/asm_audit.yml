@@ -1,0 +1,58 @@
+name: ASM audit (PR #168)
+
+# Holds the claim in PR #168's description: after replacing `get_unchecked`
+# with `[]` indexing on barycentric weight LUT lookups, every questioned
+# interpolator emits zero `panic_bounds_check` calls across all
+# monomorphizations. The audit runs cargo-show-asm per scenario and slices
+# the output per type.
+#
+# This workflow lives in the fork (lilith/moxcms); the `if:` guard keeps
+# it from running if the PR is merged upstream to awxkee/moxcms.
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  push:
+    branches:
+      - 'safe-bary-indexing'
+      - 'asm-audit-*'
+  pull_request:
+    branches:
+      - 'master'
+  workflow_dispatch:
+
+jobs:
+  asm-audit:
+    name: asm-audit (${{ matrix.scenario }})
+    if: github.repository == 'lilith/moxcms'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        scenario: [x86, aarch64]
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install aarch64 target
+        if: matrix.scenario == 'aarch64'
+        run: rustup target add aarch64-unknown-linux-gnu
+
+      - name: Install cargo-show-asm
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-show-asm
+
+      - name: Run asm audit
+        run: ci/asm-audit.sh ${{ matrix.scenario }}
+
+      - name: Upload asm artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: asm-audit-${{ matrix.scenario }}
+          path: target/asm-audit/${{ matrix.scenario }}
+          if-no-files-found: error
