@@ -148,9 +148,9 @@ impl<const GRID_SIZE: usize> TetrahedralSse<GRID_SIZE> {
         lut: &[BarycentricWeight<f32>],
         r: impl Fetcher<SseVector>,
     ) -> SseVector {
-        let lut_r = unsafe { *lut.get_unchecked(in_r) };
-        let lut_g = unsafe { *lut.get_unchecked(in_g) };
-        let lut_b = unsafe { *lut.get_unchecked(in_b) };
+        let lut_r = lut[in_r];
+        let lut_g = lut[in_g];
+        let lut_b = lut[in_b];
 
         let x: i32 = lut_r.x;
         let y: i32 = lut_g.x;
@@ -252,9 +252,9 @@ impl<const GRID_SIZE: usize> PyramidalSse<GRID_SIZE> {
         lut: &[BarycentricWeight<f32>],
         r: impl Fetcher<SseVector>,
     ) -> SseVector {
-        let lut_r = unsafe { *lut.get_unchecked(in_r) };
-        let lut_g = unsafe { *lut.get_unchecked(in_g) };
-        let lut_b = unsafe { *lut.get_unchecked(in_b) };
+        let lut_r = lut[in_r];
+        let lut_g = lut[in_g];
+        let lut_b = lut[in_b];
 
         let x: i32 = lut_r.x;
         let y: i32 = lut_g.x;
@@ -330,9 +330,9 @@ impl<const GRID_SIZE: usize> PrismaticSse<GRID_SIZE> {
         lut: &[BarycentricWeight<f32>],
         r: impl Fetcher<SseVector>,
     ) -> SseVector {
-        let lut_r = unsafe { *lut.get_unchecked(in_r) };
-        let lut_g = unsafe { *lut.get_unchecked(in_g) };
-        let lut_b = unsafe { *lut.get_unchecked(in_b) };
+        let lut_r = lut[in_r];
+        let lut_g = lut[in_g];
+        let lut_b = lut[in_b];
 
         let x: i32 = lut_r.x;
         let y: i32 = lut_g.x;
@@ -398,9 +398,9 @@ impl<const GRID_SIZE: usize> TrilinearSse<GRID_SIZE> {
         lut: &[BarycentricWeight<f32>],
         r: impl Fetcher<SseVector>,
     ) -> SseVector {
-        let lut_r = unsafe { *lut.get_unchecked(in_r) };
-        let lut_g = unsafe { *lut.get_unchecked(in_g) };
-        let lut_b = unsafe { *lut.get_unchecked(in_b) };
+        let lut_r = lut[in_r];
+        let lut_g = lut[in_g];
+        let lut_b = lut[in_b];
 
         let x: i32 = lut_r.x;
         let y: i32 = lut_g.x;

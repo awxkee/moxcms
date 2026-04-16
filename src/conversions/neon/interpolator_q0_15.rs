@@ -280,9 +280,9 @@ impl<const GRID_SIZE: usize> TetrahedralNeonQ0_15<GRID_SIZE> {
         lut: &[BarycentricWeight<i16>],
         r: impl Fetcher<NeonVectorQ0_15>,
     ) -> NeonVectorQ0_15 {
-        let lut_r = unsafe { *lut.get_unchecked(in_r) };
-        let lut_g = unsafe { *lut.get_unchecked(in_g) };
-        let lut_b = unsafe { *lut.get_unchecked(in_b) };
+        let lut_r = lut[in_r];
+        let lut_g = lut[in_g];
+        let lut_b = lut[in_b];
 
         let x: i32 = lut_r.x;
         let y: i32 = lut_g.x;
@@ -351,9 +351,9 @@ impl<const GRID_SIZE: usize> TetrahedralNeonQ0_15Double<GRID_SIZE> {
         lut: &[BarycentricWeight<i16>],
         r: impl Fetcher<NeonVectorQ0_15Double>,
     ) -> (NeonVectorQ0_15, NeonVectorQ0_15) {
-        let lut_r = unsafe { *lut.get_unchecked(in_r) };
-        let lut_g = unsafe { *lut.get_unchecked(in_g) };
-        let lut_b = unsafe { *lut.get_unchecked(in_b) };
+        let lut_r = lut[in_r];
+        let lut_g = lut[in_g];
+        let lut_b = lut[in_b];
 
         let x: i32 = lut_r.x;
         let y: i32 = lut_g.x;
@@ -491,9 +491,9 @@ impl<const GRID_SIZE: usize> PyramidalNeonQ0_15<GRID_SIZE> {
         lut: &[BarycentricWeight<i16>],
         r: impl Fetcher<NeonVectorQ0_15>,
     ) -> NeonVectorQ0_15 {
-        let lut_r = unsafe { *lut.get_unchecked(in_r) };
-        let lut_g = unsafe { *lut.get_unchecked(in_g) };
-        let lut_b = unsafe { *lut.get_unchecked(in_b) };
+        let lut_r = lut[in_r];
+        let lut_g = lut[in_g];
+        let lut_b = lut[in_b];
 
         let x: i32 = lut_r.x;
         let y: i32 = lut_g.x;
@@ -579,9 +579,9 @@ impl<const GRID_SIZE: usize> PyramidalNeonQ0_15Double<GRID_SIZE> {
         lut: &[BarycentricWeight<i16>],
         r: impl Fetcher<NeonVectorQ0_15Double>,
     ) -> (NeonVectorQ0_15, NeonVectorQ0_15) {
-        let lut_r = unsafe { *lut.get_unchecked(in_r) };
-        let lut_g = unsafe { *lut.get_unchecked(in_g) };
-        let lut_b = unsafe { *lut.get_unchecked(in_b) };
+        let lut_r = lut[in_r];
+        let lut_g = lut[in_g];
+        let lut_b = lut[in_b];
 
         let x: i32 = lut_r.x;
         let y: i32 = lut_g.x;
@@ -664,9 +664,9 @@ impl<const GRID_SIZE: usize> PrismaticNeonQ0_15<GRID_SIZE> {
         lut: &[BarycentricWeight<i16>],
         r: impl Fetcher<NeonVectorQ0_15>,
     ) -> NeonVectorQ0_15 {
-        let lut_r = unsafe { *lut.get_unchecked(in_r) };
-        let lut_g = unsafe { *lut.get_unchecked(in_g) };
-        let lut_b = unsafe { *lut.get_unchecked(in_b) };
+        let lut_r = lut[in_r];
+        let lut_g = lut[in_g];
+        let lut_b = lut[in_b];
 
         let x: i32 = lut_r.x;
         let y: i32 = lut_g.x;
@@ -741,9 +741,9 @@ impl<const GRID_SIZE: usize> PrismaticNeonQ0_15Double<GRID_SIZE> {
         lut: &[BarycentricWeight<i16>],
         rv: impl Fetcher<NeonVectorQ0_15Double>,
     ) -> (NeonVectorQ0_15, NeonVectorQ0_15) {
-        let lut_r = unsafe { *lut.get_unchecked(in_r) };
-        let lut_g = unsafe { *lut.get_unchecked(in_g) };
-        let lut_b = unsafe { *lut.get_unchecked(in_b) };
+        let lut_r = lut[in_r];
+        let lut_g = lut[in_g];
+        let lut_b = lut[in_b];
 
         let x: i32 = lut_r.x;
         let y: i32 = lut_g.x;
@@ -815,9 +815,9 @@ impl<const GRID_SIZE: usize> TrilinearNeonQ0_15Double<GRID_SIZE> {
         lut: &[BarycentricWeight<i16>],
         r: impl Fetcher<NeonVectorQ0_15Double>,
     ) -> (NeonVectorQ0_15, NeonVectorQ0_15) {
-        let lut_r = unsafe { *lut.get_unchecked(in_r) };
-        let lut_g = unsafe { *lut.get_unchecked(in_g) };
-        let lut_b = unsafe { *lut.get_unchecked(in_b) };
+        let lut_r = lut[in_r];
+        let lut_g = lut[in_g];
+        let lut_b = lut[in_b];
 
         let x: i32 = lut_r.x;
         let y: i32 = lut_g.x;
@@ -872,9 +872,9 @@ impl<const GRID_SIZE: usize> TrilinearNeonQ0_15<GRID_SIZE> {
         lut: &[BarycentricWeight<i16>],
         r: impl Fetcher<NeonVectorQ0_15>,
     ) -> NeonVectorQ0_15 {
-        let lut_r = unsafe { *lut.get_unchecked(in_r) };
-        let lut_g = unsafe { *lut.get_unchecked(in_g) };
-        let lut_b = unsafe { *lut.get_unchecked(in_b) };
+        let lut_r = lut[in_r];
+        let lut_g = lut[in_g];
+        let lut_b = lut[in_b];
 
         let x: i32 = lut_r.x;
         let y: i32 = lut_g.x;

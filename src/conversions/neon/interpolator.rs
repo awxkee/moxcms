@@ -264,9 +264,9 @@ impl<const GRID_SIZE: usize> TetrahedralNeon<GRID_SIZE> {
         lut: &[BarycentricWeight<f32>],
         r: impl Fetcher<NeonVector>,
     ) -> NeonVector {
-        let lut_r = unsafe { *lut.get_unchecked(in_r) };
-        let lut_g = unsafe { *lut.get_unchecked(in_g) };
-        let lut_b = unsafe { *lut.get_unchecked(in_b) };
+        let lut_r = lut[in_r];
+        let lut_g = lut[in_g];
+        let lut_b = lut[in_b];
 
         let x: i32 = lut_r.x;
         let y: i32 = lut_g.x;
@@ -334,9 +334,9 @@ impl<const GRID_SIZE: usize> TetrahedralNeonDouble<GRID_SIZE> {
         lut: &[BarycentricWeight<f32>],
         r: impl Fetcher<NeonVectorDouble>,
     ) -> (NeonVector, NeonVector) {
-        let lut_r = unsafe { *lut.get_unchecked(in_r) };
-        let lut_g = unsafe { *lut.get_unchecked(in_g) };
-        let lut_b = unsafe { *lut.get_unchecked(in_b) };
+        let lut_r = lut[in_r];
+        let lut_g = lut[in_g];
+        let lut_b = lut[in_b];
 
         let x: i32 = lut_r.x;
         let y: i32 = lut_g.x;
@@ -463,9 +463,9 @@ impl<const GRID_SIZE: usize> PyramidalNeon<GRID_SIZE> {
         lut: &[BarycentricWeight<f32>],
         r: impl Fetcher<NeonVector>,
     ) -> NeonVector {
-        let lut_r = unsafe { *lut.get_unchecked(in_r) };
-        let lut_g = unsafe { *lut.get_unchecked(in_g) };
-        let lut_b = unsafe { *lut.get_unchecked(in_b) };
+        let lut_r = lut[in_r];
+        let lut_g = lut[in_g];
+        let lut_b = lut[in_b];
 
         let x: i32 = lut_r.x;
         let y: i32 = lut_g.x;
@@ -540,9 +540,9 @@ impl<const GRID_SIZE: usize> PyramidalNeonDouble<GRID_SIZE> {
         lut: &[BarycentricWeight<f32>],
         r: impl Fetcher<NeonVectorDouble>,
     ) -> (NeonVector, NeonVector) {
-        let lut_r = unsafe { *lut.get_unchecked(in_r) };
-        let lut_g = unsafe { *lut.get_unchecked(in_g) };
-        let lut_b = unsafe { *lut.get_unchecked(in_b) };
+        let lut_r = lut[in_r];
+        let lut_g = lut[in_g];
+        let lut_b = lut[in_b];
 
         let x: i32 = lut_r.x;
         let y: i32 = lut_g.x;
@@ -627,9 +627,9 @@ impl<const GRID_SIZE: usize> PrismaticNeon<GRID_SIZE> {
         lut: &[BarycentricWeight<f32>],
         r: impl Fetcher<NeonVector>,
     ) -> NeonVector {
-        let lut_r = unsafe { *lut.get_unchecked(in_r) };
-        let lut_g = unsafe { *lut.get_unchecked(in_g) };
-        let lut_b = unsafe { *lut.get_unchecked(in_b) };
+        let lut_r = lut[in_r];
+        let lut_g = lut[in_g];
+        let lut_b = lut[in_b];
 
         let x: i32 = lut_r.x;
         let y: i32 = lut_g.x;
@@ -695,9 +695,9 @@ impl<const GRID_SIZE: usize> PrismaticNeonDouble<GRID_SIZE> {
         lut: &[BarycentricWeight<f32>],
         rv: impl Fetcher<NeonVectorDouble>,
     ) -> (NeonVector, NeonVector) {
-        let lut_r = unsafe { *lut.get_unchecked(in_r) };
-        let lut_g = unsafe { *lut.get_unchecked(in_g) };
-        let lut_b = unsafe { *lut.get_unchecked(in_b) };
+        let lut_r = lut[in_r];
+        let lut_g = lut[in_g];
+        let lut_b = lut[in_b];
 
         let x: i32 = lut_r.x;
         let y: i32 = lut_g.x;
@@ -769,9 +769,9 @@ impl<const GRID_SIZE: usize> TrilinearNeonDouble<GRID_SIZE> {
         lut: &[BarycentricWeight<f32>],
         r: impl Fetcher<NeonVectorDouble>,
     ) -> (NeonVector, NeonVector) {
-        let lut_r = unsafe { *lut.get_unchecked(in_r) };
-        let lut_g = unsafe { *lut.get_unchecked(in_g) };
-        let lut_b = unsafe { *lut.get_unchecked(in_b) };
+        let lut_r = lut[in_r];
+        let lut_g = lut[in_g];
+        let lut_b = lut[in_b];
 
         let x: i32 = lut_r.x;
         let y: i32 = lut_g.x;
@@ -826,9 +826,9 @@ impl<const GRID_SIZE: usize> TrilinearNeon<GRID_SIZE> {
         lut: &[BarycentricWeight<f32>],
         r: impl Fetcher<NeonVector>,
     ) -> NeonVector {
-        let lut_r = unsafe { *lut.get_unchecked(in_r) };
-        let lut_g = unsafe { *lut.get_unchecked(in_g) };
-        let lut_b = unsafe { *lut.get_unchecked(in_b) };
+        let lut_r = lut[in_r];
+        let lut_g = lut[in_g];
+        let lut_b = lut[in_b];
 
         let x: i32 = lut_r.x;
         let y: i32 = lut_g.x;
