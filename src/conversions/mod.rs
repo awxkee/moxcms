@@ -26,6 +26,23 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+
+/// Asserts that a linearization LUT is large enough for the pixel type's index range.
+///
+/// For u8, indices are at most 255 so the LUT must have >= 256 entries.
+/// For u16/f32/f64, indices are at most 65535 (f32/f64 clamp through u16) so >= 65536.
+/// When LLVM sees the assertion and knows the index comes from a bounded integer cast,
+/// it can eliminate the subsequent bounds check entirely.
+macro_rules! assert_lut_min_len {
+    ($T:ty, $len:expr) => {
+        if <$T>::IS_U8 {
+            assert!($len >= 256);
+        } else {
+            assert!($len >= 65536);
+        }
+    };
+}
+
 #[cfg(all(target_arch = "x86_64", feature = "avx"))]
 mod avx;
 #[cfg(all(target_arch = "x86_64", feature = "avx512"))]
