@@ -193,10 +193,10 @@ where
                     vr2 = vminq_f32(vr2, v_scale);
                     vr3 = vminq_f32(vr3, v_scale);
 
-                    let zx0 = vcvtaq_u32_f32(vr0);
-                    let zx1 = vcvtaq_u32_f32(vr1);
-                    let zx2 = vcvtaq_u32_f32(vr2);
-                    let zx3 = vcvtaq_u32_f32(vr3);
+                    let zx0 = vcvtq_u32_f32(vr0);
+                    let zx1 = vcvtq_u32_f32(vr1);
+                    let zx2 = vcvtq_u32_f32(vr2);
+                    let zx3 = vcvtq_u32_f32(vr3);
                     vst1q_u32(temporary0.0.as_mut_ptr() as *mut _, zx0);
                     vst1q_u32(temporary1.0.as_mut_ptr() as *mut _, zx1);
                     vst1q_u32(temporary2.0.as_mut_ptr() as *mut _, zx2);
@@ -261,7 +261,7 @@ where
                 v = vfmaq_f32(rnd, v, v_scale);
                 v = vminq_f32(v, v_scale);
 
-                let zx = vcvtaq_u32_f32(v);
+                let zx = vcvtq_u32_f32(v);
                 vst1q_u32(temporary0.0.as_mut_ptr() as *mut _, zx);
 
                 dst[dst_cn.r_i()] = self.profile.r_gamma[temporary0.0[0] as usize];

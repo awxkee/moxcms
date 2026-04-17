@@ -491,6 +491,45 @@ macro_rules! create_in_place_opt_rgb_xyz_fp_to_v {
     };
 }
 
+#[cfg(all(target_arch = "aarch64", feature = "sve"))]
+#[allow(unused)]
+macro_rules! create_in_place_opt_rgb_xyz_fp_to_v_type {
+    ($f_type: ident, $dep_name: ident, $dependant: ident, $resolution: ident, $shaper: ident) => {
+        pub(crate) fn $dep_name<const LINEAR_CAP: usize, const PRECISION: i32>(
+            layout: Layout,
+            profile: $shaper<$f_type, LINEAR_CAP>,
+            gamma_lut: usize,
+            bit_depth: usize,
+        ) -> Result<Arc<dyn InPlaceTransformExecutor<$f_type> + Send + Sync>, CmsError> {
+            let q2_13_profile = profile.to_q2_13_i::<$resolution, PRECISION>(gamma_lut, bit_depth);
+            if layout == Layout::Rgba {
+                return Ok(Arc::new($dependant::<
+                    $f_type,
+                    { Layout::Rgba as u8 },
+                    { Layout::Rgba as u8 },
+                    PRECISION,
+                > {
+                    profile: q2_13_profile,
+                    bit_depth,
+                    gamma_lut,
+                }));
+            } else if layout == Layout::Rgb {
+                return Ok(Arc::new($dependant::<
+                    $f_type,
+                    { Layout::Rgb as u8 },
+                    { Layout::Rgb as u8 },
+                    PRECISION,
+                > {
+                    profile: q2_13_profile,
+                    bit_depth,
+                    gamma_lut,
+                }));
+            }
+            Err(CmsError::UnsupportedProfileConnection)
+        }
+    };
+}
+
 #[allow(unused)]
 macro_rules! create_in_place_rgb_xyz {
     ($dep_name: ident, $dependant: ident, $shaper: ident) => {
@@ -811,6 +850,18 @@ use crate::conversions::neon::TransformShaperQ2_13NeonOpt;
 create_in_place_opt_rgb_xyz_fp_to_v!(
     make_rgb_xyz_in_place_transform_q2_13_opt,
     TransformShaperQ2_13NeonOpt,
+    i16,
+    TransformMatrixShaperOptimized
+);
+
+#[cfg(all(target_arch = "aarch64", feature = "in_place", feature = "sve"))]
+use crate::conversions::sve::TransformShaperQ2_13SveOpt;
+
+#[cfg(all(target_arch = "aarch64", feature = "in_place", feature = "sve"))]
+create_in_place_opt_rgb_xyz_fp_to_v_type!(
+    u8,
+    make_rgb_xyz_in_place_transform_q2_13_opt_sve,
+    TransformShaperQ2_13SveOpt,
     i16,
     TransformMatrixShaperOptimized
 );

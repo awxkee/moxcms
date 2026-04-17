@@ -83,6 +83,8 @@ any_to_any = ["lut"]
 extended_range = []
 # Enables in-place transforms.
 in_place = []
+# Enables SVE where it's possible, nightly required
+sve = []
 
 [package.metadata.docs.rs]
 # To build locally:
