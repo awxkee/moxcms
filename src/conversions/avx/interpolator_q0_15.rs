@@ -265,6 +265,7 @@ impl<const GRID_SIZE: usize> Fetcher<AvxVectorQ0_15Sse>
 
 #[cfg(feature = "options")]
 impl<const GRID_SIZE: usize> TetrahedralAvxQ0_15<GRID_SIZE> {
+    #[inline]
     #[target_feature(enable = "avx2")]
     unsafe fn interpolate<U: AsPrimitive<usize>, const BINS: usize>(
         &self,
@@ -446,6 +447,7 @@ impl<const GRID_SIZE: usize, const BINS: usize, U: AsPrimitive<usize>>
 
 #[cfg(feature = "options")]
 impl<const GRID_SIZE: usize> PyramidalAvxQ0_15<GRID_SIZE> {
+    #[inline]
     #[target_feature(enable = "avx2")]
     unsafe fn interpolate<U: AsPrimitive<usize>, const BINS: usize>(
         &self,
@@ -519,6 +521,7 @@ impl<const GRID_SIZE: usize> PyramidalAvxQ0_15<GRID_SIZE> {
 
 #[cfg(feature = "options")]
 impl<const GRID_SIZE: usize> PrismaticAvxQ0_15<GRID_SIZE> {
+    #[inline]
     #[target_feature(enable = "avx2")]
     unsafe fn interpolate<U: AsPrimitive<usize>, const BINS: usize>(
         &self,
@@ -580,6 +583,7 @@ impl<const GRID_SIZE: usize> PrismaticAvxQ0_15<GRID_SIZE> {
 
 #[cfg(feature = "options")]
 impl<const GRID_SIZE: usize> PrismaticAvxQ0_15Double<GRID_SIZE> {
+    #[inline]
     #[target_feature(enable = "avx2")]
     unsafe fn interpolate<U: AsPrimitive<usize>, const BINS: usize>(
         &self,
@@ -669,6 +673,7 @@ impl<const GRID_SIZE: usize> PrismaticAvxQ0_15Double<GRID_SIZE> {
 
 #[cfg(feature = "options")]
 impl<const GRID_SIZE: usize> PyramidAvxFmaQ0_15Double<GRID_SIZE> {
+    #[inline]
     #[target_feature(enable = "avx2")]
     unsafe fn interpolate<U: AsPrimitive<usize>, const BINS: usize>(
         &self,
@@ -777,6 +782,7 @@ impl<const GRID_SIZE: usize> PyramidAvxFmaQ0_15Double<GRID_SIZE> {
 
 #[cfg(feature = "options")]
 impl<const GRID_SIZE: usize> TetrahedralAvxQ0_15Double<GRID_SIZE> {
+    #[inline]
     #[target_feature(enable = "avx2")]
     unsafe fn interpolate<U: AsPrimitive<usize>, const BINS: usize>(
         &self,
@@ -837,6 +843,7 @@ impl<const GRID_SIZE: usize> TetrahedralAvxQ0_15Double<GRID_SIZE> {
 }
 
 impl<const GRID_SIZE: usize> TrilinearAvxQ0_15Double<GRID_SIZE> {
+    #[inline]
     #[target_feature(enable = "avx2")]
     unsafe fn interpolate<U: AsPrimitive<usize>, const BINS: usize>(
         &self,
@@ -880,6 +887,7 @@ impl<const GRID_SIZE: usize> TrilinearAvxQ0_15Double<GRID_SIZE> {
 }
 
 impl<const GRID_SIZE: usize> TrilinearAvxQ0_15<GRID_SIZE> {
+    #[inline]
     #[target_feature(enable = "avx2")]
     unsafe fn interpolate<U: AsPrimitive<usize>, const BINS: usize>(
         &self,
