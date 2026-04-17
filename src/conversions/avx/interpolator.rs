@@ -27,8 +27,9 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 #![cfg(feature = "avx_luts")]
-use crate::conversions::interpolator::BarycentricWeight;
+use crate::conversions::interpolator::{BarycentricWeight, load_bary_weights};
 use crate::math::{FusedMultiplyAdd, FusedMultiplyNegAdd};
+use num_traits::AsPrimitive;
 use std::arch::x86_64::*;
 use std::ops::{Add, Mul, Sub};
 
@@ -57,26 +58,26 @@ pub(crate) struct PyramidAvxFmaDouble<const GRID_SIZE: usize> {}
 #[cfg(feature = "options")]
 pub(crate) struct TetrahedralAvxFmaDouble<const GRID_SIZE: usize> {}
 
-pub(crate) trait AvxMdInterpolationDouble {
+pub(crate) trait AvxMdInterpolationDouble<const BINS: usize, U: AsPrimitive<usize>> {
     fn inter3_sse(
         &self,
         table0: &[SseAlignedF32],
         table1: &[SseAlignedF32],
-        in_r: usize,
-        in_g: usize,
-        in_b: usize,
-        lut: &[BarycentricWeight<f32>],
+        in_r: U,
+        in_g: U,
+        in_b: U,
+        lut: &[BarycentricWeight<f32>; BINS],
     ) -> (AvxVectorSse, AvxVectorSse);
 }
 
-pub(crate) trait AvxMdInterpolation {
+pub(crate) trait AvxMdInterpolation<const BINS: usize, U: AsPrimitive<usize>> {
     fn inter3_sse(
         &self,
         table: &[SseAlignedF32],
-        in_r: usize,
-        in_g: usize,
-        in_b: usize,
-        lut: &[BarycentricWeight<f32>],
+        in_r: U,
+        in_g: U,
+        in_b: U,
+        lut: &[BarycentricWeight<f32>; BINS],
     ) -> AvxVectorSse;
 }
 
@@ -281,29 +282,15 @@ impl<const GRID_SIZE: usize> Fetcher<AvxVectorSse> for TetrahedralAvxSseFetchVec
 #[cfg(feature = "options")]
 impl<const GRID_SIZE: usize> TetrahedralAvxFma<GRID_SIZE> {
     #[target_feature(enable = "avx2", enable = "fma")]
-    unsafe fn interpolate(
+    unsafe fn interpolate<U: AsPrimitive<usize>, const BINS: usize>(
         &self,
-        in_r: usize,
-        in_g: usize,
-        in_b: usize,
-        lut: &[BarycentricWeight<f32>],
+        in_r: U,
+        in_g: U,
+        in_b: U,
+        lut: &[BarycentricWeight<f32>; BINS],
         r: impl Fetcher<AvxVectorSse>,
     ) -> AvxVectorSse {
-        let lut_r = unsafe { lut.get_unchecked(in_r) };
-        let lut_g = unsafe { lut.get_unchecked(in_g) };
-        let lut_b = unsafe { lut.get_unchecked(in_b) };
-
-        let x: i32 = lut_r.x;
-        let y: i32 = lut_g.x;
-        let z: i32 = lut_b.x;
-
-        let x_n: i32 = lut_r.x_n;
-        let y_n: i32 = lut_g.x_n;
-        let z_n: i32 = lut_b.x_n;
-
-        let rx = lut_r.w;
-        let ry = lut_g.w;
-        let rz = lut_b.w;
+        let (x, y, z, x_n, y_n, z_n, rx, ry, rz) = load_bary_weights(lut, in_r, in_g, in_b);
 
         let c0 = r.fetch(x, y, z);
 
@@ -351,14 +338,16 @@ impl<const GRID_SIZE: usize> TetrahedralAvxFma<GRID_SIZE> {
 
 macro_rules! define_interp_avx {
     ($interpolator: ident) => {
-        impl<const GRID_SIZE: usize> AvxMdInterpolation for $interpolator<GRID_SIZE> {
+        impl<const GRID_SIZE: usize, const BINS: usize, U: AsPrimitive<usize>>
+            AvxMdInterpolation<BINS, U> for $interpolator<GRID_SIZE>
+        {
             fn inter3_sse(
                 &self,
                 table: &[SseAlignedF32],
-                in_r: usize,
-                in_g: usize,
-                in_b: usize,
-                lut: &[BarycentricWeight<f32>],
+                in_r: U,
+                in_g: U,
+                in_b: U,
+                lut: &[BarycentricWeight<f32>; BINS],
             ) -> AvxVectorSse {
                 unsafe {
                     self.interpolate(
@@ -377,15 +366,17 @@ macro_rules! define_interp_avx {
 #[cfg(feature = "options")]
 macro_rules! define_interp_avx_d {
     ($interpolator: ident) => {
-        impl<const GRID_SIZE: usize> AvxMdInterpolationDouble for $interpolator<GRID_SIZE> {
+        impl<const GRID_SIZE: usize, const BINS: usize, U: AsPrimitive<usize>>
+            AvxMdInterpolationDouble<BINS, U> for $interpolator<GRID_SIZE>
+        {
             fn inter3_sse(
                 &self,
                 table0: &[SseAlignedF32],
                 table1: &[SseAlignedF32],
-                in_r: usize,
-                in_g: usize,
-                in_b: usize,
-                lut: &[BarycentricWeight<f32>],
+                in_r: U,
+                in_g: U,
+                in_b: U,
+                lut: &[BarycentricWeight<f32>; BINS],
             ) -> (AvxVectorSse, AvxVectorSse) {
                 unsafe {
                     self.interpolate(
@@ -415,15 +406,17 @@ define_interp_avx_d!(PrismaticAvxFmaDouble);
 define_interp_avx_d!(PyramidAvxFmaDouble);
 
 #[cfg(feature = "options")]
-impl<const GRID_SIZE: usize> AvxMdInterpolationDouble for TetrahedralAvxFmaDouble<GRID_SIZE> {
+impl<const GRID_SIZE: usize, const BINS: usize, U: AsPrimitive<usize>>
+    AvxMdInterpolationDouble<BINS, U> for TetrahedralAvxFmaDouble<GRID_SIZE>
+{
     fn inter3_sse(
         &self,
         table0: &[SseAlignedF32],
         table1: &[SseAlignedF32],
-        in_r: usize,
-        in_g: usize,
-        in_b: usize,
-        lut: &[BarycentricWeight<f32>],
+        in_r: U,
+        in_g: U,
+        in_b: U,
+        lut: &[BarycentricWeight<f32>; BINS],
     ) -> (AvxVectorSse, AvxVectorSse) {
         unsafe {
             self.interpolate(
@@ -440,15 +433,17 @@ impl<const GRID_SIZE: usize> AvxMdInterpolationDouble for TetrahedralAvxFmaDoubl
     }
 }
 
-impl<const GRID_SIZE: usize> AvxMdInterpolationDouble for TrilinearAvxFmaDouble<GRID_SIZE> {
+impl<const GRID_SIZE: usize, const BINS: usize, U: AsPrimitive<usize>>
+    AvxMdInterpolationDouble<BINS, U> for TrilinearAvxFmaDouble<GRID_SIZE>
+{
     fn inter3_sse(
         &self,
         table0: &[SseAlignedF32],
         table1: &[SseAlignedF32],
-        in_r: usize,
-        in_g: usize,
-        in_b: usize,
-        lut: &[BarycentricWeight<f32>],
+        in_r: U,
+        in_g: U,
+        in_b: U,
+        lut: &[BarycentricWeight<f32>; BINS],
     ) -> (AvxVectorSse, AvxVectorSse) {
         unsafe {
             self.interpolate(
@@ -468,29 +463,15 @@ impl<const GRID_SIZE: usize> AvxMdInterpolationDouble for TrilinearAvxFmaDouble<
 #[cfg(feature = "options")]
 impl<const GRID_SIZE: usize> PyramidalAvxFma<GRID_SIZE> {
     #[target_feature(enable = "avx2", enable = "fma")]
-    unsafe fn interpolate(
+    unsafe fn interpolate<U: AsPrimitive<usize>, const BINS: usize>(
         &self,
-        in_r: usize,
-        in_g: usize,
-        in_b: usize,
-        lut: &[BarycentricWeight<f32>],
+        in_r: U,
+        in_g: U,
+        in_b: U,
+        lut: &[BarycentricWeight<f32>; BINS],
         r: impl Fetcher<AvxVectorSse>,
     ) -> AvxVectorSse {
-        let lut_r = unsafe { lut.get_unchecked(in_r) };
-        let lut_g = unsafe { lut.get_unchecked(in_g) };
-        let lut_b = unsafe { lut.get_unchecked(in_b) };
-
-        let x: i32 = lut_r.x;
-        let y: i32 = lut_g.x;
-        let z: i32 = lut_b.x;
-
-        let x_n: i32 = lut_r.x_n;
-        let y_n: i32 = lut_g.x_n;
-        let z_n: i32 = lut_b.x_n;
-
-        let dr = lut_r.w;
-        let dg = lut_g.w;
-        let db = lut_b.w;
+        let (x, y, z, x_n, y_n, z_n, dr, dg, db) = load_bary_weights(lut, in_r, in_g, in_b);
 
         let c0 = r.fetch(x, y, z);
 
@@ -555,29 +536,15 @@ impl<const GRID_SIZE: usize> PyramidalAvxFma<GRID_SIZE> {
 #[cfg(feature = "options")]
 impl<const GRID_SIZE: usize> PrismaticAvxFma<GRID_SIZE> {
     #[target_feature(enable = "avx2", enable = "fma")]
-    unsafe fn interpolate(
+    unsafe fn interpolate<U: AsPrimitive<usize>, const BINS: usize>(
         &self,
-        in_r: usize,
-        in_g: usize,
-        in_b: usize,
-        lut: &[BarycentricWeight<f32>],
+        in_r: U,
+        in_g: U,
+        in_b: U,
+        lut: &[BarycentricWeight<f32>; BINS],
         r: impl Fetcher<AvxVectorSse>,
     ) -> AvxVectorSse {
-        let lut_r = unsafe { lut.get_unchecked(in_r) };
-        let lut_g = unsafe { lut.get_unchecked(in_g) };
-        let lut_b = unsafe { lut.get_unchecked(in_b) };
-
-        let x: i32 = lut_r.x;
-        let y: i32 = lut_g.x;
-        let z: i32 = lut_b.x;
-
-        let x_n: i32 = lut_r.x_n;
-        let y_n: i32 = lut_g.x_n;
-        let z_n: i32 = lut_b.x_n;
-
-        let dr = lut_r.w;
-        let dg = lut_g.w;
-        let db = lut_b.w;
+        let (x, y, z, x_n, y_n, z_n, dr, dg, db) = load_bary_weights(lut, in_r, in_g, in_b);
 
         let c0 = r.fetch(x, y, z);
 
@@ -630,30 +597,16 @@ impl<const GRID_SIZE: usize> PrismaticAvxFma<GRID_SIZE> {
 #[cfg(feature = "options")]
 impl<const GRID_SIZE: usize> PrismaticAvxFmaDouble<GRID_SIZE> {
     #[target_feature(enable = "avx2", enable = "fma")]
-    unsafe fn interpolate(
+    unsafe fn interpolate<U: AsPrimitive<usize>, const BINS: usize>(
         &self,
-        in_r: usize,
-        in_g: usize,
-        in_b: usize,
-        lut: &[BarycentricWeight<f32>],
+        in_r: U,
+        in_g: U,
+        in_b: U,
+        lut: &[BarycentricWeight<f32>; BINS],
         r0: impl Fetcher<AvxVectorSse>,
         r1: impl Fetcher<AvxVectorSse>,
     ) -> (AvxVectorSse, AvxVectorSse) {
-        let lut_r = unsafe { lut.get_unchecked(in_r) };
-        let lut_g = unsafe { lut.get_unchecked(in_g) };
-        let lut_b = unsafe { lut.get_unchecked(in_b) };
-
-        let x: i32 = lut_r.x;
-        let y: i32 = lut_g.x;
-        let z: i32 = lut_b.x;
-
-        let x_n: i32 = lut_r.x_n;
-        let y_n: i32 = lut_g.x_n;
-        let z_n: i32 = lut_b.x_n;
-
-        let dr = lut_r.w;
-        let dg = lut_g.w;
-        let db = lut_b.w;
+        let (x, y, z, x_n, y_n, z_n, dr, dg, db) = load_bary_weights(lut, in_r, in_g, in_b);
 
         let c0_0 = r0.fetch(x, y, z);
         let c0_1 = r0.fetch(x, y, z);
@@ -733,30 +686,16 @@ impl<const GRID_SIZE: usize> PrismaticAvxFmaDouble<GRID_SIZE> {
 #[cfg(feature = "options")]
 impl<const GRID_SIZE: usize> PyramidAvxFmaDouble<GRID_SIZE> {
     #[target_feature(enable = "avx2", enable = "fma")]
-    unsafe fn interpolate(
+    unsafe fn interpolate<U: AsPrimitive<usize>, const BINS: usize>(
         &self,
-        in_r: usize,
-        in_g: usize,
-        in_b: usize,
-        lut: &[BarycentricWeight<f32>],
+        in_r: U,
+        in_g: U,
+        in_b: U,
+        lut: &[BarycentricWeight<f32>; BINS],
         r0: impl Fetcher<AvxVectorSse>,
         r1: impl Fetcher<AvxVectorSse>,
     ) -> (AvxVectorSse, AvxVectorSse) {
-        let lut_r = unsafe { lut.get_unchecked(in_r) };
-        let lut_g = unsafe { lut.get_unchecked(in_g) };
-        let lut_b = unsafe { lut.get_unchecked(in_b) };
-
-        let x: i32 = lut_r.x;
-        let y: i32 = lut_g.x;
-        let z: i32 = lut_b.x;
-
-        let x_n: i32 = lut_r.x_n;
-        let y_n: i32 = lut_g.x_n;
-        let z_n: i32 = lut_b.x_n;
-
-        let dr = lut_r.w;
-        let dg = lut_g.w;
-        let db = lut_b.w;
+        let (x, y, z, x_n, y_n, z_n, dr, dg, db) = load_bary_weights(lut, in_r, in_g, in_b);
 
         let c0_0 = r0.fetch(x, y, z);
         let c0_1 = r1.fetch(x, y, z);
@@ -855,29 +794,15 @@ impl<const GRID_SIZE: usize> PyramidAvxFmaDouble<GRID_SIZE> {
 #[cfg(feature = "options")]
 impl<const GRID_SIZE: usize> TetrahedralAvxFmaDouble<GRID_SIZE> {
     #[target_feature(enable = "avx2", enable = "fma")]
-    unsafe fn interpolate(
+    unsafe fn interpolate<U: AsPrimitive<usize>, const BINS: usize>(
         &self,
-        in_r: usize,
-        in_g: usize,
-        in_b: usize,
-        lut: &[BarycentricWeight<f32>],
+        in_r: U,
+        in_g: U,
+        in_b: U,
+        lut: &[BarycentricWeight<f32>; BINS],
         rv: impl Fetcher<AvxVector>,
     ) -> (AvxVectorSse, AvxVectorSse) {
-        let lut_r = unsafe { lut.get_unchecked(in_r) };
-        let lut_g = unsafe { lut.get_unchecked(in_g) };
-        let lut_b = unsafe { lut.get_unchecked(in_b) };
-
-        let x: i32 = lut_r.x;
-        let y: i32 = lut_g.x;
-        let z: i32 = lut_b.x;
-
-        let x_n: i32 = lut_r.x_n;
-        let y_n: i32 = lut_g.x_n;
-        let z_n: i32 = lut_b.x_n;
-
-        let rx = lut_r.w;
-        let ry = lut_g.w;
-        let rz = lut_b.w;
+        let (x, y, z, x_n, y_n, z_n, rx, ry, rz) = load_bary_weights(lut, in_r, in_g, in_b);
 
         let c0 = rv.fetch(x, y, z);
 
@@ -929,29 +854,15 @@ impl<const GRID_SIZE: usize> TetrahedralAvxFmaDouble<GRID_SIZE> {
 
 impl<const GRID_SIZE: usize> TrilinearAvxFmaDouble<GRID_SIZE> {
     #[target_feature(enable = "avx2", enable = "fma")]
-    unsafe fn interpolate(
+    unsafe fn interpolate<U: AsPrimitive<usize>, const BINS: usize>(
         &self,
-        in_r: usize,
-        in_g: usize,
-        in_b: usize,
-        lut: &[BarycentricWeight<f32>],
+        in_r: U,
+        in_g: U,
+        in_b: U,
+        lut: &[BarycentricWeight<f32>; BINS],
         rv: impl Fetcher<AvxVector>,
     ) -> (AvxVectorSse, AvxVectorSse) {
-        let lut_r = unsafe { lut.get_unchecked(in_r) };
-        let lut_g = unsafe { lut.get_unchecked(in_g) };
-        let lut_b = unsafe { lut.get_unchecked(in_b) };
-
-        let x: i32 = lut_r.x;
-        let y: i32 = lut_g.x;
-        let z: i32 = lut_b.x;
-
-        let x_n: i32 = lut_r.x_n;
-        let y_n: i32 = lut_g.x_n;
-        let z_n: i32 = lut_b.x_n;
-
-        let rx = lut_r.w;
-        let ry = lut_g.w;
-        let rz = lut_b.w;
+        let (x, y, z, x_n, y_n, z_n, rx, ry, rz) = load_bary_weights(lut, in_r, in_g, in_b);
 
         let w0 = AvxVector::from(rx);
         let w1 = AvxVector::from(ry);
@@ -986,29 +897,15 @@ impl<const GRID_SIZE: usize> TrilinearAvxFmaDouble<GRID_SIZE> {
 
 impl<const GRID_SIZE: usize> TrilinearAvxFma<GRID_SIZE> {
     #[target_feature(enable = "avx2", enable = "fma")]
-    unsafe fn interpolate(
+    unsafe fn interpolate<U: AsPrimitive<usize>, const BINS: usize>(
         &self,
-        in_r: usize,
-        in_g: usize,
-        in_b: usize,
-        lut: &[BarycentricWeight<f32>],
+        in_r: U,
+        in_g: U,
+        in_b: U,
+        lut: &[BarycentricWeight<f32>; BINS],
         r: impl Fetcher<AvxVectorSse>,
     ) -> AvxVectorSse {
-        let lut_r = unsafe { lut.get_unchecked(in_r) };
-        let lut_g = unsafe { lut.get_unchecked(in_g) };
-        let lut_b = unsafe { lut.get_unchecked(in_b) };
-
-        let x: i32 = lut_r.x;
-        let y: i32 = lut_g.x;
-        let z: i32 = lut_b.x;
-
-        let x_n: i32 = lut_r.x_n;
-        let y_n: i32 = lut_g.x_n;
-        let z_n: i32 = lut_b.x_n;
-
-        let dr = lut_r.w;
-        let dg = lut_g.w;
-        let db = lut_b.w;
+        let (x, y, z, x_n, y_n, z_n, dr, dg, db) = load_bary_weights(lut, in_r, in_g, in_b);
 
         let w0 = AvxVector::from(dr);
         let w1 = AvxVector::from(dg);

@@ -74,7 +74,7 @@ where
         &self,
         src: &[T],
         dst: &mut [T],
-        interpolator: Box<dyn NeonMdInterpolationQ0_15Double + Send + Sync>,
+        interpolator: Box<dyn NeonMdInterpolationQ0_15Double<BINS, U> + Send + Sync>,
     ) {
         let cn = Layout::from(LAYOUT);
         let channels = cn.channels();
@@ -117,14 +117,7 @@ where
             let table1 = &self.lut[(w * grid_size3) as usize..];
             let table2 = &self.lut[(w_n * grid_size3) as usize..];
 
-            let (a0, b0) = interpolator.inter3_neon(
-                table1,
-                table2,
-                c.as_(),
-                m.as_(),
-                y.as_(),
-                self.weights.as_slice(),
-            );
+            let (a0, b0) = interpolator.inter3_neon(table1, table2, c, m, y, &self.weights);
             let (a0, b0) = (a0.v, b0.v);
 
             let t0 = vdup_n_s16(t);
