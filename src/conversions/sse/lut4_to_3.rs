@@ -84,7 +84,7 @@ where
         &self,
         src: &[T],
         dst: &mut [T],
-        interpolator: Box<dyn SseMdInterpolation + Send + Sync>,
+        interpolator: Box<dyn SseMdInterpolation<BINS, U> + Send + Sync>,
     ) {
         let cn = Layout::from(LAYOUT);
         let channels = cn.channels();
@@ -122,12 +122,8 @@ where
             let table1 = &self.lut[(w * grid_size3) as usize..];
             let table2 = &self.lut[(w_n * grid_size3) as usize..];
 
-            let a0 = interpolator
-                .inter3_sse(table1, c.as_(), m.as_(), y.as_(), self.weights.as_slice())
-                .v;
-            let b0 = interpolator
-                .inter3_sse(table2, c.as_(), m.as_(), y.as_(), self.weights.as_slice())
-                .v;
+            let a0 = interpolator.inter3_sse(table1, c, m, y, &self.weights).v;
+            let b0 = interpolator.inter3_sse(table2, c, m, y, &self.weights).v;
 
             if T::FINITE {
                 let t0 = _mm_set1_ps(t);
