@@ -326,6 +326,7 @@ macro_rules! define_interp_avx {
         impl<const GRID_SIZE: usize, const BINS: usize, U: AsPrimitive<usize>>
             AvxMdInterpolationQ0_15<BINS, U> for $interpolator<GRID_SIZE>
         {
+            #[inline(always)]
             fn inter3_sse(
                 &self,
                 table: &[AvxAlignedI16],
@@ -354,6 +355,7 @@ macro_rules! define_interp_avx_d {
         impl<const GRID_SIZE: usize, const BINS: usize, U: AsPrimitive<usize>>
             AvxMdInterpolationQ0_15Double<BINS, U> for $interpolator<GRID_SIZE>
         {
+            #[inline(always)]
             fn inter3_sse(
                 &self,
                 table0: &[AvxAlignedI16],

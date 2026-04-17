@@ -272,6 +272,7 @@ pub(crate) trait NeonMdInterpolationQ0_15Double<const BINS: usize, U: AsPrimitiv
 
 #[cfg(feature = "options")]
 impl<const GRID_SIZE: usize> TetrahedralNeonQ0_15<GRID_SIZE> {
+    #[inline]
     #[target_feature(enable = "rdm")]
     unsafe fn interpolate<U: AsPrimitive<usize>, const BINS: usize>(
         &self,
@@ -329,6 +330,7 @@ impl<const GRID_SIZE: usize> TetrahedralNeonQ0_15<GRID_SIZE> {
 
 #[cfg(feature = "options")]
 impl<const GRID_SIZE: usize> TetrahedralNeonQ0_15Double<GRID_SIZE> {
+    #[inline]
     #[target_feature(enable = "rdm")]
     unsafe fn interpolate<U: AsPrimitive<usize>, const BINS: usize>(
         &self,
@@ -389,6 +391,7 @@ macro_rules! define_md_inter_neon {
         impl<const GRID_SIZE: usize, const BINS: usize, U: AsPrimitive<usize>>
             NeonMdInterpolationQ0_15<BINS, U> for $interpolator<GRID_SIZE>
         {
+            #[inline(always)]
             fn inter3_neon(
                 &self,
                 cube: &[NeonAlignedI16x4],
@@ -416,6 +419,7 @@ macro_rules! define_md_inter_neon_d {
         impl<const GRID_SIZE: usize, const BINS: usize, U: AsPrimitive<usize>>
             NeonMdInterpolationQ0_15Double<BINS, U> for $interpolator<GRID_SIZE>
         {
+            #[inline(always)]
             fn inter3_neon(
                 &self,
                 table0: &[NeonAlignedI16x4],
@@ -459,6 +463,7 @@ define_md_inter_neon_d!(TrilinearNeonQ0_15Double);
 
 #[cfg(feature = "options")]
 impl<const GRID_SIZE: usize> PyramidalNeonQ0_15<GRID_SIZE> {
+    #[inline]
     #[target_feature(enable = "rdm")]
     unsafe fn interpolate<U: AsPrimitive<usize>, const BINS: usize>(
         &self,
@@ -533,6 +538,7 @@ impl<const GRID_SIZE: usize> PyramidalNeonQ0_15<GRID_SIZE> {
 
 #[cfg(feature = "options")]
 impl<const GRID_SIZE: usize> PyramidalNeonQ0_15Double<GRID_SIZE> {
+    #[inline]
     #[target_feature(enable = "rdm")]
     unsafe fn interpolate<U: AsPrimitive<usize>, const BINS: usize>(
         &self,
@@ -604,6 +610,7 @@ impl<const GRID_SIZE: usize> PyramidalNeonQ0_15Double<GRID_SIZE> {
 
 #[cfg(feature = "options")]
 impl<const GRID_SIZE: usize> PrismaticNeonQ0_15<GRID_SIZE> {
+    #[inline]
     #[target_feature(enable = "rdm")]
     unsafe fn interpolate<U: AsPrimitive<usize>, const BINS: usize>(
         &self,
@@ -667,6 +674,7 @@ impl<const GRID_SIZE: usize> PrismaticNeonQ0_15<GRID_SIZE> {
 
 #[cfg(feature = "options")]
 impl<const GRID_SIZE: usize> PrismaticNeonQ0_15Double<GRID_SIZE> {
+    #[inline]
     #[target_feature(enable = "rdm")]
     unsafe fn interpolate<U: AsPrimitive<usize>, const BINS: usize>(
         &self,
@@ -727,6 +735,7 @@ impl<const GRID_SIZE: usize> PrismaticNeonQ0_15Double<GRID_SIZE> {
 }
 
 impl<const GRID_SIZE: usize> TrilinearNeonQ0_15Double<GRID_SIZE> {
+    #[inline]
     #[target_feature(enable = "rdm")]
     unsafe fn interpolate<U: AsPrimitive<usize>, const BINS: usize>(
         &self,
@@ -770,6 +779,7 @@ impl<const GRID_SIZE: usize> TrilinearNeonQ0_15Double<GRID_SIZE> {
 }
 
 impl<const GRID_SIZE: usize> TrilinearNeonQ0_15<GRID_SIZE> {
+    #[inline]
     #[target_feature(enable = "rdm")]
     unsafe fn interpolate<U: AsPrimitive<usize>, const BINS: usize>(
         &self,
