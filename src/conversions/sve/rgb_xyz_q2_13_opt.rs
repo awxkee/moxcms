@@ -431,42 +431,42 @@ impl<const SRC_LAYOUT: u8, const DST_LAYOUT: u8, const PRECISION: i32>
         let m1 = unsafe { svld1_s16(pv6_16, [t.v[1][0], 0, t.v[2][1], 0, t.v[0][2], 0].as_ptr()) }; // G B R
         let m2 = unsafe { svld1_s16(pv6_16, [t.v[2][0], 0, t.v[0][1], 0, t.v[1][2], 0].as_ptr()) }; // B R G
 
-        for (src, dst) in src_remainder
-            .chunks_exact(src_channels)
-            .zip(dst_remainder.chunks_exact_mut(dst_channels))
-        {
-            let lane = unsafe { svld1_u8(pv_src, src.as_ptr()) };
-            let vals32 = svreinterpret_u32_u8(svtbl_u8(lane, shuf1_tbl));
-            let linearized = svreinterpret_s16_u32(unsafe {
-                svld1uh_gather_u32index_u32(pv3_32, lut_lin.as_ptr().cast(), vals32)
-            });
-            let q0 = svtbl_s16(linearized, permi1);
-            let q1 = svtbl_s16(linearized, permi2);
-            let v0 = svmlalb_s32(rnd, linearized, m0);
-            let v1 = svmlalb_s32(v0, q0, m1);
-            let v = svmlalb_s32(v1, q1, m2);
-
-            let mut vr0 = svqshrunb_n_s32::<PRECISION>(v);
-            vr0 = svmin_u16_x(svptrue_b16(), vr0, v_max_value);
-            let gamma = svreinterpret_u8_u32(unsafe {
-                svld1ub_gather_u32offset_u32(
-                    pv3_32,
-                    self.profile.gamma.as_ptr().cast(),
-                    svreinterpret_u32_u16(vr0),
-                )
-            });
-            let mut result = svtbl_u8(gamma, pack1_tbl);
-            if dst_channels == 4 {
-                if src_channels == 4 {
-                    result = svsel_u8(alpha_pos_mask, lane, result)
-                } else {
-                    result = svsel_u8(alpha_pos_mask, svdup_n_u8(255), result)
-                }
-            }
-            unsafe {
-                svst1_u8(pv_dst, dst.as_mut_ptr().cast(), result);
-            }
-        }
+        // for (src, dst) in src_remainder
+        //     .chunks_exact(src_channels)
+        //     .zip(dst_remainder.chunks_exact_mut(dst_channels))
+        // {
+        //     let lane = unsafe { svld1_u8(pv_src, src.as_ptr()) };
+        //     let vals32 = svreinterpret_u32_u8(svtbl_u8(lane, shuf1_tbl));
+        //     let linearized = svreinterpret_s16_u32(unsafe {
+        //         svld1uh_gather_u32index_u32(pv3_32, lut_lin.as_ptr().cast(), vals32)
+        //     });
+        //     let q0 = svtbl_s16(linearized, permi1);
+        //     let q1 = svtbl_s16(linearized, permi2);
+        //     let v0 = svmlalb_s32(rnd, linearized, m0);
+        //     let v1 = svmlalb_s32(v0, q0, m1);
+        //     let v = svmlalb_s32(v1, q1, m2);
+        //
+        //     let mut vr0 = svqshrunb_n_s32::<PRECISION>(v);
+        //     vr0 = svmin_u16_x(svptrue_b16(), vr0, v_max_value);
+        //     let gamma = svreinterpret_u8_u32(unsafe {
+        //         svld1ub_gather_u32offset_u32(
+        //             pv3_32,
+        //             self.profile.gamma.as_ptr().cast(),
+        //             svreinterpret_u32_u16(vr0),
+        //         )
+        //     });
+        //     let mut result = svtbl_u8(gamma, pack1_tbl);
+        //     if dst_channels == 4 {
+        //         if src_channels == 4 {
+        //             result = svsel_u8(alpha_pos_mask, lane, result)
+        //         } else {
+        //             result = svsel_u8(alpha_pos_mask, svdup_n_u8(255), result)
+        //         }
+        //     }
+        //     unsafe {
+        //         svst1_u8(pv_dst, dst.as_mut_ptr().cast(), result);
+        //     }
+        // }
 
         Ok(())
     }
