@@ -77,6 +77,8 @@ mod rgbxyz_fixed;
 mod rgbxyz_float;
 #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"))]
 mod sse;
+#[cfg(all(target_arch = "aarch64", feature = "sve"))]
+mod sve;
 mod transform_lut3_to_3;
 mod transform_lut3_to_4;
 mod transform_lut4_to_3;

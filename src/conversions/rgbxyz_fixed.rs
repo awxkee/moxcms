@@ -296,6 +296,67 @@ macro_rules! create_rgb_xyz_dependant_q2_13_executor_fp {
     };
 }
 
+#[allow(unused_macros)]
+macro_rules! create_rgb_xyz_dependant_q2_13_executor_fp_typ {
+    ($f_typ: ident, $dep_name: ident, $dependant: ident, $resolution: ident, $shaper: ident) => {
+        pub(crate) fn $dep_name<const LINEAR_CAP: usize, const PRECISION: i32>(
+            src_layout: Layout,
+            dst_layout: Layout,
+            profile: $shaper<$f_typ, LINEAR_CAP>,
+            gamma_lut: usize,
+            bit_depth: usize,
+        ) -> Result<Arc<dyn TransformExecutor<$f_typ> + Send + Sync>, CmsError> {
+            let q2_13_profile = profile.to_q2_13_i::<$resolution, PRECISION>(gamma_lut, bit_depth);
+            if (src_layout == Layout::Rgba) && (dst_layout == Layout::Rgba) {
+                return Ok(Arc::new($dependant::<
+                    $f_typ,
+                    { Layout::Rgba as u8 },
+                    { Layout::Rgba as u8 },
+                    PRECISION,
+                > {
+                    profile: q2_13_profile,
+                    bit_depth,
+                    gamma_lut,
+                }));
+            } else if (src_layout == Layout::Rgb) && (dst_layout == Layout::Rgba) {
+                return Ok(Arc::new($dependant::<
+                    $f_typ,
+                    { Layout::Rgb as u8 },
+                    { Layout::Rgba as u8 },
+                    PRECISION,
+                > {
+                    profile: q2_13_profile,
+                    bit_depth,
+                    gamma_lut,
+                }));
+            } else if (src_layout == Layout::Rgba) && (dst_layout == Layout::Rgb) {
+                return Ok(Arc::new($dependant::<
+                    $f_typ,
+                    { Layout::Rgba as u8 },
+                    { Layout::Rgb as u8 },
+                    PRECISION,
+                > {
+                    profile: q2_13_profile,
+                    bit_depth,
+                    gamma_lut,
+                }));
+            } else if (src_layout == Layout::Rgb) && (dst_layout == Layout::Rgb) {
+                return Ok(Arc::new($dependant::<
+                    $f_typ,
+                    { Layout::Rgb as u8 },
+                    { Layout::Rgb as u8 },
+                    PRECISION,
+                > {
+                    profile: q2_13_profile,
+                    bit_depth,
+                    gamma_lut,
+                }));
+            }
+            Err(CmsError::UnsupportedProfileConnection)
+        }
+    };
+}
+
 #[cfg(all(target_arch = "aarch64", feature = "neon_shaper_fixed_point_paths"))]
 macro_rules! create_rgb_xyz_dependant_q1_30_executor {
     ($dep_name: ident, $dependant: ident, $resolution: ident, $shaper: ident) => {
@@ -367,6 +428,18 @@ use crate::conversions::neon::{TransformShaperQ1_30NeonOpt, TransformShaperQ2_13
 create_rgb_xyz_dependant_q2_13_executor_fp!(
     make_rgb_xyz_q2_13_opt,
     TransformShaperQ2_13NeonOpt,
+    i16,
+    TransformMatrixShaperOptimized
+);
+
+#[cfg(all(target_arch = "aarch64", feature = "sve"))]
+use crate::conversions::sve::TransformShaperQ2_13SveOpt;
+
+#[cfg(all(target_arch = "aarch64", feature = "sve"))]
+create_rgb_xyz_dependant_q2_13_executor_fp_typ!(
+    u8,
+    make_rgb_xyz_rgb_transform_sve_opt,
+    TransformShaperQ2_13SveOpt,
     i16,
     TransformMatrixShaperOptimized
 );

@@ -323,7 +323,7 @@ fn main() {
     //     moxcms::ColorProfile::new_from_slice(&decoder.icc_profile().unwrap().unwrap()).unwrap();
     // let custom_profile = Profile::new_icc(&decoder.icc_profile().unwrap().unwrap()).unwrap();
 
-    let fogra_icc = fs::read("./assets/fogra39_coated.icc").unwrap();
+    // let fogra_icc = fs::read("./assets/fogra39_coated.icc").unwrap();
 
     // Curve first point must be 0 and last 65535.
     // let mut new_curve = vec![0u16; 4096];
@@ -351,7 +351,7 @@ fn main() {
             &fogra_profile,
             moxcms::Layout::Rgba,
             TransformOptions {
-                prefer_fixed_point: false,
+                prefer_fixed_point: true,
                 ..Default::default()
             },
         )
@@ -360,13 +360,18 @@ fn main() {
     let mut new_img_bytes = vec![0; (img.as_bytes().len() / 3) * 4];
     transform.transform(&rgb_f32, &mut new_img_bytes).unwrap();
 
+    let new_img = DynamicImage::ImageRgba8(
+        image::RgbaImage::from_raw(img.width(), img.height(), new_img_bytes.clone()).unwrap(),
+    );
+    new_img.save("inter_state.png").unwrap();
+
     let inverse_transform = fogra_profile
         .create_transform_8bit(
             moxcms::Layout::Rgba,
             &srgb,
             moxcms::Layout::Rgb,
             TransformOptions {
-                prefer_fixed_point: false,
+                prefer_fixed_point: true,
                 rendering_intent: RenderingIntent::RelativeColorimetric,
                 ..Default::default()
             },
@@ -390,7 +395,7 @@ fn main() {
     let new_img = DynamicImage::ImageRgb8(
         image::RgbImage::from_raw(img.width(), img.height(), recollected).unwrap(),
     );
-    new_img.save("converted.png").unwrap();
+    new_img.save("converted1.png").unwrap();
     //
     // // let profile = lcms2::Profile::new_icc(&gray_icc).unwrap();
     // // let srgb = lcms2::Profile::new_srgb();

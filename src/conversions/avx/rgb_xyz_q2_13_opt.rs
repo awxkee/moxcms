@@ -34,10 +34,13 @@ use crate::{CmsError, Layout, TransformExecutor};
 use num_traits::AsPrimitive;
 use std::arch::x86_64::*;
 
-#[inline(always)]
-pub(crate) unsafe fn _xmm_broadcast_epi32(f: &i32) -> __m128i {
-    let float_ref: &f32 = unsafe { &*(f as *const i32 as *const f32) };
-    unsafe { _mm_castps_si128(_mm_broadcast_ss(float_ref)) }
+#[inline]
+#[target_feature(enable = "avx")]
+pub(crate) fn _xmm_broadcast_epi32(f: &i32) -> __m128i {
+    unsafe {
+        let float_ref: &f32 = &*(f as *const i32 as *const f32);
+        _mm_castps_si128(_mm_broadcast_ss(float_ref))
+    }
 }
 
 pub(crate) struct TransformShaperRgbQ2_13OptAvx<
@@ -274,7 +277,7 @@ where
 
     #[cfg(feature = "in_place")]
     #[target_feature(enable = "avx2")]
-    unsafe fn transform_in_place_avx2(&self, in_out: &mut [T]) -> Result<(), CmsError> {
+    fn transform_in_place_avx2(&self, in_out: &mut [T]) -> Result<(), CmsError> {
         let src_cn = Layout::from(SRC_LAYOUT);
         assert_eq!(
             SRC_LAYOUT, DST_LAYOUT,

@@ -37,9 +37,20 @@
 )]
 #![allow(stable_features)]
 #![cfg_attr(
-    not(any(feature = "avx", feature = "sse", feature = "avx512", feature = "neon",)),
+    not(any(
+        feature = "avx",
+        feature = "sse",
+        feature = "avx512",
+        feature = "neon",
+        feature = "sve"
+    )),
     forbid(unsafe_code)
 )]
+#![cfg_attr(
+    all(feature = "sve", target_arch = "aarch64"),
+    feature(stdarch_aarch64_sve)
+)]
+
 mod chad;
 mod cicp;
 mod conversions;
