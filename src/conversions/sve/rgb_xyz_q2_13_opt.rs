@@ -214,15 +214,15 @@ impl<const SRC_LAYOUT: u8, const DST_LAYOUT: u8, const PRECISION: i32>
                 .zip(dst1.chunks_exact_mut(dst_channels * 2))
             {
                 let mut v_0 = svmlalb_lane_s32::<0>(rnd, lane0, m0); // all RRRR
-                v_0 = svmlalb_lane_s32::<0>(v_0, lane1, m1);
-                v_0 = svmlalb_lane_s32::<0>(v_0, lane2, m2);
-
                 let mut v_1 = svmlalb_lane_s32::<1>(rnd, lane0, m0); // all GGGG
-                v_1 = svmlalb_lane_s32::<1>(v_1, lane1, m1);
-                v_1 = svmlalb_lane_s32::<1>(v_1, lane2, m2);
-
                 let mut v_2 = svmlalb_lane_s32::<2>(rnd, lane0, m0); // all BBBB
+
+                v_0 = svmlalb_lane_s32::<0>(v_0, lane1, m1);
+                v_1 = svmlalb_lane_s32::<1>(v_1, lane1, m1);
                 v_2 = svmlalb_lane_s32::<2>(v_2, lane1, m1);
+
+                v_0 = svmlalb_lane_s32::<0>(v_0, lane2, m2);
+                v_1 = svmlalb_lane_s32::<1>(v_1, lane2, m2);
                 v_2 = svmlalb_lane_s32::<2>(v_2, lane2, m2);
 
                 let mut vr0 = svqshrunb_n_s32::<PRECISION>(v_0);
@@ -325,15 +325,15 @@ impl<const SRC_LAYOUT: u8, const DST_LAYOUT: u8, const PRECISION: i32>
                 dst1.chunks_exact_mut(dst_channels * 2).last(),
             ) {
                 let mut v_0 = svmlalb_lane_s32::<0>(rnd, lane0, m0); // all RRRR
-                v_0 = svmlalb_lane_s32::<0>(v_0, lane1, m1);
-                v_0 = svmlalb_lane_s32::<0>(v_0, lane2, m2);
-
                 let mut v_1 = svmlalb_lane_s32::<1>(rnd, lane0, m0); // all GGGG
-                v_1 = svmlalb_lane_s32::<1>(v_1, lane1, m1);
-                v_1 = svmlalb_lane_s32::<1>(v_1, lane2, m2);
-
                 let mut v_2 = svmlalb_lane_s32::<2>(rnd, lane0, m0); // all BBBB
+
+                v_0 = svmlalb_lane_s32::<0>(v_0, lane1, m1);
+                v_1 = svmlalb_lane_s32::<1>(v_1, lane1, m1);
                 v_2 = svmlalb_lane_s32::<2>(v_2, lane1, m1);
+
+                v_0 = svmlalb_lane_s32::<0>(v_0, lane2, m2);
+                v_1 = svmlalb_lane_s32::<1>(v_1, lane2, m2);
                 v_2 = svmlalb_lane_s32::<2>(v_2, lane2, m2);
 
                 let mut vr0 = svqshrunb_n_s32::<PRECISION>(v_0);
@@ -631,15 +631,15 @@ impl<const SRC_LAYOUT: u8, const DST_LAYOUT: u8, const PRECISION: i32>
                 let c1 = unsafe { chunk1_ptr.get_unchecked(i * src_channels * 2..) };
 
                 let mut v_0 = svmlalb_lane_s32::<0>(rnd, lane0, m0); // all RRRR
-                v_0 = svmlalb_lane_s32::<0>(v_0, lane1, m1);
-                v_0 = svmlalb_lane_s32::<0>(v_0, lane2, m2);
-
                 let mut v_1 = svmlalb_lane_s32::<1>(rnd, lane0, m0); // all GGGG
-                v_1 = svmlalb_lane_s32::<1>(v_1, lane1, m1);
-                v_1 = svmlalb_lane_s32::<1>(v_1, lane2, m2);
-
                 let mut v_2 = svmlalb_lane_s32::<2>(rnd, lane0, m0); // all BBBB
+
+                v_0 = svmlalb_lane_s32::<0>(v_0, lane1, m1);
+                v_1 = svmlalb_lane_s32::<1>(v_1, lane1, m1);
                 v_2 = svmlalb_lane_s32::<2>(v_2, lane1, m1);
+
+                v_0 = svmlalb_lane_s32::<0>(v_0, lane2, m2);
+                v_1 = svmlalb_lane_s32::<1>(v_1, lane2, m2);
                 v_2 = svmlalb_lane_s32::<2>(v_2, lane2, m2);
 
                 let mut vr0 = svqshrunb_n_s32::<PRECISION>(v_0);
@@ -744,16 +744,16 @@ impl<const SRC_LAYOUT: u8, const DST_LAYOUT: u8, const PRECISION: i32>
                 let w1 =
                     unsafe { chunk1_ptr.get_unchecked_mut((chunk_len - 1) * src_channels * 2) };
 
-                let mut v_0 = svmlalb_lane_s32::<0>(rnd, lane0, m0);
+                let mut v_0 = svmlalb_lane_s32::<0>(rnd, lane0, m0); // all RRRR
+                let mut v_1 = svmlalb_lane_s32::<1>(rnd, lane0, m0); // all GGGG
+                let mut v_2 = svmlalb_lane_s32::<2>(rnd, lane0, m0); // all BBBB
+
                 v_0 = svmlalb_lane_s32::<0>(v_0, lane1, m1);
-                v_0 = svmlalb_lane_s32::<0>(v_0, lane2, m2);
-
-                let mut v_1 = svmlalb_lane_s32::<1>(rnd, lane0, m0);
                 v_1 = svmlalb_lane_s32::<1>(v_1, lane1, m1);
-                v_1 = svmlalb_lane_s32::<1>(v_1, lane2, m2);
-
-                let mut v_2 = svmlalb_lane_s32::<2>(rnd, lane0, m0);
                 v_2 = svmlalb_lane_s32::<2>(v_2, lane1, m1);
+
+                v_0 = svmlalb_lane_s32::<0>(v_0, lane2, m2);
+                v_1 = svmlalb_lane_s32::<1>(v_1, lane2, m2);
                 v_2 = svmlalb_lane_s32::<2>(v_2, lane2, m2);
 
                 let mut vr0 = svqshrunb_n_s32::<PRECISION>(v_0);
