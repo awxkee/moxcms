@@ -29,7 +29,7 @@
 use crate::helpers::{read_matrix_3d, read_vector_3d};
 use crate::profile::LutDataType;
 use crate::safe_math::{SafeAdd, SafeMul, SafePowi};
-use crate::tag::{TAG_SIZE, TagTypeDefinition};
+use crate::tag::{TagTypeDefinition, TAG_SIZE};
 use crate::{
     CicpColorPrimaries, CicpProfile, CmsError, ColorDateTime, ColorProfile, DescriptionString,
     LocalizableString, LutMultidimensionalType, LutStore, LutType, LutWarehouse, Matrix3d,
@@ -609,9 +609,8 @@ impl ColorProfile {
 
         let in_chan = tag[8];
         let out_chan = tag[9];
-        let is_3_to_4 = in_chan == 3 || out_chan == 4;
-        let is_4_to_3 = in_chan == 4 || out_chan == 3;
-        if !is_3_to_4 && !is_4_to_3 {
+        let is_pcs = in_chan == 3 || out_chan == 3;
+        if !is_pcs || !(1..=4).contains(&in_chan) || !(1..=4).contains(&out_chan) {
             return Err(CmsError::InvalidProfile);
         }
         let grid_points = tag[10];
