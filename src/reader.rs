@@ -29,7 +29,7 @@
 use crate::helpers::{read_matrix_3d, read_vector_3d};
 use crate::profile::LutDataType;
 use crate::safe_math::{SafeAdd, SafeMul, SafePowi};
-use crate::tag::{TagTypeDefinition, TAG_SIZE};
+use crate::tag::{TAG_SIZE, TagTypeDefinition};
 use crate::{
     CicpColorPrimaries, CicpProfile, CmsError, ColorDateTime, ColorProfile, DescriptionString,
     LocalizableString, LutMultidimensionalType, LutStore, LutType, LutWarehouse, Matrix3d,
