@@ -263,9 +263,7 @@ where
                 v = _mm_max_epi32(v, _mm_setzero_si128());
                 v = _mm_min_epi32(v, _mm256_castsi256_si128(v_max_value));
 
-                let temporary_first_half: &mut [u16; 8] =
-                    (&mut temporary0.0[..8]).try_into().unwrap();
-                _mm_storeu_si128(temporary_first_half, v);
+                _mm_storeu_si128(temporary0.0.first_chunk_mut::<8>().unwrap(), v);
 
                 dst[dst_cn.r_i()] = self.profile.gamma[temporary0.0[0] as usize];
                 dst[dst_cn.g_i()] = self.profile.gamma[temporary0.0[2] as usize];
@@ -401,9 +399,7 @@ where
                 v = _mm_max_epi32(v, _mm_setzero_si128());
                 v = _mm_min_epi32(v, _mm256_castsi256_si128(v_max_value));
 
-                let temporary_first_half: &mut [u16; 8] =
-                    (&mut temporary0.0[..8]).try_into().unwrap();
-                _mm_storeu_si128(temporary_first_half, v);
+                _mm_storeu_si128(temporary0.0.first_chunk_mut::<8>().unwrap(), v);
 
                 dst[src_cn.r_i()] = self.profile.gamma[temporary0.0[0] as usize];
                 dst[src_cn.g_i()] = self.profile.gamma[temporary0.0[2] as usize];

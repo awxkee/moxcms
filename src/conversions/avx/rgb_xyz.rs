@@ -199,9 +199,7 @@ where
                 v = _mm_min_ps(v, _mm256_castps256_ps128(v_scale));
 
                 let zx = _mm_cvtps_epi32(v);
-                let temporary_first_half: &mut [u16; 8] =
-                    (&mut temporary0.0[..8]).try_into().unwrap();
-                _mm_storeu_si128(temporary_first_half, zx);
+                _mm_storeu_si128(temporary0.0.first_chunk_mut::<8>().unwrap(), zx);
 
                 dst[dst_cn.r_i()] = self.profile.r_gamma[temporary0.0[0] as usize];
                 dst[dst_cn.g_i()] = self.profile.g_gamma[temporary0.0[2] as usize];
