@@ -31,6 +31,8 @@ use crate::conversions::rgbxyz_fixed::TransformMatrixShaperFixedPointOpt;
 use crate::transform::PointeeSizeExpressible;
 use crate::{CmsError, Layout, TransformExecutor};
 use num_traits::AsPrimitive;
+use safe_unaligned_simd::x86_64::_mm_broadcast_ss; // can be replaced with std version once MSRV is >1.90
+use safe_unaligned_simd::x86_64::{_mm_storeu_si128, _mm256_storeu_si256};
 use std::arch::x86_64::*;
 
 pub(crate) struct TransformShaperRgbQ2_13OptAvx512<
@@ -45,10 +47,14 @@ pub(crate) struct TransformShaperRgbQ2_13OptAvx512<
     pub(crate) gamma_lut: usize,
 }
 
-#[inline(always)]
-pub(crate) unsafe fn _xmm_broadcast_epi32(f: &i32) -> __m128i {
-    let float_ref: &f32 = unsafe { &*(f as *const i32 as *const f32) };
-    unsafe { _mm_castps_si128(_mm_broadcast_ss(float_ref)) }
+#[inline]
+#[target_feature(enable = "avx2")]
+pub(crate) fn _xmm_broadcast_epi32(f: &i32) -> __m128i {
+    // safe transmute would require `bytemuck` dependency,
+    // but this optimizes into the same code as a transmute:
+    // https://rust.godbolt.org/z/Pfqb7YG7c
+    let float_ref = f32::from_ne_bytes(f.to_ne_bytes());
+    _mm_castps_si128(_mm_broadcast_ss(&float_ref))
 }
 
 #[repr(align(32), C)]
@@ -78,7 +84,7 @@ impl<
 where
     u32: AsPrimitive<T>,
 {
-    #[target_feature(enable = "avx512bw", enable = "avx512vl")]
+    #[target_feature(enable = "avx512bw,avx512vl")]
     fn transform_avx512(&self, src: &[T], dst: &mut [T]) -> Result<(), CmsError> {
         let src_cn = Layout::from(SRC_LAYOUT);
         let dst_cn = Layout::from(DST_LAYOUT);
@@ -108,8 +114,7 @@ where
         let mut temporary0 = AvxAlignedU16([0; 16]);
         let mut temporary1 = AvxAlignedU16([0; 16]);
 
-        unsafe {
-            let m0 = _mm256_set_epi16(
+        let m0 = _mm256_set_epi16(
                 0, 0, t.v[1][2], t.v[0][2], t.v[1][1], t.v[0][1], t.v[1][0], t.v[0][0], 0, 0,
                 t.v[1][2], t.v[0][2], t.v[1][1], t.v[0][1], t.v[1][0], t.v[0][0],
             );
@@ -224,8 +229,8 @@ where
                     v1 = _mm256_max_epi32(v1, zeros);
                     v1 = _mm256_min_epi32(v1, v_max_value);
 
-                    _mm256_store_si256(temporary0.0.as_mut_ptr() as *mut _, v0);
-                    _mm256_store_si256(temporary1.0.as_mut_ptr() as *mut _, v1);
+                    _mm256_storeu_si256(&mut temporary0.0, v0);
+                    _mm256_storeu_si256(&mut temporary1.0, v1);
 
                     dst0[dst_cn.r_i()] = self.profile.gamma[temporary0.0[0] as usize];
                     dst0[dst_cn.g_i()] = self.profile.gamma[temporary0.0[2] as usize];
@@ -292,7 +297,7 @@ where
                 v = _mm_max_epi32(v, _mm_setzero_si128());
                 v = _mm_min_epi32(v, _mm256_castsi256_si128(v_max_value));
 
-                _mm_store_si128(temporary0.0.as_mut_ptr() as *mut _, v);
+                _mm_storeu_si128(temporary0.0.first_chunk_mut::<8>().unwrap(), v);
 
                 dst[dst_cn.r_i()] = self.profile.gamma[temporary0.0[0] as usize];
                 dst[dst_cn.g_i()] = self.profile.gamma[temporary0.0[2] as usize];
@@ -301,7 +306,6 @@ where
                     dst[dst_cn.a_i()] = a;
                 }
             }
-        }
 
         Ok(())
     }

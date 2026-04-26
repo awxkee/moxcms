@@ -34,6 +34,8 @@ use crate::conversions::avx512::rgb_xyz_q2_13_opt::{
 use crate::transform::PointeeSizeExpressible;
 use crate::{CmsError, Layout, TransformExecutor};
 use num_traits::AsPrimitive;
+use safe_unaligned_simd::x86_64::_mm_broadcast_ss; // can be replaced with std version once MSRV is >1.90
+use safe_unaligned_simd::x86_64::{_mm_storeu_si128, _mm256_storeu_si256};
 use std::arch::x86_64::*;
 
 pub(crate) struct TransformShaperRgbOptAvx512<
@@ -56,7 +58,7 @@ impl<
 where
     u32: AsPrimitive<T>,
 {
-    #[target_feature(enable = "avx512bw", enable = "avx512vl", enable = "fma")]
+    #[target_feature(enable = "avx512bw,avx512vl,fma")]
     fn transform_impl(&self, src: &[T], dst: &mut [T]) -> Result<(), CmsError> {
         let src_cn = Layout::from(SRC_LAYOUT);
         let dst_cn = Layout::from(DST_LAYOUT);
@@ -84,8 +86,7 @@ where
         let mut temporary0 = AvxAlignedU16([0; 16]);
         let mut temporary1 = AvxAlignedU16([0; 16]);
 
-        unsafe {
-            let m0 = _mm256_setr_ps(
+        let m0 = _mm256_setr_ps(
                 t.v[0][0], t.v[0][1], t.v[0][2], 0f32, t.v[0][0], t.v[0][1], t.v[0][2], 0f32,
             );
             let m1 = _mm256_setr_ps(
@@ -191,8 +192,8 @@ where
 
                     let zx0 = _mm256_cvtps_epi32(vz0);
                     let zx1 = _mm256_cvtps_epi32(vz1);
-                    _mm256_store_si256(temporary0.0.as_mut_ptr() as *mut _, zx0);
-                    _mm256_store_si256(temporary1.0.as_mut_ptr() as *mut _, zx1);
+                    _mm256_storeu_si256(&mut temporary0.0, zx0);
+                    _mm256_storeu_si256(&mut temporary1.0, zx1);
 
                     dst0[dst_cn.r_i()] = self.profile.gamma[temporary0.0[0] as usize];
                     dst0[dst_cn.g_i()] = self.profile.gamma[temporary0.0[2] as usize];
@@ -252,7 +253,7 @@ where
                 v = _mm_min_ps(v, _mm256_castps256_ps128(v_scale));
 
                 let zx = _mm_cvtps_epi32(v);
-                _mm_store_si128(temporary0.0.as_mut_ptr() as *mut _, zx);
+                _mm_storeu_si128(temporary0.0.first_chunk_mut::<8>().unwrap(), zx);
 
                 dst[dst_cn.r_i()] = self.profile.gamma[temporary0.0[0] as usize];
                 dst[dst_cn.g_i()] = self.profile.gamma[temporary0.0[2] as usize];
@@ -261,7 +262,6 @@ where
                     dst[dst_cn.a_i()] = a;
                 }
             }
-        }
 
         Ok(())
     }
