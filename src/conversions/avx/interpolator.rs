@@ -609,7 +609,7 @@ impl<const GRID_SIZE: usize> PrismaticAvxFmaDouble<GRID_SIZE> {
         let (x, y, z, x_n, y_n, z_n, dr, dg, db) = load_bary_weights(lut, in_r, in_g, in_b);
 
         let c0_0 = r0.fetch(x, y, z);
-        let c0_1 = r0.fetch(x, y, z);
+        let c0_1 = r1.fetch(x, y, z);
 
         let w0 = AvxVector::from(db);
         let w1 = AvxVector::from(dr);
@@ -933,5 +933,66 @@ impl<const GRID_SIZE: usize> TrilinearAvxFma<GRID_SIZE> {
         let (c0, c1) = z0.split();
 
         c0.neg_mla(c0, w2).mla(c1, w2)
+    }
+}
+
+#[cfg(all(test, feature = "options"))]
+mod tests {
+    use super::*;
+
+    #[target_feature(enable = "avx2", enable = "fma")]
+    unsafe fn sse_lanes(v: AvxVectorSse) -> [f32; 4] {
+        let mut out = [0f32; 4];
+        unsafe {
+            _mm_storeu_ps(out.as_mut_ptr(), v.v);
+        }
+        out
+    }
+
+    fn make_table(base: f32) -> Vec<SseAlignedF32> {
+        (0..8)
+            .map(|offset| {
+                let value = base + offset as f32 * 10.0;
+                SseAlignedF32([value, value + 1.0, value + 2.0, value + 3.0])
+            })
+            .collect()
+    }
+
+    #[test]
+    fn prismatic_double_high_half_matches_independent_table1_interpolation() {
+        if !std::arch::is_x86_feature_detected!("avx2")
+            || !std::arch::is_x86_feature_detected!("fma")
+        {
+            return;
+        }
+
+        let table0 = make_table(10.0);
+        let table1 = make_table(1000.0);
+        let weights = [
+            BarycentricWeight {
+                x: 0,
+                x_n: 1,
+                w: 0.25,
+            },
+            BarycentricWeight {
+                x: 0,
+                x_n: 1,
+                w: 0.5,
+            },
+            BarycentricWeight {
+                x: 0,
+                x_n: 1,
+                w: 0.75,
+            },
+        ];
+
+        let interpolator = PrismaticAvxFmaDouble::<2> {};
+        let single = PrismaticAvxFma::<2> {};
+        let (_, high) = interpolator.inter3_sse(&table0, &table1, 0usize, 1usize, 2usize, &weights);
+        let expected_high = single.inter3_sse(&table1, 0usize, 1usize, 2usize, &weights);
+
+        let high = unsafe { sse_lanes(high) };
+        let expected_high = unsafe { sse_lanes(expected_high) };
+        assert_eq!(high, expected_high);
     }
 }
