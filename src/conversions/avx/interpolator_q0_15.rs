@@ -599,7 +599,7 @@ impl<const GRID_SIZE: usize> PrismaticAvxQ0_15Double<GRID_SIZE> {
         let (x, y, z, x_n, y_n, z_n, dr, dg, db) = load_bary_weights(lut, in_r, in_g, in_b);
 
         let c0_0 = r0.fetch(x, y, z);
-        let c0_1 = r0.fetch(x, y, z);
+        let c0_1 = r1.fetch(x, y, z);
 
         let w0 = AvxVectorQ0_15::from(db);
         let w1 = AvxVectorQ0_15::from(dr);
@@ -934,5 +934,64 @@ impl<const GRID_SIZE: usize> TrilinearAvxQ0_15<GRID_SIZE> {
         let (c0, c1) = c0.split();
 
         (c0 * dz).mla(c1, w2)
+    }
+}
+
+#[cfg(all(test, feature = "options"))]
+mod tests {
+    use super::*;
+
+    #[target_feature(enable = "avx2")]
+    unsafe fn sse_lanes(v: AvxVectorQ0_15Sse) -> [i16; 8] {
+        let mut out = [0i16; 8];
+        unsafe {
+            _mm_storeu_si128(out.as_mut_ptr() as *mut __m128i, v.v);
+        }
+        out
+    }
+
+    fn make_table(base: i16) -> Vec<AvxAlignedI16> {
+        (0..8)
+            .map(|offset| {
+                let value = base + offset * 10;
+                AvxAlignedI16([value, value + 1, value + 2, value + 3])
+            })
+            .collect()
+    }
+
+    #[test]
+    fn prismatic_double_high_half_matches_independent_table1_interpolation() {
+        if !std::arch::is_x86_feature_detected!("avx2") {
+            return;
+        }
+
+        let table0 = make_table(10);
+        let table1 = make_table(1000);
+        let weights = [
+            BarycentricWeight {
+                x: 0,
+                x_n: 1,
+                w: 8192,
+            },
+            BarycentricWeight {
+                x: 0,
+                x_n: 1,
+                w: 16384,
+            },
+            BarycentricWeight {
+                x: 0,
+                x_n: 1,
+                w: 24576,
+            },
+        ];
+
+        let interpolator = PrismaticAvxQ0_15Double::<2> {};
+        let single = PrismaticAvxQ0_15::<2> {};
+        let (_, high) = interpolator.inter3_sse(&table0, &table1, 0usize, 1usize, 2usize, &weights);
+        let expected_high = single.inter3_sse(&table1, 0usize, 1usize, 2usize, &weights);
+
+        let high = unsafe { sse_lanes(high) };
+        let expected_high = unsafe { sse_lanes(expected_high) };
+        assert_eq!(high[..4], expected_high[..4]);
     }
 }
