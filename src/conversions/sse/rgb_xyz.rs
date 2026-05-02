@@ -33,6 +33,10 @@ use crate::transform::PointeeSizeExpressible;
 use crate::{CmsError, Layout, TransformExecutor};
 use num_traits::AsPrimitive;
 #[cfg(target_arch = "x86")]
+use safe_unaligned_simd::x86::{_mm_load_ss, _mm_storeu_si128};
+#[cfg(target_arch = "x86_64")]
+use safe_unaligned_simd::x86_64::{_mm_load_ss, _mm_storeu_si128};
+#[cfg(target_arch = "x86")]
 use std::arch::x86::*;
 #[cfg(target_arch = "x86_64")]
 use std::arch::x86_64::*;
@@ -83,8 +87,7 @@ where
         let scale = (self.gamma_lut - 1) as f32;
         let max_colors: T = ((1 << self.bit_depth) - 1).as_();
 
-        unsafe {
-            let m0 = _mm_setr_ps(t.v[0][0], t.v[0][1], t.v[0][2], 0f32);
+        let m0 = _mm_setr_ps(t.v[0][0], t.v[0][1], t.v[0][2], 0f32);
             let m1 = _mm_setr_ps(t.v[1][0], t.v[1][1], t.v[1][2], 0f32);
             let m2 = _mm_setr_ps(t.v[2][0], t.v[2][1], t.v[2][2], 0f32);
 
@@ -123,7 +126,7 @@ where
                 v = _mm_min_ps(v, v_scale);
 
                 let zx = _mm_cvtps_epi32(v);
-                _mm_store_si128(temporary.0.as_mut_ptr() as *mut _, zx);
+                _mm_storeu_si128(&mut temporary.0, zx);
 
                 dst[dst_cn.r_i()] = self.profile.r_gamma[temporary.0[0] as usize];
                 dst[dst_cn.g_i()] = self.profile.g_gamma[temporary.0[2] as usize];
@@ -132,7 +135,6 @@ where
                     dst[dst_cn.a_i()] = a;
                 }
             }
-        }
 
         Ok(())
     }

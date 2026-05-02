@@ -33,15 +33,23 @@ use crate::transform::PointeeSizeExpressible;
 use crate::{CmsError, Layout, TransformExecutor};
 use num_traits::AsPrimitive;
 #[cfg(target_arch = "x86")]
+use safe_unaligned_simd::x86::{_mm_load_ss, _mm_storeu_si128};
+#[cfg(target_arch = "x86_64")]
+use safe_unaligned_simd::x86_64::{_mm_load_ss, _mm_storeu_si128};
+#[cfg(target_arch = "x86")]
 use std::arch::x86::*;
 #[cfg(target_arch = "x86_64")]
 use std::arch::x86_64::*;
 
-#[inline(always)]
+#[inline]
 #[allow(dead_code)]
-pub(crate) unsafe fn _xmm_load_epi32(f: &i32) -> __m128i {
-    let float_ref: &f32 = unsafe { &*(f as *const i32 as *const f32) };
-    unsafe { _mm_castps_si128(_mm_load_ss(float_ref)) }
+#[target_feature(enable = "sse,sse2")]
+pub(crate) fn _xmm_load_epi32(f: &i32) -> __m128i {
+    // safe transmute would require `bytemuck` dependency,
+    // but this optimizes into the same code as a transmute:
+    // https://rust.godbolt.org/z/Pfqb7YG7c
+    let float_ref = f32::from_ne_bytes(f.to_ne_bytes());
+    _mm_castps_si128(_mm_load_ss(&float_ref))
 }
 
 pub(crate) struct TransformShaperQ2_13OptSse<
@@ -87,8 +95,7 @@ where
 
         let max_colors = ((1 << self.bit_depth) - 1).as_();
 
-        unsafe {
-            let m0 = _mm_setr_epi16(
+        let m0 = _mm_setr_epi16(
                 t.v[0][0], t.v[1][0], t.v[0][1], t.v[1][1], t.v[0][2], t.v[1][2], 0, 0,
             );
             let m2 = _mm_setr_epi16(t.v[2][0], 1, t.v[2][1], 1, t.v[2][2], 1, 0, 0);
@@ -136,7 +143,7 @@ where
                 v = _mm_max_epi32(v, _mm_setzero_si128());
                 v = _mm_min_epi32(v, v_max_value);
 
-                _mm_store_si128(temporary.0.as_mut_ptr() as *mut _, v);
+                _mm_storeu_si128(&mut temporary.0, v);
 
                 dst[dst_cn.r_i()] = self.profile.gamma[temporary.0[0] as usize];
                 dst[dst_cn.g_i()] = self.profile.gamma[temporary.0[2] as usize];
@@ -145,7 +152,6 @@ where
                     dst[dst_cn.a_i()] = a;
                 }
             }
-        }
 
         Ok(())
     }
@@ -171,8 +177,7 @@ where
 
         let max_colors = ((1 << self.bit_depth) - 1).as_();
 
-        unsafe {
-            let m0 = _mm_setr_epi16(
+        let m0 = _mm_setr_epi16(
                 t.v[0][0], t.v[1][0], t.v[0][1], t.v[1][1], t.v[0][2], t.v[1][2], 0, 0,
             );
             let m2 = _mm_setr_epi16(t.v[2][0], 1, t.v[2][1], 1, t.v[2][2], 1, 0, 0);
@@ -217,7 +222,7 @@ where
                 v = _mm_max_epi32(v, _mm_setzero_si128());
                 v = _mm_min_epi32(v, v_max_value);
 
-                _mm_store_si128(temporary.0.as_mut_ptr() as *mut _, v);
+                _mm_storeu_si128(&mut temporary.0, v);
 
                 dst[src_cn.r_i()] = self.profile.gamma[temporary.0[0] as usize];
                 dst[src_cn.g_i()] = self.profile.gamma[temporary.0[2] as usize];
@@ -226,7 +231,6 @@ where
                     dst[src_cn.a_i()] = a;
                 }
             }
-        }
 
         Ok(())
     }
