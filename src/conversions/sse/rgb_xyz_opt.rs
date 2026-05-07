@@ -79,15 +79,8 @@ where
         let scale = (self.gamma_lut - 1) as f32;
         let max_colors: T = ((1 << self.bit_depth) - 1).as_();
 
-        // safety precondition for linearization table
-        if T::FINITE {
-            let cap = (1 << self.bit_depth) - 1;
-            assert!(self.profile.linear.len() >= cap);
-        } else {
-            assert!(self.profile.linear.len() >= T::NOT_FINITE_LINEAR_TABLE_SIZE);
-        }
-
         let lut_lin = &self.profile.linear;
+        assert_lut_min_len!(T, lut_lin.len());
 
         unsafe {
             let m0 = _mm_setr_ps(t.v[0][0], t.v[0][1], t.v[0][2], 0f32);
@@ -102,9 +95,9 @@ where
                 .chunks_exact(src_channels)
                 .zip(dst.chunks_exact_mut(dst_channels))
             {
-                let rp = lut_lin.get_unchecked(src[src_cn.r_i()]._as_usize());
-                let gp = lut_lin.get_unchecked(src[src_cn.g_i()]._as_usize());
-                let bp = lut_lin.get_unchecked(src[src_cn.b_i()]._as_usize());
+                let rp = &lut_lin[src[src_cn.r_i()]._as_usize()];
+                let gp = &lut_lin[src[src_cn.g_i()]._as_usize()];
+                let bp = &lut_lin[src[src_cn.b_i()]._as_usize()];
 
                 let mut r = _mm_load_ss(rp);
                 let mut g = _mm_load_ss(gp);

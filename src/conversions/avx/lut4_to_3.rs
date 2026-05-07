@@ -81,7 +81,7 @@ where
         &self,
         src: &[T],
         dst: &mut [T],
-        interpolator: Box<dyn AvxMdInterpolationDouble + Send + Sync>,
+        interpolator: Box<dyn AvxMdInterpolationDouble<BINS, U> + Send + Sync>,
     ) {
         let cn = Layout::from(LAYOUT);
         let channels = cn.channels();
@@ -119,14 +119,7 @@ where
             let table1 = &self.lut[(w * grid_size3) as usize..];
             let table2 = &self.lut[(w_n * grid_size3) as usize..];
 
-            let v = interpolator.inter3_sse(
-                table1,
-                table2,
-                c.as_(),
-                m.as_(),
-                y.as_(),
-                self.weights.as_slice(),
-            );
+            let v = interpolator.inter3_sse(table1, table2, c, m, y, &self.weights);
             let (a0, b0) = (v.0.v, v.1.v);
 
             if T::FINITE {

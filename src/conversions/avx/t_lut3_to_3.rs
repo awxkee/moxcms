@@ -83,7 +83,7 @@ where
         &self,
         src: &[T],
         dst: &mut [T],
-        interpolator: Box<dyn AvxMdInterpolation + Send + Sync>,
+        interpolator: Box<dyn AvxMdInterpolation<BINS, U> + Send + Sync>,
     ) {
         let src_cn = Layout::from(SRC_LAYOUT);
         let src_channels = src_cn.channels();
@@ -114,13 +114,7 @@ where
                 max_value
             };
 
-            let v = interpolator.inter3_sse(
-                &self.lut,
-                x.as_(),
-                y.as_(),
-                z.as_(),
-                self.weights.as_slice(),
-            );
+            let v = interpolator.inter3_sse(&self.lut, x, y, z, &self.weights);
             if T::FINITE {
                 let mut r = _mm_mul_ps(v.v, value_scale);
                 r = _mm_max_ps(r, _mm_setzero_ps());

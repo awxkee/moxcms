@@ -26,6 +26,24 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+
+/// Asserts that a linearization LUT is large enough for the pixel type's index range.
+///
+/// For u8, indices are at most 255 so the LUT must have >= 256 entries.
+/// For u16/f32/f64, indices are at most 65535 (f32/f64 clamp through u16) so >= 65536.
+/// When LLVM sees the assertion and knows the index comes from a bounded integer cast,
+/// it can eliminate the subsequent bounds check entirely.
+#[allow(unused_macros)] // only used under feature-gated SIMD modules (avx/sse/neon)
+macro_rules! assert_lut_min_len {
+    ($T:ty, $len:expr) => {
+        if <$T>::IS_U8 {
+            assert!($len >= 256);
+        } else {
+            assert!($len >= 65536);
+        }
+    };
+}
+
 #[cfg(all(target_arch = "x86_64", feature = "avx"))]
 mod avx;
 #[cfg(all(target_arch = "x86_64", feature = "avx512"))]
@@ -59,6 +77,8 @@ mod rgbxyz_fixed;
 mod rgbxyz_float;
 #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"))]
 mod sse;
+#[cfg(all(target_arch = "aarch64", feature = "sve"))]
+mod sve;
 mod transform_lut3_to_3;
 mod transform_lut3_to_4;
 mod transform_lut4_to_3;

@@ -490,6 +490,15 @@ impl RgbXyzFactoryOpt<u8> for u8 {
                     >(src_layout, dst_layout, profile, GAMMA_LUT, 8);
                 }
             }
+            #[cfg(all(target_arch = "aarch64", feature = "sve"))]
+            {
+                if std::arch::is_aarch64_feature_detected!("sve2") {
+                    use crate::conversions::rgbxyz_fixed::make_rgb_xyz_rgb_transform_sve_opt;
+                    return make_rgb_xyz_rgb_transform_sve_opt::<LINEAR_CAP, FIXED_POINT_SCALE>(
+                        src_layout, dst_layout, profile, GAMMA_LUT, 8,
+                    );
+                }
+            }
             make_rgb_xyz_q2_13_opt::<u8, LINEAR_CAP, FIXED_POINT_SCALE>(
                 src_layout, dst_layout, profile, GAMMA_LUT, 8,
             )
@@ -511,6 +520,17 @@ impl RgbXyzFactoryOpt<u8> for u8 {
         transform_options: TransformOptions,
     ) -> Result<Arc<dyn InPlaceTransformExecutor<u8> + Send + Sync>, CmsError> {
         if transform_options.prefer_fixed_point {
+            #[cfg(all(target_arch = "aarch64", feature = "in_place", feature = "sve"))]
+            {
+                //TODO: RGB layout is very, slow, check it out later
+                if layout == Layout::Rgba && std::arch::is_aarch64_feature_detected!("sve2") {
+                    use crate::conversions::rgbxyz::make_rgb_xyz_in_place_transform_q2_13_opt_sve;
+                    return make_rgb_xyz_in_place_transform_q2_13_opt_sve::<
+                        LINEAR_CAP,
+                        FIXED_POINT_SCALE,
+                    >(layout, profile, GAMMA_LUT, 8);
+                }
+            }
             #[cfg(all(
                 target_arch = "aarch64",
                 feature = "in_place",
@@ -524,7 +544,6 @@ impl RgbXyzFactoryOpt<u8> for u8 {
                     FIXED_POINT_SCALE,
                 >(layout, profile, GAMMA_LUT, 8);
             }
-
             #[cfg(all(
                 target_arch = "x86_64",
                 feature = "in_place",

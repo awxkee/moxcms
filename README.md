@@ -43,27 +43,6 @@ image::save_buffer(
     .unwrap();
 ```
 
-## Benchmarks
-
-### ICC Transform 8-Bit 
-
-Tests were ran with a 1997×1331 resolution image.
-
-| Conversion         | time(NEON) | Time(AVX2) |
-|--------------------|:----------:|:----------:|
-| moxcms RGB⮕RGB     |   2.68ms   |   4.52ms   |
-| moxcms LUT RGB⮕RGB |   7.18ms   |  17.50ms   |
-| moxcms RGBA⮕RGBA   |   2.96ms   |   4.83ms   |
-| moxcms CMYK⮕RGBA   |  11.86ms   |  27.98ms   |
-| lcms2 RGB⮕RGB      |   13.1ms   |  27.73ms   |
-| lcms2 LUT RGB⮕RGB  |  27.60ms   |  58.26ms   |
-| lcms2 RGBA⮕RGBA    |  21.97ms   |  35.70ms   |
-| lcms2 CMYK⮕RGBA    |  39.71ms   |  79.40ms   |
-| qcms RGB⮕RGB       |   6.47ms   |   4.59ms   |
-| qcms LUT RGB⮕RGB   |  26.72ms   |  60.80ms   |
-| qcms RGBA⮕RGBA     |   6.83ms   |   4.99ms   |
-| qcms CMYK⮕RGBA     |  25.97ms   |  61.54ms   |
-
 ## License
 
 This project is licensed under either of

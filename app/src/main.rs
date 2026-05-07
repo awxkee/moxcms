@@ -27,7 +27,6 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 mod encode_gray_lut;
-mod comparison;
 
 // use jxl_oxide::{JxlImage, JxlThreadPool, Lcms2, Moxcms};
 use crate::encode_gray_lut::encode_gray_lut;
@@ -318,25 +317,41 @@ fn encode_jpeg_with_icc(name: String, img: &[u8], w: usize, h: usize, icc: &[u8]
 
 fn main() {
     // check_fuzzer_path("./assets/сheck.icc");
-    let reader = image::ImageReader::open("./assets/wmc_d4e6bfcba7ee8f83.jpg").unwrap();
+    let reader = image::ImageReader::open("./assets/bench.jpg").unwrap();
     let mut decoder = reader.into_decoder().unwrap();
-    let working_icc_file = fs::read("./assets/apple_wide_gamut.icc").unwrap();
+    // let icc_profile =
+    //     moxcms::ColorProfile::new_from_slice(&decoder.icc_profile().unwrap().unwrap()).unwrap();
+    // let custom_profile = Profile::new_icc(&decoder.icc_profile().unwrap().unwrap()).unwrap();
+
+    // let fogra_icc = fs::read("./assets/fogra39_coated.icc").unwrap();
+
+    // Curve first point must be 0 and last 65535.
+    // let mut new_curve = vec![0u16; 4096];
     let srgb = ColorProfile::new_srgb();
-    let working_profile = ColorProfile::new_from_slice(&working_icc_file).unwrap();
+    let fogra_profile = ColorProfile::new_adobe_rgb(); // ColorProfile::new_from_slice(&fogra_icc).unwrap();
+
+    // let gamma_table = srgb.build_gamma_table(&srgb.red_trc, true).unwrap();
+
+    // gray_profile.gray_trc = Some(ToneReprCurve::Lut(new_curve));
+    // gray_profile.gray_trc = srgb.red_trc.clone();
+
+    // let gray_profile = encode_gray_lut();
+    //
+    // let encode = gray_profile.encode().unwrap();
+    // fs::write("./gray.icc", encode).unwrap();
 
     let img = DynamicImage::from_decoder(decoder).unwrap();
     let mut rgb_f32 = img.to_rgb8();
 
     let srgb = moxcms::ColorProfile::new_srgb();
 
-    let transform = working_profile
+    let transform = srgb
         .create_transform_8bit(
             moxcms::Layout::Rgb,
-            &srgb,
+            &fogra_profile,
             moxcms::Layout::Rgba,
             TransformOptions {
                 prefer_fixed_point: true,
-                interpolation_method: InterpolationMethod::Linear,
                 ..Default::default()
             },
         )
@@ -345,40 +360,12 @@ fn main() {
     let mut new_img_bytes = vec![0; (img.as_bytes().len() / 3) * 4];
     transform.transform(&rgb_f32, &mut new_img_bytes).unwrap();
 
-    let transform_reference = working_profile
-        .create_transform_8bit(
-            moxcms::Layout::Rgb,
-            &srgb,
-            moxcms::Layout::Rgba,
-            TransformOptions {
-                prefer_fixed_point: false,
-                interpolation_method: InterpolationMethod::Tetrahedral,
-                ..Default::default()
-            },
-        )
-        .unwrap();
+    let new_img = DynamicImage::ImageRgba8(
+        image::RgbaImage::from_raw(img.width(), img.height(), new_img_bytes.clone()).unwrap(),
+    );
+    new_img.save("inter_state.png").unwrap();
 
-    let mut new_img_bytes1 = vec![0; (img.as_bytes().len() / 3) * 4];
-    transform_reference.transform(&rgb_f32, &mut new_img_bytes1).unwrap();
-
-    let mut max_r = f32::MIN;
-    let mut max_g = f32::MIN;
-    let mut max_b = f32::MIN;
-
-    for (&reference, &fp) in new_img_bytes1
-        .as_chunks::<4>()
-        .0
-        .iter()
-        .zip(new_img_bytes.as_chunks::<4>().0.iter())
-    {
-        max_r = (reference[0] as f32 - fp[0] as f32).abs().max(max_r);
-        max_g = (reference[1] as f32 - fp[1] as f32).abs().max(max_g);
-        max_b = (reference[2] as f32 - fp[2] as f32).abs().max(max_b);
-    }
-
-    println!("max r {:?}, max g {:?}, max b {:?}", max_r, max_g, max_b);
-
-    let inverse_transform = working_profile
+    let inverse_transform = fogra_profile
         .create_transform_8bit(
             moxcms::Layout::Rgba,
             &srgb,
@@ -408,8 +395,7 @@ fn main() {
     let new_img = DynamicImage::ImageRgb8(
         image::RgbImage::from_raw(img.width(), img.height(), recollected).unwrap(),
     );
-    new_img.save("converted.png").unwrap();
-    
+    new_img.save("converted1.png").unwrap();
     //
     // // let profile = lcms2::Profile::new_icc(&gray_icc).unwrap();
     // // let srgb = lcms2::Profile::new_srgb();

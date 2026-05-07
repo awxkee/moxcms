@@ -19,6 +19,7 @@ default = ["moxcms/options", "moxcms/in_place"]
 avx = ["moxcms/avx_luts", "moxcms/avx_shaper_fixed_point_paths", "moxcms/avx_shaper_optimized_paths", "moxcms/avx_shaper_paths", "moxcms/in_place"]
 sse = ["moxcms/sse_luts", "moxcms/sse_shaper_fixed_point_paths", "moxcms/sse_shaper_optimized_paths", "moxcms/sse_shaper_paths", "moxcms/in_place"]
 neon = ["moxcms/neon_luts", "moxcms/neon_shaper_fixed_point_paths", "moxcms/neon_shaper_optimized_paths", "moxcms/neon_shaper_paths", "moxcms/in_place"]
+sve = ["moxcms/sve", "moxcms/in_place"]
 
 [[bin]]
 name = "unsafe"

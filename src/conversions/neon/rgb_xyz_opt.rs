@@ -77,15 +77,8 @@ where
         let scale = (self.gamma_lut - 1) as f32;
         let max_colors: T = ((1 << self.bit_depth) - 1).as_();
 
-        // safety precondition for linearization table
-        if T::FINITE {
-            let cap = (1 << self.bit_depth) - 1;
-            assert!(self.profile.linear.len() >= cap);
-        } else {
-            assert!(self.profile.linear.len() >= T::NOT_FINITE_LINEAR_TABLE_SIZE);
-        }
-
         let lut_lin = &self.profile.linear;
+        assert_lut_min_len!(T, lut_lin.len());
 
         let (src_chunks, src_remainder) = split_by_twos(src, src_channels);
         let (dst_chunks, dst_remainder) = split_by_twos_mut(dst, dst_channels);
@@ -115,21 +108,21 @@ where
                     .zip(dst0.chunks_exact_mut(dst_channels * 2))
                     .zip(dst1.chunks_exact_mut(dst_channels * 2))
                 {
-                    let r0p = lut_lin.get_unchecked(src0[src_cn.r_i()]._as_usize());
-                    let g0p = lut_lin.get_unchecked(src0[src_cn.g_i()]._as_usize());
-                    let b0p = lut_lin.get_unchecked(src0[src_cn.b_i()]._as_usize());
+                    let r0p = &lut_lin[src0[src_cn.r_i()]._as_usize()];
+                    let g0p = &lut_lin[src0[src_cn.g_i()]._as_usize()];
+                    let b0p = &lut_lin[src0[src_cn.b_i()]._as_usize()];
 
-                    let r1p = lut_lin.get_unchecked(src0[src_cn.r_i() + src_channels]._as_usize());
-                    let g1p = lut_lin.get_unchecked(src0[src_cn.g_i() + src_channels]._as_usize());
-                    let b1p = lut_lin.get_unchecked(src0[src_cn.b_i() + src_channels]._as_usize());
+                    let r1p = &lut_lin[src0[src_cn.r_i() + src_channels]._as_usize()];
+                    let g1p = &lut_lin[src0[src_cn.g_i() + src_channels]._as_usize()];
+                    let b1p = &lut_lin[src0[src_cn.b_i() + src_channels]._as_usize()];
 
-                    let r2p = lut_lin.get_unchecked(src1[src_cn.r_i()]._as_usize());
-                    let g2p = lut_lin.get_unchecked(src1[src_cn.g_i()]._as_usize());
-                    let b2p = lut_lin.get_unchecked(src1[src_cn.b_i()]._as_usize());
+                    let r2p = &lut_lin[src1[src_cn.r_i()]._as_usize()];
+                    let g2p = &lut_lin[src1[src_cn.g_i()]._as_usize()];
+                    let b2p = &lut_lin[src1[src_cn.b_i()]._as_usize()];
 
-                    let r3p = lut_lin.get_unchecked(src1[src_cn.r_i() + src_channels]._as_usize());
-                    let g3p = lut_lin.get_unchecked(src1[src_cn.g_i() + src_channels]._as_usize());
-                    let b3p = lut_lin.get_unchecked(src1[src_cn.b_i() + src_channels]._as_usize());
+                    let r3p = &lut_lin[src1[src_cn.r_i() + src_channels]._as_usize()];
+                    let g3p = &lut_lin[src1[src_cn.g_i() + src_channels]._as_usize()];
+                    let b3p = &lut_lin[src1[src_cn.b_i() + src_channels]._as_usize()];
 
                     r0 = vld1q_dup_f32(r0p);
                     g0 = vld1q_dup_f32(g0p);
@@ -196,10 +189,10 @@ where
                     vr2 = vminq_f32(vr2, v_scale);
                     vr3 = vminq_f32(vr3, v_scale);
 
-                    let zx0 = vcvtaq_u32_f32(vr0);
-                    let zx1 = vcvtaq_u32_f32(vr1);
-                    let zx2 = vcvtaq_u32_f32(vr2);
-                    let zx3 = vcvtaq_u32_f32(vr3);
+                    let zx0 = vcvtq_u32_f32(vr0);
+                    let zx1 = vcvtq_u32_f32(vr1);
+                    let zx2 = vcvtq_u32_f32(vr2);
+                    let zx3 = vcvtq_u32_f32(vr3);
                     vst1q_u32(temporary0.0.as_mut_ptr() as *mut _, zx0);
                     vst1q_u32(temporary1.0.as_mut_ptr() as *mut _, zx1);
                     vst1q_u32(temporary2.0.as_mut_ptr() as *mut _, zx2);
@@ -245,9 +238,9 @@ where
                 .chunks_exact(src_channels)
                 .zip(dst_remainder.chunks_exact_mut(dst_channels))
             {
-                let rp = lut_lin.get_unchecked(src[src_cn.r_i()]._as_usize());
-                let gp = lut_lin.get_unchecked(src[src_cn.g_i()]._as_usize());
-                let bp = lut_lin.get_unchecked(src[src_cn.b_i()]._as_usize());
+                let rp = &lut_lin[src[src_cn.r_i()]._as_usize()];
+                let gp = &lut_lin[src[src_cn.g_i()]._as_usize()];
+                let bp = &lut_lin[src[src_cn.b_i()]._as_usize()];
                 let r = vld1q_dup_f32(rp);
                 let g = vld1q_dup_f32(gp);
                 let b = vld1q_dup_f32(bp);
@@ -264,7 +257,7 @@ where
                 v = vfmaq_f32(rnd, v, v_scale);
                 v = vminq_f32(v, v_scale);
 
-                let zx = vcvtaq_u32_f32(v);
+                let zx = vcvtq_u32_f32(v);
                 vst1q_u32(temporary0.0.as_mut_ptr() as *mut _, zx);
 
                 dst[dst_cn.r_i()] = self.profile.gamma[temporary0.0[0] as usize];
