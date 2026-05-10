@@ -179,7 +179,7 @@ fn moxcms_transform(src: &[u8], fixed: bool, interp: InterpolationMethod) -> Vec
                 prefer_fixed_point: fixed,
                 allow_use_cicp_transfer: false,
                 interpolation_method: interp,
-                rendering_intent: RenderingIntent::RelativeColorimetric,
+                rendering_intent: RenderingIntent::Perceptual,
                 ..Default::default()
             },
         )
@@ -198,7 +198,7 @@ fn lcms2_transform(src: &[u8]) -> Vec<u8> {
         PixelFormat::RGB_8,
         &dp,
         PixelFormat::RGBA_8,
-        Intent::RelativeColorimetric,
+        Intent::Perceptual,
     )
         .unwrap();
     let mut dst = vec![0u8; (src.len() / 3) * 4];

@@ -250,7 +250,7 @@ fn make_lut_4x3(
         }));
     }
 
-    let lin_curve0 = linearization_table[0..lut.num_input_table_entries as usize].to_vec();
+    let lin_curve0 = linearization_table[..lut.num_input_table_entries as usize].to_vec();
     let lin_curve1 = linearization_table
         [lut.num_input_table_entries as usize..lut.num_input_table_entries as usize * 2]
         .to_vec();
@@ -373,3 +373,83 @@ pub(crate) fn create_lut4<const SAMPLES: usize>(
     lut_stage.transform(&src, &mut dest)?;
     Ok(dest)
 }
+/*
+impl LutDataType {
+    pub(crate) fn eval_lut4_at(&self, src: [f32; 4]) -> Result<[f32; 3], CmsError> {
+        if self.num_input_channels != 4 {
+            return Err(CmsError::UnsupportedProfileConnection);
+        }
+        if self.num_output_channels != 3 {
+            return Err(CmsError::UnsupportedProfileConnection);
+        }
+        let lut = self;
+        let clut_length: usize = (lut.num_clut_grid_points as usize)
+            .safe_powi(lut.num_input_channels as u32)?
+            .safe_mul(lut.num_output_channels as usize)?;
+
+        let clut_table = lut.clut_table.to_clut_f32();
+        if clut_table.len() != clut_length {
+            return Err(CmsError::MalformedClut(MalformedSize {
+                size: clut_table.len(),
+                expected: clut_length,
+            }));
+        }
+
+        let linearization_table = lut.input_table.to_clut_f32();
+
+        if linearization_table.len() < lut.num_input_table_entries as usize * 4 {
+            return Err(CmsError::MalformedCurveLutTable(MalformedSize {
+                size: linearization_table.len(),
+                expected: lut.num_input_table_entries as usize * 4,
+            }));
+        }
+
+        let lin_curve0 = linearization_table[..lut.num_input_table_entries as usize].to_vec();
+        let lin_curve1 = linearization_table
+            [lut.num_input_table_entries as usize..lut.num_input_table_entries as usize * 2]
+            .to_vec();
+        let lin_curve2 = linearization_table
+            [lut.num_input_table_entries as usize * 2..lut.num_input_table_entries as usize * 3]
+            .to_vec();
+        let lin_curve3 = linearization_table
+            [lut.num_input_table_entries as usize * 3..lut.num_input_table_entries as usize * 4]
+            .to_vec();
+
+        let gamma_table = lut.output_table.to_clut_f32();
+
+        if gamma_table.len() < lut.num_output_table_entries as usize * 3 {
+            return Err(CmsError::MalformedCurveLutTable(MalformedSize {
+                size: gamma_table.len(),
+                expected: lut.num_output_table_entries as usize * 3,
+            }));
+        }
+
+        let gamma_curve0 = gamma_table[..lut.num_output_table_entries as usize].to_vec();
+        let gamma_curve1 = gamma_table
+            [lut.num_output_table_entries as usize..lut.num_output_table_entries as usize * 2]
+            .to_vec();
+        let gamma_curve2 = gamma_table
+            [lut.num_output_table_entries as usize * 2..lut.num_output_table_entries as usize * 3]
+            .to_vec();
+
+        let l_tbl = Hypercube::new(&clut_table, lut.num_clut_grid_points as usize, 3)?;
+
+        let linear_x = lut_interp_linear_float(src[0], &lin_curve0);
+        let linear_y = lut_interp_linear_float(src[1], &lin_curve1);
+        let linear_z = lut_interp_linear_float(src[2], &lin_curve2);
+        let linear_w = lut_interp_linear_float(src[3], &lin_curve3);
+
+        let clut = l_tbl.quadlinear_vec3(linear_x, linear_y, linear_z, linear_w);
+
+        let pcs_x = lut_interp_linear_float(clut.v[0], &gamma_curve0);
+        let pcs_y = lut_interp_linear_float(clut.v[1], &gamma_curve1);
+        let pcs_z = lut_interp_linear_float(clut.v[2], &gamma_curve2);
+
+        let pcs0 = pcs_x;
+        let pcs1 = pcs_y;
+        let pcs2 = pcs_z;
+
+        Ok([pcs0, pcs1, pcs2])
+    }
+}
+*/

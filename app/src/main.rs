@@ -323,12 +323,12 @@ fn main() {
     //     moxcms::ColorProfile::new_from_slice(&decoder.icc_profile().unwrap().unwrap()).unwrap();
     // let custom_profile = Profile::new_icc(&decoder.icc_profile().unwrap().unwrap()).unwrap();
 
-    // let fogra_icc = fs::read("./assets/fogra39_coated.icc").unwrap();
+    let fogra_icc = fs::read("./assets/CoatedGRACoL2006.icc").unwrap();
 
     // Curve first point must be 0 and last 65535.
     // let mut new_curve = vec![0u16; 4096];
     let srgb = ColorProfile::new_srgb();
-    let fogra_profile = ColorProfile::new_adobe_rgb(); // ColorProfile::new_from_slice(&fogra_icc).unwrap();
+    let fogra_profile = ColorProfile::new_from_slice(&fogra_icc).unwrap();
 
     // let gamma_table = srgb.build_gamma_table(&srgb.red_trc, true).unwrap();
 
@@ -352,6 +352,7 @@ fn main() {
             moxcms::Layout::Rgba,
             TransformOptions {
                 prefer_fixed_point: true,
+                rendering_intent: RenderingIntent::Perceptual,
                 ..Default::default()
             },
         )
@@ -372,7 +373,7 @@ fn main() {
             moxcms::Layout::Rgb,
             TransformOptions {
                 prefer_fixed_point: true,
-                rendering_intent: RenderingIntent::RelativeColorimetric,
+                rendering_intent: RenderingIntent::Perceptual,
                 ..Default::default()
             },
         )

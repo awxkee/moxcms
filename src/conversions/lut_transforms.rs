@@ -35,7 +35,10 @@ use crate::conversions::lut4::*;
 use crate::conversions::mab::{prepare_mab_3x3, prepare_mba_3x3};
 use crate::conversions::transform_lut3_to_4::make_transform_3x4;
 use crate::mlaf::mlaf;
-use crate::{CmsError, ColorProfile, DataColorSpace, InPlaceStage, Layout, LutWarehouse, Matrix3f, ProfileVersion, TransformExecutor, TransformOptions, Xyz};
+use crate::{
+    CmsError, ColorProfile, DataColorSpace, InPlaceStage, Layout, LutWarehouse, Matrix3f,
+    ProfileVersion, TransformExecutor, TransformOptions,
+};
 use num_traits::AsPrimitive;
 use std::sync::Arc;
 
@@ -290,21 +293,21 @@ use crate::conversions::sse::SseLut3x3Factory;
 #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse_luts"))]
 make_transform_3x3_fn!(make_transformer_3x3_sse41, SseLut3x3Factory);
 
-use crate::conversions::LutBarycentricReduction;
 #[cfg(all(target_arch = "x86_64", feature = "avx_luts"))]
 use crate::conversions::avx::AvxLut4x3Factory;
-use crate::conversions::bpc::compensate_bpc_in_lut;
+use crate::conversions::bpc::{compensate_bpc_in_lut, TransformDirection};
 #[cfg(feature = "any_to_any")]
 use crate::conversions::katana::{
-    Katana, KatanaDefaultIntermediate, KatanaInitialStage, KatanaPostFinalizationStage,
-    KatanaStageLabToXyz, KatanaStageXyzToLab, katana_create_rgb_lin_lut, katana_pcs_lab_v2_to_v4,
-    katana_pcs_lab_v4_to_v2, katana_prepare_inverse_lut_rgb_xyz, multi_dimensional_3x3_to_device,
-    multi_dimensional_3x3_to_pcs, multi_dimensional_4x3_to_pcs,
+    katana_create_rgb_lin_lut, katana_pcs_lab_v2_to_v4, katana_pcs_lab_v4_to_v2, katana_prepare_inverse_lut_rgb_xyz,
+    multi_dimensional_3x3_to_device, multi_dimensional_3x3_to_pcs, multi_dimensional_4x3_to_pcs, Katana,
+    KatanaDefaultIntermediate, KatanaInitialStage, KatanaPostFinalizationStage,
+    KatanaStageLabToXyz, KatanaStageXyzToLab,
 };
 use crate::conversions::mab4x3::prepare_mab_4x3;
 use crate::conversions::mba3x4::prepare_mba_3x4;
 #[cfg(feature = "any_to_any")]
 use crate::conversions::md_luts_factory::{do_any_to_any, prepare_alpha_finalizer};
+use crate::conversions::LutBarycentricReduction;
 // use crate::conversions::bpc::compensate_bpc_in_lut;
 
 #[cfg(all(target_arch = "x86_64", feature = "avx_luts"))]
@@ -358,6 +361,15 @@ where
     (): LutBarycentricReduction<T, u8>,
     (): LutBarycentricReduction<T, u16>,
 {
+    let apply_bpc_scaling = |lut: &mut [f32]| {
+        if let (Some(src_bp), Some(dest_bp)) = (
+            source.detect_black_point(options.rendering_intent, TransformDirection::DeviceToPcs),
+            dest.detect_black_point(options.rendering_intent, TransformDirection::PcsToDevice),
+        ) {
+            compensate_bpc_in_lut(lut, src_bp, dest_bp);
+        }
+    };
+
     if (source.color_space == DataColorSpace::Cmyk || source.color_space == DataColorSpace::Color4)
         && (dest.color_space == DataColorSpace::Rgb || dest.color_space == DataColorSpace::Lab)
     {
@@ -467,27 +479,16 @@ where
 
         pcs_lab_v2_to_v4(source, &mut lut);
 
-        if source.pcs == DataColorSpace::Lab {
+        if source.pcs == DataColorSpace::Xyz && dest.pcs == DataColorSpace::Lab {
+            apply_bpc_scaling(&mut lut);
+            let xyz_to_lab = StageXyzToLab::default();
+            xyz_to_lab.transform(&mut lut)?;
+        } else if source.pcs == DataColorSpace::Lab && dest.pcs == DataColorSpace::Xyz {
             let lab_to_xyz_stage = StageLabToXyz::default();
             lab_to_xyz_stage.transform(&mut lut)?;
-        }
-
-        // if source.color_space == DataColorSpace::Cmyk
-        //     && (options.rendering_intent == RenderingIntent::Perceptual
-        //         || options.rendering_intent == RenderingIntent::RelativeColorimetric)
-        //     && options.black_point_compensation
-        // {
-        //     if let (Some(src_bp), Some(dst_bp)) = (
-        //         source.detect_black_point::<GRID_SIZE>(&lut),
-        //         dest.detect_black_point::<GRID_SIZE>(&lut),
-        //     ) {
-        //         compensate_bpc_in_lut(&mut lut, src_bp, dst_bp);
-        //     }
-        // }
-
-        if dest.pcs == DataColorSpace::Lab {
-            let lab_to_xyz_stage = StageXyzToLab::default();
-            lab_to_xyz_stage.transform(&mut lut)?;
+            apply_bpc_scaling(&mut lut);
+        } else {
+            apply_bpc_scaling(&mut lut);
         }
 
         pcs_lab_v4_to_v2(dest, &mut lut);
@@ -574,13 +575,6 @@ where
                     prepare_mab_3x3(mab, &mut lut, options, source.pcs)?
                 }
             }
-            match device_to_pcs {
-                LutWarehouse::Lut(lut_data_type) => {}
-                LutWarehouse::Multidimensional(mab) => {
-                    let bpt = source.detect_black_point(&mab.clut.clone().unwrap().to_clut_f32(),mab.grid_points[0] as usize).unwrap();
-                    compensate_bpc_in_lut(&mut lut, bpt, Xyz::default());
-                }
-            }
         } else if source.is_matrix_shaper() {
             lut = create_rgb_lin_lut::<T, BIT_DEPTH, LINEAR_CAP, GRID_SIZE>(source, options)?;
         } else {
@@ -590,11 +584,15 @@ where
         pcs_lab_v2_to_v4(source, &mut lut);
 
         if source.pcs == DataColorSpace::Xyz && dest.pcs == DataColorSpace::Lab {
+            apply_bpc_scaling(&mut lut);
             let xyz_to_lab = StageXyzToLab::default();
             xyz_to_lab.transform(&mut lut)?;
         } else if source.pcs == DataColorSpace::Lab && dest.pcs == DataColorSpace::Xyz {
             let lab_to_xyz_stage = StageLabToXyz::default();
             lab_to_xyz_stage.transform(&mut lut)?;
+            apply_bpc_scaling(&mut lut);
+        } else {
+            apply_bpc_scaling(&mut lut);
         }
 
         pcs_lab_v4_to_v2(dest, &mut lut);
@@ -739,13 +737,6 @@ where
                     prepare_mab_3x3(mab, &mut lut, options, source.pcs)?
                 }
             }
-            // match device_to_pcs {
-            //     LutWarehouse::Lut(lut_data_type) => {}
-            //     LutWarehouse::Multidimensional(mab) => {
-            //         let bpt = source.detect_black_point(&mab.clut.clone().unwrap().to_clut_f32(),mab.grid_points[0] as usize).unwrap();
-            //         compensate_bpc_in_lut(&mut lut, bpt, Xyz::new(0., 0., 0.));
-            //     }
-            // }
         } else if source.is_matrix_shaper() {
             lut = create_rgb_lin_lut::<T, BIT_DEPTH, LINEAR_CAP, GRID_SIZE>(source, options)?;
         } else {
@@ -755,11 +746,15 @@ where
         pcs_lab_v2_to_v4(source, &mut lut);
 
         if source.pcs == DataColorSpace::Xyz && dest.pcs == DataColorSpace::Lab {
+            apply_bpc_scaling(&mut lut);
             let xyz_to_lab = StageXyzToLab::default();
             xyz_to_lab.transform(&mut lut)?;
         } else if source.pcs == DataColorSpace::Lab && dest.pcs == DataColorSpace::Xyz {
             let lab_to_xyz_stage = StageLabToXyz::default();
             lab_to_xyz_stage.transform(&mut lut)?;
+            apply_bpc_scaling(&mut lut);
+        } else {
+            apply_bpc_scaling(&mut lut);
         }
 
         pcs_lab_v4_to_v2(dest, &mut lut);
