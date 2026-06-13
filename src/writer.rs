@@ -914,6 +914,7 @@ impl FloatToFixedU8Fixed8 for f32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{CicpColorPrimaries, MatrixCoefficients, TransferCharacteristics};
 
     #[test]
     fn to_u8_fixed8() {
@@ -931,5 +932,20 @@ mod tests {
             i32::MAX,
             (32767f32 + (65535f32 / 65536f32)).to_s15_fixed16()
         );
+    }
+
+    #[test]
+    fn can_roundtrip_gray_with_cicp() {
+        let mut basic_gray = ColorProfile::new_gray_with_gamma(2.2);
+        basic_gray.cicp = Some(CicpProfile {
+            color_primaries: CicpColorPrimaries::Bt709,
+            transfer_characteristics: TransferCharacteristics::Srgb,
+            matrix_coefficients: MatrixCoefficients::Smpte170m,
+            full_range: true,
+        });
+        let encoded = basic_gray.encode().unwrap();
+        let decoded_rountrip = ColorProfile::new_from_slice(&encoded).unwrap();
+        // Gray profiles with cicp are not conformant, so we should remove it during encoding
+        assert!(decoded_rountrip.cicp.is_none());
     }
 }
