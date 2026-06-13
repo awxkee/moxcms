@@ -133,7 +133,12 @@ where
         let value_scale = ((1 << BIT_DEPTH) - 1) as f32;
         let max_value = ((1 << BIT_DEPTH) - 1u32).as_();
 
-        for (src, dst) in src.chunks_exact(4).zip(dst.chunks_exact_mut(channels)) {
+        for (src, dst) in src
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .zip(dst.chunks_exact_mut(channels))
+        {
             let c = <() as LutBarycentricReduction<T, U>>::reduce::<BIT_DEPTH, BARYCENTRIC_BINS>(
                 src[0],
             );

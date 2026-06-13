@@ -70,7 +70,12 @@ impl<T: Clone + Copy + Default> TransformExecutor<T> for FromCmykaInterceptor<T>
 
         let mut src_scratch = try_vec![T::default(); samples * 4];
 
-        for (dst, src) in src_scratch.chunks_exact_mut(4).zip(src.chunks_exact(5)) {
+        for (dst, src) in src_scratch
+            .as_chunks_mut::<4>()
+            .0
+            .iter_mut()
+            .zip(src.as_chunks::<5>().0.iter())
+        {
             dst[0] = src[0];
             dst[1] = src[1];
             dst[2] = src[2];
@@ -80,11 +85,21 @@ impl<T: Clone + Copy + Default> TransformExecutor<T> for FromCmykaInterceptor<T>
         self.intercept.transform(&src_scratch, dst)?;
 
         if self.target_layout == Layout::Rgba {
-            for (dst, src) in dst.chunks_exact_mut(4).zip(src.chunks_exact(5)) {
+            for (dst, src) in dst
+                .as_chunks_mut::<4>()
+                .0
+                .iter_mut()
+                .zip(src.as_chunks::<5>().0.iter())
+            {
                 dst[3] = src[4];
             }
         } else if self.target_layout == Layout::Cmyka {
-            for (dst, src) in dst.chunks_exact_mut(5).zip(src.chunks_exact(5)) {
+            for (dst, src) in dst
+                .as_chunks_mut::<5>()
+                .0
+                .iter_mut()
+                .zip(src.as_chunks::<5>().0.iter())
+            {
                 dst[4] = src[4];
             }
         }

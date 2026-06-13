@@ -109,7 +109,6 @@ fn rec709_to_linear(gamma: f64) -> f64 {
     }
 }
 
-#[inline]
 #[cfg(feature = "extended_range")]
 /// Linear transfer function for Rec.709
 fn rec709_to_linearf_extended(gamma: f32) -> f32 {
@@ -544,7 +543,6 @@ fn pq_from_linear(linear: f64) -> f64 {
     }
 }
 
-#[inline]
 /// Gamma transfer function for PQ
 pub(crate) fn pq_from_linearf(linear: f32) -> f32 {
     if linear > 0.0 {
@@ -628,6 +626,38 @@ fn hlg_from_linearf(linear: f32) -> f32 {
 #[inline]
 fn trc_linear(v: f64) -> f64 {
     v.min(1.).max(0.)
+}
+
+#[inline(never)]
+fn make_linear_table_impl(
+    output: &mut [f32],
+    cap_values: usize,
+    max_value: usize,
+    linearize: impl Fn(f64) -> f64,
+) {
+    let scale_value = 1f64 / max_value as f64;
+    for (i, g) in output.iter_mut().enumerate().take(cap_values) {
+        *g = linearize(i as f64 * scale_value) as f32;
+    }
+}
+
+#[inline(never)]
+fn make_gamma_table_impl(
+    output: &mut [f32],
+    max_value: f64,
+    round: bool,
+    gamma: impl Fn(f64) -> f64,
+) {
+    let max_range = 1f64 / (output.len() - 1) as f64;
+    if round {
+        for (v, o) in output.iter_mut().enumerate() {
+            *o = (gamma(v as f64 * max_range) * max_value) as f32;
+        }
+    } else {
+        for (v, o) in output.iter_mut().enumerate() {
+            *o = gamma(v as f64 * max_range) as f32;
+        }
+    }
 }
 
 impl TransferCharacteristics {
@@ -920,7 +950,6 @@ impl TransferCharacteristics {
     >(
         &self,
     ) -> Box<[f32; N]> {
-        let mut gamma_table = Box::new([0f32; N]);
         let max_value = if T::FINITE {
             (1 << BIT_DEPTH) - 1
         } else {
@@ -932,10 +961,11 @@ impl TransferCharacteristics {
             T::NOT_FINITE_LINEAR_TABLE_SIZE
         };
         assert!(cap_values <= N, "Invalid lut table construction");
-        let scale_value = 1f64 / max_value as f64;
-        for (i, g) in gamma_table.iter_mut().enumerate().take(cap_values) {
-            *g = self.linearize(i as f64 * scale_value) as f32;
-        }
+
+        let mut gamma_table = Box::new([0f32; N]);
+        make_linear_table_impl(gamma_table.as_mut_slice(), cap_values, max_value, |x| {
+            self.linearize(x)
+        });
         gamma_table
     }
 
@@ -950,19 +980,13 @@ impl TransferCharacteristics {
     where
         f32: AsPrimitive<T>,
     {
-        let mut table = Box::new([T::default(); BUCKET]);
-        let max_range = 1f64 / (N - 1) as f64;
+        let mut scratch = vec![0f32; N];
         let max_value = ((1 << bit_depth) - 1) as f64;
-        if T::FINITE {
-            for (v, output) in table.iter_mut().take(N).enumerate() {
-                *output = ((self.gamma(v as f64 * max_range) * max_value) as f32)
-                    .round()
-                    .as_();
-            }
-        } else {
-            for (v, output) in table.iter_mut().take(N).enumerate() {
-                *output = (self.gamma(v as f64 * max_range) as f32).as_();
-            }
+        make_gamma_table_impl(&mut scratch, max_value, T::FINITE, |x| self.gamma(x));
+
+        let mut table = Box::new([T::default(); BUCKET]);
+        for (src, dst) in scratch.iter().zip(table.iter_mut()) {
+            *dst = src.as_();
         }
         table
     }

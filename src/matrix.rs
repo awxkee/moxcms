@@ -834,7 +834,6 @@ impl Matrix3d {
         Some(j)
     }
 
-    #[inline]
     pub const fn inverse(&self) -> Self {
         let v = self.v;
         let det = self.determinant();
