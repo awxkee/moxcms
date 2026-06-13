@@ -578,7 +578,13 @@ impl ColorProfile {
         if self.gray_trc.is_some() {
             tags_count += 1;
         }
-        if self.cicp.is_some() {
+        if self.cicp.is_some()
+            && (self.profile_class == ProfileClass::InputDevice
+                || self.profile_class == ProfileClass::DisplayDevice)
+            && (self.color_space == DataColorSpace::Rgb
+                || self.color_space == DataColorSpace::YCbr
+                || self.color_space == DataColorSpace::Xyz)
+        {
             tags_count += 1;
         }
         if self.media_white_point.is_some() {

@@ -327,7 +327,9 @@ fn main() {
 
     // Curve first point must be 0 and last 65535.
     // let mut new_curve = vec![0u16; 4096];
-    let srgb = ColorProfile::new_srgb();
+    let d3 = ColorProfile::new_display_p3();
+    let encoded_d3 = d3.encode().unwrap();
+    fs::write("display_p3.icc", encoded_d3).unwrap();
     let fogra_profile = ColorProfile::new_from_slice(&fogra_icc).unwrap();
 
     // let gamma_table = srgb.build_gamma_table(&srgb.red_trc, true).unwrap();

@@ -293,21 +293,21 @@ use crate::conversions::sse::SseLut3x3Factory;
 #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse_luts"))]
 make_transform_3x3_fn!(make_transformer_3x3_sse41, SseLut3x3Factory);
 
+use crate::conversions::LutBarycentricReduction;
 #[cfg(all(target_arch = "x86_64", feature = "avx_luts"))]
 use crate::conversions::avx::AvxLut4x3Factory;
-use crate::conversions::bpc::{compensate_bpc_in_lut, TransformDirection};
+use crate::conversions::bpc::{TransformDirection, compensate_bpc_in_lut};
 #[cfg(feature = "any_to_any")]
 use crate::conversions::katana::{
-    katana_create_rgb_lin_lut, katana_pcs_lab_v2_to_v4, katana_pcs_lab_v4_to_v2, katana_prepare_inverse_lut_rgb_xyz,
-    multi_dimensional_3x3_to_device, multi_dimensional_3x3_to_pcs, multi_dimensional_4x3_to_pcs, Katana,
-    KatanaDefaultIntermediate, KatanaInitialStage, KatanaPostFinalizationStage,
-    KatanaStageLabToXyz, KatanaStageXyzToLab,
+    Katana, KatanaDefaultIntermediate, KatanaInitialStage, KatanaPostFinalizationStage,
+    KatanaStageLabToXyz, KatanaStageXyzToLab, katana_create_rgb_lin_lut, katana_pcs_lab_v2_to_v4,
+    katana_pcs_lab_v4_to_v2, katana_prepare_inverse_lut_rgb_xyz, multi_dimensional_3x3_to_device,
+    multi_dimensional_3x3_to_pcs, multi_dimensional_4x3_to_pcs,
 };
 use crate::conversions::mab4x3::prepare_mab_4x3;
 use crate::conversions::mba3x4::prepare_mba_3x4;
 #[cfg(feature = "any_to_any")]
 use crate::conversions::md_luts_factory::{do_any_to_any, prepare_alpha_finalizer};
-use crate::conversions::LutBarycentricReduction;
 // use crate::conversions::bpc::compensate_bpc_in_lut;
 
 #[cfg(all(target_arch = "x86_64", feature = "avx_luts"))]
