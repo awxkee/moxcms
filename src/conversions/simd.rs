@@ -27,33 +27,38 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+/// Marker for values that can receive an unaligned 128-bit SIMD store.
+///
+/// # Safety
+///
+/// Implementors must be at least 16 bytes in size and valid to overwrite
+/// through a raw pointer cast to the intrinsic's destination type.
+pub(crate) unsafe trait Is128BitsUnaligned {}
+
+unsafe impl Is128BitsUnaligned for [u16; 8] {}
+
+/// Marker for values that can receive an unaligned 256-bit SIMD store.
+///
+/// # Safety
+///
+/// Implementors must be at least 32 bytes in size and valid to overwrite
+/// through a raw pointer cast to the intrinsic's destination type.
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+pub(crate) unsafe trait Is256BitsUnaligned {}
+
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+unsafe impl Is256BitsUnaligned for [u16; 16] {}
+
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 pub(crate) mod x86 {
     use core::ptr;
+
+    use super::{Is128BitsUnaligned, Is256BitsUnaligned};
 
     #[cfg(target_arch = "x86")]
     use core::arch::x86::{self as arch, __m128, __m128i, __m256i};
     #[cfg(target_arch = "x86_64")]
     use core::arch::x86_64::{self as arch, __m128, __m128i, __m256i};
-
-    /// Marker for values that can receive an unaligned 128-bit SIMD store.
-    ///
-    /// # Safety
-    ///
-    /// Implementors must be at least 16 bytes in size and valid to overwrite
-    /// through a raw pointer cast to the intrinsic's destination type.
-    pub(crate) unsafe trait Is128BitsUnaligned {}
-
-    /// Marker for values that can receive an unaligned 256-bit SIMD store.
-    ///
-    /// # Safety
-    ///
-    /// Implementors must be at least 32 bytes in size and valid to overwrite
-    /// through a raw pointer cast to the intrinsic's destination type.
-    pub(crate) unsafe trait Is256BitsUnaligned {}
-
-    unsafe impl Is128BitsUnaligned for [u16; 8] {}
-    unsafe impl Is256BitsUnaligned for [u16; 16] {}
 
     #[inline]
     #[target_feature(enable = "sse")]
@@ -88,17 +93,8 @@ pub(crate) mod x86 {
 pub(crate) mod aarch64 {
     use core::ptr;
 
+    use super::Is128BitsUnaligned;
     use core::arch::aarch64::{self as arch, float32x4_t, int16x4_t, int32x4_t, uint32x4_t};
-
-    /// Marker for values that can receive an unaligned 128-bit SIMD store.
-    ///
-    /// # Safety
-    ///
-    /// Implementors must be at least 16 bytes in size and valid to overwrite
-    /// through a raw pointer cast to the intrinsic's destination type.
-    pub(crate) unsafe trait Is128BitsUnaligned {}
-
-    unsafe impl Is128BitsUnaligned for [u16; 8] {}
 
     #[inline]
     #[target_feature(enable = "neon")]
