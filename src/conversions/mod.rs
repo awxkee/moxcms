@@ -76,10 +76,9 @@ mod rgbxyz;
 mod rgbxyz_fixed;
 mod rgbxyz_float;
 #[cfg(any(
-    all(
-        any(target_arch = "x86", target_arch = "x86_64"),
-        any(feature = "sse", feature = "avx", feature = "avx512")
-    ),
+    all(target_arch = "x86_64", feature = "avx"),
+    all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"),
+    all(target_arch = "x86_64", feature = "avx512"),
     all(target_arch = "aarch64", feature = "neon")
 ))]
 mod simd;
