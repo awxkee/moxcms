@@ -28,14 +28,11 @@
  */
 #![cfg(feature = "sse_shaper_optimized_paths")]
 use crate::conversions::rgbxyz::TransformMatrixShaperOptimizedV;
+use crate::conversions::simd::x86::{_mm_load_ss, _mm_storeu_si128};
 use crate::conversions::sse::SseAlignedU16;
 use crate::transform::PointeeSizeExpressible;
 use crate::{CmsError, Layout, TransformExecutor};
 use num_traits::AsPrimitive;
-#[cfg(target_arch = "x86")]
-use safe_unaligned_simd::x86::{_mm_load_ss, _mm_storeu_si128};
-#[cfg(target_arch = "x86_64")]
-use safe_unaligned_simd::x86_64::{_mm_load_ss, _mm_storeu_si128};
 #[cfg(target_arch = "x86")]
 use std::arch::x86::*;
 #[cfg(target_arch = "x86_64")]
@@ -87,53 +84,53 @@ where
         assert_lut_min_len!(T, lut_lin.len());
 
         let m0 = _mm_setr_ps(t.v[0][0], t.v[0][1], t.v[0][2], 0f32);
-            let m1 = _mm_setr_ps(t.v[1][0], t.v[1][1], t.v[1][2], 0f32);
-            let m2 = _mm_setr_ps(t.v[2][0], t.v[2][1], t.v[2][2], 0f32);
+        let m1 = _mm_setr_ps(t.v[1][0], t.v[1][1], t.v[1][2], 0f32);
+        let m2 = _mm_setr_ps(t.v[2][0], t.v[2][1], t.v[2][2], 0f32);
 
-            let zeros = _mm_setzero_ps();
+        let zeros = _mm_setzero_ps();
 
-            let v_scale = _mm_set1_ps(scale);
+        let v_scale = _mm_set1_ps(scale);
 
-            for (src, dst) in src
-                .chunks_exact(src_channels)
-                .zip(dst.chunks_exact_mut(dst_channels))
-            {
-                let rp = &lut_lin[src[src_cn.r_i()]._as_usize()];
-                let gp = &lut_lin[src[src_cn.g_i()]._as_usize()];
-                let bp = &lut_lin[src[src_cn.b_i()]._as_usize()];
+        for (src, dst) in src
+            .chunks_exact(src_channels)
+            .zip(dst.chunks_exact_mut(dst_channels))
+        {
+            let rp = &lut_lin[src[src_cn.r_i()]._as_usize()];
+            let gp = &lut_lin[src[src_cn.g_i()]._as_usize()];
+            let bp = &lut_lin[src[src_cn.b_i()]._as_usize()];
 
-                let mut r = _mm_load_ss(rp);
-                let mut g = _mm_load_ss(gp);
-                let mut b = _mm_load_ss(bp);
-                let a = if src_channels == 4 {
-                    src[src_cn.a_i()]
-                } else {
-                    max_colors
-                };
+            let mut r = _mm_load_ss(rp);
+            let mut g = _mm_load_ss(gp);
+            let mut b = _mm_load_ss(bp);
+            let a = if src_channels == 4 {
+                src[src_cn.a_i()]
+            } else {
+                max_colors
+            };
 
-                r = _mm_shuffle_ps::<0>(r, r);
-                g = _mm_shuffle_ps::<0>(g, g);
-                b = _mm_shuffle_ps::<0>(b, b);
+            r = _mm_shuffle_ps::<0>(r, r);
+            g = _mm_shuffle_ps::<0>(g, g);
+            b = _mm_shuffle_ps::<0>(b, b);
 
-                let v0 = _mm_mul_ps(r, m0);
-                let v1 = _mm_mul_ps(g, m1);
-                let v2 = _mm_mul_ps(b, m2);
+            let v0 = _mm_mul_ps(r, m0);
+            let v1 = _mm_mul_ps(g, m1);
+            let v2 = _mm_mul_ps(b, m2);
 
-                let mut v = _mm_add_ps(_mm_add_ps(v0, v1), v2);
-                v = _mm_max_ps(v, zeros);
-                v = _mm_mul_ps(v, v_scale);
-                v = _mm_min_ps(v, v_scale);
+            let mut v = _mm_add_ps(_mm_add_ps(v0, v1), v2);
+            v = _mm_max_ps(v, zeros);
+            v = _mm_mul_ps(v, v_scale);
+            v = _mm_min_ps(v, v_scale);
 
-                let zx = _mm_cvtps_epi32(v);
-                _mm_storeu_si128(&mut temporary.0, zx);
+            let zx = _mm_cvtps_epi32(v);
+            _mm_storeu_si128(&mut temporary.0, zx);
 
-                dst[dst_cn.r_i()] = self.profile.gamma[temporary.0[0] as usize];
-                dst[dst_cn.g_i()] = self.profile.gamma[temporary.0[2] as usize];
-                dst[dst_cn.b_i()] = self.profile.gamma[temporary.0[4] as usize];
-                if dst_channels == 4 {
-                    dst[dst_cn.a_i()] = a;
-                }
+            dst[dst_cn.r_i()] = self.profile.gamma[temporary.0[0] as usize];
+            dst[dst_cn.g_i()] = self.profile.gamma[temporary.0[2] as usize];
+            dst[dst_cn.b_i()] = self.profile.gamma[temporary.0[4] as usize];
+            if dst_channels == 4 {
+                dst[dst_cn.a_i()] = a;
             }
+        }
 
         Ok(())
     }

@@ -28,6 +28,7 @@
  */
 #![cfg(feature = "neon_luts")]
 use crate::conversions::interpolator::{BarycentricWeight, load_bary_weights};
+use crate::conversions::simd::aarch64::vld1_s16;
 use num_traits::AsPrimitive;
 use std::arch::aarch64::*;
 use std::ops::{Add, Mul, Sub};
@@ -223,7 +224,7 @@ impl<const GRID_SIZE: usize> Fetcher<NeonVectorQ0_15>
             + z as u32) as usize;
         let jx = unsafe { self.cube.get_unchecked(offset..) };
         NeonVectorQ0_15 {
-            v: unsafe { vld1_s16(jx.as_ptr() as *const i16) },
+            v: unsafe { vld1_s16(&jx.get_unchecked(0).0) },
         }
     }
 }
@@ -242,8 +243,8 @@ impl<const GRID_SIZE: usize> Fetcher<NeonVectorQ0_15Double>
         NeonVectorQ0_15Double {
             v: unsafe {
                 vcombine_s16(
-                    vld1_s16(jx0.as_ptr() as *const i16),
-                    vld1_s16(jx1.as_ptr() as *const i16),
+                    vld1_s16(&jx0.get_unchecked(0).0),
+                    vld1_s16(&jx1.get_unchecked(0).0),
                 )
             },
         }
