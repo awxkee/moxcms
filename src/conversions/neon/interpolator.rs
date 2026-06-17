@@ -30,6 +30,7 @@
 #![cfg(feature = "neon_luts")]
 use crate::conversions::interpolator::{BarycentricWeight, load_bary_weights};
 use crate::conversions::neon::NeonAlignedF32;
+use crate::conversions::simd::aarch64::vld1q_f32;
 use crate::math::{FusedMultiplyAdd, FusedMultiplyNegAdd};
 use num_traits::AsPrimitive;
 use std::arch::aarch64::*;
@@ -209,7 +210,7 @@ impl<const GRID_SIZE: usize> Fetcher<NeonVector> for TetrahedralNeonFetchVector<
             + z as u32) as usize;
         let jx = unsafe { self.cube.get_unchecked(offset..) };
         NeonVector {
-            v: unsafe { vld1q_f32(jx.as_ptr() as *const f32) },
+            v: unsafe { vld1q_f32(&jx.get_unchecked(0).0) },
         }
     }
 }
@@ -226,8 +227,8 @@ impl<const GRID_SIZE: usize> Fetcher<NeonVectorDouble>
         let jx0 = unsafe { self.cube0.get_unchecked(offset..) };
         let jx1 = unsafe { self.cube1.get_unchecked(offset..) };
         NeonVectorDouble {
-            v0: unsafe { vld1q_f32(jx0.as_ptr() as *const f32) },
-            v1: unsafe { vld1q_f32(jx1.as_ptr() as *const f32) },
+            v0: unsafe { vld1q_f32(&jx0.get_unchecked(0).0) },
+            v1: unsafe { vld1q_f32(&jx1.get_unchecked(0).0) },
         }
     }
 }

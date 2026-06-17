@@ -29,6 +29,7 @@
 #![cfg(feature = "neon_shaper_paths")]
 use crate::conversions::neon::{NeonAlignedU16, split_by_twos, split_by_twos_mut};
 use crate::conversions::rgbxyz::TransformMatrixShaperV;
+use crate::conversions::simd::aarch64::{vld1q_dup_f32, vld1q_f32, vst1q_u32};
 use crate::transform::PointeeSizeExpressible;
 use crate::{CmsError, Layout, TransformExecutor};
 use num_traits::AsPrimitive;
@@ -88,9 +89,9 @@ where
         let (dst_chunks, dst_remainder) = split_by_twos_mut(dst, dst_channels);
 
         unsafe {
-            let m0 = vld1q_f32([t.v[0][0], t.v[0][1], t.v[0][2], 0.].as_ptr());
-            let m1 = vld1q_f32([t.v[1][0], t.v[1][1], t.v[1][2], 0.].as_ptr());
-            let m2 = vld1q_f32([t.v[2][0], t.v[2][1], t.v[2][2], 0.].as_ptr());
+            let m0 = vld1q_f32(&[t.v[0][0], t.v[0][1], t.v[0][2], 0.]);
+            let m1 = vld1q_f32(&[t.v[1][0], t.v[1][1], t.v[1][2], 0.]);
+            let m2 = vld1q_f32(&[t.v[2][0], t.v[2][1], t.v[2][2], 0.]);
 
             let v_scale = vdupq_n_f32(scale);
 
@@ -197,10 +198,10 @@ where
                     let zx1 = vcvtq_u32_f32(vr1);
                     let zx2 = vcvtq_u32_f32(vr2);
                     let zx3 = vcvtq_u32_f32(vr3);
-                    vst1q_u32(temporary0.0.as_mut_ptr() as *mut _, zx0);
-                    vst1q_u32(temporary1.0.as_mut_ptr() as *mut _, zx1);
-                    vst1q_u32(temporary2.0.as_mut_ptr() as *mut _, zx2);
-                    vst1q_u32(temporary3.0.as_mut_ptr() as *mut _, zx3);
+                    vst1q_u32(&mut temporary0.0, zx0);
+                    vst1q_u32(&mut temporary1.0, zx1);
+                    vst1q_u32(&mut temporary2.0, zx2);
+                    vst1q_u32(&mut temporary3.0, zx3);
 
                     dst0[dst_cn.r_i()] = self.profile.r_gamma[temporary0.0[0] as usize];
                     dst0[dst_cn.g_i()] = self.profile.g_gamma[temporary0.0[2] as usize];
@@ -262,7 +263,7 @@ where
                 v = vminq_f32(v, v_scale);
 
                 let zx = vcvtq_u32_f32(v);
-                vst1q_u32(temporary0.0.as_mut_ptr() as *mut _, zx);
+                vst1q_u32(&mut temporary0.0, zx);
 
                 dst[dst_cn.r_i()] = self.profile.r_gamma[temporary0.0[0] as usize];
                 dst[dst_cn.g_i()] = self.profile.g_gamma[temporary0.0[2] as usize];

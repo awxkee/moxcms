@@ -78,7 +78,7 @@ where
     u32: AsPrimitive<T>,
     (): LutBarycentricReduction<T, U>,
 {
-    #[target_feature(enable = "avx2", enable = "fma")]
+    #[target_feature(enable = "avx2,fma")]
     fn transform_chunk(
         &self,
         src: &[T],

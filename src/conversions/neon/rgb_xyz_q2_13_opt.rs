@@ -29,6 +29,7 @@
 #![cfg(feature = "neon_shaper_fixed_point_paths")]
 use crate::conversions::neon::{split_by_twos, split_by_twos_mut};
 use crate::conversions::rgbxyz_fixed::TransformMatrixShaperFpOptVec;
+use crate::conversions::simd::aarch64::{vld1_dup_s16, vld1_s16};
 use crate::transform::PointeeSizeExpressible;
 use crate::{CmsError, Layout, TransformExecutor};
 use num_traits::AsPrimitive;
@@ -80,9 +81,9 @@ where
         let (dst_chunks, dst_remainder) = split_by_twos_mut(dst, dst_channels);
 
         unsafe {
-            let m0 = vld1_s16([t.v[0][0], t.v[0][1], t.v[0][2], 0].as_ptr());
-            let m1 = vld1_s16([t.v[1][0], t.v[1][1], t.v[1][2], 0].as_ptr());
-            let m2 = vld1_s16([t.v[2][0], t.v[2][1], t.v[2][2], 0].as_ptr());
+            let m0 = vld1_s16(&[t.v[0][0], t.v[0][1], t.v[0][2], 0]);
+            let m1 = vld1_s16(&[t.v[1][0], t.v[1][1], t.v[1][2], 0]);
+            let m2 = vld1_s16(&[t.v[2][0], t.v[2][1], t.v[2][2], 0]);
 
             let v_max_value = vdup_n_u16((self.gamma_lut - 1) as u16);
 
@@ -430,9 +431,9 @@ where
         let (dst_chunks, dst_remainder) = split_by_twos_mut(dst, src_channels);
 
         unsafe {
-            let m0 = vld1_s16([t.v[0][0], t.v[0][1], t.v[0][2], 0].as_ptr());
-            let m1 = vld1_s16([t.v[1][0], t.v[1][1], t.v[1][2], 0].as_ptr());
-            let m2 = vld1_s16([t.v[2][0], t.v[2][1], t.v[2][2], 0].as_ptr());
+            let m0 = vld1_s16(&[t.v[0][0], t.v[0][1], t.v[0][2], 0]);
+            let m1 = vld1_s16(&[t.v[1][0], t.v[1][1], t.v[1][2], 0]);
+            let m2 = vld1_s16(&[t.v[2][0], t.v[2][1], t.v[2][2], 0]);
 
             let v_max_value = vdup_n_u16((self.gamma_lut - 1) as u16);
 
