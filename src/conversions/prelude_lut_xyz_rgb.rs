@@ -51,7 +51,7 @@ impl<T: Clone + AsPrimitive<f32>> InPlaceStage for XyzToRgbStage<T> {
         assert!(self.bit_depth > 0);
         if !self.matrices.is_empty() {
             let m = self.matrices[0];
-            for dst in dst.chunks_exact_mut(3) {
+            for dst in dst.as_chunks_mut::<3>().0.iter_mut() {
                 let x = dst[0];
                 let y = dst[1];
                 let z = dst[2];
@@ -62,7 +62,7 @@ impl<T: Clone + AsPrimitive<f32>> InPlaceStage for XyzToRgbStage<T> {
         }
 
         for m in self.matrices.iter().skip(1) {
-            for dst in dst.chunks_exact_mut(3) {
+            for dst in dst.as_chunks_mut::<3>().0.iter_mut() {
                 let x = dst[0];
                 let y = dst[1];
                 let z = dst[2];
@@ -76,7 +76,7 @@ impl<T: Clone + AsPrimitive<f32>> InPlaceStage for XyzToRgbStage<T> {
         let color_scale = 1f32 / max_colors as f32;
         let lut_cap = (self.gamma_lut - 1) as f32;
 
-        for dst in dst.chunks_exact_mut(3) {
+        for dst in dst.as_chunks_mut::<3>().0.iter_mut() {
             let rgb = Rgb::new(dst[0], dst[1], dst[2]);
             let r = mlaf(0.5f32, rgb.r, lut_cap).min(lut_cap).max(0f32) as u16;
             let g = mlaf(0.5f32, rgb.g, lut_cap).min(lut_cap).max(0f32) as u16;
@@ -173,7 +173,12 @@ impl<
             T::NOT_FINITE_LINEAR_TABLE_SIZE - 1
         };
 
-        for (src, dst) in src.chunks_exact(3).zip(dst.chunks_exact_mut(3)) {
+        for (src, dst) in src
+            .as_chunks::<3>()
+            .0
+            .iter()
+            .zip(dst.as_chunks_mut::<3>().0.iter_mut())
+        {
             let j_r = src[0].as_() as f32 * scale;
             let j_g = src[1].as_() as f32 * scale;
             let j_b = src[2].as_() as f32 * scale;

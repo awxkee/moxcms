@@ -205,7 +205,12 @@ where
             ((1i32 << 14) - 1) as i16
         };
 
-        for (src, dst) in src.chunks_exact(4).zip(dst.chunks_exact_mut(channels)) {
+        for (src, dst) in src
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .zip(dst.chunks_exact_mut(channels))
+        {
             let c = <() as LutBarycentricReduction<T, U>>::reduce::<BIT_DEPTH, BARYCENTRIC_BINS>(
                 src[0],
             );
@@ -623,7 +628,9 @@ impl Lut4x3Factory for DefaultLut4x3Factory {
                 ((1i32 << 14) - 1) as f32
             };
             let lut: Vec<AlignedI16x4> = lut
-                .chunks_exact(3)
+                .as_chunks::<3>()
+                .0
+                .iter()
                 .map(|x| {
                     AlignedI16x4([
                         (x[0] * q).round() as i16,

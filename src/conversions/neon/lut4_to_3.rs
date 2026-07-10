@@ -244,7 +244,9 @@ impl Lut4x3Factory for NeonLut4x3Factory {
                 ((1i32 << 14i32) - 1) as f32
             };
             let lut = lut
-                .chunks_exact(3)
+                .as_chunks::<3>()
+                .0
+                .iter()
                 .map(|x| {
                     NeonAlignedI16x4([
                         (x[0] * q).round() as i16,
@@ -301,7 +303,9 @@ impl Lut4x3Factory for NeonLut4x3Factory {
             };
         }
         let lut = lut
-            .chunks_exact(3)
+            .as_chunks::<3>()
+            .0
+            .iter()
             .map(|x| NeonAlignedF32([x[0], x[1], x[2], 0f32]))
             .collect::<Vec<_>>();
         match options.barycentric_weight_scale {
