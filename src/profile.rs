@@ -1005,7 +1005,7 @@ impl ColorProfile {
             ..Default::default()
         };
         let color_space = profile.color_space;
-        for tag in tags_slice.chunks_exact(TAG_SIZE) {
+        for tag in tags_slice.as_chunks::<TAG_SIZE>().0.iter() {
             let tag_value = u32::from_be_bytes([tag[0], tag[1], tag[2], tag[3]]);
             let tag_entry = u32::from_be_bytes([tag[4], tag[5], tag[6], tag[7]]);
             let tag_size = u32::from_be_bytes([tag[8], tag[9], tag[10], tag[11]]) as usize;

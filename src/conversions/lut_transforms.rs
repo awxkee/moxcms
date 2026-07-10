@@ -50,7 +50,7 @@ impl InPlaceStage for MatrixStage {
     fn transform(&self, dst: &mut [f32]) -> Result<(), CmsError> {
         if !self.matrices.is_empty() {
             let m = self.matrices[0];
-            for dst in dst.chunks_exact_mut(3) {
+            for dst in dst.as_chunks_mut::<3>().0.iter_mut() {
                 let x = dst[0];
                 let y = dst[1];
                 let z = dst[2];
@@ -61,7 +61,7 @@ impl InPlaceStage for MatrixStage {
         }
 
         for m in self.matrices.iter().skip(1) {
-            for dst in dst.chunks_exact_mut(3) {
+            for dst in dst.as_chunks_mut::<3>().0.iter_mut() {
                 let x = dst[0];
                 let y = dst[1];
                 let z = dst[2];

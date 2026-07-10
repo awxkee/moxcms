@@ -63,7 +63,7 @@ impl ACurves3<'_> {
     ) -> Result<(), CmsError> {
         let scale_value = (self.depth - 1) as f32;
 
-        for dst in dst.chunks_exact_mut(3) {
+        for dst in dst.as_chunks_mut::<3>().0.iter_mut() {
             let a0 = (dst[0] * scale_value).round().min(scale_value) as u16;
             let a1 = (dst[1] * scale_value).round().min(scale_value) as u16;
             let a2 = (dst[2] * scale_value).round().min(scale_value) as u16;
@@ -86,7 +86,7 @@ impl ACurves3Optimized<'_> {
         dst: &mut [f32],
         fetch: Fetch,
     ) -> Result<(), CmsError> {
-        for dst in dst.chunks_exact_mut(3) {
+        for dst in dst.as_chunks_mut::<3>().0.iter_mut() {
             let a0 = dst[0];
             let a1 = dst[1];
             let a2 = dst[2];
@@ -180,7 +180,7 @@ impl ACurves3Inverse<'_> {
     ) -> Result<(), CmsError> {
         let scale_value = (self.depth as u32 - 1u32) as f32;
 
-        for dst in dst.chunks_exact_mut(3) {
+        for dst in dst.as_chunks_mut::<3>().0.iter_mut() {
             let interpolated = fetch(dst[0], dst[1], dst[2]);
             let a0 = (interpolated.v[0] * scale_value).round().min(scale_value) as u16;
             let a1 = (interpolated.v[1] * scale_value).round().min(scale_value) as u16;
@@ -292,7 +292,7 @@ impl<const DEPTH: usize> InPlaceStage for BCurves3<DEPTH> {
     fn transform(&self, dst: &mut [f32]) -> Result<(), CmsError> {
         let scale_value = (DEPTH - 1) as f32;
 
-        for dst in dst.chunks_exact_mut(3) {
+        for dst in dst.as_chunks_mut::<3>().0.iter_mut() {
             let a0 = (dst[0] * scale_value).round().min(scale_value) as u16;
             let a1 = (dst[1] * scale_value).round().min(scale_value) as u16;
             let a2 = (dst[2] * scale_value).round().min(scale_value) as u16;
