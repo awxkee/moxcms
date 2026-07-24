@@ -89,6 +89,9 @@ impl TryFrom<u32> for ProfileVersion {
     fn try_from(value: u32) -> Result<Self, Self::Error> {
         // First try exact match for known versions
         match value {
+            // Some non-conformant profiles found in the field zero the version
+            // field; treat exactly zero as v2.0 for compatibility.
+            0x00000000 => return Ok(ProfileVersion::V2_0),
             0x02000000 => return Ok(ProfileVersion::V2_0),
             0x02100000 => return Ok(ProfileVersion::V2_1),
             0x02200000 => return Ok(ProfileVersion::V2_2),
@@ -1479,6 +1482,10 @@ mod tests {
     fn test_profile_version_parsing_standard() {
         // Standard versions should work
         assert_eq!(
+            ProfileVersion::try_from(0x00000000).unwrap(),
+            ProfileVersion::V2_0
+        );
+        assert_eq!(
             ProfileVersion::try_from(0x02000000).unwrap(),
             ProfileVersion::V2_0
         );
@@ -1523,10 +1530,11 @@ mod tests {
     fn test_profile_version_parsing_rejected() {
         // Invalid and unsupported versions should be rejected
 
-        // v0.0 - invalid version (no such ICC spec exists)
+        // v0.1 - invalid version (no such ICC spec exists). Only the exact
+        // all-zero field is accepted for compatibility with existing decoders.
         assert!(
-            ProfileVersion::try_from(0x00000000).is_err(),
-            "v0.0 should be rejected"
+            ProfileVersion::try_from(0x00100000).is_err(),
+            "v0.1 should be rejected"
         );
 
         // v5.0 (iccMAX) - reject because it has different white point requirements
