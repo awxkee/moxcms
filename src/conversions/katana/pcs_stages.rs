@@ -53,7 +53,7 @@ impl KatanaIntermediateStage<f32> for KatanaMatrixStage {
         }
 
         for m in self.matrices.iter() {
-            for dst in input.chunks_exact_mut(3) {
+            for dst in input.as_chunks_mut::<3>().0 {
                 let x = dst[0];
                 let y = dst[1];
                 let z = dst[2];

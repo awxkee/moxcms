@@ -74,7 +74,12 @@ where
         .as_();
         let lut_cap = (self.gamma_lut - 1) as f32;
 
-        for (src, dst) in src.chunks_exact(3).zip(dst.chunks_exact_mut(dst_channels)) {
+        for (src, dst) in src
+            .as_chunks::<3>()
+            .0
+            .iter()
+            .zip(dst.chunks_exact_mut(dst_channels))
+        {
             let rgb = Rgb::new(src[0], src[1], src[2]);
             let r = mlaf(0.5, rgb.r, lut_cap).min(lut_cap).max(0.) as u16;
             let g = mlaf(0.5, rgb.g, lut_cap).min(lut_cap).max(0.) as u16;

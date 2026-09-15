@@ -68,7 +68,7 @@ impl<T: Copy + Default + AsPrimitive<f32> + PointeeSizeExpressible + Send + Sync
         let b = self.bias;
 
         if !m.test_equality(Matrix3f::IDENTITY) || !b.eq(&Vector3f::default()) {
-            for dst in dst.chunks_exact_mut(3) {
+            for dst in dst.as_chunks_mut::<3>().0 {
                 let x = dst[0];
                 let y = dst[1];
                 let z = dst[2];
@@ -84,7 +84,7 @@ impl<T: Copy + Default + AsPrimitive<f32> + PointeeSizeExpressible + Send + Sync
         let curve1 = &curves[1];
         let curve2 = &curves[2];
 
-        for dst in dst.chunks_exact_mut(3) {
+        for dst in dst.as_chunks_mut::<3>().0 {
             let a0 = dst[0];
             let a1 = dst[1];
             let a2 = dst[2];
@@ -122,7 +122,12 @@ impl<T: Copy + Default + AsPrimitive<f32> + PointeeSizeExpressible + Send + Sync
                 let curve0 = &a_curves[0];
                 let curve1 = &a_curves[1];
                 let curve2 = &a_curves[2];
-                for (src, dst) in input.chunks_exact(3).zip(dst.chunks_exact_mut(3)) {
+                for (src, dst) in input
+                    .as_chunks::<3>()
+                    .0
+                    .iter()
+                    .zip(dst.as_chunks_mut::<3>().0.iter_mut())
+                {
                     let b0 = lut_interp_linear_float(src[0].as_() * norm_value, curve0);
                     let b1 = lut_interp_linear_float(src[1].as_() * norm_value, curve1);
                     let b2 = lut_interp_linear_float(src[2].as_() * norm_value, curve2);
@@ -132,14 +137,24 @@ impl<T: Copy + Default + AsPrimitive<f32> + PointeeSizeExpressible + Send + Sync
                     dst[2] = interpolated.v[2];
                 }
             } else {
-                for (src, dst) in input.chunks_exact(3).zip(dst.chunks_exact_mut(3)) {
+                for (src, dst) in input
+                    .as_chunks::<3>()
+                    .0
+                    .iter()
+                    .zip(dst.as_chunks_mut::<3>().0.iter_mut())
+                {
                     dst[0] = src[0].as_() * norm_value;
                     dst[1] = src[1].as_() * norm_value;
                     dst[2] = src[2].as_() * norm_value;
                 }
             }
         } else {
-            for (src, dst) in input.chunks_exact(3).zip(dst.chunks_exact_mut(3)) {
+            for (src, dst) in input
+                .as_chunks::<3>()
+                .0
+                .iter()
+                .zip(dst.as_chunks_mut::<3>().0.iter_mut())
+            {
                 dst[0] = src[0].as_() * norm_value;
                 dst[1] = src[1].as_() * norm_value;
                 dst[2] = src[2].as_() * norm_value;
@@ -240,7 +255,12 @@ where
                 let curve0 = &a_curves[0];
                 let curve1 = &a_curves[1];
                 let curve2 = &a_curves[2];
-                for (src, dst) in src.chunks_exact(3).zip(dst.chunks_exact_mut(3)) {
+                for (src, dst) in src
+                    .as_chunks::<3>()
+                    .0
+                    .iter()
+                    .zip(dst.as_chunks_mut::<3>().0.iter_mut())
+                {
                     let b0 = lut_interp_linear_float(src[0], curve0);
                     let b1 = lut_interp_linear_float(src[1], curve1);
                     let b2 = lut_interp_linear_float(src[2], curve2);
@@ -268,7 +288,12 @@ where
                     }
                 }
             } else {
-                for (src, dst) in src.chunks_exact(3).zip(dst.chunks_exact_mut(3)) {
+                for (src, dst) in src
+                    .as_chunks::<3>()
+                    .0
+                    .iter()
+                    .zip(dst.as_chunks_mut::<3>().0.iter_mut())
+                {
                     if T::FINITE {
                         dst[0] = (src[0] * norm_value).round().max(0.0).min(norm_value).as_();
                         dst[1] = (src[1] * norm_value).round().max(0.0).min(norm_value).as_();
@@ -281,7 +306,12 @@ where
                 }
             }
         } else {
-            for (src, dst) in src.chunks_exact(3).zip(dst.chunks_exact_mut(3)) {
+            for (src, dst) in src
+                .as_chunks::<3>()
+                .0
+                .iter()
+                .zip(dst.as_chunks_mut::<3>().0.iter_mut())
+            {
                 if T::FINITE {
                     dst[0] = (src[0] * norm_value).round().max(0.0).min(norm_value).as_();
                     dst[1] = (src[1] * norm_value).round().max(0.0).min(norm_value).as_();
