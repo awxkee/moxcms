@@ -34,7 +34,7 @@ pub(crate) struct KatanaStageLabToXyz {}
 
 impl KatanaIntermediateStage<f32> for KatanaStageLabToXyz {
     fn stage(&self, input: &mut Vec<f32>) -> Result<Vec<f32>, CmsError> {
-        for dst in input.chunks_exact_mut(3) {
+        for dst in input.as_chunks_mut::<3>().0 {
             let lab = Lab::new(dst[0], dst[1], dst[2]);
             let xyz = lab.to_pcs_xyz();
             dst[0] = xyz.x;
@@ -50,7 +50,7 @@ pub(crate) struct KatanaStageXyzToLab {}
 
 impl KatanaIntermediateStage<f32> for KatanaStageXyzToLab {
     fn stage(&self, input: &mut Vec<f32>) -> Result<Vec<f32>, CmsError> {
-        for dst in input.chunks_exact_mut(3) {
+        for dst in input.as_chunks_mut::<3>().0 {
             let xyz = Xyz::new(dst[0], dst[1], dst[2]);
             let lab = Lab::from_pcs_xyz(xyz);
             dst[0] = lab.l;

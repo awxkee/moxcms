@@ -44,7 +44,7 @@ pub(crate) fn execute_simple_curves3(dst: &mut [f32], curves: &[Vec<f32>; 3]) {
     let curve1 = &curves[1];
     let curve2 = &curves[2];
 
-    for dst in dst.chunks_exact_mut(3) {
+    for dst in dst.as_chunks_mut::<3>().0 {
         let a0 = dst[0];
         let a1 = dst[1];
         let a2 = dst[2];
@@ -62,7 +62,7 @@ pub(crate) fn execute_matrix_stage3(matrix: Matrix3f, bias: Vector3f, dst: &mut 
     let b = bias;
 
     if !m.test_equality(Matrix3f::IDENTITY) || !b.eq(&Vector3f::default()) {
-        for dst in dst.chunks_exact_mut(3) {
+        for dst in dst.as_chunks_mut::<3>().0 {
             let x = dst[0];
             let y = dst[1];
             let z = dst[2];
@@ -119,7 +119,12 @@ impl<T: Copy + Default + AsPrimitive<f32> + PointeeSizeExpressible + Send + Sync
                 let curve1 = &a_curves[1];
                 let curve2 = &a_curves[2];
                 let curve3 = &a_curves[3];
-                for (src, dst) in input.chunks_exact(4).zip(dst.chunks_exact_mut(3)) {
+                for (src, dst) in input
+                    .as_chunks::<4>()
+                    .0
+                    .iter()
+                    .zip(dst.as_chunks_mut::<3>().0.iter_mut())
+                {
                     let b0 = lut_interp_linear_float(src[0].as_() * norm_value, curve0);
                     let b1 = lut_interp_linear_float(src[1].as_() * norm_value, curve1);
                     let b2 = lut_interp_linear_float(src[2].as_() * norm_value, curve2);

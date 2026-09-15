@@ -92,7 +92,9 @@ impl<T: Copy + PointeeSizeExpressible + AsPrimitive<f32>> KatanaLutNx3<T> {
         let fetcher = interpolate_out_function(layout);
 
         for (dest, src) in dst
-            .chunks_exact_mut(3)
+            .as_chunks_mut::<3>()
+            .0
+            .iter_mut()
             .zip(input.chunks_exact(layout.channels()))
         {
             for ((ink, src_ink), curve) in inks.iter_mut().zip(src).zip(self.linearization.iter()) {
@@ -155,7 +157,7 @@ where
 
         for (dest, src) in dst
             .chunks_exact_mut(self.dst_layout.channels())
-            .zip(src.chunks_exact(3))
+            .zip(src.as_chunks::<3>().0.iter())
         {
             let x = lut_interp_linear_float(src[0], &self.linearization[0]);
             let y = lut_interp_linear_float(src[1], &self.linearization[1]);

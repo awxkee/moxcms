@@ -69,7 +69,7 @@ impl<
 
         for (src, dst) in input
             .chunks_exact(src_layout.channels())
-            .zip(dst.chunks_exact_mut(3))
+            .zip(dst.as_chunks_mut::<3>().0.iter_mut())
         {
             let j_r = src[0].as_() * scale;
             let j_g = src[1].as_() * scale;

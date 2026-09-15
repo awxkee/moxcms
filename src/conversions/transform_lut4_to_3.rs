@@ -251,106 +251,6 @@ where
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::q0_15_mul;
-
-    #[inline]
-    fn pmulhrsw_reference(a: i16, b: i16) -> i16 {
-        let product = a as i32 * b as i32;
-        (((product >> 14) + 1) >> 1) as i16
-    }
-
-    #[test]
-    fn test_q0_15_mul_matches_pmulhrsw_rounding() {
-        let values = [
-            i16::MIN,
-            -30000,
-            -16384,
-            -8192,
-            -1,
-            0,
-            1,
-            8191,
-            8192,
-            16383,
-            16384,
-            30000,
-            i16::MAX,
-        ];
-
-        for &a in &values {
-            for &b in &values {
-                assert_eq!(
-                    q0_15_mul(a, b),
-                    pmulhrsw_reference(a, b),
-                    "Q0.15 multiplication differs for {a} * {b}",
-                );
-            }
-        }
-    }
-
-    #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"))]
-    #[test]
-    fn test_q0_15_mul_matches_x86_mulhrs_epi16() {
-        if std::is_x86_feature_detected!("ssse3") {
-            unsafe {
-                assert_q0_15_mul_matches_x86_mulhrs_epi16();
-            }
-        }
-    }
-
-    #[cfg(all(target_arch = "x86", feature = "sse"))]
-    #[target_feature(enable = "ssse3")]
-    unsafe fn assert_q0_15_mul_matches_x86_mulhrs_epi16() {
-        use std::arch::x86::*;
-
-        assert_q0_15_mul_matches_x86_mulhrs_epi16_impl();
-
-        unsafe fn assert_q0_15_mul_matches_x86_mulhrs_epi16_impl() {
-            let a = _mm_setr_epi16(i16::MIN, -30000, -16384, -1, 0, 8192, 16384, i16::MAX);
-            let b = _mm_setr_epi16(i16::MAX, 16384, 8192, -1, 0, -16384, -30000, i16::MIN);
-            let r = _mm_mulhrs_epi16(a, b);
-            let mut actual = [0i16; 8];
-            _mm_storeu_si128(actual.as_mut_ptr().cast(), r);
-            let expected = [
-                q0_15_mul(i16::MIN, i16::MAX),
-                q0_15_mul(-30000, 16384),
-                q0_15_mul(-16384, 8192),
-                q0_15_mul(-1, -1),
-                q0_15_mul(0, 0),
-                q0_15_mul(8192, -16384),
-                q0_15_mul(16384, -30000),
-                q0_15_mul(i16::MAX, i16::MIN),
-            ];
-            assert_eq!(actual, expected);
-        }
-    }
-
-    #[cfg(all(target_arch = "x86_64", feature = "sse"))]
-    #[target_feature(enable = "ssse3")]
-    unsafe fn assert_q0_15_mul_matches_x86_mulhrs_epi16() {
-        use std::arch::x86_64::*;
-
-        let a = _mm_setr_epi16(i16::MIN, -30000, -16384, -1, 0, 8192, 16384, i16::MAX);
-        let b = _mm_setr_epi16(i16::MAX, 16384, 8192, -1, 0, -16384, -30000, i16::MIN);
-        let r = _mm_mulhrs_epi16(a, b);
-        let mut actual = [0i16; 8];
-        _mm_storeu_si128(actual.as_mut_ptr().cast(), r);
-        let expected = [
-            q0_15_mul(i16::MIN, i16::MAX),
-            q0_15_mul(-30000, 16384),
-            q0_15_mul(-16384, 8192),
-            q0_15_mul(-1, -1),
-            q0_15_mul(0, 0),
-            q0_15_mul(8192, -16384),
-            q0_15_mul(16384, -30000),
-            q0_15_mul(i16::MAX, i16::MIN),
-        ];
-        assert_eq!(actual, expected);
-    }
-}
-
 #[allow(unused)]
 impl<
     T: Copy + AsPrimitive<f32> + Default + PointeeSizeExpressible,
@@ -698,5 +598,82 @@ impl Lut4x3Factory for DefaultLut4x3Factory {
                 )
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::q0_15_mul;
+
+    #[inline]
+    fn pmulhrsw_reference(a: i16, b: i16) -> i16 {
+        let product = a as i32 * b as i32;
+        (((product >> 14) + 1) >> 1) as i16
+    }
+
+    #[test]
+    fn test_q0_15_mul_matches_pmulhrsw_rounding() {
+        let values = [
+            i16::MIN,
+            -30000,
+            -16384,
+            -8192,
+            -1,
+            0,
+            1,
+            8191,
+            8192,
+            16383,
+            16384,
+            30000,
+            i16::MAX,
+        ];
+
+        for &a in &values {
+            for &b in &values {
+                assert_eq!(
+                    q0_15_mul(a, b),
+                    pmulhrsw_reference(a, b),
+                    "Q0.15 multiplication differs for {a} * {b}",
+                );
+            }
+        }
+    }
+
+    #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"))]
+    #[test]
+    fn test_q0_15_mul_matches_x86_mulhrs_epi16() {
+        if std::is_x86_feature_detected!("ssse3") {
+            unsafe {
+                assert_q0_15_mul_matches_x86_mulhrs_epi16();
+            }
+        }
+    }
+
+    #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse"))]
+    #[target_feature(enable = "ssse3")]
+    unsafe fn assert_q0_15_mul_matches_x86_mulhrs_epi16() {
+        #[cfg(target_arch = "x86")]
+        use std::arch::x86::*;
+        #[cfg(target_arch = "x86_64")]
+        use std::arch::x86_64::*;
+
+        let a = _mm_setr_epi16(i16::MIN, -30000, -16384, -1, 0, 8192, 16384, i16::MAX);
+        let b = _mm_setr_epi16(i16::MAX, 16384, 8192, -1, 0, -16384, -30000, i16::MIN);
+        let r = _mm_mulhrs_epi16(a, b);
+        let mut actual = [0i16; 8];
+        // SAFETY: actual holds eight i16 values, enough for one unaligned 128-bit store.
+        unsafe { _mm_storeu_si128(actual.as_mut_ptr().cast(), r) };
+        let expected = [
+            q0_15_mul(i16::MIN, i16::MAX),
+            q0_15_mul(-30000, 16384),
+            q0_15_mul(-16384, 8192),
+            q0_15_mul(-1, -1),
+            q0_15_mul(0, 0),
+            q0_15_mul(8192, -16384),
+            q0_15_mul(16384, -30000),
+            q0_15_mul(i16::MAX, i16::MIN),
+        ];
+        assert_eq!(actual, expected);
     }
 }

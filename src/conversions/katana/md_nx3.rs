@@ -117,7 +117,7 @@ impl<T: Copy + Default + AsPrimitive<f32> + PointeeSizeExpressible + Send + Sync
 
             for (src, dst) in input
                 .chunks_exact(layout.channels())
-                .zip(dst.chunks_exact_mut(3))
+                .zip(dst.as_chunks_mut::<3>().0.iter_mut())
             {
                 for ((ink, src_ink), curve) in inks.iter_mut().zip(src).zip(a_curves.iter()) {
                     *ink = lut_interp_linear_float(src_ink.as_() * norm_value, curve);

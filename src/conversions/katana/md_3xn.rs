@@ -95,7 +95,9 @@ where
             let md_lut = MultidimensionalLut::new(self.grid_size, 3, self.output_inks);
 
             for (src, dst) in src
-                .chunks_exact(3)
+                .as_chunks::<3>()
+                .0
+                .iter()
                 .zip(dst.chunks_exact_mut(self.dst_layout.channels()))
             {
                 tetra_3i_to_any_vec(

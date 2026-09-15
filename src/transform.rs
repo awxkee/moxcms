@@ -1415,7 +1415,7 @@ mod tests {
             )
             .unwrap();
         let mut src = vec![0u8; 256 * 256 * 3];
-        for dst in src.chunks_exact_mut(3) {
+        for dst in src.as_chunks_mut::<3>().0 {
             dst[0] = 175;
             dst[1] = 75;
             dst[2] = 13;
@@ -1434,7 +1434,7 @@ mod tests {
 
         transform_inverse.transform(&dst, &mut src).unwrap();
 
-        for src in src.chunks_exact_mut(3) {
+        for src in src.as_chunks_mut::<3>().0 {
             let diff0 = (src[0] as i32 - 175).abs();
             let diff1 = (src[1] as i32 - 75).abs();
             let diff2 = (src[2] as i32 - 13).abs();
@@ -1466,7 +1466,7 @@ mod tests {
             )
             .unwrap();
         let mut src = vec![0u16; 256 * 256 * 3];
-        for dst in src.chunks_exact_mut(3) {
+        for dst in src.as_chunks_mut::<3>().0 {
             dst[0] = 175;
             dst[1] = 256;
             dst[2] = 512;
@@ -1485,7 +1485,7 @@ mod tests {
 
         transform_inverse.transform(&dst, &mut src).unwrap();
 
-        for src in src.chunks_exact_mut(3) {
+        for src in src.as_chunks_mut::<3>().0 {
             let diff0 = (src[0] as i32 - 175).abs();
             let diff1 = (src[1] as i32 - 256).abs();
             let diff2 = (src[2] as i32 - 512).abs();
@@ -1517,7 +1517,7 @@ mod tests {
             )
             .unwrap();
         let mut src = vec![0u16; 256 * 256 * 3];
-        for dst in src.chunks_exact_mut(3) {
+        for dst in src.as_chunks_mut::<3>().0 {
             dst[0] = 1750;
             dst[1] = 2560;
             dst[2] = 3143;
@@ -1536,7 +1536,7 @@ mod tests {
 
         transform_inverse.transform(&dst, &mut src).unwrap();
 
-        for src in src.chunks_exact_mut(3) {
+        for src in src.as_chunks_mut::<3>().0 {
             let diff0 = (src[0] as i32 - 1750).abs();
             let diff1 = (src[1] as i32 - 2560).abs();
             let diff2 = (src[2] as i32 - 3143).abs();
@@ -1568,7 +1568,7 @@ mod tests {
             )
             .unwrap();
         let mut src = vec![0u16; 256 * 256 * 3];
-        for dst in src.chunks_exact_mut(3) {
+        for dst in src.as_chunks_mut::<3>().0 {
             dst[0] = 1760;
             dst[1] = 2560;
             dst[2] = 5120;
@@ -1587,7 +1587,7 @@ mod tests {
 
         transform_inverse.transform(&dst, &mut src).unwrap();
 
-        for src in src.chunks_exact_mut(3) {
+        for src in src.as_chunks_mut::<3>().0 {
             let diff0 = (src[0] as i32 - 1760).abs();
             let diff1 = (src[1] as i32 - 2560).abs();
             let diff2 = (src[2] as i32 - 5120).abs();
