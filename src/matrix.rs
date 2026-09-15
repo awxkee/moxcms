@@ -566,11 +566,7 @@ impl Matrix3f {
         let diff_b_y = (self.v[2][1] - other.v[2][1]).abs();
         let diff_b_z = (self.v[2][2] - other.v[2][2]).abs();
 
-        if diff_b_x > TOLERANCE || diff_b_y > TOLERANCE || diff_b_z > TOLERANCE {
-            return false;
-        }
-
-        true
+        !(diff_b_x > TOLERANCE || diff_b_y > TOLERANCE || diff_b_z > TOLERANCE)
     }
 
     #[inline]
@@ -809,11 +805,7 @@ impl Matrix3d {
         let diff_b_y = (self.v[2][1] - other.v[2][1]).abs();
         let diff_b_z = (self.v[2][2] - other.v[2][2]).abs();
 
-        if diff_b_x > TOLERANCE || diff_b_y > TOLERANCE || diff_b_z > TOLERANCE {
-            return false;
-        }
-
-        true
+        !(diff_b_x > TOLERANCE || diff_b_y > TOLERANCE || diff_b_z > TOLERANCE)
     }
 
     #[inline]

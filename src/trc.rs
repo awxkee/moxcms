@@ -1349,10 +1349,7 @@ impl ColorProfile {
                         return true;
                     }
                     use crate::matan::is_curve_linear16;
-                    if is_curve_linear16(lut) {
-                        return true;
-                    }
-                    false
+                    is_curve_linear16(lut)
                 }
                 ToneReprCurve::Parametric(params) => {
                     if let Some(curve) = ParametricCurve::new(params) {
