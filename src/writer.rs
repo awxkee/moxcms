@@ -30,7 +30,7 @@ use crate::profile::{LutDataType, ProfileHeader};
 use crate::tag::{TAG_SIZE, Tag, TagTypeDefinition};
 use crate::trc::ToneReprCurve;
 use crate::{
-    CicpProfile, CmsError, ColorDateTime, ColorProfile, DataColorSpace, LocalizableString,
+    CicpProfile, CmsError, ColorProfile, DataColorSpace, LocalizableString,
     LutMultidimensionalType, LutStore, LutType, LutWarehouse, Matrix3d, ProfileClass,
     ProfileSignature, ProfileText, ProfileVersion, Vector3d, ViewingConditions, Xyz, Xyzd,
 };
@@ -879,7 +879,7 @@ impl ColorProfile {
                 self.version_internal
             },
             data_color_space: self.color_space,
-            creation_date_time: ColorDateTime::now(),
+            creation_date_time: self.creation_date_time,
             signature: ProfileSignature::Acsp,
             platform: 0u32,
             flags: 0u32,
