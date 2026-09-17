@@ -338,7 +338,7 @@ impl ColorProfile {
         profile.green_trc = Some(curve);
         profile.media_white_point = Some(white_point_d65().to_xyzd());
         profile.cicp = Some(CicpProfile {
-            color_primaries: CicpColorPrimaries::Smpte431,
+            color_primaries: CicpColorPrimaries::Smpte432,
             transfer_characteristics: TransferCharacteristics::Srgb,
             matrix_coefficients: MatrixCoefficients::Bt709,
             full_range: false,
@@ -368,7 +368,7 @@ impl ColorProfile {
         profile.green_trc = Some(curve);
         profile.media_white_point = Some(white_point_d65().to_xyzd());
         profile.cicp = Some(CicpProfile {
-            color_primaries: CicpColorPrimaries::Smpte431,
+            color_primaries: CicpColorPrimaries::Smpte432,
             transfer_characteristics: TransferCharacteristics::Smpte2084,
             matrix_coefficients: MatrixCoefficients::Bt709,
             full_range: false,
@@ -397,7 +397,7 @@ impl ColorProfile {
         profile.green_trc = Some(curve);
         profile.media_white_point = Some(white_point_dci_p3().to_xyzd());
         profile.cicp = Some(CicpProfile {
-            color_primaries: CicpColorPrimaries::Smpte432,
+            color_primaries: CicpColorPrimaries::Smpte431,
             transfer_characteristics: TransferCharacteristics::Srgb,
             matrix_coefficients: MatrixCoefficients::Bt709,
             full_range: false,
