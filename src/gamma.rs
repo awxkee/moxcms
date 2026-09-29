@@ -651,7 +651,7 @@ fn make_gamma_table_impl(
     let max_range = 1f64 / (output.len() - 1) as f64;
     if round {
         for (v, o) in output.iter_mut().enumerate() {
-            *o = (gamma(v as f64 * max_range) * max_value) as f32;
+            *o = ((gamma(v as f64 * max_range) * max_value) as f32).round();
         }
     } else {
         for (v, o) in output.iter_mut().enumerate() {
@@ -995,6 +995,21 @@ impl TransferCharacteristics {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn integer_gamma_table_rounds_to_nearest() {
+        const N: usize = 4096;
+        for tc in [
+            TransferCharacteristics::Srgb,
+            TransferCharacteristics::Bt709,
+        ] {
+            let table = tc.make_gamma_table::<u8, 65536, N>(8);
+            for (v, &entry) in table.iter().take(N).enumerate() {
+                let expected = ((tc.gamma(v as f64 / (N - 1) as f64) * 255.0) as f32).round();
+                assert_eq!(entry, expected as u8, "{tc:?} entry {v}");
+            }
+        }
+    }
 
     #[test]
     fn srgb_test() {
