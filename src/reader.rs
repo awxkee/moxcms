@@ -732,7 +732,7 @@ impl ColorProfile {
             return Ok(None);
         }
         let last_tag_offset = if tag_size != 0 {
-            tag_size + entry
+            tag_size.safe_add(entry)?
         } else {
             slice.len()
         };
