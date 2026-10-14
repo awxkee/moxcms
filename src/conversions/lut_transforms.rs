@@ -37,7 +37,7 @@ use crate::conversions::transform_lut3_to_4::make_transform_3x4;
 use crate::mlaf::mlaf;
 use crate::{
     CmsError, ColorProfile, DataColorSpace, InPlaceStage, Layout, LutWarehouse, Matrix3f,
-    ProfileVersion, TransformExecutor, TransformOptions,
+    ProfileVersion, RenderingIntent, TransformExecutor, TransformOptions,
 };
 use num_traits::AsPrimitive;
 use std::sync::Arc;
@@ -118,9 +118,10 @@ pub(crate) trait Lut4x3Factory {
         (): LutBarycentricReduction<T, u16>;
 }
 
-fn pcs_lab_v4_to_v2(profile: &ColorProfile, lut: &mut [f32]) {
+fn pcs_lab_v4_to_v2(profile: &ColorProfile, intent: RenderingIntent, lut: &mut [f32]) {
     if profile.pcs == DataColorSpace::Lab
         && profile.version_internal < ProfileVersion::V4_0
+        && !profile.pcs_to_device_is_lut8(intent)
         && lut.len().is_multiple_of(3)
     {
         assert_eq!(
@@ -141,9 +142,10 @@ fn pcs_lab_v4_to_v2(profile: &ColorProfile, lut: &mut [f32]) {
     }
 }
 
-fn pcs_lab_v2_to_v4(profile: &ColorProfile, lut: &mut [f32]) {
+fn pcs_lab_v2_to_v4(profile: &ColorProfile, intent: RenderingIntent, lut: &mut [f32]) {
     if profile.pcs == DataColorSpace::Lab
         && profile.version_internal < ProfileVersion::V4_0
+        && !profile.device_to_pcs_is_lut8(intent)
         && lut.len().is_multiple_of(3)
     {
         assert_eq!(
@@ -431,14 +433,14 @@ where
 
             let mut stages = Vec::new();
 
-            stages.push(katana_pcs_lab_v2_to_v4(source));
+            stages.push(katana_pcs_lab_v2_to_v4(source, options.rendering_intent));
             if source.pcs == DataColorSpace::Lab {
                 stages.push(Box::new(KatanaStageLabToXyz::default()));
             }
             if dest.pcs == DataColorSpace::Lab {
                 stages.push(Box::new(KatanaStageXyzToLab::default()));
             }
-            stages.push(katana_pcs_lab_v4_to_v2(dest));
+            stages.push(katana_pcs_lab_v4_to_v2(dest, options.rendering_intent));
 
             let final_stage = if dest.has_pcs_to_device_lut() {
                 let pcs_to_device = dest
@@ -488,7 +490,7 @@ where
             }
         };
 
-        pcs_lab_v2_to_v4(source, &mut lut);
+        pcs_lab_v2_to_v4(source, options.rendering_intent, &mut lut);
 
         if source.pcs == DataColorSpace::Xyz && dest.pcs == DataColorSpace::Lab {
             apply_bpc_scaling(&mut lut);
@@ -502,7 +504,7 @@ where
             apply_bpc_scaling(&mut lut);
         }
 
-        pcs_lab_v4_to_v2(dest, &mut lut);
+        pcs_lab_v4_to_v2(dest, options.rendering_intent, &mut lut);
 
         if dest.pcs == DataColorSpace::Xyz {
             if dest.is_matrix_shaper() {
@@ -594,7 +596,7 @@ where
             return Err(CmsError::UnsupportedProfileConnection);
         }
 
-        pcs_lab_v2_to_v4(source, &mut lut);
+        pcs_lab_v2_to_v4(source, options.rendering_intent, &mut lut);
 
         if source.pcs == DataColorSpace::Xyz && dest.pcs == DataColorSpace::Lab {
             apply_bpc_scaling(&mut lut);
@@ -608,7 +610,7 @@ where
             apply_bpc_scaling(&mut lut);
         }
 
-        pcs_lab_v4_to_v2(dest, &mut lut);
+        pcs_lab_v4_to_v2(dest, options.rendering_intent, &mut lut);
 
         let lut = match dest
             .get_pcs_to_device(options.rendering_intent)
@@ -687,14 +689,14 @@ where
                     }
                 };
 
-            stages.push(katana_pcs_lab_v2_to_v4(source));
+            stages.push(katana_pcs_lab_v2_to_v4(source, options.rendering_intent));
             if source.pcs == DataColorSpace::Lab {
                 stages.push(Box::new(KatanaStageLabToXyz::default()));
             }
             if dest.pcs == DataColorSpace::Lab {
                 stages.push(Box::new(KatanaStageXyzToLab::default()));
             }
-            stages.push(katana_pcs_lab_v4_to_v2(dest));
+            stages.push(katana_pcs_lab_v4_to_v2(dest, options.rendering_intent));
 
             let final_stage = if dest.has_pcs_to_device_lut() {
                 let pcs_to_device = dest
@@ -756,7 +758,7 @@ where
             return Err(CmsError::UnsupportedProfileConnection);
         }
 
-        pcs_lab_v2_to_v4(source, &mut lut);
+        pcs_lab_v2_to_v4(source, options.rendering_intent, &mut lut);
 
         if source.pcs == DataColorSpace::Xyz && dest.pcs == DataColorSpace::Lab {
             apply_bpc_scaling(&mut lut);
@@ -770,7 +772,7 @@ where
             apply_bpc_scaling(&mut lut);
         }
 
-        pcs_lab_v4_to_v2(dest, &mut lut);
+        pcs_lab_v4_to_v2(dest, options.rendering_intent, &mut lut);
 
         if dest.has_pcs_to_device_lut() {
             let pcs_to_device = dest
