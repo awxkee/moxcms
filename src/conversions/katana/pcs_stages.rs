@@ -29,7 +29,7 @@
 use crate::conversions::katana::KatanaIntermediateStage;
 use crate::conversions::katana::stages::BlackholeIntermediateStage;
 use crate::mlaf::mlaf;
-use crate::{CmsError, ColorProfile, DataColorSpace, Matrix3f, ProfileVersion};
+use crate::{CmsError, ColorProfile, DataColorSpace, Matrix3f, ProfileVersion, RenderingIntent};
 use std::marker::PhantomData;
 
 pub(crate) struct KatanaMatrixStage {
@@ -67,8 +67,14 @@ impl KatanaIntermediateStage<f32> for KatanaMatrixStage {
     }
 }
 
-pub(crate) fn katana_pcs_lab_v4_to_v2(profile: &ColorProfile) -> Box<KatanaDefaultIntermediate> {
-    if profile.pcs == DataColorSpace::Lab && profile.version_internal <= ProfileVersion::V4_0 {
+pub(crate) fn katana_pcs_lab_v4_to_v2(
+    profile: &ColorProfile,
+    intent: RenderingIntent,
+) -> Box<KatanaDefaultIntermediate> {
+    if profile.pcs == DataColorSpace::Lab
+        && profile.version_internal <= ProfileVersion::V4_0
+        && !profile.pcs_to_device_is_lut8(intent)
+    {
         let v_mat = vec![Matrix3f {
             v: [
                 [65280.0 / 65535.0, 0., 0.],
@@ -83,8 +89,14 @@ pub(crate) fn katana_pcs_lab_v4_to_v2(profile: &ColorProfile) -> Box<KatanaDefau
     })
 }
 
-pub(crate) fn katana_pcs_lab_v2_to_v4(profile: &ColorProfile) -> Box<KatanaDefaultIntermediate> {
-    if profile.pcs == DataColorSpace::Lab && profile.version_internal <= ProfileVersion::V4_0 {
+pub(crate) fn katana_pcs_lab_v2_to_v4(
+    profile: &ColorProfile,
+    intent: RenderingIntent,
+) -> Box<KatanaDefaultIntermediate> {
+    if profile.pcs == DataColorSpace::Lab
+        && profile.version_internal <= ProfileVersion::V4_0
+        && !profile.device_to_pcs_is_lut8(intent)
+    {
         let v_mat = vec![Matrix3f {
             v: [
                 [65535.0 / 65280.0, 0., 0.],
