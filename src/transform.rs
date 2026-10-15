@@ -1217,6 +1217,7 @@ impl ColorProfile {
     }
 
     /// A lut8Type table encodes Lab as v4 does; only lut16Type uses the legacy v2 encoding.
+    #[allow(unused)]
     pub(crate) fn device_to_pcs_is_lut8(&self, intent: RenderingIntent) -> bool {
         matches!(
             self.get_device_to_pcs(intent),
@@ -1224,6 +1225,7 @@ impl ColorProfile {
         )
     }
 
+    #[allow(unused)]
     pub(crate) fn pcs_to_device_is_lut8(&self, intent: RenderingIntent) -> bool {
         matches!(
             self.get_pcs_to_device(intent),
