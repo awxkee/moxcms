@@ -30,7 +30,7 @@ use crate::conversions::*;
 use crate::err::CmsError;
 use crate::interceptors::{FromCmykaInterceptor, ToCmykaInterceptor};
 use crate::trc::GammaLutInterpolate;
-use crate::{ColorProfile, DataColorSpace, LutWarehouse, RenderingIntent, Vector3f, Xyzd};
+use crate::{ColorProfile, DataColorSpace, LutType, LutWarehouse, RenderingIntent, Vector3f, Xyzd};
 use num_traits::AsPrimitive;
 use std::sync::Arc;
 
@@ -1214,6 +1214,23 @@ impl ColorProfile {
             RenderingIntent::RelativeColorimetric => self.lut_b_to_a_colorimetric.as_ref(),
             RenderingIntent::Perceptual => self.lut_b_to_a_perceptual.as_ref(),
         }
+    }
+
+    /// A lut8Type table encodes Lab as v4 does; only lut16Type uses the legacy v2 encoding.
+    #[allow(unused)]
+    pub(crate) fn device_to_pcs_is_lut8(&self, intent: RenderingIntent) -> bool {
+        matches!(
+            self.get_device_to_pcs(intent),
+            Some(LutWarehouse::Lut(lut)) if lut.lut_type == LutType::Lut8
+        )
+    }
+
+    #[allow(unused)]
+    pub(crate) fn pcs_to_device_is_lut8(&self, intent: RenderingIntent) -> bool {
+        matches!(
+            self.get_pcs_to_device(intent),
+            Some(LutWarehouse::Lut(lut)) if lut.lut_type == LutType::Lut8
+        )
     }
 }
 

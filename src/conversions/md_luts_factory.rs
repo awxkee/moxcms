@@ -94,14 +94,14 @@ where
         },
     };
 
-    stages.push(katana_pcs_lab_v2_to_v4(source));
+    stages.push(katana_pcs_lab_v2_to_v4(source, options.rendering_intent));
     if source.pcs == DataColorSpace::Lab {
         stages.push(Box::new(KatanaStageLabToXyz::default()));
     }
     if dest.pcs == DataColorSpace::Lab {
         stages.push(Box::new(KatanaStageXyzToLab::default()));
     }
-    stages.push(katana_pcs_lab_v4_to_v2(dest));
+    stages.push(katana_pcs_lab_v4_to_v2(dest, options.rendering_intent));
 
     let final_stage = if dest.has_pcs_to_device_lut() {
         let pcs_to_device = dest
