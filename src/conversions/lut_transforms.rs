@@ -98,6 +98,9 @@ pub(crate) trait Lut3x3Factory {
         (): LutBarycentricReduction<T, u16>;
 }
 
+/// Fills the outputs of the nodes from the first given, three a node.
+pub(crate) type FillNodes<'a> = Box<dyn FnMut(usize, &mut [f32]) -> Result<(), CmsError> + 'a>;
+
 /// A 4D grid of three outputs a node, either whole or made a plane of the last input at a time,
 /// so that a transform can lay it out in its own layout without holding it twice.
 pub(crate) enum Grid4x3<'a> {
@@ -105,8 +108,7 @@ pub(crate) enum Grid4x3<'a> {
     Planes {
         nodes: usize,
         plane: usize,
-        /// Fills the outputs of the nodes from the first given, three a node.
-        fill: Box<dyn FnMut(usize, &mut [f32]) -> Result<(), CmsError> + 'a>,
+        fill: FillNodes<'a>,
     },
 }
 
