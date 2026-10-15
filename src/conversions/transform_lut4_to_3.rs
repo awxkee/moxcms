@@ -29,7 +29,7 @@
 #![cfg(feature = "lut")]
 use crate::conversions::LutBarycentricReduction;
 use crate::conversions::interpolator::*;
-use crate::conversions::lut_transforms::Lut4x3Factory;
+use crate::conversions::lut_transforms::{Grid4x3, Lut4x3Factory};
 use crate::math::{FusedMultiplyAdd, FusedMultiplyNegAdd, m_clamp};
 use crate::{
     BarycentricWeightScale, CmsError, DataColorSpace, InterpolationMethod, Layout,
@@ -496,11 +496,11 @@ impl Lut4x3Factory for DefaultLut4x3Factory {
         const BIT_DEPTH: usize,
         const BINS: usize,
     >(
-        lut: Vec<f32>,
+        lut: Grid4x3<'_>,
         options: TransformOptions,
         color_space: DataColorSpace,
         is_linear: bool,
-    ) -> Arc<dyn TransformExecutor<T> + Sync + Send>
+    ) -> Result<Arc<dyn TransformExecutor<T> + Sync + Send>, CmsError>
     where
         f32: AsPrimitive<T>,
         u32: AsPrimitive<T>,
@@ -520,20 +520,15 @@ impl Lut4x3Factory for DefaultLut4x3Factory {
             } else {
                 ((1i32 << 14) - 1) as f32
             };
-            let lut: Vec<AlignedI16x4> = lut
-                .as_chunks::<3>()
-                .0
-                .iter()
-                .map(|x| {
-                    AlignedI16x4([
-                        (x[0] * q).round() as i16,
-                        (x[1] * q).round() as i16,
-                        (x[2] * q).round() as i16,
-                        0,
-                    ])
-                })
-                .collect();
-            return match options.barycentric_weight_scale {
+            let lut: Vec<AlignedI16x4> = lut.collect(|x| {
+                AlignedI16x4([
+                    (x[0] * q).round() as i16,
+                    (x[1] * q).round() as i16,
+                    (x[2] * q).round() as i16,
+                    0,
+                ])
+            })?;
+            return Ok(match options.barycentric_weight_scale {
                 BarycentricWeightScale::Low => {
                     Arc::new(
                         TransformLut4To3Q0_15::<T, u8, LAYOUT, GRID_SIZE, BIT_DEPTH, 256, 256> {
@@ -559,10 +554,11 @@ impl Lut4x3Factory for DefaultLut4x3Factory {
                     _phantom1: PhantomData,
                     weights: BarycentricWeight::<i16>::create_binned::<GRID_SIZE, BINS>(),
                 }),
-            };
+            });
         }
 
-        match options.barycentric_weight_scale {
+        let lut = lut.into_f32()?;
+        Ok(match options.barycentric_weight_scale {
             BarycentricWeightScale::Low => {
                 Arc::new(
                     TransformLut4To3::<T, u8, LAYOUT, GRID_SIZE, BIT_DEPTH, 256, 256> {
@@ -590,7 +586,7 @@ impl Lut4x3Factory for DefaultLut4x3Factory {
                     },
                 )
             }
-        }
+        })
     }
 }
 
