@@ -1607,6 +1607,81 @@ mod tests {
     }
 
     #[test]
+    fn test_transform_pro_photo_gray_f32() {
+        let pro_photo_profile = ColorProfile::new_pro_photo_rgb();
+        let srgb_profile = ColorProfile::new_srgb();
+        let transform = pro_photo_profile
+            .create_transform_f32(
+                Layout::Rgb,
+                &srgb_profile,
+                Layout::Rgb,
+                TransformOptions::default(),
+            )
+            .unwrap();
+        let src = vec![0.64f32; 256 * 3];
+        let mut dst = vec![0f32; 256 * 3];
+        transform.transform(&src, &mut dst).unwrap();
+        for dst in dst.as_chunks::<3>().0 {
+            let diff0 = (dst[0] - dst[1]).abs();
+            let diff2 = (dst[2] - dst[1]).abs();
+            assert!(
+                diff0 < 1e-3 && diff2 < 1e-3,
+                "Gray should stay gray, but it was {dst:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_transform_pro_photo_gray_f64() {
+        let pro_photo_profile = ColorProfile::new_pro_photo_rgb();
+        let srgb_profile = ColorProfile::new_srgb();
+        let transform = pro_photo_profile
+            .create_transform_f64(
+                Layout::Rgb,
+                &srgb_profile,
+                Layout::Rgb,
+                TransformOptions::default(),
+            )
+            .unwrap();
+        let src = vec![0.64f64; 256 * 3];
+        let mut dst = vec![0f64; 256 * 3];
+        transform.transform(&src, &mut dst).unwrap();
+        for dst in dst.as_chunks::<3>().0 {
+            let diff0 = (dst[0] - dst[1]).abs();
+            let diff2 = (dst[2] - dst[1]).abs();
+            assert!(
+                diff0 < 1e-3 && diff2 < 1e-3,
+                "Gray should stay gray, but it was {dst:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_transform_pro_photo_gray_rgb16() {
+        let pro_photo_profile = ColorProfile::new_pro_photo_rgb();
+        let srgb_profile = ColorProfile::new_srgb();
+        let transform = pro_photo_profile
+            .create_transform_16bit(
+                Layout::Rgb,
+                &srgb_profile,
+                Layout::Rgb,
+                TransformOptions::default(),
+            )
+            .unwrap();
+        let src = vec![41943u16; 256 * 3];
+        let mut dst = vec![0u16; 256 * 3];
+        transform.transform(&src, &mut dst).unwrap();
+        for dst in dst.as_chunks::<3>().0 {
+            let diff0 = (dst[0] as i32 - dst[1] as i32).abs();
+            let diff2 = (dst[2] as i32 - dst[1] as i32).abs();
+            assert!(
+                diff0 < 35 && diff2 < 35,
+                "Gray should stay gray, but it was {dst:?}"
+            );
+        }
+    }
+
+    #[test]
     #[cfg(feature = "extended_range")]
     fn test_transform_rgb_to_gray_extended() {
         let srgb = ColorProfile::new_srgb();
