@@ -123,7 +123,7 @@ fn make_lut_3x3(
     Ok(transform)
 }
 
-fn stage_lut_3x3(
+pub(crate) fn stage_lut_3x3(
     lut: &LutDataType,
     options: TransformOptions,
     pcs: DataColorSpace,

@@ -38,9 +38,10 @@ use num_traits::AsPrimitive;
 use std::marker::PhantomData;
 
 pub(crate) struct XyzToRgbStage<T: Clone> {
-    pub(crate) r_gamma: Box<[T; 65536]>,
-    pub(crate) g_gamma: Box<[T; 65536]>,
-    pub(crate) b_gamma: Box<[T; 65536]>,
+    /// One table for each distinct curve, the channels sharing the ones they have alike.
+    pub(crate) gamma: Vec<Box<[T; 65536]>>,
+    /// Each channel's table in `gamma`.
+    pub(crate) channels: [usize; 3],
     pub(crate) matrices: Vec<Matrix3f>,
     pub(crate) bit_depth: usize,
     pub(crate) gamma_lut: usize,
@@ -75,6 +76,7 @@ impl<T: Clone + AsPrimitive<f32>> InPlaceStage for XyzToRgbStage<T> {
         let max_colors = (1 << self.bit_depth) - 1;
         let color_scale = 1f32 / max_colors as f32;
         let lut_cap = (self.gamma_lut - 1) as f32;
+        let [r_gamma, g_gamma, b_gamma] = self.channels.map(|c| &self.gamma[c]);
 
         for dst in dst.as_chunks_mut::<3>().0.iter_mut() {
             let rgb = Rgb::new(dst[0], dst[1], dst[2]);
@@ -82,9 +84,9 @@ impl<T: Clone + AsPrimitive<f32>> InPlaceStage for XyzToRgbStage<T> {
             let g = mlaf(0.5f32, rgb.g, lut_cap).min(lut_cap).max(0f32) as u16;
             let b = mlaf(0.5f32, rgb.b, lut_cap).min(lut_cap).max(0f32) as u16;
 
-            dst[0] = self.r_gamma[r as usize].as_() * color_scale;
-            dst[1] = self.g_gamma[g as usize].as_() * color_scale;
-            dst[2] = self.b_gamma[b as usize].as_() * color_scale;
+            dst[0] = r_gamma[r as usize].as_() * color_scale;
+            dst[1] = g_gamma[g as usize].as_() * color_scale;
+            dst[2] = b_gamma[b as usize].as_() * color_scale;
         }
 
         Ok(())
@@ -261,6 +263,29 @@ where
     f32: AsPrimitive<T>,
     u32: AsPrimitive<T>,
 {
+    inverse_lut_rgb_xyz_stage::<T, BIT_DEPTH, GAMMA_LUT>(dest, options)?.transform(lut)
+}
+
+/// The stage [`prepare_inverse_lut_rgb_xyz`] applies, built once to apply to a lut in parts.
+pub(crate) fn inverse_lut_rgb_xyz_stage<
+    T: Copy
+        + Default
+        + AsPrimitive<f32>
+        + Send
+        + Sync
+        + AsPrimitive<usize>
+        + PointeeSizeExpressible
+        + GammaLutInterpolate,
+    const BIT_DEPTH: usize,
+    const GAMMA_LUT: usize,
+>(
+    dest: &ColorProfile,
+    options: TransformOptions,
+) -> Result<InverseRgbXyzStage<T>, CmsError>
+where
+    f32: AsPrimitive<T>,
+    u32: AsPrimitive<T>,
+{
     #[cfg(feature = "extended_range")]
     if !T::FINITE
         && options.allow_extended_range_rgb_xyz
@@ -277,26 +302,28 @@ where
         }];
 
         matrices.push(xyz_to_rgb.to_f32());
-        let xyz_to_rgb_stage = XyzToRgbStageExtended::<T> {
+        return Ok(InverseRgbXyzStage::Extended(XyzToRgbStageExtended::<T> {
             gamma_evaluator: extended_gamma,
             matrices,
             phantom_data: PhantomData,
-        };
-        xyz_to_rgb_stage.transform(lut)?;
-        return Ok(());
+        }));
     }
-    let gamma_map_r = dest.build_gamma_table::<T, 65536, GAMMA_LUT, BIT_DEPTH>(
-        &dest.red_trc,
-        options.allow_use_cicp_transfer,
-    )?;
-    let gamma_map_g = dest.build_gamma_table::<T, 65536, GAMMA_LUT, BIT_DEPTH>(
-        &dest.green_trc,
-        options.allow_use_cicp_transfer,
-    )?;
-    let gamma_map_b = dest.build_gamma_table::<T, 65536, GAMMA_LUT, BIT_DEPTH>(
-        &dest.blue_trc,
-        options.allow_use_cicp_transfer,
-    )?;
+    // Channels of the same curve share its table, as sRGB's three do.
+    let curves = [&dest.red_trc, &dest.green_trc, &dest.blue_trc];
+    let mut gamma = Vec::with_capacity(3);
+    let mut channels = [0usize; 3];
+    for (c, curve) in curves.iter().enumerate() {
+        channels[c] = match curves[..c].iter().position(|other| other == curve) {
+            Some(same) => channels[same],
+            None => {
+                gamma.push(dest.build_gamma_table::<T, 65536, GAMMA_LUT, BIT_DEPTH>(
+                    curve,
+                    options.allow_use_cicp_transfer,
+                )?);
+                gamma.len() - 1
+            }
+        };
+    }
 
     let xyz_to_rgb = dest.rgb_to_xyz_matrix().inverse();
 
@@ -309,14 +336,27 @@ where
     }];
 
     matrices.push(xyz_to_rgb.to_f32());
-    let xyz_to_rgb_stage = XyzToRgbStage::<T> {
-        r_gamma: gamma_map_r,
-        g_gamma: gamma_map_g,
-        b_gamma: gamma_map_b,
+    Ok(InverseRgbXyzStage::Gamma(XyzToRgbStage::<T> {
+        gamma,
+        channels,
         matrices,
         gamma_lut: GAMMA_LUT,
         bit_depth: BIT_DEPTH,
-    };
-    xyz_to_rgb_stage.transform(lut)?;
-    Ok(())
+    }))
+}
+
+pub(crate) enum InverseRgbXyzStage<T: Clone> {
+    Gamma(XyzToRgbStage<T>),
+    #[cfg(feature = "extended_range")]
+    Extended(XyzToRgbStageExtended<T>),
+}
+
+impl<T: Clone + AsPrimitive<f32>> InPlaceStage for InverseRgbXyzStage<T> {
+    fn transform(&self, dst: &mut [f32]) -> Result<(), CmsError> {
+        match self {
+            InverseRgbXyzStage::Gamma(stage) => stage.transform(dst),
+            #[cfg(feature = "extended_range")]
+            InverseRgbXyzStage::Extended(stage) => stage.transform(dst),
+        }
+    }
 }
