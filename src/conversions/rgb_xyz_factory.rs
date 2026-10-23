@@ -39,6 +39,12 @@ use std::sync::Arc;
 
 const FIXED_POINT_SCALE: i32 = 13; // Q2.13;
 
+// Q1.30 holds only [-2, 2), wide gamut matrices like ProPhoto -> sRGB do not fit
+#[cfg(all(target_arch = "aarch64", feature = "neon_shaper_fixed_point_paths"))]
+fn fits_q1_30(matrix: &crate::Matrix3f) -> bool {
+    matrix.v.iter().flatten().all(|&x| x.abs() < 2.)
+}
+
 pub(crate) trait RgbXyzFactory<T: Clone + AsPrimitive<usize> + Default> {
     fn make_transform<const LINEAR_CAP: usize, const GAMMA_LUT: usize, const BIT_DEPTH: usize>(
         src_layout: Layout,
@@ -205,7 +211,9 @@ impl RgbXyzFactoryOpt<u16> for u16 {
         if BIT_DEPTH >= 12 && transform_options.prefer_fixed_point {
             #[cfg(all(target_arch = "aarch64", feature = "neon_shaper_fixed_point_paths"))]
             {
-                if std::arch::is_aarch64_feature_detected!("rdm") {
+                if std::arch::is_aarch64_feature_detected!("rdm")
+                    && fits_q1_30(&profile.adaptation_matrix)
+                {
                     use crate::conversions::rgbxyz_fixed::make_rgb_xyz_q1_30_opt;
                     return make_rgb_xyz_q1_30_opt::<u16, LINEAR_CAP, 30>(
                         src_layout, dst_layout, profile, GAMMA_LUT, BIT_DEPTH,
@@ -362,7 +370,9 @@ impl RgbXyzFactoryOpt<f32> for f32 {
             }
             #[cfg(all(target_arch = "aarch64", feature = "neon_shaper_fixed_point_paths"))]
             {
-                return if std::arch::is_aarch64_feature_detected!("rdm") {
+                return if std::arch::is_aarch64_feature_detected!("rdm")
+                    && fits_q1_30(&profile.adaptation_matrix)
+                {
                     use crate::conversions::rgbxyz_fixed::make_rgb_xyz_q1_30_opt;
                     make_rgb_xyz_q1_30_opt::<f32, LINEAR_CAP, 30>(
                         src_layout, dst_layout, profile, GAMMA_LUT, BIT_DEPTH,
@@ -410,7 +420,9 @@ impl RgbXyzFactoryOpt<f64> for f64 {
         if transform_options.prefer_fixed_point {
             #[cfg(all(target_arch = "aarch64", feature = "neon_shaper_fixed_point_paths"))]
             {
-                if std::arch::is_aarch64_feature_detected!("rdm") {
+                if std::arch::is_aarch64_feature_detected!("rdm")
+                    && fits_q1_30(&profile.adaptation_matrix)
+                {
                     use crate::conversions::rgbxyz_fixed::make_rgb_xyz_q1_30_opt;
                     return make_rgb_xyz_q1_30_opt::<f64, LINEAR_CAP, 30>(
                         src_layout, dst_layout, profile, GAMMA_LUT, BIT_DEPTH,
