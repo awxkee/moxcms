@@ -1198,22 +1198,26 @@ impl ColorProfile {
 
     #[allow(unused)]
     pub(crate) fn get_device_to_pcs(&self, intent: RenderingIntent) -> Option<&LutWarehouse> {
-        match intent {
+        let lut = match intent {
             RenderingIntent::AbsoluteColorimetric => self.lut_a_to_b_colorimetric.as_ref(),
             RenderingIntent::Saturation => self.lut_a_to_b_saturation.as_ref(),
             RenderingIntent::RelativeColorimetric => self.lut_a_to_b_colorimetric.as_ref(),
             RenderingIntent::Perceptual => self.lut_a_to_b_perceptual.as_ref(),
-        }
+        };
+        // ICC.1:2022 8.10.2 c): use AToB0 when the intent has no tag of its own
+        lut.or(self.lut_a_to_b_perceptual.as_ref())
     }
 
     #[allow(unused)]
     pub(crate) fn get_pcs_to_device(&self, intent: RenderingIntent) -> Option<&LutWarehouse> {
-        match intent {
+        let lut = match intent {
             RenderingIntent::AbsoluteColorimetric => self.lut_b_to_a_colorimetric.as_ref(),
             RenderingIntent::Saturation => self.lut_b_to_a_saturation.as_ref(),
             RenderingIntent::RelativeColorimetric => self.lut_b_to_a_colorimetric.as_ref(),
             RenderingIntent::Perceptual => self.lut_b_to_a_perceptual.as_ref(),
-        }
+        };
+        // ICC.1:2022 8.10.2 c): use BToA0 when the intent has no tag of its own
+        lut.or(self.lut_b_to_a_perceptual.as_ref())
     }
 }
 
@@ -1274,6 +1278,37 @@ mod tests {
             )
             .unwrap();
         transform.transform(&src, &mut dst).unwrap();
+    }
+
+    #[cfg(feature = "lut")]
+    #[test]
+    fn test_colorimetric_intent_falls_back_to_perceptual_lut() {
+        // Without A2B1/B2A1, relative colorimetric uses A2B0/B2A0 as if they were also
+        // listed as A2B1/B2A1, without the black point compensation of perceptual intent.
+        let icc = std::fs::read("./assets/srgb_perceptual.icc").unwrap();
+        let mut perceptual_only = ColorProfile::new_from_slice(&icc).unwrap();
+        perceptual_only.lut_a_to_b_colorimetric = None;
+        perceptual_only.lut_b_to_a_colorimetric = None;
+        let mut aliased = perceptual_only.clone();
+        aliased.lut_a_to_b_colorimetric = aliased.lut_a_to_b_perceptual.clone();
+        aliased.lut_b_to_a_colorimetric = aliased.lut_b_to_a_perceptual.clone();
+
+        let srgb = ColorProfile::new_srgb();
+        let options = TransformOptions {
+            rendering_intent: RenderingIntent::RelativeColorimetric,
+            ..Default::default()
+        };
+        let src: Vec<u8> = (0..=255u8).flat_map(|v| [v, v / 2, 255 - v]).collect();
+        let run = |from: &ColorProfile, to: &ColorProfile| {
+            let transform = from
+                .create_transform_8bit(Layout::Rgb, to, Layout::Rgb, options)
+                .unwrap();
+            let mut dst = vec![0u8; src.len()];
+            transform.transform(&src, &mut dst).unwrap();
+            dst
+        };
+        assert_eq!(run(&perceptual_only, &srgb), run(&aliased, &srgb));
+        assert_eq!(run(&srgb, &perceptual_only), run(&srgb, &aliased));
     }
 
     #[test]
