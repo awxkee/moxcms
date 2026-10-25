@@ -34,6 +34,7 @@ use crate::{
     LutMultidimensionalType, LutStore, LutType, LutWarehouse, Matrix3d, ProfileClass,
     ProfileSignature, ProfileText, ProfileVersion, Vector3d, ViewingConditions, Xyz, Xyzd,
 };
+use std::collections::HashMap;
 
 pub(crate) trait FloatToFixedS15Fixed16 {
     fn to_s15_fixed16(self) -> i32;
@@ -206,6 +207,35 @@ fn write_tag_entry(into: &mut Vec<u8>, tag: Tag, tag_entry: usize, tag_size: usi
     write_u32_be(into, tag_value);
     write_u32_be(into, tag_entry as u32);
     write_u32_be(into, tag_size as u32);
+}
+
+fn align_tag_data(tags: &mut [u8], entries: &mut Vec<u8>, data_offset: usize) {
+    let mut aligned_entries = Vec::with_capacity(entries.len() + tags.len() / TAG_SIZE * 3);
+    let mut aligned_offsets = HashMap::new();
+
+    for entry in tags.chunks_exact_mut(TAG_SIZE) {
+        let old_offset = u32::from_be_bytes(entry[4..8].try_into().unwrap()) as usize;
+        let size = u32::from_be_bytes(entry[8..12].try_into().unwrap()) as usize;
+        let key = (old_offset, size);
+
+        let new_offset = if let Some(offset) = aligned_offsets.get(&key) {
+            *offset
+        } else {
+            let padding = (4 - ((data_offset + aligned_entries.len()) % 4)) % 4;
+            aligned_entries.resize(aligned_entries.len() + padding, 0);
+            let new_offset = data_offset + aligned_entries.len();
+            let source_offset = old_offset - data_offset;
+            aligned_entries.extend_from_slice(&entries[source_offset..source_offset + size]);
+            aligned_offsets.insert(key, new_offset);
+            new_offset
+        };
+
+        entry[4..8].copy_from_slice(&(new_offset as u32).to_be_bytes());
+    }
+
+    let padding = (4 - ((data_offset + aligned_entries.len()) % 4)) % 4;
+    aligned_entries.resize(aligned_entries.len() + padding, 0);
+    *entries = aligned_entries;
 }
 
 #[inline]
@@ -863,6 +893,8 @@ impl ColorProfile {
             // base_offset += entry_size;
         }
 
+        let data_offset = size_of::<ProfileHeader>() + TAG_SIZE * tags_count;
+        align_tag_data(&mut tags, &mut entries, data_offset);
         tags.extend(entries);
 
         let profile_header = ProfileHeader {
@@ -947,5 +979,26 @@ mod tests {
         let decoded_rountrip = ColorProfile::new_from_slice(&encoded).unwrap();
         // Gray profiles with cicp are not conformant, so we should remove it during encoding
         assert!(decoded_rountrip.cicp.is_none());
+    }
+
+    #[test]
+    fn encoded_tag_data_is_aligned_to_four_bytes() {
+        let mut profile = ColorProfile::new_srgb();
+        profile.description = Some(crate::ProfileText::Localizable(vec![
+            LocalizableString::new("en".into(), "US".into(), "x".into()),
+        ]));
+        profile.copyright = Some(crate::ProfileText::Localizable(vec![
+            LocalizableString::new("en".into(), "US".into(), "x".into()),
+        ]));
+
+        let encoded = profile.encode().unwrap();
+        let tag_count = u32::from_be_bytes(encoded[128..132].try_into().unwrap()) as usize;
+        let tags_end = 132 + tag_count * TAG_SIZE;
+
+        for tag in encoded[132..tags_end].chunks_exact(TAG_SIZE) {
+            let offset = u32::from_be_bytes(tag[4..8].try_into().unwrap());
+            assert_eq!(offset % 4, 0, "tag offset {offset} is not aligned");
+        }
+        assert_eq!(encoded.len() % 4, 0, "profile size is not aligned");
     }
 }
