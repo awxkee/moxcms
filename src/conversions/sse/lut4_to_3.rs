@@ -84,7 +84,7 @@ where
         &self,
         src: &[T],
         dst: &mut [T],
-        interpolator: Box<dyn SseMdInterpolation<BINS, U> + Send + Sync>,
+        interpolator: impl SseMdInterpolation<BINS, U>,
     ) {
         let cn = Layout::from(LAYOUT);
         let channels = cn.channels();
@@ -194,23 +194,23 @@ where
                 || (self.is_linear && self.color_space == DataColorSpace::Rgb)
                 || self.color_space == DataColorSpace::Xyz
             {
-                self.transform_chunk(src, dst, Box::new(TrilinearSse::<GRID_SIZE> {}));
+                self.transform_chunk(src, dst, TrilinearSse::<GRID_SIZE> {});
             } else {
                 match self.interpolation_method {
                     #[cfg(feature = "options")]
                     InterpolationMethod::Tetrahedral => {
-                        self.transform_chunk(src, dst, Box::new(TetrahedralSse::<GRID_SIZE> {}));
+                        self.transform_chunk(src, dst, TetrahedralSse::<GRID_SIZE> {});
                     }
                     #[cfg(feature = "options")]
                     InterpolationMethod::Pyramid => {
-                        self.transform_chunk(src, dst, Box::new(PyramidalSse::<GRID_SIZE> {}));
+                        self.transform_chunk(src, dst, PyramidalSse::<GRID_SIZE> {});
                     }
                     #[cfg(feature = "options")]
                     InterpolationMethod::Prism => {
-                        self.transform_chunk(src, dst, Box::new(PrismaticSse::<GRID_SIZE> {}));
+                        self.transform_chunk(src, dst, PrismaticSse::<GRID_SIZE> {});
                     }
                     InterpolationMethod::Linear => {
-                        self.transform_chunk(src, dst, Box::new(TrilinearSse::<GRID_SIZE> {}));
+                        self.transform_chunk(src, dst, TrilinearSse::<GRID_SIZE> {});
                     }
                 }
             }

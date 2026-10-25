@@ -89,7 +89,7 @@ where
         &self,
         src: &[T],
         dst: &mut [T],
-        interpolator: Box<dyn SseMdInterpolationQ0_15<BINS, U> + Send + Sync>,
+        interpolator: impl SseMdInterpolationQ0_15<BINS, U>,
     ) {
         let src_cn = Layout::from(SRC_LAYOUT);
         let src_channels = src_cn.channels();
@@ -198,27 +198,23 @@ where
                 || (self.is_linear && self.color_space == DataColorSpace::Rgb)
                 || self.color_space == DataColorSpace::Xyz
             {
-                self.transform_chunk(src, dst, Box::new(TrilinearSseQ0_15::<GRID_SIZE> {}));
+                self.transform_chunk(src, dst, TrilinearSseQ0_15::<GRID_SIZE> {});
             } else {
                 match self.interpolation_method {
                     #[cfg(feature = "options")]
                     InterpolationMethod::Tetrahedral => {
-                        self.transform_chunk(
-                            src,
-                            dst,
-                            Box::new(TetrahedralSseQ0_15::<GRID_SIZE> {}),
-                        );
+                        self.transform_chunk(src, dst, TetrahedralSseQ0_15::<GRID_SIZE> {});
                     }
                     #[cfg(feature = "options")]
                     InterpolationMethod::Pyramid => {
-                        self.transform_chunk(src, dst, Box::new(PyramidalSseQ0_15::<GRID_SIZE> {}));
+                        self.transform_chunk(src, dst, PyramidalSseQ0_15::<GRID_SIZE> {});
                     }
                     #[cfg(feature = "options")]
                     InterpolationMethod::Prism => {
-                        self.transform_chunk(src, dst, Box::new(PrismaticSseQ0_15::<GRID_SIZE> {}));
+                        self.transform_chunk(src, dst, PrismaticSseQ0_15::<GRID_SIZE> {});
                     }
                     InterpolationMethod::Linear => {
-                        self.transform_chunk(src, dst, Box::new(TrilinearSseQ0_15::<GRID_SIZE> {}));
+                        self.transform_chunk(src, dst, TrilinearSseQ0_15::<GRID_SIZE> {});
                     }
                 }
             }

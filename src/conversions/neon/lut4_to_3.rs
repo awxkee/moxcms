@@ -82,7 +82,7 @@ where
         &self,
         src: &[T],
         dst: &mut [T],
-        interpolator: Box<dyn NeonMdInterpolationDouble<BINS, U> + Send + Sync>,
+        interpolator: impl NeonMdInterpolationDouble<BINS, U>,
     ) {
         let cn = Layout::from(LAYOUT);
         let channels = cn.channels();
@@ -189,23 +189,23 @@ where
             || (self.is_linear && self.color_space == DataColorSpace::Rgb)
             || self.color_space == DataColorSpace::Xyz
         {
-            self.transform_chunk(src, dst, Box::new(TrilinearNeonDouble::<GRID_SIZE> {}));
+            self.transform_chunk(src, dst, TrilinearNeonDouble::<GRID_SIZE> {});
         } else {
             match self.interpolation_method {
                 #[cfg(feature = "options")]
                 InterpolationMethod::Tetrahedral => {
-                    self.transform_chunk(src, dst, Box::new(TetrahedralNeonDouble::<GRID_SIZE> {}));
+                    self.transform_chunk(src, dst, TetrahedralNeonDouble::<GRID_SIZE> {});
                 }
                 #[cfg(feature = "options")]
                 InterpolationMethod::Pyramid => {
-                    self.transform_chunk(src, dst, Box::new(PyramidalNeonDouble::<GRID_SIZE> {}));
+                    self.transform_chunk(src, dst, PyramidalNeonDouble::<GRID_SIZE> {});
                 }
                 #[cfg(feature = "options")]
                 InterpolationMethod::Prism => {
-                    self.transform_chunk(src, dst, Box::new(PrismaticNeonDouble::<GRID_SIZE> {}));
+                    self.transform_chunk(src, dst, PrismaticNeonDouble::<GRID_SIZE> {});
                 }
                 InterpolationMethod::Linear => {
-                    self.transform_chunk(src, dst, Box::new(TrilinearNeonDouble::<GRID_SIZE> {}));
+                    self.transform_chunk(src, dst, TrilinearNeonDouble::<GRID_SIZE> {});
                 }
             }
         }

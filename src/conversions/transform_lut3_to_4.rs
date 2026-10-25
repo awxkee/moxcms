@@ -75,7 +75,7 @@ where
         &self,
         src: &[T],
         dst: &mut [T],
-        interpolator: Box<dyn MultidimensionalInterpolation + Send + Sync>,
+        interpolator: impl MultidimensionalInterpolation,
     ) {
         let cn = Layout::from(LAYOUT);
         let channels = cn.channels();
@@ -153,27 +153,27 @@ where
             || self.color_space == DataColorSpace::Xyz
         {
             use crate::conversions::interpolator::Trilinear;
-            self.transform_chunk(src, dst, Box::new(Trilinear::<GRID_SIZE> {}));
+            self.transform_chunk(src, dst, Trilinear::<GRID_SIZE> {});
         } else {
             match self.interpolation_method {
                 #[cfg(feature = "options")]
                 InterpolationMethod::Tetrahedral => {
                     use crate::conversions::interpolator::Tetrahedral;
-                    self.transform_chunk(src, dst, Box::new(Tetrahedral::<GRID_SIZE> {}));
+                    self.transform_chunk(src, dst, Tetrahedral::<GRID_SIZE> {});
                 }
                 #[cfg(feature = "options")]
                 InterpolationMethod::Pyramid => {
                     use crate::conversions::interpolator::Pyramidal;
-                    self.transform_chunk(src, dst, Box::new(Pyramidal::<GRID_SIZE> {}));
+                    self.transform_chunk(src, dst, Pyramidal::<GRID_SIZE> {});
                 }
                 #[cfg(feature = "options")]
                 InterpolationMethod::Prism => {
                     use crate::conversions::interpolator::Prismatic;
-                    self.transform_chunk(src, dst, Box::new(Prismatic::<GRID_SIZE> {}));
+                    self.transform_chunk(src, dst, Prismatic::<GRID_SIZE> {});
                 }
                 InterpolationMethod::Linear => {
                     use crate::conversions::interpolator::Trilinear;
-                    self.transform_chunk(src, dst, Box::new(Trilinear::<GRID_SIZE> {}));
+                    self.transform_chunk(src, dst, Trilinear::<GRID_SIZE> {});
                 }
             }
         }

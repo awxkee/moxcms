@@ -311,7 +311,7 @@ where
         &self,
         src: &[T],
         dst: &mut [T],
-        interpolator: Box<dyn MultidimensionalInterpolation + Send + Sync>,
+        interpolator: impl MultidimensionalInterpolation,
     ) {
         let cn = Layout::from(LAYOUT);
         let channels = cn.channels();
@@ -408,17 +408,9 @@ where
             || self.color_space == DataColorSpace::Xyz
         {
             if T::FINITE {
-                self.transform_chunk::<DefaultVector3fLerp>(
-                    src,
-                    dst,
-                    Box::new(Trilinear::<GRID_SIZE> {}),
-                );
+                self.transform_chunk::<DefaultVector3fLerp>(src, dst, Trilinear::<GRID_SIZE> {});
             } else {
-                self.transform_chunk::<NonFiniteVector3fLerp>(
-                    src,
-                    dst,
-                    Box::new(Trilinear::<GRID_SIZE> {}),
-                );
+                self.transform_chunk::<NonFiniteVector3fLerp>(src, dst, Trilinear::<GRID_SIZE> {});
             }
         } else {
             match self.interpolation_method {
@@ -428,13 +420,13 @@ where
                         self.transform_chunk::<DefaultVector3fLerp>(
                             src,
                             dst,
-                            Box::new(Tetrahedral::<GRID_SIZE> {}),
+                            Tetrahedral::<GRID_SIZE> {},
                         );
                     } else {
                         self.transform_chunk::<NonFiniteVector3fLerp>(
                             src,
                             dst,
-                            Box::new(Tetrahedral::<GRID_SIZE> {}),
+                            Tetrahedral::<GRID_SIZE> {},
                         );
                     }
                 }
@@ -444,13 +436,13 @@ where
                         self.transform_chunk::<DefaultVector3fLerp>(
                             src,
                             dst,
-                            Box::new(Pyramidal::<GRID_SIZE> {}),
+                            Pyramidal::<GRID_SIZE> {},
                         );
                     } else {
                         self.transform_chunk::<NonFiniteVector3fLerp>(
                             src,
                             dst,
-                            Box::new(Pyramidal::<GRID_SIZE> {}),
+                            Pyramidal::<GRID_SIZE> {},
                         );
                     }
                 }
@@ -460,13 +452,13 @@ where
                         self.transform_chunk::<DefaultVector3fLerp>(
                             src,
                             dst,
-                            Box::new(Prismatic::<GRID_SIZE> {}),
+                            Prismatic::<GRID_SIZE> {},
                         );
                     } else {
                         self.transform_chunk::<NonFiniteVector3fLerp>(
                             src,
                             dst,
-                            Box::new(Prismatic::<GRID_SIZE> {}),
+                            Prismatic::<GRID_SIZE> {},
                         );
                     }
                 }
@@ -475,13 +467,13 @@ where
                         self.transform_chunk::<DefaultVector3fLerp>(
                             src,
                             dst,
-                            Box::new(Trilinear::<GRID_SIZE> {}),
+                            Trilinear::<GRID_SIZE> {},
                         );
                     } else {
                         self.transform_chunk::<NonFiniteVector3fLerp>(
                             src,
                             dst,
-                            Box::new(Trilinear::<GRID_SIZE> {}),
+                            Trilinear::<GRID_SIZE> {},
                         );
                     }
                 }
