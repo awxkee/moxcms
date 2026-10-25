@@ -213,7 +213,7 @@ fn align_tag_data(tags: &mut [u8], entries: &mut Vec<u8>, data_offset: usize) {
     let mut aligned_entries = Vec::with_capacity(entries.len() + tags.len() / TAG_SIZE * 3);
     let mut aligned_offsets = HashMap::new();
 
-    for entry in tags.chunks_exact_mut(TAG_SIZE) {
+    for entry in tags.as_chunks_mut::<TAG_SIZE>().0 {
         let old_offset = u32::from_be_bytes(entry[4..8].try_into().unwrap()) as usize;
         let size = u32::from_be_bytes(entry[8..12].try_into().unwrap()) as usize;
         let key = (old_offset, size);
@@ -995,7 +995,7 @@ mod tests {
         let tag_count = u32::from_be_bytes(encoded[128..132].try_into().unwrap()) as usize;
         let tags_end = 132 + tag_count * TAG_SIZE;
 
-        for tag in encoded[132..tags_end].chunks_exact(TAG_SIZE) {
+        for tag in encoded[132..tags_end].as_chunks::<TAG_SIZE>().0 {
             let offset = u32::from_be_bytes(tag[4..8].try_into().unwrap());
             assert_eq!(offset % 4, 0, "tag offset {offset} is not aligned");
         }
