@@ -311,7 +311,7 @@ where
         &self,
         src: &[T],
         dst: &mut [T],
-        interpolator: Box<dyn MultidimensionalInterpolation + Send + Sync>,
+        interpolator: impl MultidimensionalInterpolation,
     ) {
         let cn = Layout::from(LAYOUT);
         let channels = cn.channels();
@@ -408,17 +408,9 @@ where
             || self.color_space == DataColorSpace::Xyz
         {
             if T::FINITE {
-                self.transform_chunk::<DefaultVector3fLerp>(
-                    src,
-                    dst,
-                    Box::new(Trilinear::<GRID_SIZE> {}),
-                );
+                self.transform_chunk::<DefaultVector3fLerp>(src, dst, Trilinear::<GRID_SIZE> {});
             } else {
-                self.transform_chunk::<NonFiniteVector3fLerp>(
-                    src,
-                    dst,
-                    Box::new(Trilinear::<GRID_SIZE> {}),
-                );
+                self.transform_chunk::<NonFiniteVector3fLerp>(src, dst, Trilinear::<GRID_SIZE> {});
             }
         } else {
             match self.interpolation_method {
@@ -428,13 +420,13 @@ where
                         self.transform_chunk::<DefaultVector3fLerp>(
                             src,
                             dst,
-                            Box::new(Tetrahedral::<GRID_SIZE> {}),
+                            Tetrahedral::<GRID_SIZE> {},
                         );
                     } else {
                         self.transform_chunk::<NonFiniteVector3fLerp>(
                             src,
                             dst,
-                            Box::new(Tetrahedral::<GRID_SIZE> {}),
+                            Tetrahedral::<GRID_SIZE> {},
                         );
                     }
                 }
@@ -444,13 +436,13 @@ where
                         self.transform_chunk::<DefaultVector3fLerp>(
                             src,
                             dst,
-                            Box::new(Pyramidal::<GRID_SIZE> {}),
+                            Pyramidal::<GRID_SIZE> {},
                         );
                     } else {
                         self.transform_chunk::<NonFiniteVector3fLerp>(
                             src,
                             dst,
-                            Box::new(Pyramidal::<GRID_SIZE> {}),
+                            Pyramidal::<GRID_SIZE> {},
                         );
                     }
                 }
@@ -460,13 +452,13 @@ where
                         self.transform_chunk::<DefaultVector3fLerp>(
                             src,
                             dst,
-                            Box::new(Prismatic::<GRID_SIZE> {}),
+                            Prismatic::<GRID_SIZE> {},
                         );
                     } else {
                         self.transform_chunk::<NonFiniteVector3fLerp>(
                             src,
                             dst,
-                            Box::new(Prismatic::<GRID_SIZE> {}),
+                            Prismatic::<GRID_SIZE> {},
                         );
                     }
                 }
@@ -475,13 +467,13 @@ where
                         self.transform_chunk::<DefaultVector3fLerp>(
                             src,
                             dst,
-                            Box::new(Trilinear::<GRID_SIZE> {}),
+                            Trilinear::<GRID_SIZE> {},
                         );
                     } else {
                         self.transform_chunk::<NonFiniteVector3fLerp>(
                             src,
                             dst,
-                            Box::new(Trilinear::<GRID_SIZE> {}),
+                            Trilinear::<GRID_SIZE> {},
                         );
                     }
                 }
@@ -502,6 +494,7 @@ impl Lut4x3Factory for DefaultLut4x3Factory {
         const LAYOUT: u8,
         const GRID_SIZE: usize,
         const BIT_DEPTH: usize,
+        const BINS: usize,
     >(
         lut: Vec<f32>,
         options: TransformOptions,
@@ -558,13 +551,13 @@ impl Lut4x3Factory for DefaultLut4x3Factory {
                     LAYOUT,
                     GRID_SIZE,
                     BIT_DEPTH,
-                    65536,
-                    65536,
+                    BINS,
+                    BINS,
                 > {
                     lut,
                     _phantom: PhantomData,
                     _phantom1: PhantomData,
-                    weights: BarycentricWeight::<i16>::create_binned::<GRID_SIZE, 65536>(),
+                    weights: BarycentricWeight::<i16>::create_binned::<GRID_SIZE, BINS>(),
                 }),
             };
         }
@@ -586,12 +579,12 @@ impl Lut4x3Factory for DefaultLut4x3Factory {
             #[cfg(feature = "options")]
             BarycentricWeightScale::High => {
                 Arc::new(
-                    TransformLut4To3::<T, u16, LAYOUT, GRID_SIZE, BIT_DEPTH, 65536, 65536> {
+                    TransformLut4To3::<T, u16, LAYOUT, GRID_SIZE, BIT_DEPTH, BINS, BINS> {
                         lut,
                         _phantom: PhantomData,
                         _phantom1: PhantomData,
                         interpolation_method: options.interpolation_method,
-                        weights: BarycentricWeight::<f32>::create_binned::<GRID_SIZE, 65536>(),
+                        weights: BarycentricWeight::<f32>::create_binned::<GRID_SIZE, BINS>(),
                         color_space,
                         is_linear,
                     },

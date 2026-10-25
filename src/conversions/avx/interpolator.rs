@@ -341,6 +341,7 @@ macro_rules! define_interp_avx {
         impl<const GRID_SIZE: usize, const BINS: usize, U: AsPrimitive<usize>>
             AvxMdInterpolation<BINS, U> for $interpolator<GRID_SIZE>
         {
+            #[inline(always)]
             fn inter3_sse(
                 &self,
                 table: &[SseAlignedF32],
@@ -369,6 +370,7 @@ macro_rules! define_interp_avx_d {
         impl<const GRID_SIZE: usize, const BINS: usize, U: AsPrimitive<usize>>
             AvxMdInterpolationDouble<BINS, U> for $interpolator<GRID_SIZE>
         {
+            #[inline(always)]
             fn inter3_sse(
                 &self,
                 table0: &[SseAlignedF32],
@@ -409,6 +411,7 @@ define_interp_avx_d!(PyramidAvxFmaDouble);
 impl<const GRID_SIZE: usize, const BINS: usize, U: AsPrimitive<usize>>
     AvxMdInterpolationDouble<BINS, U> for TetrahedralAvxFmaDouble<GRID_SIZE>
 {
+    #[inline(always)]
     fn inter3_sse(
         &self,
         table0: &[SseAlignedF32],
@@ -436,6 +439,7 @@ impl<const GRID_SIZE: usize, const BINS: usize, U: AsPrimitive<usize>>
 impl<const GRID_SIZE: usize, const BINS: usize, U: AsPrimitive<usize>>
     AvxMdInterpolationDouble<BINS, U> for TrilinearAvxFmaDouble<GRID_SIZE>
 {
+    #[inline(always)]
     fn inter3_sse(
         &self,
         table0: &[SseAlignedF32],

@@ -82,7 +82,7 @@ where
         &self,
         src: &[T],
         dst: &mut [T],
-        interpolator: Box<dyn NeonMdInterpolationDouble<BINS, U> + Send + Sync>,
+        interpolator: impl NeonMdInterpolationDouble<BINS, U>,
     ) {
         let cn = Layout::from(LAYOUT);
         let channels = cn.channels();
@@ -189,23 +189,23 @@ where
             || (self.is_linear && self.color_space == DataColorSpace::Rgb)
             || self.color_space == DataColorSpace::Xyz
         {
-            self.transform_chunk(src, dst, Box::new(TrilinearNeonDouble::<GRID_SIZE> {}));
+            self.transform_chunk(src, dst, TrilinearNeonDouble::<GRID_SIZE> {});
         } else {
             match self.interpolation_method {
                 #[cfg(feature = "options")]
                 InterpolationMethod::Tetrahedral => {
-                    self.transform_chunk(src, dst, Box::new(TetrahedralNeonDouble::<GRID_SIZE> {}));
+                    self.transform_chunk(src, dst, TetrahedralNeonDouble::<GRID_SIZE> {});
                 }
                 #[cfg(feature = "options")]
                 InterpolationMethod::Pyramid => {
-                    self.transform_chunk(src, dst, Box::new(PyramidalNeonDouble::<GRID_SIZE> {}));
+                    self.transform_chunk(src, dst, PyramidalNeonDouble::<GRID_SIZE> {});
                 }
                 #[cfg(feature = "options")]
                 InterpolationMethod::Prism => {
-                    self.transform_chunk(src, dst, Box::new(PrismaticNeonDouble::<GRID_SIZE> {}));
+                    self.transform_chunk(src, dst, PrismaticNeonDouble::<GRID_SIZE> {});
                 }
                 InterpolationMethod::Linear => {
-                    self.transform_chunk(src, dst, Box::new(TrilinearNeonDouble::<GRID_SIZE> {}));
+                    self.transform_chunk(src, dst, TrilinearNeonDouble::<GRID_SIZE> {});
                 }
             }
         }
@@ -222,6 +222,7 @@ impl Lut4x3Factory for NeonLut4x3Factory {
         const LAYOUT: u8,
         const GRID_SIZE: usize,
         const BIT_DEPTH: usize,
+        const BINS: usize,
     >(
         lut: Vec<f32>,
         options: TransformOptions,
@@ -280,7 +281,7 @@ impl Lut4x3Factory for NeonLut4x3Factory {
                 }
                 #[cfg(feature = "options")]
                 BarycentricWeightScale::High => {
-                    let bins = BarycentricWeight::<i16>::create_binned::<GRID_SIZE, 65536>();
+                    let bins = BarycentricWeight::<i16>::create_binned::<GRID_SIZE, BINS>();
                     assert_barycentric_lut_size_precondition::<i16, GRID_SIZE>(bins.as_slice());
                     Arc::new(TransformLut4To3NeonQ0_15::<
                         T,
@@ -288,8 +289,8 @@ impl Lut4x3Factory for NeonLut4x3Factory {
                         LAYOUT,
                         GRID_SIZE,
                         BIT_DEPTH,
-                        65536,
-                        65536,
+                        BINS,
+                        BINS,
                     > {
                         lut,
                         _phantom: PhantomData,
@@ -326,10 +327,10 @@ impl Lut4x3Factory for NeonLut4x3Factory {
             }
             #[cfg(feature = "options")]
             BarycentricWeightScale::High => {
-                let bins = BarycentricWeight::<f32>::create_binned::<GRID_SIZE, 65536>();
+                let bins = BarycentricWeight::<f32>::create_binned::<GRID_SIZE, BINS>();
                 assert_barycentric_lut_size_precondition::<f32, GRID_SIZE>(bins.as_slice());
                 Arc::new(
-                    TransformLut4To3Neon::<T, u16, LAYOUT, GRID_SIZE, BIT_DEPTH, 65536, 65536> {
+                    TransformLut4To3Neon::<T, u16, LAYOUT, GRID_SIZE, BIT_DEPTH, BINS, BINS> {
                         lut,
                         _phantom: PhantomData,
                         _phantom1: PhantomData,

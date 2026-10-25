@@ -85,9 +85,8 @@ impl LutBarycentricReduction<f64, u16> for () {
 impl LutBarycentricReduction<u16, u16> for () {
     #[inline(always)]
     fn reduce<const SRC_BP: usize, const BINS: usize>(v: u16) -> u16 {
-        let src_scale = 1. / ((1 << SRC_BP) - 1) as f32;
-        let scale = src_scale * (BINS - 1) as f32;
-        (v as f32 * scale).round().min(scale).max(0.) as u16
+        // One bin per sample value (BINS = 1 << SRC_BP), so the sample is its own index.
+        v.min((BINS - 1) as u16)
     }
 }
 
@@ -100,5 +99,25 @@ impl LutBarycentricReduction<u16, u8> for () {
         } else {
             (v >> shift).min(255) as u8
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn reduce_u16<const SRC_BP: usize, const BINS: usize>(v: u16) -> u16 {
+        <() as LutBarycentricReduction<u16, u16>>::reduce::<SRC_BP, BINS>(v)
+    }
+
+    #[test]
+    fn test_reduce_u16_indexes_by_sample() {
+        // Every sample value is its own bin, up to the last one, and values above the bit depth
+        // clamp to it.
+        assert_eq!(reduce_u16::<10, 1024>(1023), 1023);
+        assert_eq!(reduce_u16::<12, 4096>(2048), 2048);
+        assert_eq!(reduce_u16::<12, 4096>(4095), 4095);
+        assert_eq!(reduce_u16::<12, 4096>(5000), 4095);
+        assert_eq!(reduce_u16::<16, 65536>(65535), 65535);
     }
 }

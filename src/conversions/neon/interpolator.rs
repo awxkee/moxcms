@@ -373,6 +373,7 @@ macro_rules! define_md_inter_neon {
         impl<const GRID_SIZE: usize, const BINS: usize, U: AsPrimitive<usize>>
             NeonMdInterpolation<BINS, U> for $interpolator<GRID_SIZE>
         {
+            #[inline(always)]
             fn inter3_neon(
                 &self,
                 cube: &[NeonAlignedF32],
@@ -398,6 +399,7 @@ macro_rules! define_md_inter_neon_d {
         impl<const GRID_SIZE: usize, const BINS: usize, U: AsPrimitive<usize>>
             NeonMdInterpolationDouble<BINS, U> for $interpolator<GRID_SIZE>
         {
+            #[inline(always)]
             fn inter3_neon(
                 &self,
                 table0: &[NeonAlignedF32],

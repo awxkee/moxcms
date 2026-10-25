@@ -416,7 +416,7 @@ impl ColorProfile {
         if dst_layout == Layout::Cmyka {
             core_dst_layout = Layout::Rgba;
         }
-        let handle = self.create_transform_nbit::<u16, 16, 65536, 65536>(
+        let handle = self.create_transform_nbit::<u16, 16, 65536, 65536, 65536>(
             core_src_layout,
             dst_pr,
             core_dst_layout,
@@ -461,7 +461,7 @@ impl ColorProfile {
         if dst_layout == Layout::Cmyka {
             core_dst_layout = Layout::Rgba;
         }
-        let handle = self.create_transform_nbit::<u16, 12, 65536, 16384>(
+        let handle = self.create_transform_nbit::<u16, 12, 65536, 16384, 4096>(
             core_src_layout,
             dst_pr,
             core_dst_layout,
@@ -506,7 +506,7 @@ impl ColorProfile {
         if dst_layout == Layout::Cmyka {
             core_dst_layout = Layout::Rgba;
         }
-        let handle = self.create_transform_nbit::<u16, 10, 65536, 8192>(
+        let handle = self.create_transform_nbit::<u16, 10, 65536, 8192, 1024>(
             core_src_layout,
             dst_pr,
             core_dst_layout,
@@ -555,7 +555,7 @@ impl ColorProfile {
         if dst_layout == Layout::Cmyka {
             core_dst_layout = Layout::Rgba;
         }
-        let handle = self.create_transform_nbit::<f32, 1, 65536, 32768>(
+        let handle = self.create_transform_nbit::<f32, 1, 65536, 32768, 65536>(
             core_src_layout,
             dst_pr,
             core_dst_layout,
@@ -608,7 +608,7 @@ impl ColorProfile {
         if dst_layout == Layout::Cmyka {
             core_dst_layout = Layout::Rgba;
         }
-        let handle = self.create_transform_nbit::<f64, 1, 65536, 65536>(
+        let handle = self.create_transform_nbit::<f64, 1, 65536, 65536, 65536>(
             core_src_layout,
             dst_pr,
             core_dst_layout,
@@ -780,6 +780,8 @@ impl ColorProfile {
         const BIT_DEPTH: usize,
         const LINEAR_CAP: usize,
         const GAMMA_CAP: usize,
+        // BarycentricWeightScale::High weight table size: one bin per sample value above 8 bits.
+        const BINS: usize,
     >(
         &self,
         src_layout: Layout,
@@ -809,7 +811,7 @@ impl ColorProfile {
 
             #[cfg(feature = "lut")]
             if self.has_device_to_pcs_lut() || dst_pr.has_pcs_to_device_lut() {
-                return make_lut_transform::<T, BIT_DEPTH, LINEAR_CAP, GAMMA_CAP>(
+                return make_lut_transform::<T, BIT_DEPTH, LINEAR_CAP, GAMMA_CAP, BINS>(
                     src_layout, self, dst_layout, dst_pr, options,
                 );
             }
@@ -939,7 +941,7 @@ impl ColorProfile {
 
             #[cfg(feature = "lut")]
             if self.has_device_to_pcs_lut() || dst_pr.has_pcs_to_device_lut() {
-                return make_lut_transform::<T, BIT_DEPTH, LINEAR_CAP, GAMMA_CAP>(
+                return make_lut_transform::<T, BIT_DEPTH, LINEAR_CAP, GAMMA_CAP, BINS>(
                     src_layout, self, dst_layout, dst_pr, options,
                 );
             }
@@ -1080,7 +1082,7 @@ impl ColorProfile {
 
             #[cfg(feature = "lut")]
             if self.has_device_to_pcs_lut() || dst_pr.has_pcs_to_device_lut() {
-                return make_lut_transform::<T, BIT_DEPTH, LINEAR_CAP, GAMMA_CAP>(
+                return make_lut_transform::<T, BIT_DEPTH, LINEAR_CAP, GAMMA_CAP, BINS>(
                     src_layout, self, dst_layout, dst_pr, options,
                 );
             }
@@ -1149,7 +1151,7 @@ impl ColorProfile {
                 if dst_layout == Layout::Gray || dst_layout == Layout::GrayAlpha {
                     return Err(CmsError::InvalidLayout);
                 }
-                make_lut_transform::<T, BIT_DEPTH, LINEAR_CAP, GAMMA_CAP>(
+                make_lut_transform::<T, BIT_DEPTH, LINEAR_CAP, GAMMA_CAP, BINS>(
                     src_layout, self, dst_layout, dst_pr, options,
                 )
             }
@@ -1160,7 +1162,7 @@ impl ColorProfile {
         } else {
             #[cfg(feature = "lut")]
             {
-                make_lut_transform::<T, BIT_DEPTH, LINEAR_CAP, GAMMA_CAP>(
+                make_lut_transform::<T, BIT_DEPTH, LINEAR_CAP, GAMMA_CAP, BINS>(
                     src_layout, self, dst_layout, dst_pr, options,
                 )
             }
@@ -1180,7 +1182,14 @@ impl ColorProfile {
         dst_layout: Layout,
         options: TransformOptions,
     ) -> Result<Arc<Transform8BitExecutor>, CmsError> {
-        self.create_transform_nbit::<u8, 8, 256, 4096>(src_layout, dst_pr, dst_layout, options)
+        // Low's 256-entry table already has one weight bin per 8-bit sample value.
+        let options = TransformOptions {
+            barycentric_weight_scale: BarycentricWeightScale::Low,
+            ..options
+        };
+        self.create_transform_nbit::<u8, 8, 256, 4096, 65536>(
+            src_layout, dst_pr, dst_layout, options,
+        )
     }
 
     /// Creates transform between source and destination profile
@@ -1309,6 +1318,68 @@ mod tests {
         };
         assert_eq!(run(&perceptual_only, &srgb), run(&aliased, &srgb));
         assert_eq!(run(&srgb, &perceptual_only), run(&srgb, &aliased));
+    }
+
+    #[cfg(feature = "options")]
+    #[test]
+    fn test_high_weights_lut_u16_matches_f32() {
+        // High weights give every 10-, 12- and 16-bit sample value its own bin, so these transforms
+        // follow the f32 one up to their gamma tables and rounding (Low's 8-bit cut is off by 0.008).
+        // A LUT-based source profile (Lab PCS, A2B0 as lutAtoBType), so the 3D LUT executors run.
+        let Ok(icc) = std::fs::read("./assets/srgb_perceptual.icc") else {
+            return;
+        };
+        let src_profile = ColorProfile::new_from_slice(&icc).unwrap();
+        let dst_profile = ColorProfile::new_srgb();
+        for prefer_fixed_point in [false, true] {
+            let options = TransformOptions {
+                barycentric_weight_scale: BarycentricWeightScale::High,
+                prefer_fixed_point,
+                ..TransformOptions::default()
+            };
+            let reference = src_profile
+                .create_transform_f32(Layout::Rgb, &dst_profile, Layout::Rgb, options)
+                .unwrap();
+            for (bit_depth, create) in [
+                (
+                    10,
+                    ColorProfile::create_transform_10bit as fn(_, _, _, _, _) -> _,
+                ),
+                (12, ColorProfile::create_transform_12bit),
+                (16, ColorProfile::create_transform_16bit),
+            ] {
+                let transform = create(
+                    &src_profile,
+                    Layout::Rgb,
+                    &dst_profile,
+                    Layout::Rgb,
+                    options,
+                )
+                .unwrap();
+                let max = ((1u32 << bit_depth) - 1) as f32;
+                // A neutral ramp and a warm ramp through every 12-bit code.
+                let src: Vec<u16> = (0..4096u32)
+                    .flat_map(|i| {
+                        let v = i as f32 / 4095.;
+                        [v, v, v, v, v * 0.95, v * 0.9]
+                    })
+                    .map(|v| (v * max).round() as u16)
+                    .collect();
+                let src_f: Vec<f32> = src.iter().map(|&v| v as f32 / max).collect();
+                let mut dst = vec![0u16; src.len()];
+                let mut dst_f = vec![0f32; src.len()];
+                transform.transform(&src, &mut dst).unwrap();
+                reference.transform(&src_f, &mut dst_f).unwrap();
+                for (i, (&v, &r)) in dst.iter().zip(dst_f.iter()).enumerate() {
+                    let diff = (v as f32 / max - r.clamp(0., 1.)).abs();
+                    assert!(
+                        diff < 0.004,
+                        "{bit_depth}-bit, fixed point {prefer_fixed_point}: sample {i} is {} vs {r}",
+                        v as f32 / max
+                    );
+                }
+            }
+        }
     }
 
     #[test]

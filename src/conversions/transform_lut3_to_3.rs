@@ -79,7 +79,7 @@ where
         &self,
         src: &[T],
         dst: &mut [T],
-        interpolator: Box<dyn MultidimensionalInterpolation + Send + Sync>,
+        interpolator: impl MultidimensionalInterpolation,
     ) {
         let src_cn = Layout::from(SRC_LAYOUT);
         let src_channels = src_cn.channels();
@@ -175,27 +175,27 @@ where
             || self.color_space == DataColorSpace::Xyz
         {
             use crate::conversions::interpolator::Trilinear;
-            self.transform_chunk(src, dst, Box::new(Trilinear::<GRID_SIZE> {}));
+            self.transform_chunk(src, dst, Trilinear::<GRID_SIZE> {});
         } else {
             match self.interpolation_method {
                 #[cfg(feature = "options")]
                 InterpolationMethod::Tetrahedral => {
                     use crate::conversions::interpolator::Tetrahedral;
-                    self.transform_chunk(src, dst, Box::new(Tetrahedral::<GRID_SIZE> {}));
+                    self.transform_chunk(src, dst, Tetrahedral::<GRID_SIZE> {});
                 }
                 #[cfg(feature = "options")]
                 InterpolationMethod::Pyramid => {
                     use crate::conversions::interpolator::Pyramidal;
-                    self.transform_chunk(src, dst, Box::new(Pyramidal::<GRID_SIZE> {}));
+                    self.transform_chunk(src, dst, Pyramidal::<GRID_SIZE> {});
                 }
                 #[cfg(feature = "options")]
                 InterpolationMethod::Prism => {
                     use crate::conversions::interpolator::Prismatic;
-                    self.transform_chunk(src, dst, Box::new(Prismatic::<GRID_SIZE> {}));
+                    self.transform_chunk(src, dst, Prismatic::<GRID_SIZE> {});
                 }
                 InterpolationMethod::Linear => {
                     use crate::conversions::interpolator::Trilinear;
-                    self.transform_chunk(src, dst, Box::new(Trilinear::<GRID_SIZE> {}));
+                    self.transform_chunk(src, dst, Trilinear::<GRID_SIZE> {});
                 }
             }
         }
@@ -213,6 +213,7 @@ impl Lut3x3Factory for DefaultLut3x3Factory {
         const DST_LAYOUT: u8,
         const GRID_SIZE: usize,
         const BIT_DEPTH: usize,
+        const BINS: usize,
     >(
         lut: Vec<f32>,
         options: TransformOptions,
@@ -252,14 +253,14 @@ impl Lut3x3Factory for DefaultLut3x3Factory {
                 DST_LAYOUT,
                 GRID_SIZE,
                 BIT_DEPTH,
-                65536,
-                65536,
+                BINS,
+                BINS,
             > {
                 lut,
                 _phantom: PhantomData,
                 _phantom1: PhantomData,
                 interpolation_method: options.interpolation_method,
-                weights: BarycentricWeight::<f32>::create_binned::<GRID_SIZE, 65536>(),
+                weights: BarycentricWeight::<f32>::create_binned::<GRID_SIZE, BINS>(),
                 color_space,
                 is_linear,
             }),
