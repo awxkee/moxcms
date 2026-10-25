@@ -58,9 +58,10 @@ pub(crate) struct BarycentricWeight<V> {
 /// per-method boilerplate, so the lookup pattern lives in exactly one place.
 ///
 /// `U: AsPrimitive<usize>` widens the caller's narrow index type (`u8` for
-/// `BINS = 256`, `u16` for `BINS = 65536`) to `usize` at the array index.
-/// With `lut: &[_; BINS]` compile-time-sized, LLVM sees the zero-extended
-/// range and drops the bounds check — no `assert_unchecked`, no `unsafe`.
+/// `BINS = 256`, `u16` for larger tables) to `usize` at the array index.
+/// With `lut: &[_; BINS]` compile-time-sized and the index clamped to
+/// `BINS - 1` (free for 256 and 65536 entries), LLVM drops the bounds check
+/// — no `assert_unchecked`, no `unsafe`.
 /// `#[inline(always)]` flattens the call so there is no runtime cost over a
 /// hand-written lookup.
 ///
@@ -76,9 +77,9 @@ pub(crate) fn load_bary_weights<V: Copy, U: AsPrimitive<usize>, const BINS: usiz
     in_g: U,
     in_b: U,
 ) -> (i32, i32, i32, i32, i32, i32, V, V, V) {
-    let lut_r = lut[in_r.as_()];
-    let lut_g = lut[in_g.as_()];
-    let lut_b = lut[in_b.as_()];
+    let lut_r = lut[in_r.as_().min(BINS - 1)];
+    let lut_g = lut[in_g.as_().min(BINS - 1)];
+    let lut_b = lut[in_b.as_().min(BINS - 1)];
     (
         lut_r.x, lut_g.x, lut_b.x, lut_r.x_n, lut_g.x_n, lut_b.x_n, lut_r.w, lut_g.w, lut_b.w,
     )
@@ -104,10 +105,10 @@ impl BarycentricWeight<f32> {
 
     #[cfg(feature = "options")]
     pub(crate) fn create_binned<const GRID_SIZE: usize, const BINS: usize>()
-    -> Box<[BarycentricWeight<f32>; 65536]> {
-        let mut weights = Box::new([BarycentricWeight::<f32>::default(); 65536]);
+    -> Box<[BarycentricWeight<f32>; BINS]> {
+        let mut weights = Box::new([BarycentricWeight::<f32>::default(); BINS]);
         let b_scale: f32 = 1.0 / (BINS - 1) as f32;
-        for (index, weight) in weights.iter_mut().enumerate().take(BINS) {
+        for (index, weight) in weights.iter_mut().enumerate() {
             let x: i32 = (index as f32 * (GRID_SIZE as i32 - 1) as f32 * b_scale).floor() as i32;
 
             let x_n: i32 = (x + 1).min(GRID_SIZE as i32 - 1);
@@ -147,10 +148,10 @@ impl BarycentricWeight<i16> {
 
     #[cfg(feature = "options")]
     pub(crate) fn create_binned<const GRID_SIZE: usize, const BINS: usize>()
-    -> Box<[BarycentricWeight<i16>; 65536]> {
-        let mut weights = Box::new([BarycentricWeight::<i16>::default(); 65536]);
+    -> Box<[BarycentricWeight<i16>; BINS]> {
+        let mut weights = Box::new([BarycentricWeight::<i16>::default(); BINS]);
         let b_scale: f32 = 1.0 / (BINS - 1) as f32;
-        for (index, weight) in weights.iter_mut().enumerate().take(BINS) {
+        for (index, weight) in weights.iter_mut().enumerate() {
             let x: i32 = (index as f32 * (GRID_SIZE as i32 - 1) as f32 * b_scale).floor() as i32;
 
             let x_n: i32 = (x + 1).min(GRID_SIZE as i32 - 1);

@@ -494,6 +494,7 @@ impl Lut4x3Factory for DefaultLut4x3Factory {
         const LAYOUT: u8,
         const GRID_SIZE: usize,
         const BIT_DEPTH: usize,
+        const BINS: usize,
     >(
         lut: Vec<f32>,
         options: TransformOptions,
@@ -550,13 +551,13 @@ impl Lut4x3Factory for DefaultLut4x3Factory {
                     LAYOUT,
                     GRID_SIZE,
                     BIT_DEPTH,
-                    65536,
-                    65536,
+                    BINS,
+                    BINS,
                 > {
                     lut,
                     _phantom: PhantomData,
                     _phantom1: PhantomData,
-                    weights: BarycentricWeight::<i16>::create_binned::<GRID_SIZE, 65536>(),
+                    weights: BarycentricWeight::<i16>::create_binned::<GRID_SIZE, BINS>(),
                 }),
             };
         }
@@ -578,12 +579,12 @@ impl Lut4x3Factory for DefaultLut4x3Factory {
             #[cfg(feature = "options")]
             BarycentricWeightScale::High => {
                 Arc::new(
-                    TransformLut4To3::<T, u16, LAYOUT, GRID_SIZE, BIT_DEPTH, 65536, 65536> {
+                    TransformLut4To3::<T, u16, LAYOUT, GRID_SIZE, BIT_DEPTH, BINS, BINS> {
                         lut,
                         _phantom: PhantomData,
                         _phantom1: PhantomData,
                         interpolation_method: options.interpolation_method,
-                        weights: BarycentricWeight::<f32>::create_binned::<GRID_SIZE, 65536>(),
+                        weights: BarycentricWeight::<f32>::create_binned::<GRID_SIZE, BINS>(),
                         color_space,
                         is_linear,
                     },

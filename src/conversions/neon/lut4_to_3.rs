@@ -222,6 +222,7 @@ impl Lut4x3Factory for NeonLut4x3Factory {
         const LAYOUT: u8,
         const GRID_SIZE: usize,
         const BIT_DEPTH: usize,
+        const BINS: usize,
     >(
         lut: Vec<f32>,
         options: TransformOptions,
@@ -280,7 +281,7 @@ impl Lut4x3Factory for NeonLut4x3Factory {
                 }
                 #[cfg(feature = "options")]
                 BarycentricWeightScale::High => {
-                    let bins = BarycentricWeight::<i16>::create_binned::<GRID_SIZE, 65536>();
+                    let bins = BarycentricWeight::<i16>::create_binned::<GRID_SIZE, BINS>();
                     assert_barycentric_lut_size_precondition::<i16, GRID_SIZE>(bins.as_slice());
                     Arc::new(TransformLut4To3NeonQ0_15::<
                         T,
@@ -288,8 +289,8 @@ impl Lut4x3Factory for NeonLut4x3Factory {
                         LAYOUT,
                         GRID_SIZE,
                         BIT_DEPTH,
-                        65536,
-                        65536,
+                        BINS,
+                        BINS,
                     > {
                         lut,
                         _phantom: PhantomData,
@@ -326,10 +327,10 @@ impl Lut4x3Factory for NeonLut4x3Factory {
             }
             #[cfg(feature = "options")]
             BarycentricWeightScale::High => {
-                let bins = BarycentricWeight::<f32>::create_binned::<GRID_SIZE, 65536>();
+                let bins = BarycentricWeight::<f32>::create_binned::<GRID_SIZE, BINS>();
                 assert_barycentric_lut_size_precondition::<f32, GRID_SIZE>(bins.as_slice());
                 Arc::new(
-                    TransformLut4To3Neon::<T, u16, LAYOUT, GRID_SIZE, BIT_DEPTH, 65536, 65536> {
+                    TransformLut4To3Neon::<T, u16, LAYOUT, GRID_SIZE, BIT_DEPTH, BINS, BINS> {
                         lut,
                         _phantom: PhantomData,
                         _phantom1: PhantomData,

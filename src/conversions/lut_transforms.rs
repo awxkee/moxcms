@@ -84,6 +84,7 @@ pub(crate) trait Lut3x3Factory {
         const DST_LAYOUT: u8,
         const GRID_SIZE: usize,
         const BIT_DEPTH: usize,
+        const BINS: usize,
     >(
         lut: Vec<f32>,
         options: TransformOptions,
@@ -103,6 +104,7 @@ pub(crate) trait Lut4x3Factory {
         const LAYOUT: u8,
         const GRID_SIZE: usize,
         const BIT_DEPTH: usize,
+        const BINS: usize,
     >(
         lut: Vec<f32>,
         options: TransformOptions,
@@ -174,6 +176,7 @@ macro_rules! make_transform_3x3_fn {
                 + PointeeSizeExpressible,
             const GRID_SIZE: usize,
             const BIT_DEPTH: usize,
+            const BINS: usize,
         >(
             src_layout: Layout,
             dst_layout: Layout,
@@ -196,6 +199,7 @@ macro_rules! make_transform_3x3_fn {
                         { Layout::Rgb as u8 },
                         GRID_SIZE,
                         BIT_DEPTH,
+                        BINS,
                     >(lut, options, color_space, is_linear),
                     Layout::Rgba => $exec_impl::make_transform_3x3::<
                         T,
@@ -203,6 +207,7 @@ macro_rules! make_transform_3x3_fn {
                         { Layout::Rgba as u8 },
                         GRID_SIZE,
                         BIT_DEPTH,
+                        BINS,
                     >(lut, options, color_space, is_linear),
                     _ => unimplemented!(),
                 },
@@ -213,6 +218,7 @@ macro_rules! make_transform_3x3_fn {
                         { Layout::Rgb as u8 },
                         GRID_SIZE,
                         BIT_DEPTH,
+                        BINS,
                     >(lut, options, color_space, is_linear),
                     Layout::Rgba => $exec_impl::make_transform_3x3::<
                         T,
@@ -220,6 +226,7 @@ macro_rules! make_transform_3x3_fn {
                         { Layout::Rgba as u8 },
                         GRID_SIZE,
                         BIT_DEPTH,
+                        BINS,
                     >(lut, options, color_space, is_linear),
                     _ => unimplemented!(),
                 },
@@ -241,6 +248,7 @@ macro_rules! make_transform_4x3_fn {
                 + PointeeSizeExpressible,
             const GRID_SIZE: usize,
             const BIT_DEPTH: usize,
+            const BINS: usize,
         >(
             dst_layout: Layout,
             lut: Vec<f32>,
@@ -260,12 +268,14 @@ macro_rules! make_transform_4x3_fn {
                     { Layout::Rgb as u8 },
                     GRID_SIZE,
                     BIT_DEPTH,
+                    BINS,
                 >(lut, options, data_color_space, is_linear),
                 Layout::Rgba => $exec_name::make_transform_4x3::<
                     T,
                     { Layout::Rgba as u8 },
                     GRID_SIZE,
                     BIT_DEPTH,
+                    BINS,
                 >(lut, options, data_color_space, is_linear),
                 _ => unimplemented!(),
             }
@@ -348,6 +358,7 @@ pub(crate) fn make_lut_transform<
     const BIT_DEPTH: usize,
     const LINEAR_CAP: usize,
     const GAMMA_LUT: usize,
+    const BINS: usize,
 >(
     src_layout: Layout,
     source: &ColorProfile,
@@ -520,17 +531,19 @@ where
         #[cfg(all(target_arch = "x86_64", feature = "avx_luts"))]
         if std::arch::is_x86_feature_detected!("avx2") && std::arch::is_x86_feature_detected!("fma")
         {
-            return Ok(make_transformer_4x3_avx_fma::<T, GRID_SIZE, BIT_DEPTH>(
-                dst_layout,
-                lut,
-                options,
-                dest.color_space,
-                is_dest_linear_profile,
-            ));
+            return Ok(
+                make_transformer_4x3_avx_fma::<T, GRID_SIZE, BIT_DEPTH, BINS>(
+                    dst_layout,
+                    lut,
+                    options,
+                    dest.color_space,
+                    is_dest_linear_profile,
+                ),
+            );
         }
         #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse_luts"))]
         if std::arch::is_x86_feature_detected!("sse4.1") {
-            return Ok(make_transformer_4x3_sse41::<T, GRID_SIZE, BIT_DEPTH>(
+            return Ok(make_transformer_4x3_sse41::<T, GRID_SIZE, BIT_DEPTH, BINS>(
                 dst_layout,
                 lut,
                 options,
@@ -539,7 +552,7 @@ where
             ));
         }
 
-        Ok(make_transformer_4x3::<T, GRID_SIZE, BIT_DEPTH>(
+        Ok(make_transformer_4x3::<T, GRID_SIZE, BIT_DEPTH, BINS>(
             dst_layout,
             lut,
             options,
@@ -611,7 +624,7 @@ where
             && dest.is_matrix_shaper()
             && dest.is_linear_matrix_shaper();
 
-        Ok(make_transform_3x4::<T, GRID_SIZE, BIT_DEPTH>(
+        Ok(make_transform_3x4::<T, GRID_SIZE, BIT_DEPTH, BINS>(
             src_layout,
             lut,
             options,
@@ -783,18 +796,20 @@ where
 
         #[cfg(all(feature = "avx_luts", target_arch = "x86_64"))]
         if std::arch::is_x86_feature_detected!("avx2") && std::is_x86_feature_detected!("fma") {
-            return Ok(make_transformer_3x3_avx_fma::<T, GRID_SIZE, BIT_DEPTH>(
-                src_layout,
-                dst_layout,
-                lut,
-                options,
-                dest.color_space,
-                is_dest_linear_profile,
-            ));
+            return Ok(
+                make_transformer_3x3_avx_fma::<T, GRID_SIZE, BIT_DEPTH, BINS>(
+                    src_layout,
+                    dst_layout,
+                    lut,
+                    options,
+                    dest.color_space,
+                    is_dest_linear_profile,
+                ),
+            );
         }
         #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse_luts"))]
         if std::arch::is_x86_feature_detected!("sse4.1") {
-            return Ok(make_transformer_3x3_sse41::<T, GRID_SIZE, BIT_DEPTH>(
+            return Ok(make_transformer_3x3_sse41::<T, GRID_SIZE, BIT_DEPTH, BINS>(
                 src_layout,
                 dst_layout,
                 lut,
@@ -806,7 +821,7 @@ where
 
         #[cfg(all(target_arch = "aarch64", feature = "neon_luts"))]
         {
-            Ok(make_transformer_3x3::<T, GRID_SIZE, BIT_DEPTH>(
+            Ok(make_transformer_3x3::<T, GRID_SIZE, BIT_DEPTH, BINS>(
                 src_layout,
                 dst_layout,
                 lut,
@@ -817,7 +832,7 @@ where
         }
         #[cfg(not(all(target_arch = "aarch64", feature = "neon_luts")))]
         {
-            Ok(make_transformer_3x3::<T, GRID_SIZE, BIT_DEPTH>(
+            Ok(make_transformer_3x3::<T, GRID_SIZE, BIT_DEPTH, BINS>(
                 src_layout,
                 dst_layout,
                 lut,
