@@ -200,6 +200,7 @@ macro_rules! define_inter_sse {
         impl<const GRID_SIZE: usize, const BINS: usize, U: AsPrimitive<usize>>
             SseMdInterpolation<BINS, U> for $interpolator<GRID_SIZE>
         {
+            #[inline(always)]
             fn inter3_sse(
                 &self,
                 table: &[SseAlignedF32],
