@@ -34,7 +34,6 @@ use crate::{
     LutMultidimensionalType, LutStore, LutType, LutWarehouse, Matrix3d, ProfileClass,
     ProfileSignature, ProfileText, ProfileVersion, Vector3d, ViewingConditions, Xyz, Xyzd,
 };
-use std::collections::HashMap;
 
 pub(crate) trait FloatToFixedS15Fixed16 {
     fn to_s15_fixed16(self) -> i32;
@@ -209,33 +208,10 @@ fn write_tag_entry(into: &mut Vec<u8>, tag: Tag, tag_entry: usize, tag_size: usi
     write_u32_be(into, tag_size as u32);
 }
 
-fn align_tag_data(tags: &mut [u8], entries: &mut Vec<u8>, data_offset: usize) {
-    let mut aligned_entries = Vec::with_capacity(entries.len() + tags.len() / TAG_SIZE * 3);
-    let mut aligned_offsets = HashMap::new();
-
-    for entry in tags.as_chunks_mut::<TAG_SIZE>().0 {
-        let old_offset = u32::from_be_bytes(entry[4..8].try_into().unwrap()) as usize;
-        let size = u32::from_be_bytes(entry[8..12].try_into().unwrap()) as usize;
-        let key = (old_offset, size);
-
-        let new_offset = if let Some(offset) = aligned_offsets.get(&key) {
-            *offset
-        } else {
-            let padding = (4 - ((data_offset + aligned_entries.len()) % 4)) % 4;
-            aligned_entries.resize(aligned_entries.len() + padding, 0);
-            let new_offset = data_offset + aligned_entries.len();
-            let source_offset = old_offset - data_offset;
-            aligned_entries.extend_from_slice(&entries[source_offset..source_offset + size]);
-            aligned_offsets.insert(key, new_offset);
-            new_offset
-        };
-
-        entry[4..8].copy_from_slice(&(new_offset as u32).to_be_bytes());
-    }
-
-    let padding = (4 - ((data_offset + aligned_entries.len()) % 4)) % 4;
-    aligned_entries.resize(aligned_entries.len() + padding, 0);
-    *entries = aligned_entries;
+fn pad_tag_data(entries: &mut Vec<u8>, base_offset: &mut usize, tag_size: usize) {
+    let padding = (4 - tag_size % 4) % 4;
+    entries.resize(entries.len() + padding, 0);
+    *base_offset += tag_size + padding;
 }
 
 #[inline]
@@ -687,27 +663,27 @@ impl ColorProfile {
         if self.red_colorant != Xyzd::default() {
             write_tag_entry(&mut tags, Tag::RedXyz, base_offset, 20);
             write_xyz_tag_value(&mut entries, self.red_colorant);
-            base_offset += 20;
+            pad_tag_data(&mut entries, &mut base_offset, 20);
         }
         if self.green_colorant != Xyzd::default() {
             write_tag_entry(&mut tags, Tag::GreenXyz, base_offset, 20);
             write_xyz_tag_value(&mut entries, self.green_colorant);
-            base_offset += 20;
+            pad_tag_data(&mut entries, &mut base_offset, 20);
         }
         if self.blue_colorant != Xyzd::default() {
             write_tag_entry(&mut tags, Tag::BlueXyz, base_offset, 20);
             write_xyz_tag_value(&mut entries, self.blue_colorant);
-            base_offset += 20;
+            pad_tag_data(&mut entries, &mut base_offset, 20);
         }
         if let Some(chad) = self.chromatic_adaptation {
             write_tag_entry(&mut tags, Tag::ChromaticAdaptation, base_offset, 8 + 9 * 4);
             write_chad(&mut entries, chad);
-            base_offset += 8 + 9 * 4;
+            pad_tag_data(&mut entries, &mut base_offset, 8 + 9 * 4);
         }
         if let Some(trc) = &self.red_trc {
             let entry_size = write_trc_entry(&mut entries, trc)?;
             write_tag_entry(&mut tags, Tag::RedToneReproduction, base_offset, entry_size);
-            base_offset += entry_size;
+            pad_tag_data(&mut entries, &mut base_offset, entry_size);
         }
         if let Some(trc) = &self.green_trc {
             let entry_size = write_trc_entry(&mut entries, trc)?;
@@ -717,7 +693,7 @@ impl ColorProfile {
                 base_offset,
                 entry_size,
             );
-            base_offset += entry_size;
+            pad_tag_data(&mut entries, &mut base_offset, entry_size);
         }
         if let Some(trc) = &self.blue_trc {
             let entry_size = write_trc_entry(&mut entries, trc)?;
@@ -727,7 +703,7 @@ impl ColorProfile {
                 base_offset,
                 entry_size,
             );
-            base_offset += entry_size;
+            pad_tag_data(&mut entries, &mut base_offset, entry_size);
         }
         if let Some(trc) = &self.gray_trc {
             let entry_size = write_trc_entry(&mut entries, trc)?;
@@ -737,13 +713,13 @@ impl ColorProfile {
                 base_offset,
                 entry_size,
             );
-            base_offset += entry_size;
+            pad_tag_data(&mut entries, &mut base_offset, entry_size);
         }
 
         if let Some(media_wp) = self.media_white_point {
             write_tag_entry(&mut tags, Tag::MediaWhitePoint, base_offset, 20);
             write_xyz_tag_value(&mut entries, media_wp);
-            base_offset += 20;
+            pad_tag_data(&mut entries, &mut base_offset, 20);
         }
 
         let has_cicp = self.cicp.is_some();
@@ -761,7 +737,7 @@ impl ColorProfile {
         {
             write_tag_entry(&mut tags, Tag::CodeIndependentPoints, base_offset, 12);
             write_cicp_entry(&mut entries, cicp);
-            base_offset += 12;
+            pad_tag_data(&mut entries, &mut base_offset, 12);
         }
 
         if let Some(lut) = &self.lut_a_to_b_perceptual {
@@ -772,7 +748,7 @@ impl ColorProfile {
                 base_offset,
                 entry_size,
             );
-            base_offset += entry_size;
+            pad_tag_data(&mut entries, &mut base_offset, entry_size);
         }
 
         if let Some(lut) = &self.lut_a_to_b_colorimetric {
@@ -783,7 +759,7 @@ impl ColorProfile {
                 base_offset,
                 entry_size,
             );
-            base_offset += entry_size;
+            pad_tag_data(&mut entries, &mut base_offset, entry_size);
         }
 
         if let Some(lut) = &self.lut_a_to_b_saturation {
@@ -794,7 +770,7 @@ impl ColorProfile {
                 base_offset,
                 entry_size,
             );
-            base_offset += entry_size;
+            pad_tag_data(&mut entries, &mut base_offset, entry_size);
         }
 
         if let Some(lut) = &self.lut_b_to_a_perceptual {
@@ -805,7 +781,7 @@ impl ColorProfile {
                 base_offset,
                 entry_size,
             );
-            base_offset += entry_size;
+            pad_tag_data(&mut entries, &mut base_offset, entry_size);
         }
 
         if let Some(lut) = &self.lut_b_to_a_colorimetric {
@@ -816,7 +792,7 @@ impl ColorProfile {
                 base_offset,
                 entry_size,
             );
-            base_offset += entry_size;
+            pad_tag_data(&mut entries, &mut base_offset, entry_size);
         }
 
         if let Some(lut) = &self.lut_b_to_a_saturation {
@@ -827,19 +803,19 @@ impl ColorProfile {
                 base_offset,
                 entry_size,
             );
-            base_offset += entry_size;
+            pad_tag_data(&mut entries, &mut base_offset, entry_size);
         }
 
         if let Some(lut) = &self.gamut {
             let entry_size = write_lut(&mut entries, lut, false)?;
             write_tag_entry(&mut tags, Tag::Gamut, base_offset, entry_size);
-            base_offset += entry_size;
+            pad_tag_data(&mut entries, &mut base_offset, entry_size);
         }
 
         if let Some(luminance) = self.luminance {
             write_tag_entry(&mut tags, Tag::Luminance, base_offset, 20);
             write_xyz_tag_value(&mut entries, luminance);
-            base_offset += 20;
+            pad_tag_data(&mut entries, &mut base_offset, 20);
         }
 
         if let Some(description) = &self.description
@@ -847,7 +823,7 @@ impl ColorProfile {
         {
             let entry_size = write_string_value(&mut entries, description);
             write_tag_entry(&mut tags, Tag::ProfileDescription, base_offset, entry_size);
-            base_offset += entry_size;
+            pad_tag_data(&mut entries, &mut base_offset, entry_size);
         }
 
         if let Some(copyright) = &self.copyright
@@ -855,13 +831,13 @@ impl ColorProfile {
         {
             let entry_size = write_string_value(&mut entries, copyright);
             write_tag_entry(&mut tags, Tag::Copyright, base_offset, entry_size);
-            base_offset += entry_size;
+            pad_tag_data(&mut entries, &mut base_offset, entry_size);
         }
 
         if let Some(vc) = &self.viewing_conditions {
             let entry_size = write_viewing_conditions_value(&mut entries, vc);
             write_tag_entry(&mut tags, Tag::ObserverConditions, base_offset, entry_size);
-            base_offset += entry_size;
+            pad_tag_data(&mut entries, &mut base_offset, entry_size);
         }
 
         if let Some(vd) = &self.viewing_conditions_description
@@ -874,7 +850,7 @@ impl ColorProfile {
                 base_offset,
                 entry_size,
             );
-            base_offset += entry_size;
+            pad_tag_data(&mut entries, &mut base_offset, entry_size);
         }
 
         if let Some(vd) = &self.device_model
@@ -882,7 +858,7 @@ impl ColorProfile {
         {
             let entry_size = write_string_value(&mut entries, vd);
             write_tag_entry(&mut tags, Tag::DeviceModel, base_offset, entry_size);
-            base_offset += entry_size;
+            pad_tag_data(&mut entries, &mut base_offset, entry_size);
         }
 
         if let Some(vd) = &self.device_manufacturer
@@ -890,11 +866,9 @@ impl ColorProfile {
         {
             let entry_size = write_string_value(&mut entries, vd);
             write_tag_entry(&mut tags, Tag::DeviceManufacturer, base_offset, entry_size);
-            // base_offset += entry_size;
+            pad_tag_data(&mut entries, &mut base_offset, entry_size);
         }
 
-        let data_offset = size_of::<ProfileHeader>() + TAG_SIZE * tags_count;
-        align_tag_data(&mut tags, &mut entries, data_offset);
         tags.extend(entries);
 
         let profile_header = ProfileHeader {
