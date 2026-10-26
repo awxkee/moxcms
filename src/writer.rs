@@ -200,18 +200,67 @@ fn write_xyz_tag_value(into: &mut Vec<u8>, xyz: Xyzd) {
     write_i32_be(into, z_fixed);
 }
 
-#[inline]
-fn write_tag_entry(into: &mut Vec<u8>, tag: Tag, tag_entry: usize, tag_size: usize) {
-    let tag_value: u32 = tag.into();
-    write_u32_be(into, tag_value);
-    write_u32_be(into, tag_entry as u32);
-    write_u32_be(into, tag_size as u32);
+struct ProfileWriter {
+    tags: Vec<u8>,
+    entries: Vec<u8>,
+    base_offset: usize,
 }
 
-fn pad_tag_data(entries: &mut Vec<u8>, base_offset: &mut usize, tag_size: usize) {
-    let padding = (4 - tag_size % 4) % 4;
-    entries.resize(entries.len() + padding, 0);
-    *base_offset += tag_size + padding;
+impl ProfileWriter {
+    fn new(tags_count: usize) -> Self {
+        Self {
+            tags: Vec::with_capacity(TAG_SIZE * tags_count),
+            entries: Vec::new(),
+            base_offset: size_of::<ProfileHeader>() + TAG_SIZE * tags_count,
+        }
+    }
+
+    // Called after writing the payload; the tag's recorded size excludes padding.
+    fn finish_tag(&mut self, tag: Tag, tag_size: usize) {
+        write_u32_be(&mut self.tags, tag.into());
+        write_u32_be(&mut self.tags, self.base_offset as u32);
+        write_u32_be(&mut self.tags, tag_size as u32);
+
+        let padding = (4 - tag_size % 4) % 4;
+        self.entries.resize(self.entries.len() + padding, 0);
+        self.base_offset += tag_size + padding;
+    }
+
+    fn finish(self, profile: &ColorProfile) -> Vec<u8> {
+        let data_size = self.tags.len() + self.entries.len();
+        let profile_header = ProfileHeader {
+            size: (size_of::<ProfileHeader>() + data_size) as u32,
+            pcs: profile.pcs,
+            profile_class: profile.profile_class,
+            rendering_intent: profile.rendering_intent,
+            cmm_type: 0,
+            version: if profile.cicp.is_some() {
+                ProfileVersion::V4_3
+            } else if profile.version_internal < ProfileVersion::V4_0 {
+                ProfileVersion::V4_0
+            } else {
+                profile.version_internal
+            },
+            data_color_space: profile.color_space,
+            creation_date_time: profile.creation_date_time,
+            signature: ProfileSignature::Acsp,
+            platform: 0u32,
+            flags: 0u32,
+            device_manufacturer: 0u32,
+            device_model: 0u32,
+            device_attributes: [0u8; 8],
+            illuminant: profile.white_point.to_xyz(),
+            creator: 0u32,
+            profile_id: [0u8; 16],
+            reserved: [0u8; 28],
+            tag_count: (self.tags.len() / TAG_SIZE) as u32,
+        };
+        let mut encoded = profile_header.encode();
+        encoded.reserve(data_size);
+        encoded.extend(self.tags);
+        encoded.extend(self.entries);
+        encoded
+    }
 }
 
 #[inline]
@@ -656,73 +705,44 @@ impl ColorProfile {
 
     /// Encodes profile
     pub fn encode(&self) -> Result<Vec<u8>, CmsError> {
-        let mut entries = Vec::new();
-        let tags_count = self.writable_tags_count();
-        let mut tags = Vec::with_capacity(TAG_SIZE * tags_count);
-        let mut base_offset = size_of::<ProfileHeader>() + TAG_SIZE * tags_count;
+        let mut writer = ProfileWriter::new(self.writable_tags_count());
         if self.red_colorant != Xyzd::default() {
-            write_tag_entry(&mut tags, Tag::RedXyz, base_offset, 20);
-            write_xyz_tag_value(&mut entries, self.red_colorant);
-            pad_tag_data(&mut entries, &mut base_offset, 20);
+            write_xyz_tag_value(&mut writer.entries, self.red_colorant);
+            writer.finish_tag(Tag::RedXyz, 20);
         }
         if self.green_colorant != Xyzd::default() {
-            write_tag_entry(&mut tags, Tag::GreenXyz, base_offset, 20);
-            write_xyz_tag_value(&mut entries, self.green_colorant);
-            pad_tag_data(&mut entries, &mut base_offset, 20);
+            write_xyz_tag_value(&mut writer.entries, self.green_colorant);
+            writer.finish_tag(Tag::GreenXyz, 20);
         }
         if self.blue_colorant != Xyzd::default() {
-            write_tag_entry(&mut tags, Tag::BlueXyz, base_offset, 20);
-            write_xyz_tag_value(&mut entries, self.blue_colorant);
-            pad_tag_data(&mut entries, &mut base_offset, 20);
+            write_xyz_tag_value(&mut writer.entries, self.blue_colorant);
+            writer.finish_tag(Tag::BlueXyz, 20);
         }
         if let Some(chad) = self.chromatic_adaptation {
-            write_tag_entry(&mut tags, Tag::ChromaticAdaptation, base_offset, 8 + 9 * 4);
-            write_chad(&mut entries, chad);
-            pad_tag_data(&mut entries, &mut base_offset, 8 + 9 * 4);
+            write_chad(&mut writer.entries, chad);
+            writer.finish_tag(Tag::ChromaticAdaptation, 8 + 9 * 4);
         }
         if let Some(trc) = &self.red_trc {
-            let entry_size = write_trc_entry(&mut entries, trc)?;
-            write_tag_entry(&mut tags, Tag::RedToneReproduction, base_offset, entry_size);
-            pad_tag_data(&mut entries, &mut base_offset, entry_size);
+            let entry_size = write_trc_entry(&mut writer.entries, trc)?;
+            writer.finish_tag(Tag::RedToneReproduction, entry_size);
         }
         if let Some(trc) = &self.green_trc {
-            let entry_size = write_trc_entry(&mut entries, trc)?;
-            write_tag_entry(
-                &mut tags,
-                Tag::GreenToneReproduction,
-                base_offset,
-                entry_size,
-            );
-            pad_tag_data(&mut entries, &mut base_offset, entry_size);
+            let entry_size = write_trc_entry(&mut writer.entries, trc)?;
+            writer.finish_tag(Tag::GreenToneReproduction, entry_size);
         }
         if let Some(trc) = &self.blue_trc {
-            let entry_size = write_trc_entry(&mut entries, trc)?;
-            write_tag_entry(
-                &mut tags,
-                Tag::BlueToneReproduction,
-                base_offset,
-                entry_size,
-            );
-            pad_tag_data(&mut entries, &mut base_offset, entry_size);
+            let entry_size = write_trc_entry(&mut writer.entries, trc)?;
+            writer.finish_tag(Tag::BlueToneReproduction, entry_size);
         }
         if let Some(trc) = &self.gray_trc {
-            let entry_size = write_trc_entry(&mut entries, trc)?;
-            write_tag_entry(
-                &mut tags,
-                Tag::GreyToneReproduction,
-                base_offset,
-                entry_size,
-            );
-            pad_tag_data(&mut entries, &mut base_offset, entry_size);
+            let entry_size = write_trc_entry(&mut writer.entries, trc)?;
+            writer.finish_tag(Tag::GreyToneReproduction, entry_size);
         }
 
         if let Some(media_wp) = self.media_white_point {
-            write_tag_entry(&mut tags, Tag::MediaWhitePoint, base_offset, 20);
-            write_xyz_tag_value(&mut entries, media_wp);
-            pad_tag_data(&mut entries, &mut base_offset, 20);
+            write_xyz_tag_value(&mut writer.entries, media_wp);
+            writer.finish_tag(Tag::MediaWhitePoint, 20);
         }
-
-        let has_cicp = self.cicp.is_some();
 
         // This tag may be present when the data colour space in the profile header is RGB, YCbCr, or XYZ, and the
         // profile class in the profile header is Input or Display. The tag shall not be present for other data colour spaces
@@ -735,172 +755,91 @@ impl ColorProfile {
                 || self.color_space == DataColorSpace::YCbr
                 || self.color_space == DataColorSpace::Xyz)
         {
-            write_tag_entry(&mut tags, Tag::CodeIndependentPoints, base_offset, 12);
-            write_cicp_entry(&mut entries, cicp);
-            pad_tag_data(&mut entries, &mut base_offset, 12);
+            write_cicp_entry(&mut writer.entries, cicp);
+            writer.finish_tag(Tag::CodeIndependentPoints, 12);
         }
 
         if let Some(lut) = &self.lut_a_to_b_perceptual {
-            let entry_size = write_lut(&mut entries, lut, true)?;
-            write_tag_entry(
-                &mut tags,
-                Tag::DeviceToPcsLutPerceptual,
-                base_offset,
-                entry_size,
-            );
-            pad_tag_data(&mut entries, &mut base_offset, entry_size);
+            let entry_size = write_lut(&mut writer.entries, lut, true)?;
+            writer.finish_tag(Tag::DeviceToPcsLutPerceptual, entry_size);
         }
 
         if let Some(lut) = &self.lut_a_to_b_colorimetric {
-            let entry_size = write_lut(&mut entries, lut, true)?;
-            write_tag_entry(
-                &mut tags,
-                Tag::DeviceToPcsLutColorimetric,
-                base_offset,
-                entry_size,
-            );
-            pad_tag_data(&mut entries, &mut base_offset, entry_size);
+            let entry_size = write_lut(&mut writer.entries, lut, true)?;
+            writer.finish_tag(Tag::DeviceToPcsLutColorimetric, entry_size);
         }
 
         if let Some(lut) = &self.lut_a_to_b_saturation {
-            let entry_size = write_lut(&mut entries, lut, true)?;
-            write_tag_entry(
-                &mut tags,
-                Tag::DeviceToPcsLutSaturation,
-                base_offset,
-                entry_size,
-            );
-            pad_tag_data(&mut entries, &mut base_offset, entry_size);
+            let entry_size = write_lut(&mut writer.entries, lut, true)?;
+            writer.finish_tag(Tag::DeviceToPcsLutSaturation, entry_size);
         }
 
         if let Some(lut) = &self.lut_b_to_a_perceptual {
-            let entry_size = write_lut(&mut entries, lut, false)?;
-            write_tag_entry(
-                &mut tags,
-                Tag::PcsToDeviceLutPerceptual,
-                base_offset,
-                entry_size,
-            );
-            pad_tag_data(&mut entries, &mut base_offset, entry_size);
+            let entry_size = write_lut(&mut writer.entries, lut, false)?;
+            writer.finish_tag(Tag::PcsToDeviceLutPerceptual, entry_size);
         }
 
         if let Some(lut) = &self.lut_b_to_a_colorimetric {
-            let entry_size = write_lut(&mut entries, lut, false)?;
-            write_tag_entry(
-                &mut tags,
-                Tag::PcsToDeviceLutColorimetric,
-                base_offset,
-                entry_size,
-            );
-            pad_tag_data(&mut entries, &mut base_offset, entry_size);
+            let entry_size = write_lut(&mut writer.entries, lut, false)?;
+            writer.finish_tag(Tag::PcsToDeviceLutColorimetric, entry_size);
         }
 
         if let Some(lut) = &self.lut_b_to_a_saturation {
-            let entry_size = write_lut(&mut entries, lut, false)?;
-            write_tag_entry(
-                &mut tags,
-                Tag::PcsToDeviceLutSaturation,
-                base_offset,
-                entry_size,
-            );
-            pad_tag_data(&mut entries, &mut base_offset, entry_size);
+            let entry_size = write_lut(&mut writer.entries, lut, false)?;
+            writer.finish_tag(Tag::PcsToDeviceLutSaturation, entry_size);
         }
 
         if let Some(lut) = &self.gamut {
-            let entry_size = write_lut(&mut entries, lut, false)?;
-            write_tag_entry(&mut tags, Tag::Gamut, base_offset, entry_size);
-            pad_tag_data(&mut entries, &mut base_offset, entry_size);
+            let entry_size = write_lut(&mut writer.entries, lut, false)?;
+            writer.finish_tag(Tag::Gamut, entry_size);
         }
 
         if let Some(luminance) = self.luminance {
-            write_tag_entry(&mut tags, Tag::Luminance, base_offset, 20);
-            write_xyz_tag_value(&mut entries, luminance);
-            pad_tag_data(&mut entries, &mut base_offset, 20);
+            write_xyz_tag_value(&mut writer.entries, luminance);
+            writer.finish_tag(Tag::Luminance, 20);
         }
 
         if let Some(description) = &self.description
             && description.has_values()
         {
-            let entry_size = write_string_value(&mut entries, description);
-            write_tag_entry(&mut tags, Tag::ProfileDescription, base_offset, entry_size);
-            pad_tag_data(&mut entries, &mut base_offset, entry_size);
+            let entry_size = write_string_value(&mut writer.entries, description);
+            writer.finish_tag(Tag::ProfileDescription, entry_size);
         }
 
         if let Some(copyright) = &self.copyright
             && copyright.has_values()
         {
-            let entry_size = write_string_value(&mut entries, copyright);
-            write_tag_entry(&mut tags, Tag::Copyright, base_offset, entry_size);
-            pad_tag_data(&mut entries, &mut base_offset, entry_size);
+            let entry_size = write_string_value(&mut writer.entries, copyright);
+            writer.finish_tag(Tag::Copyright, entry_size);
         }
 
         if let Some(vc) = &self.viewing_conditions {
-            let entry_size = write_viewing_conditions_value(&mut entries, vc);
-            write_tag_entry(&mut tags, Tag::ObserverConditions, base_offset, entry_size);
-            pad_tag_data(&mut entries, &mut base_offset, entry_size);
+            let entry_size = write_viewing_conditions_value(&mut writer.entries, vc);
+            writer.finish_tag(Tag::ObserverConditions, entry_size);
         }
 
         if let Some(vd) = &self.viewing_conditions_description
             && vd.has_values()
         {
-            let entry_size = write_string_value(&mut entries, vd);
-            write_tag_entry(
-                &mut tags,
-                Tag::ViewingConditionsDescription,
-                base_offset,
-                entry_size,
-            );
-            pad_tag_data(&mut entries, &mut base_offset, entry_size);
+            let entry_size = write_string_value(&mut writer.entries, vd);
+            writer.finish_tag(Tag::ViewingConditionsDescription, entry_size);
         }
 
         if let Some(vd) = &self.device_model
             && vd.has_values()
         {
-            let entry_size = write_string_value(&mut entries, vd);
-            write_tag_entry(&mut tags, Tag::DeviceModel, base_offset, entry_size);
-            pad_tag_data(&mut entries, &mut base_offset, entry_size);
+            let entry_size = write_string_value(&mut writer.entries, vd);
+            writer.finish_tag(Tag::DeviceModel, entry_size);
         }
 
         if let Some(vd) = &self.device_manufacturer
             && vd.has_values()
         {
-            let entry_size = write_string_value(&mut entries, vd);
-            write_tag_entry(&mut tags, Tag::DeviceManufacturer, base_offset, entry_size);
-            pad_tag_data(&mut entries, &mut base_offset, entry_size);
+            let entry_size = write_string_value(&mut writer.entries, vd);
+            writer.finish_tag(Tag::DeviceManufacturer, entry_size);
         }
 
-        tags.extend(entries);
-
-        let profile_header = ProfileHeader {
-            size: size_of::<ProfileHeader>() as u32 + tags.len() as u32,
-            pcs: self.pcs,
-            profile_class: self.profile_class,
-            rendering_intent: self.rendering_intent,
-            cmm_type: 0,
-            version: if has_cicp {
-                ProfileVersion::V4_3
-            } else if self.version_internal < ProfileVersion::V4_0 {
-                ProfileVersion::V4_0
-            } else {
-                self.version_internal
-            },
-            data_color_space: self.color_space,
-            creation_date_time: self.creation_date_time,
-            signature: ProfileSignature::Acsp,
-            platform: 0u32,
-            flags: 0u32,
-            device_manufacturer: 0u32,
-            device_model: 0u32,
-            device_attributes: [0u8; 8],
-            illuminant: self.white_point.to_xyz(),
-            creator: 0u32,
-            profile_id: [0u8; 16],
-            reserved: [0u8; 28],
-            tag_count: tags_count as u32,
-        };
-        let mut header = profile_header.encode();
-        header.extend(tags);
-        Ok(header)
+        Ok(writer.finish(self))
     }
 }
 
@@ -956,23 +895,72 @@ mod tests {
     }
 
     #[test]
-    fn encoded_tag_data_is_aligned_to_four_bytes() {
+    fn encoded_tags_are_aligned_and_roundtrip() {
         let mut profile = ColorProfile::new_srgb();
-        profile.description = Some(crate::ProfileText::Localizable(vec![
-            LocalizableString::new("en".into(), "US".into(), "x".into()),
-        ]));
-        profile.copyright = Some(crate::ProfileText::Localizable(vec![
-            LocalizableString::new("en".into(), "US".into(), "x".into()),
-        ]));
+        profile.red_trc = Some(ToneReprCurve::Lut(vec![0, 32768, 65535]));
+        profile.green_trc = Some(ToneReprCurve::Lut(vec![0, 65535]));
+        profile.blue_trc = Some(ToneReprCurve::Lut(vec![0, 10000, 30000, 50000, 65535]));
+        profile.description = Some(ProfileText::PlainString("x".into()));
+        profile.copyright = Some(ProfileText::PlainString("yyy".into()));
+        profile.device_model = Some(ProfileText::PlainString("mm".into()));
+        profile.device_manufacturer = Some(ProfileText::PlainString("v".into()));
 
         let encoded = profile.encode().unwrap();
-        let tag_count = u32::from_be_bytes(encoded[128..132].try_into().unwrap()) as usize;
-        let tags_end = 132 + tag_count * TAG_SIZE;
-
-        for tag in encoded[132..tags_end].as_chunks::<TAG_SIZE>().0 {
-            let offset = u32::from_be_bytes(tag[4..8].try_into().unwrap());
-            assert_eq!(offset % 4, 0, "tag offset {offset} is not aligned");
+        let read_u32 =
+            |offset| u32::from_be_bytes(encoded[offset..offset + 4].try_into().unwrap()) as usize;
+        let expected_tags = [
+            (Tag::RedXyz, 20),
+            (Tag::GreenXyz, 20),
+            (Tag::BlueXyz, 20),
+            (Tag::ChromaticAdaptation, 44),
+            (Tag::RedToneReproduction, 18),
+            (Tag::GreenToneReproduction, 16),
+            (Tag::BlueToneReproduction, 22),
+            (Tag::MediaWhitePoint, 20),
+            (Tag::CodeIndependentPoints, 12),
+            (Tag::ProfileDescription, 30),
+            (Tag::Copyright, 34),
+            (Tag::DeviceModel, 32),
+            (Tag::DeviceManufacturer, 30),
+        ];
+        assert_eq!(read_u32(0), encoded.len());
+        assert_eq!(read_u32(128), expected_tags.len());
+        let tags_end = 132 + expected_tags.len() * TAG_SIZE;
+        let mut next_offset = tags_end;
+        for (entry, (tag, size)) in encoded[132..tags_end]
+            .as_chunks::<TAG_SIZE>()
+            .0
+            .iter()
+            .zip(expected_tags)
+        {
+            let signature = u32::from_be_bytes(entry[0..4].try_into().unwrap());
+            let offset = u32::from_be_bytes(entry[4..8].try_into().unwrap()) as usize;
+            let encoded_size = u32::from_be_bytes(entry[8..12].try_into().unwrap()) as usize;
+            assert_eq!(signature, u32::from(tag));
+            assert_eq!(encoded_size, size);
+            assert_eq!(offset, next_offset);
+            assert_eq!(offset % 4, 0);
+            let end = offset + size;
+            next_offset = end.next_multiple_of(4);
+            assert!(encoded[end..next_offset].iter().all(|&byte| byte == 0));
         }
-        assert_eq!(encoded.len() % 4, 0, "profile size is not aligned");
+        assert_eq!(next_offset, encoded.len());
+
+        let decoded = ColorProfile::new_from_slice(&encoded).unwrap();
+        assert_eq!(decoded.red_trc, profile.red_trc);
+        assert_eq!(decoded.green_trc, profile.green_trc);
+        assert_eq!(decoded.blue_trc, profile.blue_trc);
+        for (text, expected) in [
+            (decoded.description, "x"),
+            (decoded.copyright, "yyy"),
+            (decoded.device_model, "mm"),
+            (decoded.device_manufacturer, "v"),
+        ] {
+            let Some(ProfileText::Localizable(records)) = text else {
+                panic!("expected localized text");
+            };
+            assert_eq!(records.len(), 1);
+            assert_eq!(records[0].value, expected);
+        }
     }
 }
