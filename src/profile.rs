@@ -953,7 +953,8 @@ pub struct ColorProfile {
 
 #[derive(Debug, Clone, Copy, PartialOrd, PartialEq, Hash)]
 pub struct ParsingOptions {
-    // Maximum allowed profile size in bytes
+    /// Maximum allowed profile size in bytes.
+    /// Also bounds estimated decoded storage across all localized Unicode (`mluc`) tags.
     pub max_profile_size: usize,
     // Maximum allowed CLUT size in bytes
     pub max_allowed_clut_size: usize,
@@ -1008,6 +1009,7 @@ impl ColorProfile {
             ..Default::default()
         };
         let color_space = profile.color_space;
+        let mut localized_text_budget = options.max_profile_size;
         for tag in tags_slice.as_chunks::<TAG_SIZE>().0.iter() {
             let tag_value = u32::from_be_bytes([tag[0], tag[1], tag[2], tag[3]]);
             let tag_entry = u32::from_be_bytes([tag[4], tag[5], tag[6], tag[7]]);
@@ -1135,28 +1137,52 @@ impl ColorProfile {
                         profile.gamut = Self::read_lut_tag(slice, tag_entry, tag_size, &options)?;
                     }
                     Tag::Copyright => {
-                        profile.copyright =
-                            Self::read_string_tag(slice, tag_entry as usize, tag_size)?;
+                        profile.copyright = Self::read_string_tag(
+                            slice,
+                            tag_entry as usize,
+                            tag_size,
+                            &mut localized_text_budget,
+                        )?;
                     }
                     Tag::ProfileDescription => {
-                        profile.description =
-                            Self::read_string_tag(slice, tag_entry as usize, tag_size)?;
+                        profile.description = Self::read_string_tag(
+                            slice,
+                            tag_entry as usize,
+                            tag_size,
+                            &mut localized_text_budget,
+                        )?;
                     }
                     Tag::ViewingConditionsDescription => {
-                        profile.viewing_conditions_description =
-                            Self::read_string_tag(slice, tag_entry as usize, tag_size)?;
+                        profile.viewing_conditions_description = Self::read_string_tag(
+                            slice,
+                            tag_entry as usize,
+                            tag_size,
+                            &mut localized_text_budget,
+                        )?;
                     }
                     Tag::DeviceModel => {
-                        profile.device_model =
-                            Self::read_string_tag(slice, tag_entry as usize, tag_size)?;
+                        profile.device_model = Self::read_string_tag(
+                            slice,
+                            tag_entry as usize,
+                            tag_size,
+                            &mut localized_text_budget,
+                        )?;
                     }
                     Tag::DeviceManufacturer => {
-                        profile.device_manufacturer =
-                            Self::read_string_tag(slice, tag_entry as usize, tag_size)?;
+                        profile.device_manufacturer = Self::read_string_tag(
+                            slice,
+                            tag_entry as usize,
+                            tag_size,
+                            &mut localized_text_budget,
+                        )?;
                     }
                     Tag::CharTarget => {
-                        profile.char_target =
-                            Self::read_string_tag(slice, tag_entry as usize, tag_size)?;
+                        profile.char_target = Self::read_string_tag(
+                            slice,
+                            tag_entry as usize,
+                            tag_size,
+                            &mut localized_text_budget,
+                        )?;
                     }
                     Tag::Chromaticity => {}
                     Tag::ObserverConditions => {
