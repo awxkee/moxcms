@@ -177,6 +177,7 @@ impl ColorProfile {
         slice: &[u8],
         entry: usize,
         tag_size: usize,
+        localized_text_budget: &mut usize,
     ) -> Result<Option<ProfileText>, CmsError> {
         let tag_size = if tag_size == 0 { TAG_SIZE } else { tag_size };
         if tag_size < 4 {
@@ -200,59 +201,47 @@ impl ColorProfile {
                 .to_string();
             return Ok(Some(ProfileText::PlainString(str)));
         } else if tag_type == TagTypeDefinition::MultiLocalizedUnicode {
-            if tag.len() < 28 {
+            if tag.len() < 16 {
                 return Err(CmsError::InvalidProfile);
             }
-            // let record_size = u32::from_be_bytes([tag[12], tag[13], tag[14], tag[15]]) as usize;
-            // // Record size is reserved to be 12.
-            // if record_size != 12 {
-            //     return Err(CmsError::InvalidIcc);
-            // }
             let records_count = u32::from_be_bytes([tag[8], tag[9], tag[10], tag[11]]) as usize;
-            let primary_language_code = String::from_utf8_lossy(&[tag[16], tag[17]]).to_string();
-            let primary_country_code = String::from_utf8_lossy(&[tag[18], tag[19]]).to_string();
-            let first_string_record_length =
-                u32::from_be_bytes([tag[20], tag[21], tag[22], tag[23]]) as usize;
-            let first_record_offset =
-                u32::from_be_bytes([tag[24], tag[25], tag[26], tag[27]]) as usize;
-
-            if tag.len() < first_record_offset.safe_add(first_string_record_length)? {
-                return Ok(None);
+            let record_size = u32::from_be_bytes([tag[12], tag[13], tag[14], tag[15]]) as usize;
+            let records_end = 16usize.safe_add(records_count.safe_mul(record_size)?)?;
+            if record_size < 12 || records_end > tag.len() {
+                return Err(CmsError::InvalidProfile);
             }
+            let record_headers = tag[16..records_end].chunks_exact(record_size);
 
-            let resliced =
-                &tag[first_record_offset..first_record_offset + first_string_record_length];
-            let cvt = utf16be_to_utf16(resliced)?;
-            let string_record = String::from_utf16_lossy(&cvt);
-
-            let mut records = vec![LocalizableString {
-                language: primary_language_code,
-                country: primary_country_code,
-                value: string_record,
-            }];
-
-            for record in 1..records_count {
-                // Localizable header must be at least 12 bytes
-                let localizable_header_offset = if record == 1 {
-                    28
-                } else {
-                    28 + 12 * (record - 1)
-                };
-                if tag.len() < localizable_header_offset + 12 {
-                    return Err(CmsError::InvalidProfile);
-                }
-                let choked = &tag[localizable_header_offset..localizable_header_offset + 12];
-
-                let language_code = String::from_utf8_lossy(&[choked[0], choked[1]]).to_string();
-                let country_code = String::from_utf8_lossy(&[choked[2], choked[3]]).to_string();
+            // Locale codes can each expand to six UTF-8 bytes under lossy decoding.
+            let mut decoded_size = records_count.safe_mul(size_of::<LocalizableString>() + 12)?;
+            if decoded_size > *localized_text_budget {
+                return Err(CmsError::InvalidProfile);
+            }
+            // Shared or overlapping spans still become separate owned strings. Bound all
+            // records before allocating, including up to three UTF-8 bytes per UTF-16 unit.
+            for choked in record_headers.clone() {
                 let record_length =
                     u32::from_be_bytes([choked[4], choked[5], choked[6], choked[7]]) as usize;
                 let string_offset =
                     u32::from_be_bytes([choked[8], choked[9], choked[10], choked[11]]) as usize;
-
                 if tag.len() < string_offset.safe_add(record_length)? {
                     return Ok(None);
                 }
+                decoded_size = decoded_size.safe_add((record_length / 2).safe_mul(3)?)?;
+                if decoded_size > *localized_text_budget {
+                    return Err(CmsError::InvalidProfile);
+                }
+            }
+            *localized_text_budget -= decoded_size;
+
+            let mut records = Vec::with_capacity(records_count);
+            for choked in record_headers {
+                let language_code = String::from_utf8_lossy(&choked[0..2]).to_string();
+                let country_code = String::from_utf8_lossy(&choked[2..4]).to_string();
+                let record_length =
+                    u32::from_be_bytes([choked[4], choked[5], choked[6], choked[7]]) as usize;
+                let string_offset =
+                    u32::from_be_bytes([choked[8], choked[9], choked[10], choked[11]]) as usize;
                 let resliced = &tag[string_offset..string_offset + record_length];
                 let cvt = utf16be_to_utf16(resliced)?;
                 let string_record = String::from_utf16_lossy(&cvt);
@@ -1011,6 +1000,141 @@ mod tests {
 
     fn default_options() -> ParsingOptions {
         ParsingOptions::default()
+    }
+
+    fn make_mluc_profile(
+        text: &str,
+        records_count: usize,
+        record_size: usize,
+        signatures: &[[u8; 4]],
+    ) -> Vec<u8> {
+        let text: Vec<u8> = text.encode_utf16().flat_map(u16::to_be_bytes).collect();
+        let string_offset = 16 + records_count * record_size;
+        let mut tag = Vec::new();
+        tag.extend_from_slice(b"mluc\0\0\0\0");
+        tag.extend_from_slice(&(records_count as u32).to_be_bytes());
+        tag.extend_from_slice(&(record_size as u32).to_be_bytes());
+        for record in 0..records_count {
+            tag.extend_from_slice(if record == 0 { b"enUS" } else { b"enGB" });
+            tag.extend_from_slice(&(text.len() as u32).to_be_bytes());
+            tag.extend_from_slice(&(string_offset as u32).to_be_bytes());
+            tag.resize(16 + (record + 1) * record_size, 0);
+        }
+        tag.extend_from_slice(&text);
+
+        let tag_offset = 132 + signatures.len() * TAG_SIZE;
+        let mut profile = vec![0u8; 128];
+        profile[0..4].copy_from_slice(&((tag_offset + tag.len()) as u32).to_be_bytes());
+        profile[8..12].copy_from_slice(&0x04400000u32.to_be_bytes());
+        profile[12..16].copy_from_slice(b"mntr");
+        profile[16..20].copy_from_slice(b"RGB ");
+        profile[20..24].copy_from_slice(b"XYZ ");
+        profile[36..40].copy_from_slice(b"acsp");
+        profile.extend_from_slice(&(signatures.len() as u32).to_be_bytes());
+        for signature in signatures {
+            profile.extend_from_slice(signature);
+            profile.extend_from_slice(&(tag_offset as u32).to_be_bytes());
+            profile.extend_from_slice(&(tag.len() as u32).to_be_bytes());
+        }
+        profile.extend_from_slice(&tag);
+        profile
+    }
+
+    #[test]
+    fn mluc_rejects_aliased_text_amplification() {
+        let profile = make_mluc_profile(&"A".repeat(8192), 128, 12, &[*b"desc"]);
+        let options = ParsingOptions {
+            max_profile_size: 64 * 1024,
+            ..Default::default()
+        };
+        assert!(profile.len() < options.max_profile_size);
+        let result = ColorProfile::new_from_slice_with_options(&profile, options);
+        assert!(matches!(result, Err(CmsError::InvalidProfile)));
+    }
+
+    #[test]
+    fn mluc_accepts_shared_unicode_strings() {
+        let text = "Display profile 日本語 🦀".repeat(2);
+        let profile = make_mluc_profile(&text, 2, 12, &[*b"desc"]);
+        let tag_size = profile.len() - 144;
+        assert!(2 * text.encode_utf16().count() * 2 > tag_size);
+        let decoded = ColorProfile::new_from_slice_with_options(
+            &profile,
+            ParsingOptions {
+                max_profile_size: 1024,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let Some(ProfileText::Localizable(records)) = decoded.description else {
+            panic!("expected localized text");
+        };
+        assert_eq!(records.len(), 2);
+        assert_eq!(records[0].country, "US");
+        assert_eq!(records[1].country, "GB");
+        for record in records {
+            assert_eq!(record.language, "en");
+            assert_eq!(record.value, text);
+        }
+    }
+
+    #[test]
+    fn mluc_budget_is_shared_across_text_tags() {
+        let text = "A".repeat(200);
+        let options = ParsingOptions {
+            max_profile_size: 1024,
+            ..Default::default()
+        };
+        let single = make_mluc_profile(&text, 1, 12, &[*b"desc"]);
+        assert!(ColorProfile::new_from_slice_with_options(&single, options).is_ok());
+        for signature in [*b"cprt", *b"vued", *b"dmnd", *b"dmdd", *b"targ"] {
+            let profile = make_mluc_profile(&text, 1, 12, &[*b"desc", signature]);
+            assert!(profile.len() < options.max_profile_size);
+            let result = ColorProfile::new_from_slice_with_options(&profile, options);
+            assert!(matches!(result, Err(CmsError::InvalidProfile)));
+        }
+    }
+
+    #[test]
+    fn mluc_rejects_excessive_record_storage() {
+        let profile = make_mluc_profile("", 128, 12, &[*b"desc"]);
+        let options = ParsingOptions {
+            max_profile_size: 4096,
+            ..Default::default()
+        };
+        assert!(profile.len() < options.max_profile_size);
+        let result = ColorProfile::new_from_slice_with_options(&profile, options);
+        assert!(matches!(result, Err(CmsError::InvalidProfile)));
+    }
+
+    #[test]
+    fn mluc_rejects_invalid_record_tables() {
+        for (count, size) in [(u32::MAX, 12u32), (1, 0), (1, 11)] {
+            let mut profile = make_mluc_profile("A", 1, 12, &[*b"desc"]);
+            profile[152..156].copy_from_slice(&count.to_be_bytes());
+            profile[156..160].copy_from_slice(&size.to_be_bytes());
+            assert!(ColorProfile::new_from_slice(&profile).is_err());
+        }
+    }
+
+    #[test]
+    fn mluc_reads_empty_record_table() {
+        let profile = make_mluc_profile("", 0, 12, &[*b"desc"]);
+        let decoded = ColorProfile::new_from_slice(&profile).unwrap();
+        assert!(
+            matches!(decoded.description, Some(ProfileText::Localizable(records)) if records.is_empty())
+        );
+    }
+
+    #[test]
+    fn mluc_reads_extended_record_size() {
+        let profile = make_mluc_profile("Shared text", 2, 16, &[*b"desc"]);
+        let decoded = ColorProfile::new_from_slice(&profile).unwrap();
+        let Some(ProfileText::Localizable(records)) = decoded.description else {
+            panic!("expected localized text");
+        };
+        assert_eq!(records.len(), 2);
+        assert!(records.iter().all(|record| record.value == "Shared text"));
     }
 
     /// Build a minimal mAB tag with a CLUT section.
