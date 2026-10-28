@@ -38,7 +38,7 @@ use crate::err::try_vec;
 use crate::mlaf::mlaf;
 use crate::{
     CmsError, ColorProfile, DataColorSpace, InPlaceStage, Layout, LutWarehouse, Matrix3f,
-    ProfileVersion, RenderingIntent, Stage, TransformExecutor, TransformOptions,
+    RenderingIntent, Stage, TransformExecutor, TransformOptions,
 };
 use num_traits::AsPrimitive;
 use std::sync::Arc;
@@ -178,8 +178,7 @@ pub(crate) trait Lut4x3Factory {
 
 fn pcs_lab_v4_to_v2(profile: &ColorProfile, intent: RenderingIntent, lut: &mut [f32]) {
     if profile.pcs == DataColorSpace::Lab
-        && profile.version_internal < ProfileVersion::V4_0
-        && !profile.pcs_to_device_is_lut8(intent)
+        && profile.pcs_to_device_is_lut16(intent)
         && lut.len().is_multiple_of(3)
     {
         assert_eq!(
@@ -202,8 +201,7 @@ fn pcs_lab_v4_to_v2(profile: &ColorProfile, intent: RenderingIntent, lut: &mut [
 
 fn pcs_lab_v2_to_v4(profile: &ColorProfile, intent: RenderingIntent, lut: &mut [f32]) {
     if profile.pcs == DataColorSpace::Lab
-        && profile.version_internal < ProfileVersion::V4_0
-        && !profile.device_to_pcs_is_lut8(intent)
+        && profile.device_to_pcs_is_lut16(intent)
         && lut.len().is_multiple_of(3)
     {
         assert_eq!(
@@ -441,6 +439,9 @@ where
     else {
         return Ok(None);
     };
+    if device_to_pcs.num_input_channels != 4 {
+        return Err(CmsError::UnsupportedProfileConnection);
+    }
     let lut_stage = stage_lut_4x3(device_to_pcs, options, source.pcs)?;
     let last = match dest.pcs {
         DataColorSpace::Xyz if dest.is_matrix_shaper() => PcsToDevice::Rgb(
@@ -450,7 +451,12 @@ where
             .get_pcs_to_device(options.rendering_intent)
             .ok_or(CmsError::UnsupportedProfileConnection)?
         {
-            LutWarehouse::Lut(lut) => PcsToDevice::Lut(stage_lut_3x3(lut, options, dest.pcs)?),
+            LutWarehouse::Lut(lut) => {
+                if lut.num_input_channels != 3 || lut.num_output_channels != 3 {
+                    return Err(CmsError::UnsupportedProfileConnection);
+                }
+                PcsToDevice::Lut(stage_lut_3x3(lut, options, dest.pcs)?)
+            }
             LutWarehouse::Multidimensional(_) => return Ok(None),
         },
         _ => return Ok(None),
