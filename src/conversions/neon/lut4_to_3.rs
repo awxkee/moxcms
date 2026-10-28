@@ -29,7 +29,7 @@
 #![cfg(feature = "neon_luts")]
 use crate::conversions::LutBarycentricReduction;
 use crate::conversions::interpolator::BarycentricWeight;
-use crate::conversions::lut_transforms::Lut4x3Factory;
+use crate::conversions::lut_transforms::{Grid4x3, Lut4x3Factory};
 use crate::conversions::neon::interpolator::*;
 use crate::conversions::neon::interpolator_q0_15::NeonAlignedI16x4;
 use crate::conversions::neon::lut4_to_3_q0_15::TransformLut4To3NeonQ0_15;
@@ -224,11 +224,11 @@ impl Lut4x3Factory for NeonLut4x3Factory {
         const BIT_DEPTH: usize,
         const BINS: usize,
     >(
-        lut: Vec<f32>,
+        lut: Grid4x3<'_>,
         options: TransformOptions,
         color_space: DataColorSpace,
         is_linear: bool,
-    ) -> Arc<dyn TransformExecutor<T> + Sync + Send>
+    ) -> Result<Arc<dyn TransformExecutor<T> + Sync + Send>, CmsError>
     where
         f32: AsPrimitive<T>,
         u32: AsPrimitive<T>,
@@ -244,20 +244,15 @@ impl Lut4x3Factory for NeonLut4x3Factory {
             } else {
                 ((1i32 << 14i32) - 1) as f32
             };
-            let lut = lut
-                .as_chunks::<3>()
-                .0
-                .iter()
-                .map(|x| {
-                    NeonAlignedI16x4([
-                        (x[0] * q).round() as i16,
-                        (x[1] * q).round() as i16,
-                        (x[2] * q).round() as i16,
-                        0,
-                    ])
-                })
-                .collect::<Vec<_>>();
-            return match options.barycentric_weight_scale {
+            let lut = lut.collect(|x| {
+                NeonAlignedI16x4([
+                    (x[0] * q).round() as i16,
+                    (x[1] * q).round() as i16,
+                    (x[2] * q).round() as i16,
+                    0,
+                ])
+            })?;
+            return Ok(match options.barycentric_weight_scale {
                 BarycentricWeightScale::Low => {
                     let bins = BarycentricWeight::<i16>::create_ranged_256::<GRID_SIZE>();
                     assert_barycentric_lut_size_precondition::<i16, GRID_SIZE>(bins.as_slice());
@@ -301,15 +296,10 @@ impl Lut4x3Factory for NeonLut4x3Factory {
                         is_linear,
                     })
                 }
-            };
+            });
         }
-        let lut = lut
-            .as_chunks::<3>()
-            .0
-            .iter()
-            .map(|x| NeonAlignedF32([x[0], x[1], x[2], 0f32]))
-            .collect::<Vec<_>>();
-        match options.barycentric_weight_scale {
+        let lut = lut.collect(|x| NeonAlignedF32([x[0], x[1], x[2], 0f32]))?;
+        Ok(match options.barycentric_weight_scale {
             BarycentricWeightScale::Low => {
                 let bins = BarycentricWeight::<f32>::create_ranged_256::<GRID_SIZE>();
                 assert_barycentric_lut_size_precondition::<f32, GRID_SIZE>(bins.as_slice());
@@ -341,6 +331,6 @@ impl Lut4x3Factory for NeonLut4x3Factory {
                     },
                 )
             }
-        }
+        })
     }
 }

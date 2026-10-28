@@ -30,7 +30,7 @@ use crate::conversions::*;
 use crate::err::CmsError;
 use crate::interceptors::{FromCmykaInterceptor, ToCmykaInterceptor};
 use crate::trc::GammaLutInterpolate;
-use crate::{ColorProfile, DataColorSpace, LutWarehouse, RenderingIntent, Vector3f, Xyzd};
+use crate::{ColorProfile, DataColorSpace, LutType, LutWarehouse, RenderingIntent, Vector3f, Xyzd};
 use num_traits::AsPrimitive;
 use std::sync::Arc;
 
@@ -1228,6 +1228,24 @@ impl ColorProfile {
         // ICC.1:2022 8.10.2 c): use BToA0 when the intent has no tag of its own
         lut.or(self.lut_b_to_a_perceptual.as_ref())
     }
+
+    /// Only a lut16Type table encodes Lab the legacy v2 way, in v2 and v4 profiles alike; lut8Type
+    /// and lutAtoBType/lutBtoAType encode it as v4 does (ICC.1 §10.8).
+    #[allow(unused)]
+    pub(crate) fn device_to_pcs_is_lut16(&self, intent: RenderingIntent) -> bool {
+        matches!(
+            self.get_device_to_pcs(intent),
+            Some(LutWarehouse::Lut(lut)) if lut.lut_type == LutType::Lut16
+        )
+    }
+
+    #[allow(unused)]
+    pub(crate) fn pcs_to_device_is_lut16(&self, intent: RenderingIntent) -> bool {
+        matches!(
+            self.get_pcs_to_device(intent),
+            Some(LutWarehouse::Lut(lut)) if lut.lut_type == LutType::Lut16
+        )
+    }
 }
 
 #[cfg(test)]
@@ -1916,5 +1934,60 @@ mod tests {
                 single
             );
         }
+    }
+
+    #[cfg(feature = "lut")]
+    fn swop() -> ColorProfile {
+        let icc =
+            std::fs::read("./assets/us_swop_coated.icc").expect("us_swop_coated.icc test asset");
+        ColorProfile::new_from_slice(&icc).unwrap()
+    }
+
+    #[cfg(feature = "lut")]
+    #[test]
+    fn lut16_lab_tables_use_the_v2_encoding_in_v4_profiles_too() {
+        let v2 = swop();
+        let mut v4 = v2.clone();
+        v4.version_internal = ProfileVersion::V4_3;
+        let srgb = ColorProfile::new_srgb();
+        let src: Vec<u8> = (0..4096u32)
+            .flat_map(|i| i.wrapping_mul(2654435761).to_le_bytes())
+            .collect();
+        for intent in [
+            RenderingIntent::Perceptual,
+            RenderingIntent::RelativeColorimetric,
+        ] {
+            let options = TransformOptions {
+                rendering_intent: intent,
+                ..TransformOptions::default()
+            };
+            let mut want = vec![0u8; src.len() / 4 * 3];
+            let mut got = vec![0u8; src.len() / 4 * 3];
+            v2.create_transform_8bit(Layout::Rgba, &srgb, Layout::Rgb, options)
+                .unwrap()
+                .transform(&src, &mut want)
+                .unwrap();
+            v4.create_transform_8bit(Layout::Rgba, &srgb, Layout::Rgb, options)
+                .unwrap()
+                .transform(&src, &mut got)
+                .unwrap();
+            assert_eq!(want, got, "{intent:?}");
+        }
+    }
+
+    #[cfg(feature = "lut")]
+    #[test]
+    fn cmyk_to_a_lab_pcs_destination_of_four_outputs_is_refused() {
+        let cmyk = swop();
+        // SWOP's B2A tables are Lab to 4 inks, which no 3-channel destination can use.
+        let mut dest = cmyk.clone();
+        dest.color_space = DataColorSpace::Rgb;
+        let made = cmyk.create_transform_8bit(
+            Layout::Rgba,
+            &dest,
+            Layout::Rgb,
+            TransformOptions::default(),
+        );
+        assert!(matches!(made, Err(CmsError::UnsupportedProfileConnection)));
     }
 }
