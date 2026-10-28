@@ -281,7 +281,7 @@ pub(crate) fn inverse_lut_rgb_xyz_stage<
 >(
     dest: &ColorProfile,
     options: TransformOptions,
-) -> Result<InverseRgbXyzStage<T>, CmsError>
+) -> Result<Box<dyn InPlaceStage>, CmsError>
 where
     f32: AsPrimitive<T>,
     u32: AsPrimitive<T>,
@@ -302,7 +302,7 @@ where
         }];
 
         matrices.push(xyz_to_rgb.to_f32());
-        return Ok(InverseRgbXyzStage::Extended(XyzToRgbStageExtended::<T> {
+        return Ok(Box::new(XyzToRgbStageExtended::<T> {
             gamma_evaluator: extended_gamma,
             matrices,
             phantom_data: PhantomData,
@@ -336,27 +336,11 @@ where
     }];
 
     matrices.push(xyz_to_rgb.to_f32());
-    Ok(InverseRgbXyzStage::Gamma(XyzToRgbStage::<T> {
+    Ok(Box::new(XyzToRgbStage::<T> {
         gamma,
         channels,
         matrices,
         gamma_lut: GAMMA_LUT,
         bit_depth: BIT_DEPTH,
     }))
-}
-
-pub(crate) enum InverseRgbXyzStage<T: Clone> {
-    Gamma(XyzToRgbStage<T>),
-    #[cfg(feature = "extended_range")]
-    Extended(XyzToRgbStageExtended<T>),
-}
-
-impl<T: Clone + AsPrimitive<f32>> InPlaceStage for InverseRgbXyzStage<T> {
-    fn transform(&self, dst: &mut [f32]) -> Result<(), CmsError> {
-        match self {
-            InverseRgbXyzStage::Gamma(stage) => stage.transform(dst),
-            #[cfg(feature = "extended_range")]
-            InverseRgbXyzStage::Extended(stage) => stage.transform(dst),
-        }
-    }
 }

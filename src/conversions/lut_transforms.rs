@@ -99,37 +99,35 @@ pub(crate) trait Lut3x3Factory {
         (): LutBarycentricReduction<T, u16>;
 }
 
-/// Fills the outputs of the nodes from the first given, three a node.
-pub(crate) type FillNodes<'a> = Box<dyn FnMut(usize, &mut [f32]) -> Result<(), CmsError> + 'a>;
+/// Fills the given plane of the last input, three outputs a node.
+pub(crate) type FillPlane<'a> = Box<dyn FnMut(usize, &mut [f32]) -> Result<(), CmsError> + 'a>;
 
-/// A 4D grid of three outputs a node, either whole or made a plane of the last input at a time,
+/// A 4D grid of three outputs a node, made whole or a plane of the last input at a time,
 /// so that a transform can lay it out in its own layout without holding it twice.
 pub(crate) enum Grid4x3<'a> {
     Whole(Vec<f32>),
     Planes {
-        nodes: usize,
+        planes: usize,
         plane: usize,
-        fill: FillNodes<'a>,
+        fill: FillPlane<'a>,
     },
 }
 
 impl Grid4x3<'_> {
-    /// Each node's outputs mapped into a transform's layout.
     pub(crate) fn collect<E>(self, map: impl Fn(&[f32; 3]) -> E) -> Result<Vec<E>, CmsError> {
         match self {
             Grid4x3::Whole(lut) => Ok(lut.as_chunks::<3>().0.iter().map(map).collect()),
             Grid4x3::Planes {
-                nodes,
+                planes,
                 plane,
                 mut fill,
             } => {
                 let mut out = Vec::new();
-                out.try_reserve_exact(nodes)
-                    .map_err(|_| CmsError::OutOfMemory(nodes))?;
+                out.try_reserve_exact(planes * plane)
+                    .map_err(|_| CmsError::OutOfMemory(planes * plane))?;
                 let mut part = try_vec![0f32; plane * 3];
-                for first in (0..nodes).step_by(plane) {
-                    let part = &mut part[..plane.min(nodes - first) * 3];
-                    fill(first, part)?;
+                for k in 0..planes {
+                    fill(k, &mut part)?;
                     out.extend(part.as_chunks::<3>().0.iter().map(&map));
                 }
                 Ok(out)
@@ -137,18 +135,17 @@ impl Grid4x3<'_> {
         }
     }
 
-    /// The outputs as they come, three a node.
     pub(crate) fn into_f32(self) -> Result<Vec<f32>, CmsError> {
         match self {
             Grid4x3::Whole(lut) => Ok(lut),
             Grid4x3::Planes {
-                nodes,
+                planes,
                 plane,
                 mut fill,
             } => {
-                let mut out = try_vec![0f32; nodes * 3];
-                for (i, part) in out.chunks_mut(plane * 3).enumerate() {
-                    fill(i * plane, part)?;
+                let mut out = try_vec![0f32; planes * plane * 3];
+                for (k, part) in out.chunks_exact_mut(plane * 3).enumerate() {
+                    fill(k, part)?;
                 }
                 Ok(out)
             }
@@ -220,6 +217,29 @@ fn pcs_lab_v2_to_v4(profile: &ColorProfile, intent: RenderingIntent, lut: &mut [
         let stage = MatrixStage { matrices: v_mat };
         stage.transform(lut).unwrap();
     }
+}
+
+fn source_pcs_to_dest_pcs(
+    source: &ColorProfile,
+    dest: &ColorProfile,
+    intent: RenderingIntent,
+    apply_bpc_scaling: impl Fn(&mut [f32]),
+    lut: &mut [f32],
+) -> Result<(), CmsError> {
+    pcs_lab_v2_to_v4(source, intent, lut);
+
+    if source.pcs == DataColorSpace::Xyz && dest.pcs == DataColorSpace::Lab {
+        apply_bpc_scaling(lut);
+        StageXyzToLab::default().transform(lut)?;
+    } else if source.pcs == DataColorSpace::Lab && dest.pcs == DataColorSpace::Xyz {
+        StageLabToXyz::default().transform(lut)?;
+        apply_bpc_scaling(lut);
+    } else {
+        apply_bpc_scaling(lut);
+    }
+
+    pcs_lab_v4_to_v2(dest, intent, lut);
+    Ok(())
 }
 
 macro_rules! make_transform_3x3_fn {
@@ -393,7 +413,7 @@ use crate::conversions::transform_lut4_to_3::DefaultLut4x3Factory;
 make_transform_4x3_fn!(make_transformer_4x3, DefaultLut4x3Factory);
 
 use crate::conversions::prelude_lut_xyz_rgb::{
-    InverseRgbXyzStage, create_rgb_lin_lut, inverse_lut_rgb_xyz_stage, prepare_inverse_lut_rgb_xyz,
+    create_rgb_lin_lut, inverse_lut_rgb_xyz_stage, prepare_inverse_lut_rgb_xyz,
 };
 use crate::conversions::xyz_lab::{StageLabToXyz, StageXyzToLab};
 use crate::transform::PointeeSizeExpressible;
@@ -405,14 +425,13 @@ use crate::conversions::neon::NeonLut4x3Factory;
 make_transform_4x3_fn!(make_transformer_4x3, NeonLut4x3Factory);
 
 /// What turns the PCS into the destination's device values in a grid made by planes.
-enum PcsToDevice<T: Clone> {
-    Rgb(InverseRgbXyzStage<T>),
+enum PcsToDevice {
+    Rgb(Box<dyn InPlaceStage>),
     Lut(Box<dyn Stage>),
 }
 
-/// The 4-ink to RGB or Lab grid of [`make_lut_transform`] made a plane of the last ink at a time,
-/// node by node as it is made whole: for a device to PCS table of lut8 or lut16 and a
-/// matrix-shaper destination or one with a lut8 or lut16 PCS to device table, None for others.
+/// The 4-ink grid of [`make_lut_transform`] made a plane of the last ink at a time, for a lut8/lut16
+/// device to PCS table into a matrix-shaper or lut8/lut16 destination; None otherwise.
 fn grid_4x3_by_planes<
     'a,
     T: Copy
@@ -461,13 +480,9 @@ where
         },
         _ => return Ok(None),
     };
-    let black_points = match (
-        source.detect_black_point(options.rendering_intent, TransformDirection::DeviceToPcs),
-        dest.detect_black_point(options.rendering_intent, TransformDirection::PcsToDevice),
-    ) {
-        (Some(src_bp), Some(dest_bp)) => Some((src_bp, dest_bp)),
-        _ => None,
-    };
+    let black_points = source
+        .detect_black_point(options.rendering_intent, TransformDirection::DeviceToPcs)
+        .zip(dest.detect_black_point(options.rendering_intent, TransformDirection::PcsToDevice));
     let apply_bpc_scaling = move |lut: &mut [f32]| {
         if let Some((src_bp, dest_bp)) = black_points {
             compensate_bpc_in_lut(lut, src_bp, dest_bp);
@@ -477,50 +492,41 @@ where
     let plane = GRID_SIZE * GRID_SIZE * GRID_SIZE;
     let recpeq = 1f32 / (GRID_SIZE - 1) as f32;
     let mut samples = try_vec![0f32; plane * 4];
+    for (i, sample) in samples.as_chunks_mut::<4>().0.iter_mut().enumerate() {
+        let (c, m, y) = (
+            i / (GRID_SIZE * GRID_SIZE),
+            i / GRID_SIZE % GRID_SIZE,
+            i % GRID_SIZE,
+        );
+        *sample = [c as f32 * recpeq, m as f32 * recpeq, y as f32 * recpeq, 0.];
+    }
     let mut scratch = match last {
         PcsToDevice::Lut(_) => try_vec![0f32; plane * 3],
         PcsToDevice::Rgb(_) => Vec::new(),
     };
-    let fill = move |first: usize, out: &mut [f32]| -> Result<(), CmsError> {
-        let samples = &mut samples[..out.len() / 3 * 4];
-        for (j, sample) in samples.as_chunks_mut::<4>().0.iter_mut().enumerate() {
-            let i = first + j;
-            let (k, c) = (i / plane, i / (GRID_SIZE * GRID_SIZE) % GRID_SIZE);
-            let (m, y) = (i / GRID_SIZE % GRID_SIZE, i % GRID_SIZE);
-            *sample = [
-                c as f32 * recpeq,
-                m as f32 * recpeq,
-                y as f32 * recpeq,
-                k as f32 * recpeq,
-            ];
+    let fill = move |k: usize, out: &mut [f32]| -> Result<(), CmsError> {
+        let k = k as f32 * recpeq;
+        for sample in samples.as_chunks_mut::<4>().0 {
+            sample[3] = k;
         }
-        lut_stage.transform(samples, out)?;
-
-        pcs_lab_v2_to_v4(source, options.rendering_intent, out);
-
-        if source.pcs == DataColorSpace::Xyz && dest.pcs == DataColorSpace::Lab {
-            apply_bpc_scaling(out);
-            StageXyzToLab::default().transform(out)?;
-        } else if source.pcs == DataColorSpace::Lab && dest.pcs == DataColorSpace::Xyz {
-            StageLabToXyz::default().transform(out)?;
-            apply_bpc_scaling(out);
-        } else {
-            apply_bpc_scaling(out);
-        }
-
-        pcs_lab_v4_to_v2(dest, options.rendering_intent, out);
-
+        lut_stage.transform(&samples, out)?;
+        source_pcs_to_dest_pcs(
+            source,
+            dest,
+            options.rendering_intent,
+            apply_bpc_scaling,
+            out,
+        )?;
         match &last {
             PcsToDevice::Rgb(stage) => stage.transform(out),
             PcsToDevice::Lut(stage) => {
-                let scratch = &mut scratch[..out.len()];
                 scratch.copy_from_slice(out);
-                stage.transform(scratch, out)
+                stage.transform(&scratch, out)
             }
         }
     };
     Ok(Some(Grid4x3::Planes {
-        nodes: plane * GRID_SIZE,
+        planes: GRID_SIZE,
         plane,
         fill: Box::new(fill),
     }))
@@ -675,21 +681,13 @@ where
                     }
                 };
 
-                pcs_lab_v2_to_v4(source, options.rendering_intent, &mut lut);
-
-                if source.pcs == DataColorSpace::Xyz && dest.pcs == DataColorSpace::Lab {
-                    apply_bpc_scaling(&mut lut);
-                    let xyz_to_lab = StageXyzToLab::default();
-                    xyz_to_lab.transform(&mut lut)?;
-                } else if source.pcs == DataColorSpace::Lab && dest.pcs == DataColorSpace::Xyz {
-                    let lab_to_xyz_stage = StageLabToXyz::default();
-                    lab_to_xyz_stage.transform(&mut lut)?;
-                    apply_bpc_scaling(&mut lut);
-                } else {
-                    apply_bpc_scaling(&mut lut);
-                }
-
-                pcs_lab_v4_to_v2(dest, options.rendering_intent, &mut lut);
+                source_pcs_to_dest_pcs(
+                    source,
+                    dest,
+                    options.rendering_intent,
+                    apply_bpc_scaling,
+                    &mut lut,
+                )?;
 
                 if dest.pcs == DataColorSpace::Xyz {
                     if dest.is_matrix_shaper() {
