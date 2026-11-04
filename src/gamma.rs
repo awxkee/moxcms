@@ -26,6 +26,7 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+use crate::helpers::boxed_array;
 use crate::mlaf::{fmla, mlaf};
 use crate::transform::PointeeSizeExpressible;
 use crate::*;
@@ -962,7 +963,7 @@ impl TransferCharacteristics {
         };
         assert!(cap_values <= N, "Invalid lut table construction");
 
-        let mut gamma_table = Box::new([0f32; N]);
+        let mut gamma_table = boxed_array::<f32, N>(0.);
         make_linear_table_impl(gamma_table.as_mut_slice(), cap_values, max_value, |x| {
             self.linearize(x)
         });
@@ -984,7 +985,7 @@ impl TransferCharacteristics {
         let max_value = ((1 << bit_depth) - 1) as f64;
         make_gamma_table_impl(&mut scratch, max_value, T::FINITE, |x| self.gamma(x));
 
-        let mut table = Box::new([T::default(); BUCKET]);
+        let mut table = boxed_array::<T, BUCKET>(T::default());
         for (src, dst) in scratch.iter().zip(table.iter_mut()) {
             *dst = src.as_();
         }

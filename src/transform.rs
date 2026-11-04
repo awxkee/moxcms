@@ -28,6 +28,7 @@
  */
 use crate::conversions::*;
 use crate::err::CmsError;
+use crate::helpers::boxed_array;
 use crate::interceptors::{FromCmykaInterceptor, ToCmykaInterceptor};
 use crate::trc::GammaLutInterpolate;
 use crate::{ColorProfile, DataColorSpace, LutType, LutWarehouse, RenderingIntent, Vector3f, Xyzd};
@@ -1051,7 +1052,7 @@ impl ColorProfile {
                         options.allow_use_cicp_transfer,
                     )?;
 
-                    let mut gray_linear2 = Box::new([0f32; 65536]);
+                    let mut gray_linear2 = boxed_array::<f32, 65536>(0.);
                     for (dst, src) in gray_linear2.iter_mut().zip(gray_linear.iter()) {
                         *dst = *src;
                     }
@@ -1989,5 +1990,56 @@ mod tests {
             TransformOptions::default(),
         );
         assert!(matches!(made, Err(CmsError::UnsupportedProfileConnection)));
+    }
+
+    /// Transforms must build on small thread stacks, such as the 256 KiB of a 32-bit IIS
+    /// worker thread: a stack overflow aborts the whole process.
+    #[test]
+    fn transforms_build_on_a_256_kib_thread_stack() {
+        let srgb = ColorProfile::new_srgb();
+        let p3 = ColorProfile::new_display_p3();
+        let gray = ColorProfile::new_gray_with_gamma(2.2);
+        #[cfg(feature = "lut")]
+        let cmyk = swop();
+        std::thread::Builder::new()
+            .stack_size(256 * 1024)
+            .spawn(move || {
+                let scales = [
+                    BarycentricWeightScale::Low,
+                    #[cfg(feature = "options")]
+                    BarycentricWeightScale::High,
+                ];
+                for barycentric_weight_scale in scales {
+                    let options = TransformOptions {
+                        barycentric_weight_scale,
+                        ..TransformOptions::default()
+                    };
+                    let rgba = Layout::Rgba;
+                    p3.create_transform_8bit(rgba, &srgb, rgba, options)
+                        .unwrap();
+                    p3.create_transform_10bit(rgba, &srgb, rgba, options)
+                        .unwrap();
+                    p3.create_transform_12bit(rgba, &srgb, rgba, options)
+                        .unwrap();
+                    p3.create_transform_16bit(rgba, &srgb, rgba, options)
+                        .unwrap();
+                    p3.create_transform_f32(rgba, &srgb, rgba, options).unwrap();
+                    p3.create_transform_f64(rgba, &srgb, rgba, options).unwrap();
+                    gray.create_transform_8bit(Layout::Gray, &srgb, rgba, options)
+                        .unwrap();
+                    gray.create_transform_16bit(Layout::Gray, &srgb, rgba, options)
+                        .unwrap();
+                    #[cfg(feature = "lut")]
+                    {
+                        cmyk.create_transform_8bit(rgba, &srgb, rgba, options)
+                            .unwrap();
+                        cmyk.create_transform_16bit(rgba, &srgb, rgba, options)
+                            .unwrap();
+                    }
+                }
+            })
+            .unwrap()
+            .join()
+            .unwrap();
     }
 }

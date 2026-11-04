@@ -27,6 +27,7 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::cicp::create_rec709_parametric;
+use crate::helpers::boxed_array;
 use crate::mlaf::{mlaf, neg_mlaf};
 use crate::transform::PointeeSizeExpressible;
 use crate::writer::FloatToFixedU8Fixed8;
@@ -391,7 +392,7 @@ fn passthrough_table<T: PointeeSizeExpressible, const N: usize, const BIT_DEPTH:
         T::NOT_FINITE_LINEAR_TABLE_SIZE
     };
     assert!(cap_values <= N, "Invalid lut table construction");
-    let mut gamma_table = Box::new([0f32; N]);
+    let mut gamma_table = boxed_array::<f32, N>(0.);
     passthrough_table_impl(gamma_table.as_mut_slice(), cap_values, max_value);
     gamma_table
 }
@@ -418,7 +419,7 @@ fn linear_forward_table<T: PointeeSizeExpressible, const N: usize, const BIT_DEP
         T::NOT_FINITE_LINEAR_TABLE_SIZE
     };
     assert!(cap_values <= N, "Invalid lut table construction");
-    let mut gamma_table = Box::new([0f32; N]);
+    let mut gamma_table = boxed_array::<f32, N>(0.);
     linear_forward_table_impl(
         gamma_table.as_mut_slice(),
         cap_values,
@@ -485,7 +486,7 @@ fn linear_lut_interpolate<T: PointeeSizeExpressible, const N: usize, const BIT_D
         T::NOT_FINITE_LINEAR_TABLE_SIZE
     };
     assert!(cap_values <= N, "Invalid lut table construction");
-    let mut gamma_table = Box::new([0f32; N]);
+    let mut gamma_table = boxed_array::<f32, N>(0.);
     linear_lut_interpolate_impl(gamma_table.as_mut_slice(), table, cap_values, max_value);
     gamma_table
 }
@@ -517,7 +518,7 @@ fn linear_curve_parametric<T: PointeeSizeExpressible, const N: usize, const BIT_
     } else {
         T::NOT_FINITE_LINEAR_TABLE_SIZE
     };
-    let mut gamma_table = Box::new([0f32; N]);
+    let mut gamma_table = boxed_array::<f32, N>(0.);
     linear_curve_parametric_impl(gamma_table.as_mut_slice(), &params, cap_value, max_value);
     Some(gamma_table)
 }
@@ -532,7 +533,7 @@ fn linear_curve_parametric_s_impl(output: &mut [f32], params: &ParametricCurve) 
 
 fn linear_curve_parametric_s<const N: usize>(params: &[f32]) -> Option<Box<[f32; N]>> {
     let params = ParametricCurve::new(params)?;
-    let mut gamma_table = Box::new([0f32; N]);
+    let mut gamma_table = boxed_array::<f32, N>(0.);
     linear_curve_parametric_s_impl(gamma_table.as_mut_slice(), &params);
     Some(gamma_table)
 }
@@ -567,7 +568,7 @@ where
     let mut scratch = vec![0f32; N];
     make_gamma_linear_table_impl(&mut scratch, max_range, T::FINITE);
 
-    let mut table = Box::new([T::default(); BUCKET]);
+    let mut table = boxed_array::<T, BUCKET>(T::default());
     for (src, dst) in scratch.iter().zip(table.iter_mut()) {
         *dst = src.as_();
     }
@@ -725,7 +726,7 @@ where
     u32: AsPrimitive<T>,
     f32: AsPrimitive<T>,
 {
-    let mut new_table = Box::new([T::default(); BUCKET]);
+    let mut new_table = boxed_array::<T, BUCKET>(T::default());
     for (v, output) in new_table.iter_mut().take(N).enumerate() {
         *output = T::gamma_lut_interp::<T, N, BIT_DEPTH>(v as u32, table);
     }
@@ -773,7 +774,7 @@ where
     T: Default + Copy + 'static + PointeeSizeExpressible,
     f32: AsPrimitive<T>,
 {
-    let mut table = Box::new([T::default(); BUCKET]);
+    let mut table = boxed_array::<T, BUCKET>(T::default());
     let mut scratch = vec![0f32; N];
     let cap = ((1 << bit_depth) - 1) as f32;
     make_gamma_pow_table_inner(&mut scratch, gamma, cap, T::FINITE);
@@ -812,11 +813,11 @@ fn make_gamma_parametric_table<
 where
     f32: AsPrimitive<T>,
 {
-    let mut scratch = [0f32; N];
+    let mut scratch = vec![0f32; N];
     let cap = ((1 << BIT_DEPTH) - 1) as f32;
     make_gamma_parametric_table_impl(&mut scratch, &parametric_curve, cap, T::FINITE);
 
-    let mut table = Box::new([T::default(); BUCKET]);
+    let mut table = boxed_array::<T, BUCKET>(T::default());
     for (src, dst) in scratch.iter().zip(table.iter_mut()) {
         *dst = src.as_();
     }
@@ -1031,7 +1032,7 @@ impl ToneReprCurve {
                     return Some(v);
                 }
 
-                let mut gamma_table_uint = Box::new([0; N]);
+                let mut gamma_table_uint = boxed_array::<u16, N>(0);
 
                 let inverted_size: usize = N;
                 let gamma_table = linear_curve_parametric_s::<N>(params)?;
