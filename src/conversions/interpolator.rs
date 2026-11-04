@@ -29,6 +29,8 @@
 #![cfg(feature = "lut")]
 #![allow(dead_code)]
 use crate::conversions::lut_transforms::LUT_SAMPLING;
+#[cfg(feature = "options")]
+use crate::helpers::boxed_array;
 use crate::math::{FusedMultiplyAdd, FusedMultiplyNegAdd};
 use crate::mlaf::fmla;
 use crate::{Vector3f, Vector4f};
@@ -106,7 +108,7 @@ impl BarycentricWeight<f32> {
     #[cfg(feature = "options")]
     pub(crate) fn create_binned<const GRID_SIZE: usize, const BINS: usize>()
     -> Box<[BarycentricWeight<f32>; BINS]> {
-        let mut weights = Box::new([BarycentricWeight::<f32>::default(); BINS]);
+        let mut weights = boxed_array::<_, BINS>(BarycentricWeight::<f32>::default());
         let b_scale: f32 = 1.0 / (BINS - 1) as f32;
         for (index, weight) in weights.iter_mut().enumerate() {
             let x: i32 = (index as f32 * (GRID_SIZE as i32 - 1) as f32 * b_scale).floor() as i32;
@@ -149,7 +151,7 @@ impl BarycentricWeight<i16> {
     #[cfg(feature = "options")]
     pub(crate) fn create_binned<const GRID_SIZE: usize, const BINS: usize>()
     -> Box<[BarycentricWeight<i16>; BINS]> {
-        let mut weights = Box::new([BarycentricWeight::<i16>::default(); BINS]);
+        let mut weights = boxed_array::<_, BINS>(BarycentricWeight::<i16>::default());
         let b_scale: f32 = 1.0 / (BINS - 1) as f32;
         for (index, weight) in weights.iter_mut().enumerate() {
             let x: i32 = (index as f32 * (GRID_SIZE as i32 - 1) as f32 * b_scale).floor() as i32;

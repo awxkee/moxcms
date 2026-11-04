@@ -168,6 +168,19 @@ impl ToneReprCurve {
     }
 }
 
+/// Allocates `[value; N]` directly on the heap.
+///
+/// `Box::new([value; N])` evaluates the array before moving it into the box, and the
+/// optimizer removes that temporary only sometimes. For the 4096- and 65536-entry tables
+/// built in this crate it can reserve up to 786,432 bytes of stack, which overflows small
+/// thread stacks.
+pub(crate) fn boxed_array<T: Clone, const N: usize>(value: T) -> Box<[T; N]> {
+    match vec![value; N].into_boxed_slice().try_into() {
+        Ok(array) => array,
+        Err(_) => unreachable!("a vector of N elements converts to [T; N]"),
+    }
+}
+
 pub(crate) fn read_matrix_3d(arr: &[u8]) -> Result<Matrix3d, CmsError> {
     if arr.len() < 36 {
         return Err(CmsError::InvalidProfile);

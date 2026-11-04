@@ -28,6 +28,7 @@
  */
 #[cfg(feature = "in_place")]
 use crate::InPlaceTransformExecutor;
+use crate::helpers::boxed_array;
 use crate::transform::PointeeSizeExpressible;
 use crate::{CmsError, Layout, TransformExecutor};
 use num_traits::AsPrimitive;
@@ -57,7 +58,7 @@ where
         return Err(CmsError::UnsupportedProfileConnection);
     }
 
-    let mut fused_gamma = Box::new([T::default(); 65536]);
+    let mut fused_gamma = boxed_array::<T, 65536>(T::default());
     let max_lut_size = (gamma_lut - 1) as f32;
     for (&src, dst) in gray_linear.iter().zip(fused_gamma.iter_mut()) {
         let possible_value = ((src * max_lut_size).round() as u32).min(max_lut_size as u32) as u16;
@@ -157,7 +158,7 @@ where
         return Err(CmsError::UnsupportedProfileConnection);
     }
 
-    let mut fused_gamma = Box::new([T::default(); 65536]);
+    let mut fused_gamma = boxed_array::<T, 65536>(T::default());
     let max_lut_size = (gamma_lut - 1) as f32;
     for (&src, dst) in gray_linear.iter().zip(fused_gamma.iter_mut()) {
         let possible_value = ((src * max_lut_size).round() as u32).min(max_lut_size as u32) as u16;

@@ -27,6 +27,7 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::cicp::create_rec709_parametric;
+use crate::helpers::boxed_array;
 use crate::trc::{ToneReprCurve, curve_from_gamma};
 use crate::{
     CicpColorPrimaries, CicpProfile, ColorPrimaries, ColorProfile, DataColorSpace,
@@ -114,8 +115,8 @@ fn pq_curve(x: f64) -> f64 {
     f64::copysign(res, sign)
 }
 
-pub(crate) fn build_trc_table_pq() -> [u16; 4096] {
-    let mut table = [0u16; 4096];
+pub(crate) fn build_trc_table_pq() -> Box<[u16; 4096]> {
+    let mut table = boxed_array::<u16, 4096>(0);
 
     const NUM_ENTRIES: usize = 4096;
     let mut i = 0usize;
@@ -136,8 +137,8 @@ pub(crate) fn build_trc_table_pq() -> [u16; 4096] {
     table
 }
 
-pub(crate) fn build_trc_table_hlg() -> [u16; 4096] {
-    let mut table = [0u16; 4096];
+pub(crate) fn build_trc_table_hlg() -> Box<[u16; 4096]> {
+    let mut table = boxed_array::<u16, 4096>(0);
 
     const NUM_ENTRIES: usize = 4096;
     let mut i = 0usize;
@@ -184,9 +185,9 @@ fn hlg_curve(x: f64) -> f64 {
 }
 
 /// Perceptual Quantizer Lookup table
-static PQ_LUT_TABLE: OnceLock<[u16; 4096]> = OnceLock::new();
+static PQ_LUT_TABLE: OnceLock<Box<[u16; 4096]>> = OnceLock::new();
 /// Hybrid Log Gamma Lookup table
-static HLG_LUT_TABLE: OnceLock<[u16; 4096]> = OnceLock::new();
+static HLG_LUT_TABLE: OnceLock<Box<[u16; 4096]>> = OnceLock::new();
 
 pub fn srgb_colorants() -> Matrix3d {
     ColorProfile::colorants_matrix(white_point_d65(), ColorPrimaries::BT_709)
