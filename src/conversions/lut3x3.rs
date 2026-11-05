@@ -236,11 +236,6 @@ impl Stage for Lut3x3 {
     fn transform(&self, src: &[f32], dst: &mut [f32]) -> Result<(), CmsError> {
         let l_tbl = Cube::new(&self.clut, self.grid_size as usize, 3)?;
 
-        // If PCS is LAB then linear interpolation should be used
-        if self.pcs == DataColorSpace::Lab || self.pcs == DataColorSpace::Xyz {
-            return self.transform_impl(src, dst, |x, y, z| l_tbl.trilinear_vec3(x, y, z));
-        }
-
         match self.interpolation_method {
             #[cfg(feature = "options")]
             InterpolationMethod::Tetrahedral => {
@@ -371,11 +366,6 @@ where
 {
     fn to_pcs(&self, input: &[T]) -> Result<Vec<f32>, CmsError> {
         let l_tbl = Cube::new(&self.clut, self.grid_size as usize, 3)?;
-
-        // If PCS is LAB then linear interpolation should be used
-        if self.pcs == DataColorSpace::Lab || self.pcs == DataColorSpace::Xyz {
-            return self.to_pcs_impl(input, |x, y, z| l_tbl.trilinear_vec3(x, y, z));
-        }
 
         match self.interpolation_method {
             #[cfg(feature = "options")]
