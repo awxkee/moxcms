@@ -26,6 +26,7 @@
  * // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+use crate::chad::PCS_D50;
 use crate::cicp::{
     CicpColorPrimaries, ColorPrimaries, MatrixCoefficients, TransferCharacteristics,
 };
@@ -676,7 +677,7 @@ impl ProfileHeader {
             device_model: 0,
             device_attributes: [0; 8],
             rendering_intent: RenderingIntent::Perceptual,
-            illuminant: Chromaticity::D50.to_xyz(),
+            illuminant: PCS_D50.to_xyz(),
             creator: 0,
             profile_id: [0; 16],
             reserved: [0; 28],
@@ -920,6 +921,7 @@ pub struct ColorProfile {
     pub blue_colorant: Xyzd,
     pub white_point: Xyzd,
     pub black_point: Option<Xyzd>,
+    /// Chromatically adapted media white (`wtpt`); PCS D50 for display profiles.
     pub media_white_point: Option<Xyzd>,
     pub luminance: Option<Xyzd>,
     pub measurement: Option<Measurement>,
@@ -928,6 +930,7 @@ pub struct ColorProfile {
     pub blue_trc: Option<ToneReprCurve>,
     pub gray_trc: Option<ToneReprCurve>,
     pub cicp: Option<CicpProfile>,
+    /// Full transform from the native adopted white to PCS D50 (`chad`).
     pub chromatic_adaptation: Option<Matrix3d>,
     pub lut_a_to_b_perceptual: Option<LutWarehouse>,
     pub lut_a_to_b_colorimetric: Option<LutWarehouse>,
@@ -1250,6 +1253,7 @@ impl ColorProfile {
     }
 
     /// Updates RGB triple colorimetry from 3 [Chromaticity] and white point
+    /// The colorants and white point tags are adapted to PCS D50.
     /// This will nullify CICP.
     pub fn update_rgb_colorimetry(&mut self, white_point: XyY, primaries: ColorPrimaries) {
         self.cicp = None;
@@ -1257,11 +1261,17 @@ impl ColorProfile {
         let green_xyz = primaries.green.to_xyzd();
         let blue_xyz = primaries.blue.to_xyzd();
 
-        self.chromatic_adaptation = Some(Matrix3d::bradford());
         self.update_rgb_colorimetry_triplet(white_point, red_xyz, green_xyz, blue_xyz)
     }
 
+    pub(crate) fn update_chromatic_adaptation(&mut self, white_point: XyY) {
+        self.white_point = PCS_D50;
+        self.media_white_point = Some(PCS_D50);
+        self.chromatic_adaptation = Some(adapt_to_d50_d(Matrix3d::IDENTITY, white_point));
+    }
+
     /// Updates RGB triple colorimetry from 3 [Xyzd] and white point
+    /// The colorants and white point tags are adapted to PCS D50.
     ///
     /// To work on `const` context this method does have restrictions.
     /// If invalid values were provided it may return invalid matrix or NaNs.
@@ -1275,6 +1285,7 @@ impl ColorProfile {
         blue_xyz: Xyzd,
     ) {
         self.cicp = None;
+        self.update_chromatic_adaptation(white_point);
         let xyz_matrix = Matrix3d {
             v: [
                 [red_xyz.x, green_xyz.x, blue_xyz.x],
@@ -1403,6 +1414,53 @@ impl ColorProfile {
 mod tests {
     use super::*;
     use std::fs;
+
+    #[test]
+    fn rgb_colorimetry_updates_refresh_adaptation() {
+        // Use the exact PCS white so adaptation must be identity, even
+        // when replacing a profile that originally had a different white.
+        let sum = 0.9642 + 1. + 0.8249;
+        let white = XyY::new(0.9642 / sum, 1. / sum, 1.);
+        let primaries = ColorPrimaries::BT_709;
+        for use_triplet in [false, true] {
+            let mut profile = ColorProfile::new_display_p3();
+            profile.white_point = crate::white_point_d65().to_xyzd();
+            profile.media_white_point = Some(profile.white_point);
+            if use_triplet {
+                profile.update_rgb_colorimetry_triplet(
+                    white,
+                    primaries.red.to_xyzd(),
+                    primaries.green.to_xyzd(),
+                    primaries.blue.to_xyzd(),
+                );
+            } else {
+                profile.update_rgb_colorimetry(white, primaries);
+            }
+            assert!(profile.cicp.is_none());
+            for white_point in [profile.white_point, profile.media_white_point.unwrap()] {
+                for (actual, expected) in white_point
+                    .to_vector_d()
+                    .v
+                    .into_iter()
+                    .zip([0.9642, 1., 0.8249])
+                {
+                    assert!((actual - expected).abs() < 1e-7);
+                }
+            }
+            let chad = profile.chromatic_adaptation.unwrap();
+            for (row, expected) in chad.v.iter().zip(Matrix3d::IDENTITY.v) {
+                for (&actual, expected) in row.iter().zip(expected) {
+                    assert!((actual - expected).abs() < 1e-7);
+                }
+            }
+            let native_white = chad
+                .inverse()
+                .mul_vector(profile.media_white_point.unwrap().to_vector_d());
+            for (actual, expected) in native_white.v.into_iter().zip([0.9642, 1., 0.8249]) {
+                assert!((actual - expected).abs() < 1e-7);
+            }
+        }
+    }
 
     #[test]
     fn test_gray() {
