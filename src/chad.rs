@@ -27,7 +27,11 @@
  * // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 use crate::matrix::{Matrix3f, Vector3f, Xyz};
-use crate::{Chromaticity, Matrix3d, Vector3d, XyY};
+use crate::{Matrix3d, Vector3d, XyY, Xyzd};
+
+// ICC.1:2022 section 7.2.16 defines the PCS illuminant with these XYZ
+// values. Keep the colorants, adaptation tag and profile white consistent.
+pub(crate) const PCS_D50: Xyzd = Xyzd::new(0.9642, 1.0, 0.8249);
 
 impl Matrix3d {
     pub(crate) fn bradford() -> Matrix3d {
@@ -141,11 +145,11 @@ pub fn adaption_matrix_d(source_illumination: Xyz, target_illumination: Xyz) -> 
 }
 
 pub fn adapt_to_d50(r: Matrix3f, source_white_pt: XyY) -> Matrix3f {
-    adapt_to_illuminant(r, source_white_pt, Chromaticity::D50.to_xyz())
+    adapt_to_illuminant(r, source_white_pt, PCS_D50.to_xyz())
 }
 
 pub fn adapt_to_d50_d(r: Matrix3d, source_white_pt: XyY) -> Matrix3d {
-    adapt_to_illuminant_d(r, source_white_pt, Chromaticity::D50.to_xyz())
+    adapt_to_illuminant_d(r, source_white_pt, PCS_D50.to_xyz())
 }
 
 pub fn adapt_to_illuminant(r: Matrix3f, source_white_pt: XyY, illuminant_xyz: Xyz) -> Matrix3f {
