@@ -235,15 +235,12 @@ impl Lut4x3Factory for NeonLut4x3Factory {
         (): LutBarycentricReduction<T, u8>,
         (): LutBarycentricReduction<T, u16>,
     {
-        if options.prefer_fixed_point
+        if T::FINITE
+            && options.prefer_fixed_point
             && BIT_DEPTH < 16
             && std::arch::is_aarch64_feature_detected!("rdm")
         {
-            let q: f32 = if T::FINITE {
-                ((1i32 << BIT_DEPTH as i32) - 1) as f32
-            } else {
-                ((1i32 << 14i32) - 1) as f32
-            };
+            let q = ((1i32 << BIT_DEPTH) - 1) as f32;
             let lut = lut.collect(|x| {
                 NeonAlignedI16x4([
                     (x[0] * q).round() as i16,

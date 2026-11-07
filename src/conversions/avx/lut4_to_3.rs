@@ -235,12 +235,8 @@ impl Lut4x3Factory for AvxLut4x3Factory {
         (): LutBarycentricReduction<T, u8>,
         (): LutBarycentricReduction<T, u16>,
     {
-        if options.prefer_fixed_point && BIT_DEPTH < 16 {
-            let q: f32 = if T::FINITE {
-                ((1i32 << BIT_DEPTH as i32) - 1) as f32
-            } else {
-                ((1i32 << 14i32) - 1) as f32
-            };
+        if T::FINITE && options.prefer_fixed_point && BIT_DEPTH < 16 {
+            let q = ((1i32 << BIT_DEPTH) - 1) as f32;
             let lut = lut.collect(|x| {
                 AvxAlignedI16([
                     (x[0] * q).round() as i16,

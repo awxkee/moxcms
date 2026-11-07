@@ -1042,3 +1042,128 @@ where
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::BarycentricWeightScale;
+    use crate::conversions::transform_lut3_to_3::DefaultLut3x3Factory;
+    use crate::conversions::transform_lut4_to_3::DefaultLut4x3Factory;
+
+    fn assert_float_lut_range<T, F3: Lut3x3Factory, F4: Lut4x3Factory>()
+    where
+        T: Copy
+            + Default
+            + PointeeSizeExpressible
+            + AsPrimitive<f64>
+            + AsPrimitive<f32>
+            + Send
+            + Sync,
+        f32: AsPrimitive<T>,
+        u32: AsPrimitive<T>,
+        (): LutBarycentricReduction<T, u8>,
+        (): LutBarycentricReduction<T, u16>,
+    {
+        // These are final execution-grid values, after PCS and destination conversion.
+        // Include both signs beyond the old i16 / 16383 range and an in-range value
+        // that would lose precision if quantized to that grid.
+        const NODE: [f32; 3] = [-3.25, 0.123456, 10.33];
+        let check = |transform: &dyn TransformExecutor<T>, channels: usize| {
+            for v in [0.0f32, 0.25, 0.5, 1.0] {
+                let input = vec![v.as_(); channels];
+                let mut output = [T::default(); 3];
+                transform.transform(&input, &mut output).unwrap();
+                for (actual, expected) in output.into_iter().zip(NODE) {
+                    let actual: f64 = actual.as_();
+                    assert!(
+                        (actual - expected as f64).abs() < 1e-6,
+                        "floating LUT output {actual} differs from {expected}"
+                    );
+                }
+            }
+        };
+
+        for prefer_fixed_point in [true, false] {
+            for barycentric_weight_scale in [
+                BarycentricWeightScale::Low,
+                #[cfg(feature = "options")]
+                BarycentricWeightScale::High,
+            ] {
+                let options = TransformOptions {
+                    prefer_fixed_point,
+                    barycentric_weight_scale,
+                    ..Default::default()
+                };
+                let transform = F3::make_transform_3x3::<
+                    T,
+                    { Layout::Rgb as u8 },
+                    { Layout::Rgb as u8 },
+                    2,
+                    1,
+                    256,
+                >(
+                    NODE.repeat(2usize.pow(3)),
+                    options,
+                    DataColorSpace::Rgb,
+                    true,
+                );
+                check(transform.as_ref(), 3);
+
+                for grid in [
+                    Grid4x3::Whole(NODE.repeat(2usize.pow(4))),
+                    Grid4x3::Planes {
+                        planes: 2,
+                        plane: 2usize.pow(3),
+                        fill: Box::new(|_, out| {
+                            for node in out.as_chunks_mut::<3>().0 {
+                                *node = NODE;
+                            }
+                            Ok(())
+                        }),
+                    },
+                ] {
+                    let transform = F4::make_transform_4x3::<T, { Layout::Rgb as u8 }, 2, 1, 256>(
+                        grid,
+                        options,
+                        DataColorSpace::Rgb,
+                        true,
+                    )
+                    .unwrap();
+                    check(transform.as_ref(), 4);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_float_lut_range_scalar() {
+        assert_float_lut_range::<f32, DefaultLut3x3Factory, DefaultLut4x3Factory>();
+        assert_float_lut_range::<f64, DefaultLut3x3Factory, DefaultLut4x3Factory>();
+    }
+
+    #[cfg(all(target_arch = "aarch64", feature = "neon_luts"))]
+    #[test]
+    fn test_float_lut_range_neon() {
+        assert_float_lut_range::<f32, NeonLut3x3Factory, NeonLut4x3Factory>();
+        assert_float_lut_range::<f64, NeonLut3x3Factory, NeonLut4x3Factory>();
+    }
+
+    #[cfg(all(any(target_arch = "x86", target_arch = "x86_64"), feature = "sse_luts"))]
+    #[test]
+    fn test_float_lut_range_sse() {
+        if std::arch::is_x86_feature_detected!("sse4.1") {
+            assert_float_lut_range::<f32, SseLut3x3Factory, SseLut4x3Factory>();
+            assert_float_lut_range::<f64, SseLut3x3Factory, SseLut4x3Factory>();
+        }
+    }
+
+    #[cfg(all(target_arch = "x86_64", feature = "avx_luts"))]
+    #[test]
+    fn test_float_lut_range_avx() {
+        if std::arch::is_x86_feature_detected!("avx2") && std::arch::is_x86_feature_detected!("fma")
+        {
+            assert_float_lut_range::<f32, AvxLut3x3Factory, AvxLut4x3Factory>();
+            assert_float_lut_range::<f64, AvxLut3x3Factory, AvxLut4x3Factory>();
+        }
+    }
+}

@@ -507,7 +507,8 @@ impl Lut4x3Factory for DefaultLut4x3Factory {
         (): LutBarycentricReduction<T, u8>,
         (): LutBarycentricReduction<T, u16>,
     {
-        let use_fixed_point = options.prefer_fixed_point
+        let use_fixed_point = T::FINITE
+            && options.prefer_fixed_point
             && BIT_DEPTH < 16
             && (color_space == DataColorSpace::Lab
                 || (is_linear && color_space == DataColorSpace::Rgb)
@@ -515,11 +516,7 @@ impl Lut4x3Factory for DefaultLut4x3Factory {
                 || options.interpolation_method == InterpolationMethod::Linear);
 
         if use_fixed_point {
-            let q = if T::FINITE {
-                ((1i32 << BIT_DEPTH) - 1) as f32
-            } else {
-                ((1i32 << 14) - 1) as f32
-            };
+            let q = ((1i32 << BIT_DEPTH) - 1) as f32;
             let lut: Vec<AlignedI16x4> = lut.collect(|x| {
                 AlignedI16x4([
                     (x[0] * q).round() as i16,

@@ -87,6 +87,8 @@ pub struct TransformOptions {
     ///
     /// Q2.13 for RGB->XYZ->RGB is used.
     /// LUT interpolation use Q0.15.
+    /// For LUT transforms, this preference applies only to integer samples.
+    /// Floating-point samples always use floating-point grids to preserve their range.
     pub prefer_fixed_point: bool,
     /// Interpolation method for 3D LUT
     ///
