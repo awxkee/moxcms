@@ -735,6 +735,9 @@ impl ColorProfile {
         if curve_type == TagTypeDefinition::LutToneCurve {
             let entry_count = u32::from_be_bytes([tag[8], tag[9], tag[10], tag[11]]) as usize;
             if entry_count == 0 {
+                // The type, reserved and count fields, so a curve after this
+                // one in an mAB or mBA set is read from its own offset.
+                *read_size = 12;
                 return Ok(Some(ToneReprCurve::Lut(vec![])));
             }
             if entry_count > options.max_allowed_trc_size {
@@ -997,6 +1000,7 @@ impl ColorProfile {
 mod tests {
     use super::*;
     use crate::profile::ParsingOptions;
+    use crate::{DataColorSpace, ProfileClass};
 
     fn default_options() -> ParsingOptions {
         ParsingOptions::default()
@@ -1194,5 +1198,44 @@ mod tests {
         let tag = make_mft1_tag(3, 3, 1);
         let result = ColorProfile::read_lut_a_to_b_type(&tag, 0, tag.len(), &default_options());
         assert!(matches!(result, Err(CmsError::InvalidProfile)));
+    }
+
+    #[test]
+    fn curve_after_an_empty_curv_in_a_lut_a_to_b_is_read() {
+        // An empty `curv` is the identity. A curve after one in the same set
+        // must be read from its own offset, not as another identity.
+        let gamma = ToneReprCurve::Parametric(vec![2.0]);
+        let mut grid_points = [0u8; 16];
+        grid_points[..4].fill(2);
+        let lut = LutWarehouse::Multidimensional(LutMultidimensionalType {
+            num_input_channels: 4,
+            num_output_channels: 3,
+            grid_points,
+            clut: Some(LutStore::Store16(vec![0; 16 * 3])),
+            a_curves: vec![ToneReprCurve::Lut(vec![]); 4],
+            b_curves: vec![
+                ToneReprCurve::Lut(vec![]),
+                gamma.clone(),
+                ToneReprCurve::Lut(vec![]),
+            ],
+            m_curves: Vec::new(),
+            matrix: Matrix3d::IDENTITY,
+            bias: Vector3d::default(),
+        });
+        let profile = ColorProfile {
+            pcs: DataColorSpace::Lab,
+            color_space: DataColorSpace::Cmyk,
+            profile_class: ProfileClass::OutputDevice,
+            lut_a_to_b_perceptual: Some(lut),
+            ..Default::default()
+        };
+        let encoded = profile.encode().unwrap();
+        let decoded = ColorProfile::new_from_slice(&encoded).unwrap();
+        let Some(LutWarehouse::Multidimensional(read)) = decoded.lut_a_to_b_perceptual else {
+            panic!("no AToB0 table");
+        };
+        assert_eq!(read.b_curves[0], ToneReprCurve::Lut(vec![]));
+        assert_eq!(read.b_curves[1], gamma);
+        assert_eq!(read.b_curves[2], ToneReprCurve::Lut(vec![]));
     }
 }
