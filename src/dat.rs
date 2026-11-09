@@ -28,7 +28,7 @@
  */
 use crate::CmsError;
 use crate::writer::write_u16_be;
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(not(target_family = "wasm"))]
 use std::time::{SystemTime, UNIX_EPOCH};
 
 #[repr(C)]
@@ -100,14 +100,14 @@ impl ColorDateTime {
 
     /// Creates a new `ColorDateTime` from the current system time (UTC)
     pub fn now() -> Self {
-        #[cfg(not(target_arch = "wasm32"))]
+        #[cfg(not(target_family = "wasm"))]
         let now = match SystemTime::now().duration_since(UNIX_EPOCH) {
             Ok(v) => v,
             Err(_) => return Self::default(),
         };
-        #[cfg(target_arch = "wasm32")]
+        #[cfg(target_family = "wasm")]
         use std::time::Duration;
-        #[cfg(target_arch = "wasm32")]
+        #[cfg(target_family = "wasm")]
         let now = Duration::new(365 * 60 * 60 * 24 * 30, 0);
         let mut days = (now.as_secs() / 86_400) as i64;
         let secs_of_day = (now.as_secs() % 86_400) as i64;
