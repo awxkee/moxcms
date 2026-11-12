@@ -33,7 +33,8 @@ use crate::profile::LutDataType;
 use crate::safe_math::{SafeMul, SafePowi};
 use crate::trc::lut_interp_linear_float;
 use crate::{
-    CmsError, DataColorSpace, Layout, MalformedSize, PointeeSizeExpressible, TransformOptions,
+    CmsError, DataColorSpace, Layout, MalformedSize, Matrix3d, Matrix3f, PointeeSizeExpressible,
+    TransformOptions, Vector3f,
 };
 use num_traits::AsPrimitive;
 use std::array::from_fn;
@@ -51,6 +52,8 @@ struct KatanaLutNx3<T> {
 }
 
 struct KatanaLut3xN<T> {
+    matrix: Matrix3f,
+    has_matrix: bool,
     linearization: [Vec<f32>; 3],
     clut: Vec<f32>,
     grid_size: u8,
@@ -137,6 +140,24 @@ where
             return Err(CmsError::LaneMultipleOfChannels);
         }
 
+        if self.has_matrix {
+            self.to_output_loop::<true>(src, dst)
+        } else {
+            self.to_output_loop::<false>(src, dst)
+        }
+    }
+}
+
+impl<T: Copy + PointeeSizeExpressible + AsPrimitive<f32>> KatanaLut3xN<T>
+where
+    f32: AsPrimitive<T>,
+{
+    #[inline(always)]
+    fn to_output_loop<const HAS_MATRIX: bool>(
+        &self,
+        src: &[f32],
+        dst: &mut [T],
+    ) -> Result<(), CmsError> {
         let grid_sizes: [u8; 16] = from_fn(|i| {
             if i < self.output_inks {
                 self.grid_size
@@ -159,9 +180,22 @@ where
             .chunks_exact_mut(self.dst_layout.channels())
             .zip(src.as_chunks::<3>().0.iter())
         {
-            let x = lut_interp_linear_float(src[0], &self.linearization[0]);
-            let y = lut_interp_linear_float(src[1], &self.linearization[1]);
-            let z = lut_interp_linear_float(src[2], &self.linearization[2]);
+            let (in_x, in_y, in_z) = if HAS_MATRIX {
+                let m = self.matrix.mul_vector(Vector3f {
+                    v: [src[0], src[1], src[2]],
+                });
+                (
+                    m.v[0].clamp(0.0, 1.0),
+                    m.v[1].clamp(0.0, 1.0),
+                    m.v[2].clamp(0.0, 1.0),
+                )
+            } else {
+                (src[0], src[1], src[2])
+            };
+
+            let x = lut_interp_linear_float(in_x, &self.linearization[0]);
+            let y = lut_interp_linear_float(in_y, &self.linearization[1]);
+            let z = lut_interp_linear_float(in_z, &self.linearization[2]);
 
             tetra_3i_to_any_vec(&md_lut, &self.clut, x, y, z, &mut working, self.output_inks);
 
@@ -265,8 +299,9 @@ fn katana_make_lut_3xn<T: Copy + PointeeSizeExpressible + AsPrimitive<f32>>(
     inks: usize,
     dst_layout: Layout,
     lut: &LutDataType,
-    _: TransformOptions,
     target_color_space: DataColorSpace,
+    pcs: DataColorSpace,
+    is_input_pcs: bool,
     bit_depth: usize,
 ) -> Result<KatanaLut3xN<T>, CmsError> {
     if lut.num_input_channels as usize != 3 {
@@ -328,7 +363,12 @@ fn katana_make_lut_3xn<T: Copy + PointeeSizeExpressible + AsPrimitive<f32>>(
         })
         .collect::<_>();
 
+    let matrix_f = lut.matrix.to_f32();
+    let has_matrix = is_input_pcs && lut.matrix != Matrix3d::IDENTITY && pcs == DataColorSpace::Xyz;
+
     let transform = KatanaLut3xN::<T> {
+        matrix: matrix_f,
+        has_matrix,
         linearization: [linear_curve0, linear_curve1, linear_curve2],
         clut: clut_table,
         grid_size: lut.num_clut_grid_points,
@@ -371,8 +411,10 @@ pub(crate) fn katana_output_make_lut_3xn<
 >(
     dst_layout: Layout,
     lut: &LutDataType,
-    options: TransformOptions,
+    _options: TransformOptions,
     target_color_space: DataColorSpace,
+    pcs: DataColorSpace,
+    is_input_pcs: bool,
     bit_depth: usize,
 ) -> Result<Box<dyn KatanaFinalStage<f32, T> + Send + Sync>, CmsError>
 where
@@ -387,8 +429,9 @@ where
         real_inks,
         dst_layout,
         lut,
-        options,
         target_color_space,
+        pcs,
+        is_input_pcs,
         bit_depth,
     )?;
     Ok(Box::new(z0))

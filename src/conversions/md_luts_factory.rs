@@ -113,6 +113,8 @@ where
                 lut,
                 options,
                 dest.color_space,
+                dest.pcs,
+                true,
                 BIT_DEPTH,
             )?,
             LutWarehouse::Multidimensional(mab) => katana_multi_dimensional_3xn_to_device::<T>(

@@ -2084,4 +2084,107 @@ mod tests {
             .join()
             .unwrap();
     }
+
+    #[cfg(feature = "lut")]
+    #[test]
+    fn test_xyz_lut_mft2_matrix_end_to_end() {
+        use crate::profile::{LutDataType, LutStore, LutType};
+
+        let matrix = Matrix3d {
+            v: [
+                [1.2, -0.2, 0.1],
+                [-0.1, 1.1, 0.2],
+                [0.05, -0.15, 1.05],
+            ],
+        };
+        let input_table = LutStore::Store16(vec![0, 65535, 0, 65535, 0, 65535]);
+        let output_table = LutStore::Store16(vec![0, 65535, 0, 65535, 0, 65535]);
+        let mut clut = Vec::new();
+        for r in 0..2 {
+            for g in 0..2 {
+                for b in 0..2 {
+                    clut.push(if r == 1 { 65535 } else { 0 });
+                    clut.push(if g == 1 { 65535 } else { 0 });
+                    clut.push(if b == 1 { 65535 } else { 0 });
+                }
+            }
+        }
+        let lut_data = LutDataType {
+            num_input_channels: 3,
+            num_output_channels: 3,
+            num_clut_grid_points: 2,
+            matrix,
+            num_input_table_entries: 2,
+            num_output_table_entries: 2,
+            input_table,
+            clut_table: LutStore::Store16(clut),
+            output_table,
+            lut_type: LutType::Lut16,
+        };
+
+        let mut dest_profile = ColorProfile::new_srgb();
+        dest_profile.pcs = DataColorSpace::Xyz;
+        dest_profile.lut_b_to_a_perceptual = Some(LutWarehouse::Lut(lut_data));
+        dest_profile.red_colorant = Xyzd::default();
+        dest_profile.green_colorant = Xyzd::default();
+        dest_profile.blue_colorant = Xyzd::default();
+        dest_profile.red_trc = None;
+        dest_profile.green_trc = None;
+        dest_profile.blue_trc = None;
+
+        let encoded = dest_profile.encode().unwrap();
+        let decoded = ColorProfile::new_from_slice(&encoded).unwrap();
+        assert!(decoded.has_pcs_to_device_lut());
+
+        let srgb = ColorProfile::new_srgb();
+        let transform = srgb
+            .create_transform_f32(Layout::Rgb, &decoded, Layout::Rgb, TransformOptions::default())
+            .unwrap();
+
+        let src = [
+            0.5f32, 0.5f32, 0.5f32, // mid gray
+            0.0f32, 0.0f32, 0.0f32, // black
+            1.0f32, 1.0f32, 1.0f32, // white
+        ];
+        let mut dst = [0.0f32; 9];
+        transform.transform(&src, &mut dst).unwrap();
+
+        // Black [0, 0, 0] maps near 0
+        assert!((dst[3] - 0.0).abs() < 0.005, "Black R: {}", dst[3]);
+        assert!((dst[4] - 0.0).abs() < 0.005, "Black G: {}", dst[4]);
+        assert!((dst[5] - 0.0).abs() < 0.005, "Black B: {}", dst[5]);
+
+        // Mid-gray [0.5, 0.5, 0.5] should produce finite in-gamut values
+        assert!(dst[0] > 0.0 && dst[0] < 1.0, "Gray R: {}", dst[0]);
+        assert!(dst[1] > 0.0 && dst[1] < 1.0, "Gray G: {}", dst[1]);
+        assert!(dst[2] > 0.0 && dst[2] < 1.0, "Gray B: {}", dst[2]);
+
+        // Hand-calculated expected values for sRGB White [1, 1, 1]:
+        // sRGB D65 White adapted to D50 XYZ is [0.9642, 1.0000, 0.8249].
+        // Moxcms normalizes PCSXYZ by (32768/65535): [0.4821, 0.5000, 0.4125].
+        // Applying test matrix M:
+        // X' = 1.2*0.4821 - 0.2*0.5000 + 0.1*0.4125 = 0.5198
+        // Y' = -0.1*0.4821 + 1.1*0.5000 + 0.2*0.4125 = 0.5843
+        // Z' = 0.05*0.4821 - 0.15*0.5000 + 1.05*0.4125 = 0.3822
+        assert!((dst[6] - 0.5198).abs() < 0.005, "White R: {}", dst[6]);
+        assert!((dst[7] - 0.5843).abs() < 0.005, "White G: {}", dst[7]);
+        assert!((dst[8] - 0.3822).abs() < 0.005, "White B: {}", dst[8]);
+
+        // Also test user's real calibrated DisplayCAL profile from disk if present
+        let test_profile_path = std::path::Path::new("HDR_QHD_#1_2026-11-06_22-17_100cdm2_0.3127x 0.329y_2.2_M-S_XYZLUT+MTX.icm");
+        if test_profile_path.exists() {
+            let bytes = std::fs::read(test_profile_path).unwrap();
+            let cal_profile = ColorProfile::new_from_slice(&bytes).unwrap();
+            assert!(cal_profile.has_pcs_to_device_lut());
+            let cal_transform = srgb
+                .create_transform_f32(Layout::Rgb, &cal_profile, Layout::Rgb, TransformOptions::default())
+                .unwrap();
+            let mut cal_dst = [0.0f32; 9];
+            cal_transform.transform(&src, &mut cal_dst).unwrap();
+            for (i, val) in cal_dst.iter().enumerate() {
+                assert!(val.is_finite(), "Color component {} was not finite: {}", i, val);
+                assert!(*val >= 0.0 && *val <= 1.05, "Color component {} out of range: {}", i, val);
+            }
+        }
+    }
 }
