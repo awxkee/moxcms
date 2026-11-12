@@ -33,12 +33,15 @@ use crate::err::{MalformedSize, try_vec};
 use crate::profile::LutDataType;
 use crate::safe_math::{SafeMul, SafePowi};
 use crate::trc::lut_interp_linear_float;
+use crate::matrix::{Matrix3f, Vector3f};
 use crate::*;
 #[cfg(feature = "any_to_any")]
 use num_traits::AsPrimitive;
 
 #[derive(Default)]
 struct Lut3x3 {
+    matrix: Matrix3f,
+    has_matrix: bool,
     input: [Vec<f32>; 3],
     clut: Vec<f32>,
     grid_size: u8,
@@ -50,6 +53,8 @@ struct Lut3x3 {
 #[cfg(feature = "any_to_any")]
 #[derive(Default)]
 struct KatanaLut3x3<T: Copy + Default> {
+    matrix: Matrix3f,
+    has_matrix: bool,
     input: [Vec<f32>; 3],
     clut: Vec<f32>,
     grid_size: u8,
@@ -64,6 +69,7 @@ fn make_lut_3x3(
     lut: &LutDataType,
     options: TransformOptions,
     pcs: DataColorSpace,
+    is_input_pcs: bool,
 ) -> Result<Lut3x3, CmsError> {
     let clut_length: usize = (lut.num_clut_grid_points as usize)
         .safe_powi(lut.num_input_channels as u32)?
@@ -111,7 +117,30 @@ fn make_lut_3x3(
         [lut.num_output_table_entries as usize * 2..lut.num_output_table_entries as usize * 3]
         .to_vec();
 
+    let matrix_f = Matrix3f {
+        v: [
+            [
+                lut.matrix.v[0][0] as f32,
+                lut.matrix.v[0][1] as f32,
+                lut.matrix.v[0][2] as f32,
+            ],
+            [
+                lut.matrix.v[1][0] as f32,
+                lut.matrix.v[1][1] as f32,
+                lut.matrix.v[1][2] as f32,
+            ],
+            [
+                lut.matrix.v[2][0] as f32,
+                lut.matrix.v[2][1] as f32,
+                lut.matrix.v[2][2] as f32,
+            ],
+        ],
+    };
+    let has_matrix = is_input_pcs && lut.matrix != Matrix3d::IDENTITY && pcs == DataColorSpace::Xyz;
+
     let transform = Lut3x3 {
+        matrix: matrix_f,
+        has_matrix,
         input: [lin_curve0, lin_curve1, lin_curve2],
         gamma: [gamma_curve0, gamma_curve1, gamma_curve2],
         interpolation_method: options.interpolation_method,
@@ -127,18 +156,9 @@ pub(crate) fn stage_lut_3x3(
     lut: &LutDataType,
     options: TransformOptions,
     pcs: DataColorSpace,
+    is_input_pcs: bool,
 ) -> Result<Box<dyn Stage>, CmsError> {
-    let lut = make_lut_3x3(lut, options, pcs)?;
-
-    let transform = Lut3x3 {
-        input: lut.input,
-        gamma: lut.gamma,
-        interpolation_method: lut.interpolation_method,
-        clut: lut.clut,
-        grid_size: lut.grid_size,
-        pcs: lut.pcs,
-    };
-
+    let transform = make_lut_3x3(lut, options, pcs, is_input_pcs)?;
     Ok(Box::new(transform))
 }
 
@@ -154,9 +174,11 @@ pub(crate) fn katana_input_stage_lut_3x3<
 where
     f32: AsPrimitive<T>,
 {
-    let lut = make_lut_3x3(lut, options, pcs)?;
+    let lut = make_lut_3x3(lut, options, pcs, false)?;
 
     let transform = KatanaLut3x3::<T> {
+        matrix: lut.matrix,
+        has_matrix: lut.has_matrix,
         input: lut.input,
         gamma: lut.gamma,
         interpolation_method: lut.interpolation_method,
@@ -182,9 +204,11 @@ pub(crate) fn katana_output_stage_lut_3x3<
 where
     f32: AsPrimitive<T>,
 {
-    let lut = make_lut_3x3(lut, options, pcs)?;
+    let lut = make_lut_3x3(lut, options, pcs, true)?;
 
     let transform = KatanaLut3x3::<T> {
+        matrix: lut.matrix,
+        has_matrix: lut.has_matrix,
         input: lut.input,
         gamma: lut.gamma,
         interpolation_method: lut.interpolation_method,
@@ -215,9 +239,21 @@ impl Lut3x3 {
             .zip(src.as_chunks::<3>().0.iter())
         {
             debug_assert!(self.grid_size as i32 >= 1);
-            let linear_x = lut_interp_linear_float(src[0], linearization_0);
-            let linear_y = lut_interp_linear_float(src[1], linearization_1);
-            let linear_z = lut_interp_linear_float(src[2], linearization_2);
+            let (in_x, in_y, in_z) = if self.has_matrix {
+                let m = self.matrix.mul_vector(Vector3f {
+                    v: [src[0], src[1], src[2]],
+                });
+                (
+                    m.v[0].clamp(0.0, 1.0),
+                    m.v[1].clamp(0.0, 1.0),
+                    m.v[2].clamp(0.0, 1.0),
+                )
+            } else {
+                (src[0], src[1], src[2])
+            };
+            let linear_x = lut_interp_linear_float(in_x, linearization_0);
+            let linear_y = lut_interp_linear_float(in_y, linearization_1);
+            let linear_z = lut_interp_linear_float(in_z, linearization_2);
 
             let clut = fetch(linear_x, linear_y, linear_z);
 
@@ -339,9 +375,21 @@ where
             .iter_mut()
             .zip(src.as_chunks::<3>().0.iter())
         {
-            let linear_x = lut_interp_linear_float(src[0], linearization_0);
-            let linear_y = lut_interp_linear_float(src[1], linearization_1);
-            let linear_z = lut_interp_linear_float(src[2], linearization_2);
+            let (in_x, in_y, in_z) = if self.has_matrix {
+                let m = self.matrix.mul_vector(Vector3f {
+                    v: [src[0], src[1], src[2]],
+                });
+                (
+                    m.v[0].clamp(0.0, 1.0),
+                    m.v[1].clamp(0.0, 1.0),
+                    m.v[2].clamp(0.0, 1.0),
+                )
+            } else {
+                (src[0], src[1], src[2])
+            };
+            let linear_x = lut_interp_linear_float(in_x, linearization_0);
+            let linear_y = lut_interp_linear_float(in_y, linearization_1);
+            let linear_z = lut_interp_linear_float(in_z, linearization_2);
 
             let clut = fetch(linear_x, linear_y, linear_z);
 
@@ -431,11 +479,64 @@ where
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::profile::{LutStore, LutType};
+
+    #[test]
+    fn test_lut3x3_matrix_application() {
+        let matrix = Matrix3d {
+            v: [
+                [2.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0],
+                [0.0, 0.0, 1.0],
+            ],
+        };
+        let input_table = LutStore::Store16(vec![0, 65535, 0, 65535, 0, 65535]);
+        let output_table = LutStore::Store16(vec![0, 65535, 0, 65535, 0, 65535]);
+        let mut clut = Vec::new();
+        for r in 0..2 {
+            for g in 0..2 {
+                for b in 0..2 {
+                    clut.push(if r == 1 { 65535 } else { 0 });
+                    clut.push(if g == 1 { 65535 } else { 0 });
+                    clut.push(if b == 1 { 65535 } else { 0 });
+                }
+            }
+        }
+        let lut_data = LutDataType {
+            num_input_channels: 3,
+            num_output_channels: 3,
+            num_clut_grid_points: 2,
+            matrix,
+            num_input_table_entries: 2,
+            num_output_table_entries: 2,
+            input_table,
+            clut_table: LutStore::Store16(clut),
+            output_table,
+            lut_type: LutType::Lut16,
+        };
+        let stage =
+            stage_lut_3x3(&lut_data, TransformOptions::default(), DataColorSpace::Xyz, true).unwrap();
+        let src = [0.25f32, 0.5f32, 0.5f32];
+        let mut dst = [0.0f32; 3];
+        stage.transform(&src, &mut dst).unwrap();
+        assert!((dst[0] - 0.5).abs() < 0.02, "Expected ~0.5 but got {}", dst[0]);
+
+        // Test clamping to 1.0 when matrix exceeds 1.0
+        let src_clamp = [0.8f32, 0.5f32, 0.5f32]; // 0.8 * 2.0 = 1.6 -> clamped to 1.0
+        stage.transform(&src_clamp, &mut dst).unwrap();
+        assert!((dst[0] - 1.0).abs() < 0.02, "Expected ~1.0 but got {}", dst[0]);
+    }
+}
+
 pub(crate) fn create_lut3x3(
     lut: &LutDataType,
     src: &[f32],
     options: TransformOptions,
     pcs: DataColorSpace,
+    is_input_pcs: bool,
 ) -> Result<Vec<f32>, CmsError> {
     if lut.num_input_channels != 3 || lut.num_output_channels != 3 {
         return Err(CmsError::UnsupportedProfileConnection);
@@ -443,7 +544,7 @@ pub(crate) fn create_lut3x3(
 
     let mut dest = try_vec![0.; src.len()];
 
-    let lut_stage = stage_lut_3x3(lut, options, pcs)?;
+    let lut_stage = stage_lut_3x3(lut, options, pcs, is_input_pcs)?;
     lut_stage.transform(src, &mut dest)?;
     Ok(dest)
 }
