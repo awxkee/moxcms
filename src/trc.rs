@@ -1293,7 +1293,10 @@ impl ColorProfile {
         }
     }
 
-    /// Check if all TRC are the same
+    /// Checks if the red, green, and blue TRCs are all the same curve.
+    ///
+    /// When this returns `true`, transforms evaluate only the red curve and apply it
+    /// to every channel, so all three curves must be equal.
     pub(crate) fn are_all_trc_the_same(&self) -> bool {
         if self.color_space == DataColorSpace::Gray {
             return true;
@@ -1317,7 +1320,8 @@ impl ColorProfile {
             }
             if let (ToneReprCurve::Lut(lut0), ToneReprCurve::Lut(lut1), ToneReprCurve::Lut(lut2)) =
                 (red_trc, green_trc, blue_trc)
-                && (lut0 == lut1 || lut1 == lut2)
+                && lut0 == lut1
+                && lut1 == lut2
             {
                 return true;
             }
@@ -1326,7 +1330,8 @@ impl ColorProfile {
                 ToneReprCurve::Parametric(lut1),
                 ToneReprCurve::Parametric(lut2),
             ) = (red_trc, green_trc, blue_trc)
-                && (lut0 == lut1 || lut1 == lut2)
+                && lut0 == lut1
+                && lut1 == lut2
             {
                 return true;
             }
