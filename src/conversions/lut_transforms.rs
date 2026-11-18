@@ -37,8 +37,8 @@ use crate::conversions::transform_lut3_to_4::make_transform_3x4;
 use crate::err::try_vec;
 use crate::mlaf::mlaf;
 use crate::{
-    CmsError, ColorProfile, DataColorSpace, InPlaceStage, Layout, LutWarehouse, Matrix3f,
-    RenderingIntent, Stage, TransformExecutor, TransformOptions,
+    CmsError, ColorProfile, DataColorSpace, InPlaceStage, InterpolationMethod, Layout,
+    LutWarehouse, Matrix3f, RenderingIntent, Stage, TransformExecutor, TransformOptions,
 };
 use num_traits::AsPrimitive;
 use std::sync::Arc;
@@ -171,6 +171,18 @@ pub(crate) trait Lut4x3Factory {
         u32: AsPrimitive<T>,
         (): LutBarycentricReduction<T, u8>,
         (): LutBarycentricReduction<T, u16>;
+}
+
+/// Options for a table indexed by the PCS, which is interpolated linearly when that is Lab or XYZ.
+fn pcs_table_options(options: TransformOptions, pcs: DataColorSpace) -> TransformOptions {
+    if pcs == DataColorSpace::Lab || pcs == DataColorSpace::Xyz {
+        TransformOptions {
+            interpolation_method: InterpolationMethod::Linear,
+            ..options
+        }
+    } else {
+        options
+    }
 }
 
 fn pcs_lab_v4_to_v2(profile: &ColorProfile, intent: RenderingIntent, lut: &mut [f32]) {
@@ -474,7 +486,11 @@ where
                 if lut.num_input_channels != 3 || lut.num_output_channels != 3 {
                     return Err(CmsError::UnsupportedProfileConnection);
                 }
-                PcsToDevice::Lut(stage_lut_3x3(lut, options, dest.pcs)?)
+                PcsToDevice::Lut(stage_lut_3x3(
+                    lut,
+                    pcs_table_options(options, dest.pcs),
+                    dest.pcs,
+                )?)
             }
             LutWarehouse::Multidimensional(_) => return Ok(None),
         },
@@ -703,7 +719,12 @@ where
                         .ok_or(CmsError::UnsupportedProfileConnection)?;
                     match pcs_to_device {
                         LutWarehouse::Lut(lut_data_type) => {
-                            lut = create_lut3x3(lut_data_type, &lut, options, dest.pcs)?
+                            lut = create_lut3x3(
+                                lut_data_type,
+                                &lut,
+                                pcs_table_options(options, dest.pcs),
+                                dest.pcs,
+                            )?
                         }
                         LutWarehouse::Multidimensional(mab) => {
                             prepare_mba_3x3(mab, &mut lut, options, dest.pcs)?
@@ -772,9 +793,7 @@ where
                 LutWarehouse::Lut(lut_data_type) => {
                     lut = create_lut3x3(lut_data_type, &lut, options, source.pcs)?;
                 }
-                LutWarehouse::Multidimensional(mab) => {
-                    prepare_mab_3x3(mab, &mut lut, options, source.pcs)?
-                }
+                LutWarehouse::Multidimensional(mab) => prepare_mab_3x3(mab, &mut lut, options)?,
             }
         } else if source.is_matrix_shaper() {
             lut = create_rgb_lin_lut::<T, BIT_DEPTH, LINEAR_CAP, GRID_SIZE>(source, options)?;
@@ -934,9 +953,7 @@ where
                 LutWarehouse::Lut(lut_data_type) => {
                     lut = create_lut3x3(lut_data_type, &lut, options, source.pcs)?;
                 }
-                LutWarehouse::Multidimensional(mab) => {
-                    prepare_mab_3x3(mab, &mut lut, options, source.pcs)?
-                }
+                LutWarehouse::Multidimensional(mab) => prepare_mab_3x3(mab, &mut lut, options)?,
             }
         } else if source.is_matrix_shaper() {
             lut = create_rgb_lin_lut::<T, BIT_DEPTH, LINEAR_CAP, GRID_SIZE>(source, options)?;
@@ -966,7 +983,12 @@ where
                 .ok_or(CmsError::UnsupportedProfileConnection)?;
             match pcs_to_device {
                 LutWarehouse::Lut(lut_data_type) => {
-                    lut = create_lut3x3(lut_data_type, &lut, options, dest.pcs)?;
+                    lut = create_lut3x3(
+                        lut_data_type,
+                        &lut,
+                        pcs_table_options(options, dest.pcs),
+                        dest.pcs,
+                    )?;
                 }
                 LutWarehouse::Multidimensional(mab) => {
                     prepare_mba_3x3(mab, &mut lut, options, dest.pcs)?

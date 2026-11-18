@@ -42,7 +42,6 @@ struct ACurves3<'a> {
     clut: &'a [f32],
     grid_size: [u8; 3],
     interpolation_method: InterpolationMethod,
-    pcs: DataColorSpace,
     depth: usize,
 }
 
@@ -51,7 +50,6 @@ struct ACurves3Optimized<'a> {
     clut: &'a [f32],
     grid_size: [u8; 3],
     interpolation_method: InterpolationMethod,
-    pcs: DataColorSpace,
 }
 
 #[allow(unused)]
@@ -103,11 +101,6 @@ impl InPlaceStage for ACurves3<'_> {
     fn transform(&self, dst: &mut [f32]) -> Result<(), CmsError> {
         let lut = Cube::new_cube(self.clut, self.grid_size, 3)?;
 
-        // If PCS is LAB then linear interpolation should be used
-        if self.pcs == DataColorSpace::Lab || self.pcs == DataColorSpace::Xyz {
-            return self.transform_impl(dst, |x, y, z| lut.trilinear_vec3(x, y, z));
-        }
-
         match self.interpolation_method {
             #[cfg(feature = "options")]
             InterpolationMethod::Tetrahedral => {
@@ -132,11 +125,6 @@ impl InPlaceStage for ACurves3<'_> {
 impl InPlaceStage for ACurves3Optimized<'_> {
     fn transform(&self, dst: &mut [f32]) -> Result<(), CmsError> {
         let lut = Cube::new_cube(self.clut, self.grid_size, 3)?;
-
-        // If PCS is LAB then linear interpolation should be used
-        if self.pcs == DataColorSpace::Lab {
-            return self.transform_impl(dst, |x, y, z| lut.trilinear_vec3(x, y, z));
-        }
 
         match self.interpolation_method {
             #[cfg(feature = "options")]
@@ -312,7 +300,6 @@ pub(crate) fn prepare_mab_3x3(
     mab: &LutMultidimensionalType,
     lut: &mut [f32],
     options: TransformOptions,
-    pcs: DataColorSpace,
 ) -> Result<(), CmsError> {
     const LERP_DEPTH: usize = 65536;
     const BP: usize = 13;
@@ -342,7 +329,6 @@ pub(crate) fn prepare_mab_3x3(
                 clut,
                 grid_size,
                 interpolation_method: options.interpolation_method,
-                pcs,
             };
             l.transform(lut)?;
         } else {
@@ -364,7 +350,6 @@ pub(crate) fn prepare_mab_3x3(
                 clut,
                 grid_size,
                 interpolation_method: options.interpolation_method,
-                pcs,
                 depth: DEPTH,
             };
             l.transform(lut)?;
@@ -526,8 +511,11 @@ pub(crate) fn prepare_mba_3x3(
             let l = ACurves3Optimized {
                 clut,
                 grid_size,
-                interpolation_method: options.interpolation_method,
-                pcs,
+                interpolation_method: if pcs == DataColorSpace::Lab {
+                    InterpolationMethod::Linear
+                } else {
+                    options.interpolation_method
+                },
             };
             l.transform(lut)?;
         } else {

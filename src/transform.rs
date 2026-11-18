@@ -1343,6 +1343,46 @@ mod tests {
 
     #[cfg(feature = "options")]
     #[test]
+    fn test_device_to_pcs_lut_follows_interpolation_method() {
+        // A Lab lut8Type CLUT that is white at RGB (1, 1, 1) and black at its other corners.
+        // Tetrahedral interpolation goes straight along the neutral axis, so gray 128 is
+        // L* 50.2, sRGB 119.4; trilinear interpolation would weight white by t^3 (L* 12.6, 33).
+        let mut clut = [0u8, 128, 128].repeat(8);
+        clut[21..].copy_from_slice(&[255, 128, 128]);
+        let identity: Vec<u8> = (0..=255).collect();
+        let lut = LutDataType {
+            num_input_channels: 3,
+            num_output_channels: 3,
+            num_clut_grid_points: 2,
+            matrix: Matrix3d::IDENTITY,
+            num_input_table_entries: 256,
+            num_output_table_entries: 256,
+            input_table: LutStore::Store8(identity.repeat(3)),
+            clut_table: LutStore::Store8(clut),
+            output_table: LutStore::Store8(identity.repeat(3)),
+            lut_type: LutType::Lut8,
+        };
+        let profile = ColorProfile {
+            color_space: DataColorSpace::Rgb,
+            pcs: DataColorSpace::Lab,
+            lut_a_to_b_colorimetric: Some(LutWarehouse::Lut(lut)),
+            ..Default::default()
+        };
+        let options = TransformOptions {
+            rendering_intent: RenderingIntent::RelativeColorimetric,
+            interpolation_method: InterpolationMethod::Tetrahedral,
+            ..Default::default()
+        };
+        let transform = profile
+            .create_transform_8bit(Layout::Rgb, &ColorProfile::new_srgb(), Layout::Rgb, options)
+            .unwrap();
+        let mut dst = [0u8; 3];
+        transform.transform(&[128; 3], &mut dst).unwrap();
+        assert!(dst.iter().all(|&v| v.abs_diff(119) <= 1), "{dst:?}");
+    }
+
+    #[cfg(feature = "options")]
+    #[test]
     fn test_high_weights_lut_u16_matches_f32() {
         // High weights give every 10-, 12- and 16-bit sample value its own bin, so these transforms
         // follow the f32 one up to their gamma tables and rounding (Low's 8-bit cut is off by 0.008).
