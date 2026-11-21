@@ -490,6 +490,7 @@ where
                     lut,
                     pcs_table_options(options, dest.pcs),
                     dest.pcs,
+                    true,
                 )?)
             }
             LutWarehouse::Multidimensional(_) => return Ok(None),
@@ -724,6 +725,7 @@ where
                                 &lut,
                                 pcs_table_options(options, dest.pcs),
                                 dest.pcs,
+                                true,
                             )?
                         }
                         LutWarehouse::Multidimensional(mab) => {
@@ -791,7 +793,7 @@ where
 
             match device_to_pcs {
                 LutWarehouse::Lut(lut_data_type) => {
-                    lut = create_lut3x3(lut_data_type, &lut, options, source.pcs)?;
+                    lut = create_lut3x3(lut_data_type, &lut, options, source.pcs, false)?;
                 }
                 LutWarehouse::Multidimensional(mab) => prepare_mab_3x3(mab, &mut lut, options)?,
             }
@@ -821,7 +823,9 @@ where
             .get_pcs_to_device(options.rendering_intent)
             .ok_or(CmsError::UnsupportedProfileConnection)?
         {
-            LutWarehouse::Lut(lut_type) => create_lut3x4(lut_type, &lut, options, dest.pcs)?,
+            LutWarehouse::Lut(lut_type) => {
+                create_lut3x4(lut_type, &lut, pcs_table_options(options, dest.pcs), dest.pcs, true)?
+            }
             LutWarehouse::Multidimensional(m_curves) => {
                 prepare_mba_3x4(m_curves, &mut lut, options, dest.pcs)?
             }
@@ -951,7 +955,7 @@ where
 
             match device_to_pcs {
                 LutWarehouse::Lut(lut_data_type) => {
-                    lut = create_lut3x3(lut_data_type, &lut, options, source.pcs)?;
+                    lut = create_lut3x3(lut_data_type, &lut, options, source.pcs, false)?;
                 }
                 LutWarehouse::Multidimensional(mab) => prepare_mab_3x3(mab, &mut lut, options)?,
             }
@@ -988,6 +992,7 @@ where
                         &lut,
                         pcs_table_options(options, dest.pcs),
                         dest.pcs,
+                        true,
                     )?;
                 }
                 LutWarehouse::Multidimensional(mab) => {

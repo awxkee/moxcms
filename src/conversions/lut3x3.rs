@@ -33,23 +33,27 @@ use crate::err::{MalformedSize, try_vec};
 use crate::profile::LutDataType;
 use crate::safe_math::{SafeMul, SafePowi};
 use crate::trc::lut_interp_linear_float;
+use crate::matrix::{Matrix3f, Vector3f};
 use crate::*;
 #[cfg(feature = "any_to_any")]
 use num_traits::AsPrimitive;
 
 #[derive(Default)]
 struct Lut3x3 {
+    matrix: Matrix3f,
+    has_matrix: bool,
     input: [Vec<f32>; 3],
     clut: Vec<f32>,
     grid_size: u8,
     gamma: [Vec<f32>; 3],
     interpolation_method: InterpolationMethod,
-    pcs: DataColorSpace,
 }
 
 #[cfg(feature = "any_to_any")]
 #[derive(Default)]
 struct KatanaLut3x3<T: Copy + Default> {
+    matrix: Matrix3f,
+    has_matrix: bool,
     input: [Vec<f32>; 3],
     clut: Vec<f32>,
     grid_size: u8,
@@ -64,6 +68,7 @@ fn make_lut_3x3(
     lut: &LutDataType,
     options: TransformOptions,
     pcs: DataColorSpace,
+    is_input_pcs: bool,
 ) -> Result<Lut3x3, CmsError> {
     let clut_length: usize = (lut.num_clut_grid_points as usize)
         .safe_powi(lut.num_input_channels as u32)?
@@ -111,13 +116,17 @@ fn make_lut_3x3(
         [lut.num_output_table_entries as usize * 2..lut.num_output_table_entries as usize * 3]
         .to_vec();
 
+    let matrix_f = lut.matrix.to_f32();
+    let has_matrix = is_input_pcs && lut.matrix != Matrix3d::IDENTITY && pcs == DataColorSpace::Xyz;
+
     let transform = Lut3x3 {
+        matrix: matrix_f,
+        has_matrix,
         input: [lin_curve0, lin_curve1, lin_curve2],
         gamma: [gamma_curve0, gamma_curve1, gamma_curve2],
         interpolation_method: options.interpolation_method,
         clut: clut_table,
         grid_size: lut.num_clut_grid_points,
-        pcs,
     };
 
     Ok(transform)
@@ -127,19 +136,28 @@ pub(crate) fn stage_lut_3x3(
     lut: &LutDataType,
     options: TransformOptions,
     pcs: DataColorSpace,
+    is_input_pcs: bool,
 ) -> Result<Box<dyn Stage>, CmsError> {
-    let lut = make_lut_3x3(lut, options, pcs)?;
-
-    let transform = Lut3x3 {
-        input: lut.input,
-        gamma: lut.gamma,
-        interpolation_method: lut.interpolation_method,
-        clut: lut.clut,
-        grid_size: lut.grid_size,
-        pcs: lut.pcs,
-    };
-
+    let transform = make_lut_3x3(lut, options, pcs, is_input_pcs)?;
     Ok(Box::new(transform))
+}
+
+pub(crate) fn create_lut3x3(
+    lut: &LutDataType,
+    src: &[f32],
+    options: TransformOptions,
+    pcs: DataColorSpace,
+    is_input_pcs: bool,
+) -> Result<Vec<f32>, CmsError> {
+    if lut.num_input_channels != 3 || lut.num_output_channels != 3 {
+        return Err(CmsError::UnsupportedProfileConnection);
+    }
+
+    let mut dest = try_vec![0.; src.len()];
+
+    let lut_stage = stage_lut_3x3(lut, options, pcs, is_input_pcs)?;
+    lut_stage.transform(src, &mut dest)?;
+    Ok(dest)
 }
 
 #[cfg(feature = "any_to_any")]
@@ -154,15 +172,17 @@ pub(crate) fn katana_input_stage_lut_3x3<
 where
     f32: AsPrimitive<T>,
 {
-    let lut = make_lut_3x3(lut, options, pcs)?;
+    let lut = make_lut_3x3(lut, options, pcs, false)?;
 
     let transform = KatanaLut3x3::<T> {
+        matrix: lut.matrix,
+        has_matrix: lut.has_matrix,
         input: lut.input,
         gamma: lut.gamma,
         interpolation_method: lut.interpolation_method,
         clut: lut.clut,
         grid_size: lut.grid_size,
-        pcs: lut.pcs,
+        pcs,
         _phantom: std::marker::PhantomData,
         bit_depth,
     };
@@ -182,15 +202,17 @@ pub(crate) fn katana_output_stage_lut_3x3<
 where
     f32: AsPrimitive<T>,
 {
-    let lut = make_lut_3x3(lut, options, pcs)?;
+    let lut = make_lut_3x3(lut, options, pcs, true)?;
 
     let transform = KatanaLut3x3::<T> {
+        matrix: lut.matrix,
+        has_matrix: lut.has_matrix,
         input: lut.input,
         gamma: lut.gamma,
         interpolation_method: lut.interpolation_method,
         clut: lut.clut,
         grid_size: lut.grid_size,
-        pcs: lut.pcs,
+        pcs,
         _phantom: std::marker::PhantomData,
         bit_depth,
     };
@@ -205,6 +227,20 @@ impl Lut3x3 {
         dst: &mut [f32],
         fetch: Fetch,
     ) -> Result<(), CmsError> {
+        if self.has_matrix {
+            self.transform_loop::<Fetch, true>(src, dst, &fetch)
+        } else {
+            self.transform_loop::<Fetch, false>(src, dst, &fetch)
+        }
+    }
+
+    #[inline(always)]
+    fn transform_loop<Fetch: Fn(f32, f32, f32) -> Vector3f, const HAS_MATRIX: bool>(
+        &self,
+        src: &[f32],
+        dst: &mut [f32],
+        fetch: &Fetch,
+    ) -> Result<(), CmsError> {
         let linearization_0 = &self.input[0];
         let linearization_1 = &self.input[1];
         let linearization_2 = &self.input[2];
@@ -215,9 +251,21 @@ impl Lut3x3 {
             .zip(src.as_chunks::<3>().0.iter())
         {
             debug_assert!(self.grid_size as i32 >= 1);
-            let linear_x = lut_interp_linear_float(src[0], linearization_0);
-            let linear_y = lut_interp_linear_float(src[1], linearization_1);
-            let linear_z = lut_interp_linear_float(src[2], linearization_2);
+            let (in_x, in_y, in_z) = if HAS_MATRIX {
+                let m = self.matrix.mul_vector(Vector3f {
+                    v: [src[0], src[1], src[2]],
+                });
+                (
+                    m.v[0].clamp(0.0, 1.0),
+                    m.v[1].clamp(0.0, 1.0),
+                    m.v[2].clamp(0.0, 1.0),
+                )
+            } else {
+                (src[0], src[1], src[2])
+            };
+            let linear_x = lut_interp_linear_float(in_x, linearization_0);
+            let linear_y = lut_interp_linear_float(in_y, linearization_1);
+            let linear_z = lut_interp_linear_float(in_z, linearization_2);
 
             let clut = fetch(linear_x, linear_y, linear_z);
 
@@ -319,6 +367,20 @@ where
         if dst.len() != src.len() {
             return Err(CmsError::LaneSizeMismatch);
         }
+        if self.has_matrix {
+            self.to_output_loop::<Fetch, true>(src, dst, &fetch)
+        } else {
+            self.to_output_loop::<Fetch, false>(src, dst, &fetch)
+        }
+    }
+
+    #[inline(always)]
+    fn to_output_loop<Fetch: Fn(f32, f32, f32) -> Vector3f, const HAS_MATRIX: bool>(
+        &self,
+        src: &[f32],
+        dst: &mut [T],
+        fetch: &Fetch,
+    ) -> Result<(), CmsError> {
         let norm_value = if T::FINITE {
             ((1u32 << self.bit_depth) - 1) as f32
         } else {
@@ -334,9 +396,21 @@ where
             .iter_mut()
             .zip(src.as_chunks::<3>().0.iter())
         {
-            let linear_x = lut_interp_linear_float(src[0], linearization_0);
-            let linear_y = lut_interp_linear_float(src[1], linearization_1);
-            let linear_z = lut_interp_linear_float(src[2], linearization_2);
+            let (in_x, in_y, in_z) = if HAS_MATRIX {
+                let m = self.matrix.mul_vector(Vector3f {
+                    v: [src[0], src[1], src[2]],
+                });
+                (
+                    m.v[0].clamp(0.0, 1.0),
+                    m.v[1].clamp(0.0, 1.0),
+                    m.v[2].clamp(0.0, 1.0),
+                )
+            } else {
+                (src[0], src[1], src[2])
+            };
+            let linear_x = lut_interp_linear_float(in_x, linearization_0);
+            let linear_y = lut_interp_linear_float(in_y, linearization_1);
+            let linear_z = lut_interp_linear_float(in_z, linearization_2);
 
             let clut = fetch(linear_x, linear_y, linear_z);
 
@@ -421,19 +495,139 @@ where
     }
 }
 
-pub(crate) fn create_lut3x3(
-    lut: &LutDataType,
-    src: &[f32],
-    options: TransformOptions,
-    pcs: DataColorSpace,
-) -> Result<Vec<f32>, CmsError> {
-    if lut.num_input_channels != 3 || lut.num_output_channels != 3 {
-        return Err(CmsError::UnsupportedProfileConnection);
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::profile::{LutStore, LutType};
+
+    fn make_test_lut3x3_data() -> LutDataType {
+        // Non-symmetric, non-diagonal matrix with both positive and negative off-diagonal terms
+        let matrix = Matrix3d {
+            v: [
+                [1.2, -0.2, 0.1],
+                [-0.1, 1.1, 0.2],
+                [0.05, -0.15, 1.05],
+            ],
+        };
+        let input_table = LutStore::Store16(vec![0, 65535, 0, 65535, 0, 65535]);
+        let output_table = LutStore::Store16(vec![0, 65535, 0, 65535, 0, 65535]);
+        let mut clut = Vec::new();
+        // 2x2x2 cube mapping (r, g, b) to (r, g, b)
+        for r in 0..2 {
+            for g in 0..2 {
+                for b in 0..2 {
+                    clut.push(if r == 1 { 65535 } else { 0 });
+                    clut.push(if g == 1 { 65535 } else { 0 });
+                    clut.push(if b == 1 { 65535 } else { 0 });
+                }
+            }
+        }
+        LutDataType {
+            num_input_channels: 3,
+            num_output_channels: 3,
+            num_clut_grid_points: 2,
+            matrix,
+            num_input_table_entries: 2,
+            num_output_table_entries: 2,
+            input_table,
+            clut_table: LutStore::Store16(clut),
+            output_table,
+            lut_type: LutType::Lut16,
+        }
     }
 
-    let mut dest = try_vec![0.; src.len()];
+    #[test]
+    fn test_lut3x3_matrix_application() {
+        let lut_data = make_test_lut3x3_data();
 
-    let lut_stage = stage_lut_3x3(lut, options, pcs)?;
-    lut_stage.transform(src, &mut dest)?;
-    Ok(dest)
+        // 1. In-range matrix application and channel mixing
+        // M * [0.4, 0.5, 0.6] = [0.44, 0.63, 0.575]
+        let stage = stage_lut_3x3(
+            &lut_data,
+            TransformOptions::default(),
+            DataColorSpace::Xyz,
+            true,
+        )
+        .unwrap();
+        let src = [0.4f32, 0.5f32, 0.6f32];
+        let mut dst = [0.0f32; 3];
+        stage.transform(&src, &mut dst).unwrap();
+        assert!((dst[0] - 0.44).abs() < 1e-4, "Expected ~0.44 but got {}", dst[0]);
+        assert!((dst[1] - 0.63).abs() < 1e-4, "Expected ~0.63 but got {}", dst[1]);
+        assert!((dst[2] - 0.575).abs() < 1e-4, "Expected ~0.575 but got {}", dst[2]);
+
+        // 2. Lower clamping to 0.0: M * [0.1, 0.9, 0.1] = [-0.05, 1.00, -0.025] -> [0.0, 1.0, 0.0]
+        let src_lower = [0.1f32, 0.9f32, 0.1f32];
+        stage.transform(&src_lower, &mut dst).unwrap();
+        assert!((dst[0] - 0.0).abs() < 1e-4, "Expected 0.0 lower clamp but got {}", dst[0]);
+        assert!((dst[1] - 1.0).abs() < 1e-4, "Expected 1.0 but got {}", dst[1]);
+        assert!((dst[2] - 0.0).abs() < 1e-4, "Expected 0.0 lower clamp but got {}", dst[2]);
+
+        // 3. Upper clamping to 1.0: M * [0.9, 0.1, 0.8] = [1.14, 0.18, 0.87] -> [1.0, 0.18, 0.87]
+        let src_upper = [0.9f32, 0.1f32, 0.8f32];
+        stage.transform(&src_upper, &mut dst).unwrap();
+        assert!((dst[0] - 1.0).abs() < 1e-4, "Expected 1.0 upper clamp but got {}", dst[0]);
+        assert!((dst[1] - 0.18).abs() < 1e-4, "Expected ~0.18 but got {}", dst[1]);
+        assert!((dst[2] - 0.87).abs() < 1e-4, "Expected ~0.87 but got {}", dst[2]);
+
+        // 4. Gating test: matrix NOT applied when pcs == DataColorSpace::Lab
+        let stage_lab = stage_lut_3x3(
+            &lut_data,
+            TransformOptions::default(),
+            DataColorSpace::Lab,
+            true,
+        )
+        .unwrap();
+        stage_lab.transform(&src, &mut dst).unwrap();
+        assert!((dst[0] - 0.4).abs() < 1e-4, "Expected 0.4 without matrix but got {}", dst[0]);
+        assert!((dst[1] - 0.5).abs() < 1e-4, "Expected 0.5 without matrix but got {}", dst[1]);
+        assert!((dst[2] - 0.6).abs() < 1e-4, "Expected 0.6 without matrix but got {}", dst[2]);
+
+        // 5. Gating test: matrix NOT applied when is_input_pcs == false
+        let stage_not_pcs = stage_lut_3x3(
+            &lut_data,
+            TransformOptions::default(),
+            DataColorSpace::Xyz,
+            false,
+        )
+        .unwrap();
+        stage_not_pcs.transform(&src, &mut dst).unwrap();
+        assert!((dst[0] - 0.4).abs() < 1e-4, "Expected 0.4 without matrix but got {}", dst[0]);
+        assert!((dst[1] - 0.5).abs() < 1e-4, "Expected 0.5 without matrix but got {}", dst[1]);
+        assert!((dst[2] - 0.6).abs() < 1e-4, "Expected 0.6 without matrix but got {}", dst[2]);
+    }
+
+    #[cfg(feature = "any_to_any")]
+    #[test]
+    fn test_katana_stages_matrix_application() {
+        let lut_data = make_test_lut3x3_data();
+        let mut src = [0.4f32, 0.5f32, 0.6f32];
+
+        // katana_output_stage_lut_3x3 has is_input_pcs = true -> matrix MUST be applied
+        let output_stage = katana_output_stage_lut_3x3::<f32>(
+            &lut_data,
+            TransformOptions::default(),
+            DataColorSpace::Xyz,
+            8,
+        )
+        .unwrap();
+        let mut dst = [0.0f32; 3];
+        output_stage.to_output(&mut src, &mut dst).unwrap();
+        assert!((dst[0] - 0.44).abs() < 1e-4, "Expected ~0.44 but got {}", dst[0]);
+        assert!((dst[1] - 0.63).abs() < 1e-4, "Expected ~0.63 but got {}", dst[1]);
+        assert!((dst[2] - 0.575).abs() < 1e-4, "Expected ~0.575 but got {}", dst[2]);
+
+        // katana_input_stage_lut_3x3 has is_input_pcs = false -> matrix must NOT be applied
+        let input_stage = katana_input_stage_lut_3x3::<f32>(
+            &lut_data,
+            TransformOptions::default(),
+            DataColorSpace::Xyz,
+            8,
+        )
+        .unwrap();
+        let dst_vec = input_stage.to_pcs(&src).unwrap();
+        assert!((dst_vec[0] - 0.4).abs() < 1e-4, "Expected 0.4 without matrix but got {}", dst_vec[0]);
+        assert!((dst_vec[1] - 0.5).abs() < 1e-4, "Expected 0.5 without matrix but got {}", dst_vec[1]);
+        assert!((dst_vec[2] - 0.6).abs() < 1e-4, "Expected 0.6 without matrix but got {}", dst_vec[2]);
+    }
 }
