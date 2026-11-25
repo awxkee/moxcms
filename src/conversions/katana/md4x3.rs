@@ -84,7 +84,6 @@ struct Multidimensional4x3<
     bias: Vector3f,
     direction: MultidimensionalDirection,
     options: TransformOptions,
-    pcs: DataColorSpace,
     grid_size: [u8; 4],
     _phantom: PhantomData<T>,
     bit_depth: usize,
@@ -168,14 +167,6 @@ impl<T: Copy + Default + AsPrimitive<f32> + PointeeSizeExpressible + Send + Sync
 
         let mut new_dst = vec![0f32; (input.len() / 4) * 3];
 
-        // If PCS is LAB then linear interpolation should be used
-        if self.pcs == DataColorSpace::Lab || self.pcs == DataColorSpace::Xyz {
-            self.to_pcs_impl(input, &mut new_dst, |x, y, z, w| {
-                lut.quadlinear_vec3(x, y, z, w)
-            })?;
-            return Ok(new_dst);
-        }
-
         match self.options.interpolation_method {
             #[cfg(feature = "options")]
             InterpolationMethod::Tetrahedral => {
@@ -206,7 +197,7 @@ fn make_multidimensional_4x3<
 >(
     mab: &LutMultidimensionalType,
     options: TransformOptions,
-    pcs: DataColorSpace,
+    _pcs: DataColorSpace,
     direction: MultidimensionalDirection,
     bit_depth: usize,
 ) -> Result<Multidimensional4x3<T>, CmsError> {
@@ -297,7 +288,6 @@ fn make_multidimensional_4x3<
         direction,
         options,
         clut,
-        pcs,
         grid_size,
         bias,
         _phantom: PhantomData,
