@@ -40,12 +40,12 @@ use num_traits::AsPrimitive;
 use std::array::from_fn;
 use std::marker::PhantomData;
 
-#[derive(Default)]
 struct KatanaLutNx3<T> {
     linearization: Vec<Vec<f32>>,
     clut: Vec<f32>,
     grid_size: u8,
     input_inks: usize,
+    src_layout: Layout,
     output: [Vec<f32>; 3],
     _phantom: PhantomData<T>,
     bit_depth: usize,
@@ -67,7 +67,8 @@ struct KatanaLut3xN<T> {
 
 impl<T: Copy + PointeeSizeExpressible + AsPrimitive<f32>> KatanaLutNx3<T> {
     fn to_pcs_impl(&self, input: &[T]) -> Result<Vec<f32>, CmsError> {
-        if !input.len().is_multiple_of(self.input_inks) {
+        let src_channels = self.src_layout.channels();
+        if !input.len().is_multiple_of(src_channels) {
             return Err(CmsError::LaneMultipleOfChannels);
         }
         let norm_value = if T::FINITE {
@@ -90,7 +91,7 @@ impl<T: Copy + PointeeSizeExpressible + AsPrimitive<f32>> KatanaLutNx3<T> {
 
         let mut inks = vec![0.; self.input_inks];
 
-        let mut dst = vec![0.; (input.len() / layout.channels()) * 3];
+        let mut dst = vec![0.; (input.len() / src_channels) * 3];
 
         let fetcher = interpolate_out_function(layout);
 
@@ -98,7 +99,7 @@ impl<T: Copy + PointeeSizeExpressible + AsPrimitive<f32>> KatanaLutNx3<T> {
             .as_chunks_mut::<3>()
             .0
             .iter_mut()
-            .zip(input.chunks_exact(layout.channels()))
+            .zip(input.chunks_exact(src_channels))
         {
             for ((ink, src_ink), curve) in inks.iter_mut().zip(src).zip(self.linearization.iter()) {
                 *ink = lut_interp_linear_float(src_ink.as_() * norm_value, curve);
@@ -122,7 +123,7 @@ impl<T: Copy + PointeeSizeExpressible + AsPrimitive<f32>> KatanaInitialStage<f32
     for KatanaLutNx3<T>
 {
     fn to_pcs(&self, input: &[T]) -> Result<Vec<f32>, CmsError> {
-        if !input.len().is_multiple_of(self.input_inks) {
+        if !input.len().is_multiple_of(self.src_layout.channels()) {
             return Err(CmsError::LaneMultipleOfChannels);
         }
 
@@ -225,6 +226,7 @@ where
 }
 
 fn katana_make_lut_nx3<T: Copy + PointeeSizeExpressible + AsPrimitive<f32>>(
+    src_layout: Layout,
     inks: usize,
     lut: &LutDataType,
     _: TransformOptions,
@@ -289,6 +291,7 @@ fn katana_make_lut_nx3<T: Copy + PointeeSizeExpressible + AsPrimitive<f32>>(
         grid_size: lut.num_clut_grid_points,
         output: [gamma_curve0, gamma_curve1, gamma_curve2],
         input_inks: inks,
+        src_layout,
         _phantom: PhantomData,
         bit_depth,
     };
@@ -308,10 +311,10 @@ fn katana_make_lut_3xn<T: Copy + PointeeSizeExpressible + AsPrimitive<f32>>(
         return Err(CmsError::UnsupportedProfileConnection);
     }
     if target_color_space == DataColorSpace::Rgb {
-        if lut.num_output_channels != 3 || lut.num_output_channels != 4 {
+        if lut.num_output_channels != 3 {
             return Err(CmsError::InvalidInksCountForProfile);
         }
-        if dst_layout != Layout::Rgb || dst_layout != Layout::Rgba {
+        if dst_layout != Layout::Rgb && dst_layout != Layout::Rgba {
             return Err(CmsError::InvalidInksCountForProfile);
         }
     } else if lut.num_output_channels as usize != dst_layout.channels() {
@@ -402,7 +405,7 @@ pub(crate) fn katana_input_make_lut_nx3<
     } else if lut.num_input_channels != src_layout.channels() as u8 {
         return Err(CmsError::InvalidInksCountForProfile);
     }
-    let z0 = katana_make_lut_nx3::<T>(inks, lut, options, pcs, bit_depth)?;
+    let z0 = katana_make_lut_nx3::<T>(src_layout, inks, lut, options, pcs, bit_depth)?;
     Ok(Box::new(z0))
 }
 

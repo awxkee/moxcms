@@ -82,14 +82,22 @@ where
         )? {
             LutWarehouse::Lut(lut) => katana_input_make_lut_nx3::<T>(
                 src_layout,
-                src_layout.channels(),
+                if source.color_space == DataColorSpace::Rgb {
+                    3
+                } else {
+                    src_layout.channels()
+                },
                 lut,
                 options,
-                source.pcs,
+                source.color_space,
                 BIT_DEPTH,
             )?,
             LutWarehouse::Multidimensional(mab) => katana_multi_dimensional_nx3_to_pcs::<T>(
-                src_layout, mab, options, source.pcs, BIT_DEPTH,
+                src_layout,
+                mab,
+                options,
+                source.color_space,
+                BIT_DEPTH,
             )?,
         },
     };
@@ -118,7 +126,11 @@ where
                 BIT_DEPTH,
             )?,
             LutWarehouse::Multidimensional(mab) => katana_multi_dimensional_3xn_to_device::<T>(
-                dst_layout, mab, options, dest.pcs, BIT_DEPTH,
+                dst_layout,
+                mab,
+                options,
+                dest.color_space,
+                BIT_DEPTH,
             )?,
         }
     } else if dest.is_matrix_shaper() {

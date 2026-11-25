@@ -141,7 +141,7 @@ where
         if !src.len().is_multiple_of(3) {
             return Err(CmsError::LaneMultipleOfChannels);
         }
-        if !dst.len().is_multiple_of(self.output_inks) {
+        if !dst.len().is_multiple_of(self.dst_layout.channels()) {
             return Err(CmsError::LaneMultipleOfChannels);
         }
 
