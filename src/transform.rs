@@ -2187,4 +2187,51 @@ mod tests {
             }
         }
     }
+
+    #[cfg(feature = "any_to_any")]
+    #[test]
+    fn test_katana_cmyk_to_rgba_injects_opaque_alpha() {
+        // Degenerated leading zeros in a_curves force the Katana pipeline.
+        let mut a_curve: Vec<u16> = (0..=256)
+            .map(|i| ((i * 65535 + 128) / 256) as u16)
+            .collect();
+        a_curve[..40].fill(0);
+
+        let mab = LutMultidimensionalType {
+            num_input_channels: 4,
+            num_output_channels: 3,
+            grid_points: [2, 2, 2, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            clut: Some(LutStore::Store8([255u8, 128, 128].repeat(16))),
+            a_curves: vec![ToneReprCurve::Lut(a_curve); 4],
+            b_curves: vec![ToneReprCurve::Lut(Vec::new()); 3],
+            m_curves: vec![],
+            matrix: Matrix3d::IDENTITY,
+            bias: Vector3d::default(),
+        };
+        let profile = ColorProfile {
+            color_space: DataColorSpace::Cmyk,
+            pcs: DataColorSpace::Lab,
+            lut_a_to_b_colorimetric: Some(LutWarehouse::Multidimensional(mab)),
+            ..Default::default()
+        };
+
+        let transform = profile
+            .create_transform_8bit(
+                Layout::Rgba,
+                &ColorProfile::new_srgb(),
+                Layout::Rgba,
+                TransformOptions {
+                    rendering_intent: RenderingIntent::RelativeColorimetric,
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+
+        // K = 0 and K = 42 must not overwrite output RGBA alpha; output must be opaque (255).
+        let src = [0u8, 0, 0, 0, 0, 0, 0, 42];
+        let mut dst = [0u8; 8];
+        transform.transform(&src, &mut dst).unwrap();
+        assert_eq!(dst[3], 255, "K=0 leaked into alpha: {dst:?}");
+        assert_eq!(dst[7], 255, "K=42 leaked into alpha: {dst:?}");
+    }
 }
