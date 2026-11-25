@@ -56,6 +56,7 @@ struct MultidimensionalNx3<
     direction: MultidimensionalDirection,
     grid_size: [u8; 16],
     input_inks: usize,
+    src_layout: Layout,
     _phantom: PhantomData<T>,
     bit_depth: usize,
 }
@@ -116,7 +117,7 @@ impl<T: Copy + Default + AsPrimitive<f32> + PointeeSizeExpressible + Send + Sync
             let md_lut = MultidimensionalLut::new(self.grid_size, self.input_inks, 3);
 
             for (src, dst) in input
-                .chunks_exact(layout.channels())
+                .chunks_exact(self.src_layout.channels())
                 .zip(dst.as_chunks_mut::<3>().0.iter_mut())
             {
                 for ((ink, src_ink), curve) in inks.iter_mut().zip(src).zip(a_curves.iter()) {
@@ -153,11 +154,12 @@ impl<T: Copy + Default + AsPrimitive<f32> + PointeeSizeExpressible + Send + Sync
     KatanaInitialStage<f32, T> for MultidimensionalNx3<T>
 {
     fn to_pcs(&self, input: &[T]) -> Result<Vec<f32>, CmsError> {
-        if !input.len().is_multiple_of(self.input_inks) {
+        let src_channels = self.src_layout.channels();
+        if !input.len().is_multiple_of(src_channels) {
             return Err(CmsError::LaneMultipleOfChannels);
         }
 
-        let mut new_dst = vec![0f32; (input.len() / self.input_inks) * 3];
+        let mut new_dst = vec![0f32; (input.len() / src_channels) * 3];
 
         self.to_pcs_impl(input, &mut new_dst)?;
         Ok(new_dst)
@@ -167,6 +169,7 @@ impl<T: Copy + Default + AsPrimitive<f32> + PointeeSizeExpressible + Send + Sync
 fn make_multidimensional_nx3<
     T: Copy + Default + AsPrimitive<f32> + PointeeSizeExpressible + Send + Sync,
 >(
+    src_layout: Layout,
     mab: &LutMultidimensionalType,
     _: TransformOptions,
     _: DataColorSpace,
@@ -257,6 +260,7 @@ fn make_multidimensional_nx3<
         grid_size: mab.grid_points,
         bias,
         input_inks: mab.num_input_channels as usize,
+        src_layout,
         _phantom: PhantomData,
         bit_depth,
     };
@@ -284,6 +288,7 @@ pub(crate) fn katana_multi_dimensional_nx3_to_pcs<
         return Err(CmsError::InvalidInksCountForProfile);
     }
     let transform = make_multidimensional_nx3::<T>(
+        src_layout,
         mab,
         options,
         pcs,

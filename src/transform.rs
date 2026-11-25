@@ -2187,4 +2187,138 @@ mod tests {
             }
         }
     }
+
+    #[cfg(feature = "any_to_any")]
+    #[test]
+    fn test_any_to_any_5ink_and_lut_rgb_transforms() {
+        let identity: Vec<u8> = (0..=255).collect();
+        let prof_5ink = ColorProfile {
+            color_space: DataColorSpace::Color5,
+            pcs: DataColorSpace::Lab,
+            lut_a_to_b_colorimetric: Some(LutWarehouse::Lut(LutDataType {
+                num_input_channels: 5,
+                num_output_channels: 3,
+                num_clut_grid_points: 2,
+                matrix: Matrix3d::IDENTITY,
+                num_input_table_entries: 256,
+                num_output_table_entries: 256,
+                input_table: LutStore::Store8(identity.repeat(5)),
+                clut_table: LutStore::Store8([128u8, 128, 128].repeat(32)),
+                output_table: LutStore::Store8(identity.repeat(3)),
+                lut_type: LutType::Lut8,
+            })),
+            lut_b_to_a_colorimetric: Some(LutWarehouse::Lut(LutDataType {
+                num_input_channels: 3,
+                num_output_channels: 5,
+                num_clut_grid_points: 2,
+                matrix: Matrix3d::IDENTITY,
+                num_input_table_entries: 256,
+                num_output_table_entries: 256,
+                input_table: LutStore::Store8(identity.repeat(3)),
+                clut_table: LutStore::Store8([64u8, 80, 96, 112, 128].repeat(8)),
+                output_table: LutStore::Store8(identity.repeat(5)),
+                lut_type: LutType::Lut8,
+            })),
+            ..Default::default()
+        };
+        let rgb_lut8 = ColorProfile {
+            color_space: DataColorSpace::Rgb,
+            pcs: DataColorSpace::Lab,
+            lut_a_to_b_colorimetric: Some(LutWarehouse::Lut(LutDataType {
+                num_input_channels: 3,
+                num_output_channels: 3,
+                num_clut_grid_points: 2,
+                matrix: Matrix3d::IDENTITY,
+                num_input_table_entries: 256,
+                num_output_table_entries: 256,
+                input_table: LutStore::Store8(identity.repeat(3)),
+                clut_table: LutStore::Store8([128u8, 128, 128].repeat(8)),
+                output_table: LutStore::Store8(identity.repeat(3)),
+                lut_type: LutType::Lut8,
+            })),
+            lut_b_to_a_colorimetric: Some(LutWarehouse::Lut(LutDataType {
+                num_input_channels: 3,
+                num_output_channels: 3,
+                num_clut_grid_points: 2,
+                matrix: Matrix3d::IDENTITY,
+                num_input_table_entries: 256,
+                num_output_table_entries: 256,
+                input_table: LutStore::Store8(identity.repeat(3)),
+                clut_table: LutStore::Store8([100u8, 120, 140].repeat(8)),
+                output_table: LutStore::Store8(identity.repeat(3)),
+                lut_type: LutType::Lut8,
+            })),
+            ..Default::default()
+        };
+        let rgb_mab = ColorProfile {
+            color_space: DataColorSpace::Rgb,
+            pcs: DataColorSpace::Lab,
+            lut_a_to_b_colorimetric: Some(LutWarehouse::Multidimensional(
+                LutMultidimensionalType {
+                    num_input_channels: 3,
+                    num_output_channels: 3,
+                    grid_points: [2, 2, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                    clut: Some(LutStore::Store8([128u8, 128, 128].repeat(8))),
+                    a_curves: vec![ToneReprCurve::Lut(Vec::new()); 3],
+                    b_curves: vec![ToneReprCurve::Lut(Vec::new()); 3],
+                    m_curves: vec![],
+                    matrix: Matrix3d::IDENTITY,
+                    bias: Vector3d::default(),
+                },
+            )),
+            lut_b_to_a_colorimetric: Some(LutWarehouse::Multidimensional(
+                LutMultidimensionalType {
+                    num_input_channels: 3,
+                    num_output_channels: 3,
+                    grid_points: [2, 2, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                    clut: Some(LutStore::Store8([100u8, 120, 140].repeat(8))),
+                    a_curves: vec![ToneReprCurve::Lut(Vec::new()); 3],
+                    b_curves: vec![ToneReprCurve::Lut(Vec::new()); 3],
+                    m_curves: vec![],
+                    matrix: Matrix3d::IDENTITY,
+                    bias: Vector3d::default(),
+                },
+            )),
+            ..Default::default()
+        };
+        let opts = TransformOptions {
+            rendering_intent: RenderingIntent::RelativeColorimetric,
+            ..Default::default()
+        };
+
+        // 1. 5-ink -> LUT8 RGB (2 pixels)
+        let xf = prof_5ink
+            .create_transform_8bit(Layout::Inks5, &rgb_lut8, Layout::Rgb, opts)
+            .unwrap();
+        let mut out_rgb = [0u8; 6];
+        xf.transform(&[0u8; 10], &mut out_rgb).unwrap();
+        assert_eq!(out_rgb, [100, 120, 140, 100, 120, 140]);
+
+        // 2. 5-ink -> mBA RGBA (2 pixels)
+        let xf = prof_5ink
+            .create_transform_8bit(Layout::Inks5, &rgb_mab, Layout::Rgba, opts)
+            .unwrap();
+        let mut out_rgba = [0u8; 8];
+        xf.transform(&[0u8; 10], &mut out_rgba).unwrap();
+        assert_eq!(&out_rgba[..3], &[100, 120, 140]);
+        assert_eq!(&out_rgba[4..7], &[100, 120, 140]);
+
+        // 3. LUT8 RGBA -> 5-ink (2 pixels)
+        let xf = rgb_lut8
+            .create_transform_8bit(Layout::Rgba, &prof_5ink, Layout::Inks5, opts)
+            .unwrap();
+        let mut out_5 = [0u8; 10];
+        xf.transform(&[10, 20, 30, 255, 40, 50, 60, 128], &mut out_5)
+            .unwrap();
+        assert_eq!(out_5, [64, 80, 96, 112, 128, 64, 80, 96, 112, 128]);
+
+        // 4. mAB RGBA -> 5-ink (2 pixels)
+        let xf = rgb_mab
+            .create_transform_8bit(Layout::Rgba, &prof_5ink, Layout::Inks5, opts)
+            .unwrap();
+        let mut out_5b = [0u8; 10];
+        xf.transform(&[10, 20, 30, 255, 40, 50, 60, 128], &mut out_5b)
+            .unwrap();
+        assert_eq!(out_5b, [64, 80, 96, 112, 128, 64, 80, 96, 112, 128]);
+    }
 }
