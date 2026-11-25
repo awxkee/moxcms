@@ -167,10 +167,10 @@ where
     f32: AsPrimitive<T>,
 {
     if (dst_layout == Layout::GrayAlpha && dest.color_space == DataColorSpace::Gray)
-        || (dst_layout == Layout::Rgba || dest.color_space == DataColorSpace::Rgb)
+        || (dst_layout == Layout::Rgba && dest.color_space == DataColorSpace::Rgb)
     {
         return if (src_layout == Layout::GrayAlpha && source.color_space == DataColorSpace::Gray)
-            || (src_layout == Layout::Rgba || source.color_space == DataColorSpace::Rgb)
+            || (src_layout == Layout::Rgba && source.color_space == DataColorSpace::Rgb)
         {
             Some(Box::new(CopyAlphaStage {
                 src_layout,
