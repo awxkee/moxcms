@@ -2187,4 +2187,62 @@ mod tests {
             }
         }
     }
+
+    #[cfg(feature = "any_to_any")]
+    #[test]
+    fn test_matrix_shaper_source_uses_katana_for_degenerated_lab_dest() {
+        let mut clut = vec![0u8; 8 * 3];
+        for l in 0..2 {
+            for a in 0..2 {
+                for b in 0..2 {
+                    let idx = ((l * 2 + a) * 2 + b) * 3;
+                    let val = if l == 1 { 255u8 } else { 0u8 };
+                    clut[idx] = val;
+                    clut[idx + 1] = val;
+                    clut[idx + 2] = val;
+                }
+            }
+        }
+        // Step curve (128 leading zeros -> degenerated): output must be strictly 0 or 255.
+        let step: Vec<u16> = (0..256).map(|i| if i < 128 { 0 } else { 65535 }).collect();
+        let dest = ColorProfile {
+            color_space: DataColorSpace::Rgb,
+            pcs: DataColorSpace::Lab,
+            lut_b_to_a_colorimetric: Some(LutWarehouse::Multidimensional(
+                LutMultidimensionalType {
+                    num_input_channels: 3,
+                    num_output_channels: 3,
+                    grid_points: [2, 2, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                    clut: Some(LutStore::Store8(clut)),
+                    a_curves: vec![ToneReprCurve::Lut(step); 3],
+                    b_curves: vec![ToneReprCurve::Lut(Vec::new()); 3],
+                    m_curves: vec![],
+                    matrix: Matrix3d::IDENTITY,
+                    bias: Vector3d::default(),
+                },
+            )),
+            ..Default::default()
+        };
+
+        let transform = ColorProfile::new_srgb()
+            .create_transform_8bit(
+                Layout::Rgb,
+                &dest,
+                Layout::Rgb,
+                TransformOptions {
+                    rendering_intent: RenderingIntent::RelativeColorimetric,
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+
+        for v in (100u8..=140).step_by(2) {
+            let mut dst = [0u8; 3];
+            transform.transform(&[v, v, v], &mut dst).unwrap();
+            assert!(
+                dst.iter().all(|&c| c == 0 || c == 255),
+                "step curve smeared at input {v}: {dst:?}"
+            );
+        }
+    }
 }

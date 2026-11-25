@@ -862,7 +862,7 @@ where
 
         #[cfg(feature = "any_to_any")]
         let is_katana_required_for_destination =
-            if source.is_matrix_shaper() || dest.pcs == DataColorSpace::Xyz {
+            if dest.is_matrix_shaper() || dest.pcs == DataColorSpace::Xyz {
                 false
             } else if dest.pcs == DataColorSpace::Lab {
                 dest.get_pcs_to_device(options.rendering_intent)
