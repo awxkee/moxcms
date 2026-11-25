@@ -47,6 +47,14 @@ impl LutStore {
     }
 
     #[cfg(feature = "any_to_any")]
+    pub(crate) fn len(&self) -> usize {
+        match self {
+            LutStore::Store8(v) => v.len(),
+            LutStore::Store16(v) => v.len(),
+        }
+    }
+
+    #[cfg(feature = "any_to_any")]
     pub(crate) fn is_degenerated(&self, entries: usize, channel: usize) -> bool {
         let start = entries * channel;
         let end = start + entries;
