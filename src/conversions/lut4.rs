@@ -107,12 +107,6 @@ macro_rules! define_lut4_dispatch {
             fn transform(&self, src: &[f32], dst: &mut [f32]) -> Result<(), CmsError> {
                 let l_tbl = Hypercube::new(&self.clut, self.grid_size as usize, 3)?;
 
-                // If Source PCS is LAB trilinear should be used
-                if self.pcs == DataColorSpace::Lab || self.pcs == DataColorSpace::Xyz {
-                    return self
-                        .transform_impl(src, dst, |x, y, z, w| l_tbl.quadlinear_vec3(x, y, z, w));
-                }
-
                 match self.interpolation_method {
                     #[cfg(feature = "options")]
                     InterpolationMethod::Tetrahedral => {
@@ -191,11 +185,6 @@ impl<T: Copy + PointeeSizeExpressible + AsPrimitive<f32>> KatanaInitialStage<f32
             return Err(CmsError::LaneMultipleOfChannels);
         }
         let l_tbl = Hypercube::new(&self.clut, self.grid_size as usize, 3)?;
-
-        // If Source PCS is LAB trilinear should be used
-        if self.pcs == DataColorSpace::Lab || self.pcs == DataColorSpace::Xyz {
-            return self.to_pcs_impl(input, |x, y, z, w| l_tbl.quadlinear_vec3(x, y, z, w));
-        }
 
         match self.interpolation_method {
             #[cfg(feature = "options")]

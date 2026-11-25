@@ -190,12 +190,6 @@ impl<T: Copy + Default + AsPrimitive<f32> + PointeeSizeExpressible + Send + Sync
 
         let mut new_dst = vec![0f32; input.len()];
 
-        // If PCS is LAB then linear interpolation should be used
-        if self.pcs == DataColorSpace::Lab || self.pcs == DataColorSpace::Xyz {
-            self.to_pcs_impl(input, &mut new_dst, |x, y, z| lut.trilinear_vec3(x, y, z))?;
-            return Ok(new_dst);
-        }
-
         match self.options.interpolation_method {
             #[cfg(feature = "options")]
             InterpolationMethod::Tetrahedral => {

@@ -126,11 +126,6 @@ impl Stage for ACurves4x3<'_> {
     fn transform(&self, src: &[f32], dst: &mut [f32]) -> Result<(), CmsError> {
         let lut = Hypercube::new_hypercube(self.clut, self.grid_size, 3)?;
 
-        // If PCS is LAB then linear interpolation should be used
-        if self.pcs == DataColorSpace::Lab || self.pcs == DataColorSpace::Xyz {
-            return self.transform_impl(src, dst, |x, y, z, w| lut.quadlinear_vec3(x, y, z, w));
-        }
-
         match self.interpolation_method {
             #[cfg(feature = "options")]
             InterpolationMethod::Tetrahedral => {
@@ -155,11 +150,6 @@ impl Stage for ACurves4x3<'_> {
 impl Stage for ACurves4x3Optimized<'_> {
     fn transform(&self, src: &[f32], dst: &mut [f32]) -> Result<(), CmsError> {
         let lut = Hypercube::new_hypercube(self.clut, self.grid_size, 3)?;
-
-        // If PCS is LAB then linear interpolation should be used
-        if self.pcs == DataColorSpace::Lab || self.pcs == DataColorSpace::Xyz {
-            return self.transform_impl(src, dst, |x, y, z, w| lut.quadlinear_vec3(x, y, z, w));
-        }
 
         match self.interpolation_method {
             #[cfg(feature = "options")]

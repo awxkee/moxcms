@@ -1383,6 +1383,183 @@ mod tests {
 
     #[cfg(feature = "options")]
     #[test]
+    fn test_device_to_pcs_4ch_follows_interpolation_method() {
+        // 2x2x2x2 Lab CLUT: white at (C=1, M=1, Y=1, K=0) [index 14], black elsewhere.
+        // At (0.5, 0.5, 0.5, 0.0): tetrahedral gives L* ~50.2 (sRGB ~119), quadlinear gives L* ~12.6 (sRGB 33).
+        let mut clut = [0u8, 128, 128].repeat(16);
+        clut[14 * 3..14 * 3 + 3].copy_from_slice(&[255, 128, 128]);
+        let identity: Vec<u8> = (0..=255).collect();
+
+        let lut8 = LutDataType {
+            num_input_channels: 4,
+            num_output_channels: 3,
+            num_clut_grid_points: 2,
+            matrix: Matrix3d::IDENTITY,
+            num_input_table_entries: 256,
+            num_output_table_entries: 256,
+            input_table: LutStore::Store8(identity.repeat(4)),
+            clut_table: LutStore::Store8(clut.clone()),
+            output_table: LutStore::Store8(identity.repeat(3)),
+            lut_type: LutType::Lut8,
+        };
+        let mab_linear = LutMultidimensionalType {
+            num_input_channels: 4,
+            num_output_channels: 3,
+            grid_points: [2, 2, 2, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            clut: Some(LutStore::Store8(clut.clone())),
+            a_curves: vec![ToneReprCurve::Lut(Vec::new()); 4],
+            b_curves: vec![ToneReprCurve::Lut(Vec::new()); 3],
+            m_curves: vec![],
+            matrix: Matrix3d::IDENTITY,
+            bias: Vector3d::default(),
+        };
+        let mut non_linear_curve: Vec<u16> = (0..=256)
+            .map(|i| ((i * 65535 + 128) / 256) as u16)
+            .collect();
+        non_linear_curve[255] = 65500;
+        let mab_curved = LutMultidimensionalType {
+            a_curves: vec![ToneReprCurve::Lut(non_linear_curve); 4],
+            ..mab_linear.clone()
+        };
+
+        let srgb = ColorProfile::new_srgb();
+        let options = TransformOptions {
+            rendering_intent: RenderingIntent::RelativeColorimetric,
+            interpolation_method: InterpolationMethod::Tetrahedral,
+            ..Default::default()
+        };
+
+        for (label, warehouse) in [
+            ("lut8", LutWarehouse::Lut(lut8)),
+            ("mab_linear_a", LutWarehouse::Multidimensional(mab_linear)),
+            ("mab_curved_a", LutWarehouse::Multidimensional(mab_curved)),
+        ] {
+            let profile = ColorProfile {
+                color_space: DataColorSpace::Cmyk,
+                pcs: DataColorSpace::Lab,
+                lut_a_to_b_colorimetric: Some(warehouse),
+                ..Default::default()
+            };
+            let transform = profile
+                .create_transform_8bit(Layout::Rgba, &srgb, Layout::Rgb, options)
+                .unwrap();
+            let mut dst = [0u8; 3];
+            transform.transform(&[128, 128, 128, 0], &mut dst).unwrap();
+            assert!(
+                dst.iter().all(|&v| v.abs_diff(119) <= 1),
+                "{label}: {dst:?}"
+            );
+        }
+    }
+
+    #[cfg(all(feature = "options", feature = "any_to_any"))]
+    #[test]
+    fn test_katana_device_to_pcs_follows_interpolation_method() {
+        let mut clut4 = [0u8, 128, 128].repeat(16);
+        clut4[14 * 3..14 * 3 + 3].copy_from_slice(&[255, 128, 128]);
+        let mut clut3 = [0u8, 128, 128].repeat(8);
+        clut3[21..].copy_from_slice(&[255, 128, 128]);
+
+        // Non-monotonic outside 128 (both in 0..4 and upper tail) to guarantee Katana dispatch.
+        let mut curve8: Vec<u8> = (0..=255).collect();
+        curve8[1] = 3;
+        curve8[2] = 1;
+        for (offset, slot) in curve8[220..].iter_mut().enumerate() {
+            *slot = (255 - offset) as u8;
+        }
+        let mut curve16: Vec<u16> = (0..=256)
+            .map(|i| ((i * 65535 + 128) / 256) as u16)
+            .collect();
+        for (offset, slot) in curve16[220..].iter_mut().enumerate() {
+            *slot = ((256 - offset) * 255) as u16;
+        }
+
+        let srgb = ColorProfile::new_srgb();
+        let options = TransformOptions {
+            rendering_intent: RenderingIntent::RelativeColorimetric,
+            interpolation_method: InterpolationMethod::Tetrahedral,
+            ..Default::default()
+        };
+
+        let cmyk_lut8 = ColorProfile {
+            color_space: DataColorSpace::Cmyk,
+            pcs: DataColorSpace::Lab,
+            lut_a_to_b_colorimetric: Some(LutWarehouse::Lut(LutDataType {
+                num_input_channels: 4,
+                num_output_channels: 3,
+                num_clut_grid_points: 2,
+                matrix: Matrix3d::IDENTITY,
+                num_input_table_entries: 256,
+                num_output_table_entries: 256,
+                input_table: LutStore::Store8(curve8.repeat(4)),
+                clut_table: LutStore::Store8(clut4.clone()),
+                output_table: LutStore::Store8((0..=255u8).collect::<Vec<_>>().repeat(3)),
+                lut_type: LutType::Lut8,
+            })),
+            ..Default::default()
+        };
+        let cmyk_mab = ColorProfile {
+            color_space: DataColorSpace::Cmyk,
+            pcs: DataColorSpace::Lab,
+            lut_a_to_b_colorimetric: Some(LutWarehouse::Multidimensional(
+                LutMultidimensionalType {
+                    num_input_channels: 4,
+                    num_output_channels: 3,
+                    grid_points: [2, 2, 2, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                    clut: Some(LutStore::Store8(clut4)),
+                    a_curves: vec![ToneReprCurve::Lut(curve16.clone()); 4],
+                    b_curves: vec![ToneReprCurve::Lut(Vec::new()); 3],
+                    m_curves: vec![],
+                    matrix: Matrix3d::IDENTITY,
+                    bias: Vector3d::default(),
+                },
+            )),
+            ..Default::default()
+        };
+        let rgb_mab = ColorProfile {
+            color_space: DataColorSpace::Rgb,
+            pcs: DataColorSpace::Lab,
+            lut_a_to_b_colorimetric: Some(LutWarehouse::Multidimensional(
+                LutMultidimensionalType {
+                    num_input_channels: 3,
+                    num_output_channels: 3,
+                    grid_points: [2, 2, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                    clut: Some(LutStore::Store8(clut3)),
+                    a_curves: vec![ToneReprCurve::Lut(curve16); 3],
+                    b_curves: vec![ToneReprCurve::Lut(Vec::new()); 3],
+                    m_curves: vec![],
+                    matrix: Matrix3d::IDENTITY,
+                    bias: Vector3d::default(),
+                },
+            )),
+            ..Default::default()
+        };
+
+        for (label, prof) in [("katana_lut4x3", cmyk_lut8), ("katana_md4x3", cmyk_mab)] {
+            let transform = prof
+                .create_transform_8bit(Layout::Rgba, &srgb, Layout::Rgb, options)
+                .unwrap();
+            let mut dst = [0u8; 3];
+            transform.transform(&[128, 128, 128, 0], &mut dst).unwrap();
+            assert!(
+                dst.iter().all(|&v| v.abs_diff(119) <= 1),
+                "{label}: {dst:?}"
+            );
+        }
+
+        let transform = rgb_mab
+            .create_transform_8bit(Layout::Rgb, &srgb, Layout::Rgb, options)
+            .unwrap();
+        let mut dst = [0u8; 3];
+        transform.transform(&[128, 128, 128], &mut dst).unwrap();
+        assert!(
+            dst.iter().all(|&v| v.abs_diff(119) <= 1),
+            "katana_md3x3: {dst:?}"
+        );
+    }
+
+    #[cfg(feature = "options")]
+    #[test]
     fn test_high_weights_lut_u16_matches_f32() {
         // High weights give every 10-, 12- and 16-bit sample value its own bin, so these transforms
         // follow the f32 one up to their gamma tables and rounding (Low's 8-bit cut is off by 0.008).
