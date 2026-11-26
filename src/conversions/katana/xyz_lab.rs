@@ -35,7 +35,11 @@ pub(crate) struct KatanaStageLabToXyz {}
 impl KatanaIntermediateStage<f32> for KatanaStageLabToXyz {
     fn stage(&self, input: &mut Vec<f32>) -> Result<Vec<f32>, CmsError> {
         for dst in input.as_chunks_mut::<3>().0 {
-            let lab = Lab::new(dst[0], dst[1], dst[2]);
+            let lab = Lab::new(
+                dst[0].clamp(0.0, 1.0),
+                dst[1].clamp(0.0, 1.0),
+                dst[2].clamp(0.0, 1.0),
+            );
             let xyz = lab.to_pcs_xyz();
             dst[0] = xyz.x;
             dst[1] = xyz.y;
@@ -58,5 +62,20 @@ impl KatanaIntermediateStage<f32> for KatanaStageXyzToLab {
             dst[2] = lab.b;
         }
         Ok(std::mem::take(input))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn katana_lab_to_xyz_clamps_pcs_channels() {
+        let stage = KatanaStageLabToXyz::default();
+        let mut unclamped = vec![0.013f32, 1.396, -0.024];
+        let mut clamped = vec![0.013f32, 1.0, 0.0];
+        let out_unclamped = stage.stage(&mut unclamped).unwrap();
+        let out_clamped = stage.stage(&mut clamped).unwrap();
+        assert_eq!(out_unclamped, out_clamped);
     }
 }

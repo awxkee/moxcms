@@ -546,3 +546,89 @@ pub(crate) fn prepare_mba_3x3(
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        ColorProfile, DataColorSpace, Layout, LutWarehouse, ProfileClass, ProfileVersion,
+        RenderingIntent, ToneReprCurve,
+    };
+
+    #[test]
+    fn mab_lab_pcs_clamps_out_of_range_matrix_output() {
+        // When an mAB RGB -> Lab profile has linear (identity) B-curves, BCurves3
+        // is skipped and the matrix stage may emit values outside [0.0, 1.0].
+        // StageLabToXyz must clamp PCS Lab channels to [0.0, 1.0] (L* in [0, 100],
+        // a*/b* in [-128, +127]) so Lab->XYZ does not produce wildly wrong colors,
+        // while keeping PCS XYZ unbounded for e-sRGB / HDR profiles.
+        let mab = LutMultidimensionalType {
+            num_input_channels: 3,
+            num_output_channels: 3,
+            grid_points: [0; 16],
+            clut: None,
+            a_curves: vec![],
+            m_curves: vec![
+                ToneReprCurve::Lut(vec![0, 65535]),
+                ToneReprCurve::Lut(vec![0, 65535]),
+                ToneReprCurve::Lut(vec![0, 65535]),
+            ],
+            b_curves: vec![
+                ToneReprCurve::Lut(vec![0, 65535]),
+                ToneReprCurve::Lut(vec![0, 65535]),
+                ToneReprCurve::Lut(vec![0, 65535]),
+            ],
+            // Matrix mapping (0.542, 0.013, 0.791) -> (0.013, 1.396, -0.024)
+            matrix: Matrix3d {
+                v: [
+                    [0.0, 1.0, 0.0],
+                    [1.690308, -1.690308, 0.0],
+                    [0.0, 0.676102, -0.676102],
+                ],
+            },
+            bias: Vector3d {
+                v: [0.0, 0.501999, 0.501999],
+            },
+        };
+
+        let mut src = ColorProfile::new_srgb();
+        src.version_internal = ProfileVersion::V4_3;
+        src.profile_class = ProfileClass::InputDevice;
+        src.color_space = DataColorSpace::Rgb;
+        src.pcs = DataColorSpace::Lab;
+        src.lut_a_to_b_perceptual = Some(LutWarehouse::Multidimensional(mab));
+        src.red_colorant = Default::default();
+        src.green_colorant = Default::default();
+        src.blue_colorant = Default::default();
+        src.red_trc = None;
+        src.green_trc = None;
+        src.blue_trc = None;
+
+        let dst = ColorProfile::new_srgb();
+        let xform = src
+            .create_transform_8bit(
+                Layout::Rgb,
+                &dst,
+                Layout::Rgb,
+                TransformOptions {
+                    rendering_intent: RenderingIntent::Perceptual,
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+
+        let input = [138u8, 3, 202]; // ~ (0.542, 0.013, 0.791)
+        let mut output = [0u8; 3];
+        xform.transform(&input, &mut output).unwrap();
+        // Clamped Lab=(1.3, +127, -128) -> sRGB ~ [0, 0, 200].
+        // Without clamping, Lab=(1.3, +228, -134) produced sRGB ~ [177, 0, 211].
+        assert!(
+            output[0] <= 10,
+            "expected near-zero red from clamped Lab PCS, got {output:?}"
+        );
+        assert!(
+            (185..=215).contains(&output[2]),
+            "expected blue near 200, got {output:?}"
+        );
+    }
+}
